@@ -5,6 +5,7 @@
   import ActionPanel from '$lib/components/ActionPanel.svelte';
   import { streamAction } from '$lib/utils/action.js';
   import { invalidateAll } from '$app/navigation';
+  import { browser } from '$app/environment';
 
   let { data } = $props();
 
@@ -55,6 +56,46 @@
 
   // ── Mobile map toggle ──
   let mapVisible = $state(true);
+
+  // ── Mobile scroll-focus ──
+  let isMobile = $state(false);
+  let scrollFocusedSlug = $state(null);
+  let scrollRaf = null;
+
+  $effect(() => {
+    if (!browser) return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    isMobile = mq.matches;
+    const onChange = e => { isMobile = e.matches; if (!e.matches) scrollFocusedSlug = null; };
+    mq.addEventListener('change', onChange);
+
+    function onScroll() {
+      if (!isMobile) return;
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = null;
+        // Aim for 65% down the viewport — below the sticky 45vh map
+        const target = window.innerHeight * 0.65;
+        let best = null, bestDist = Infinity;
+        for (const el of document.querySelectorAll('[id^="card-"]')) {
+          const r = el.getBoundingClientRect();
+          if (r.bottom < 0 || r.top > window.innerHeight) continue;
+          const dist = Math.abs((r.top + r.height / 2) - target);
+          if (dist < bestDist) { bestDist = dist; best = el.id.replace('card-', ''); }
+        }
+        scrollFocusedSlug = best;
+      });
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      mq.removeEventListener('change', onChange);
+      window.removeEventListener('scroll', onScroll);
+    };
+  });
+
+  // On mobile use scroll position to drive map focus; mouse hover wins on desktop
+  const effectiveHovered = $derived(hoveredSlug || (isMobile ? scrollFocusedSlug : null));
 
   // ── In-browser actions ──
   let actionVisible  = $state(false);
@@ -204,7 +245,7 @@
 
   <div class="layout">
     <div class="map-col" class:map-hidden={!mapVisible}>
-      <OverviewMap {trips} home={data.home} {hoveredSlug}
+      <OverviewMap {trips} home={data.home} hoveredSlug={effectiveHovered}
         selectedSlug={selectedTrip?._slug}
         onTripClick={t => selectedTrip = t} />
     </div>
@@ -676,8 +717,8 @@
     header h1 { font-size: 1.2rem; }
     .count-num { font-size: 1.3rem; }
 
-    /* Stacked layout */
-    .layout { grid-template-columns: 1fr; }
+    /* Stacked layout — must override desktop overflow:hidden or sticky breaks */
+    .layout { grid-template-columns: 1fr; overflow: visible; height: auto; }
 
     .map-col {
       height: var(--map-h-mobile);
@@ -690,8 +731,8 @@
     .map-col.map-hidden { height: 0; }
 
     /* Prevent any child from widening the document */
-    .page, .cards-col { overflow-x: hidden; }
-    .cards-col { height: auto; }
+    .page { overflow-x: hidden; }
+    .cards-col { height: auto; overflow-x: hidden; overflow-y: visible; }
 
     /* Controls: clip overflow at the wrapper, scroll inside */
     .controls-wrap { overflow: hidden; }
@@ -703,8 +744,8 @@
     .chip { min-height: 36px; padding: 0.35rem 0.7rem; font-size: 0.74rem; }
     .filter-groups { gap: 1.25rem; padding: 0.8rem 1.1rem; }
 
-    /* Restore scroll-area scrolling (was removed by overflow:visible) */
-    .scroll-area { overflow-y: auto; }
+    /* Body scrolls on mobile — scroll-area doesn't need its own container */
+    .scroll-area { overflow-y: visible; min-height: 0; }
     .grid { padding: 1rem 0.85rem 3rem; gap: 0.75rem; }
 
     .empty { padding: 3rem 1rem; }
