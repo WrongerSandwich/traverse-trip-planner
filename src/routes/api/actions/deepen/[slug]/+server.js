@@ -18,8 +18,70 @@ function parseSection(text, tag) {
   return m?.[1]?.trim() ?? null;
 }
 
+/**
+ * Run a research agent loop with web search.
+ * Calls the API repeatedly until stop_reason is "end_turn",
+ * passing back tool_results for each web_search call so Anthropic
+ * can incorporate the search results.
+ */
+async function runResearchAgent(client, system, userMsg, onSearch) {
+  const tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+  let messages = [{ role: 'user', content: userMsg }];
+  const MAX_TURNS = 20; // safety ceiling
+
+  for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const response = await client.messages.create({
+      model: 'claude-opus-4-7',
+      max_tokens: 8000,
+      system,
+      tools,
+      messages,
+      betas: ['web-search-2025-03-05'],
+    });
+
+    const textBlocks = response.content.filter(b => b.type === 'text');
+    const text = textBlocks.map(b => b.text).join('\n');
+
+    if (response.stop_reason === 'end_turn') {
+      return text;
+    }
+
+    if (response.stop_reason === 'tool_use') {
+      // Add assistant's full response to the conversation
+      messages = [...messages, { role: 'assistant', content: response.content }];
+
+      // Acknowledge each web_search call so Anthropic can provide results
+      const toolResults = [];
+      for (const block of response.content) {
+        if (block.type === 'tool_use' && block.name === 'web_search') {
+          const query = block.input?.query ?? '';
+          if (query) onSearch?.(`Searching: "${query}"`);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: '', // Anthropic fills in results server-side
+          });
+        }
+      }
+
+      if (toolResults.length > 0) {
+        messages = [...messages, { role: 'user', content: toolResults }];
+      } else if (text) {
+        // tool_use with no web_search blocks — return whatever text we have
+        return text;
+      }
+      continue;
+    }
+
+    // max_tokens or other stop — return what we have
+    if (text) return text;
+    throw new Error(`Unexpected stop_reason: ${response.stop_reason}`);
+  }
+
+  throw new Error(`Research agent hit the ${MAX_TURNS}-turn safety limit.`);
+}
+
 export function GET({ params }) {
-  // Allow checking if a slug is deepenable
   const file = findIdeaFile(params.slug);
   if (!file) return new Response('Not found', { status: 404 });
   return new Response('ok');
@@ -37,27 +99,23 @@ export function POST({ params }) {
         const ideaPath = findIdeaFile(slug);
         if (!ideaPath) throw new Error(`No idea file found for slug: ${slug}`);
 
-        send('Reading trip idea and home preferences...');
+        send('Reading trip idea and home preferences…');
         const ideaContent = readFileSync(ideaPath, 'utf8');
         const homeMd = readFileSync(join(ROOT, 'home.md'), 'utf8');
         const today = new Date().toISOString().slice(0, 10);
 
-        // Parse key fields from frontmatter
         const fm = {};
         for (const line of ideaContent.split('\n')) {
+          if (line === '---') continue;
           const c = line.indexOf(':');
-          if (c > 0 && line.startsWith('---') === false) {
-            fm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
-          }
+          if (c > 0) fm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
         }
 
-        send(`Researching ${fm.title || slug}...`);
+        send(`Researching ${fm.title || slug} with live web search…`);
 
         const client = new Anthropic();
 
-        const isFlyIn = fm.fly_in === 'true';
-
-        const system = `You are a meticulous travel researcher. Your job is to produce detailed, accurate, useful research for a specific trip idea.
+        const system = `You are a meticulous travel researcher. Your job is to produce detailed, accurate, useful research for a specific trip idea using web search to find current information.
 
 The trip to research:
 ${ideaContent}
@@ -67,50 +125,50 @@ ${homeMd}
 
 Today's date: ${today}
 
-Produce four research sections. Each section must be inside its own XML tag. Omit the tags for sections you cannot produce confidently. Be concrete and specific — name actual places, hours, prices where known. Flag anything that requires on-site verification.
+Search the web for current information: museum hours, admission prices, lodging options and rates, restaurant details, road conditions, seasonal events. Verify facts before including them.
+
+Produce four research sections inside XML tags. Be concrete and specific — name actual places, hours, prices. Note anything that requires on-site verification.
 
 <overview_prose>
-2–4 paragraphs of prose (no headers inside) covering: what makes this trip worth doing, the actual experience, what's distinctive vs. nearby alternatives. This becomes the body of overview.md.
+2–4 paragraphs of prose (no headers inside). What makes this trip worth doing, the actual experience, what's distinctive vs nearby alternatives.
 </overview_prose>
 
 <frontmatter>
-Provide these fields as plain "key: value" lines (one per line, no YAML dashes):
-region: [e.g. Colorado Plateau, UT]
-home_distance_mi: [approximate miles from Overland Park]
-driving_hours: [one-way drive time in hours, or SLC-to-destination for fly-in]
-duration_days: [e.g. [2,3] for uncertain, or 4 for fixed]
-weekend_viable: [true or false]
-best_seasons: [e.g. [spring, fall]]
-avoid_months: [e.g. [jun, jul, aug]]
-ev_friendly: [true or false — note charger availability]
-tags: [inline array like [scenic-drive, small-town, historic]]
-vibe: [short phrase]
-cost_tier: [budget, mid, or splurge]
-waypoints: [inline array of key cities along the driving route, e.g. [Overland Park KS, Leavenworth KS, Atchison KS]. For fly-in, use the driving segment from arrival airport to destination.]
+Plain "key: value" lines (one per line):
+region:
+home_distance_mi:
+driving_hours:
+duration_days:
+weekend_viable:
+best_seasons:
+avoid_months:
+ev_friendly:
+tags:
+vibe:
+cost_tier:
+waypoints: [key cities along the driving route, e.g. Overland Park KS, Leavenworth KS, Atchison KS. For fly-in: driving segment from arrival airport to destination.]
 </frontmatter>
 
 <route_md>
-Full markdown content for route.md. Use ## headers for named segments. Include specific road numbers, mileage, and timing. For fly-in trips include both the flight overview and the driving route within the destination area.
+Full markdown for route.md. ## headers per segment. Specific road numbers, mileage, timing. For fly-in: both flight overview and driving within destination.
 </route_md>
 
 <stops_md>
-Full markdown content for stops.md. Use ## headers per location. Cover: key sights, food, lodging that fits their taste profile (independent, characterful, not chains). Include hours, admission prices, booking info where known.
+Full markdown for stops.md. ## headers per location. Key sights, food, lodging matching their taste profile (independent, characterful). Current hours, admission, booking info.
 </stops_md>
 
 <logistics_md>
-Full markdown content for logistics.md. Cover: reservations checklist (table format), seasonal notes, pet sitter reminder if overnight, cell coverage, gotchas. Add a note that hours and prices should be verified before visiting.
+Full markdown for logistics.md. Reservations checklist (table), seasonal notes, pet sitter reminder for overnights, cell coverage, gotchas. Flag anything that needs re-verification before the trip.
 </logistics_md>`;
 
-        const response = await client.messages.create({
-          model: 'claude-opus-4-7',
-          max_tokens: 8000,
+        const text = await runResearchAgent(
+          client,
           system,
-          messages: [{ role: 'user', content: `Research this trip thoroughly.` }],
-        });
+          'Research this trip thoroughly using web search.',
+          (msg) => send(msg),
+        );
 
-        const text = response.content.find(b => b.type === 'text')?.text ?? '';
-
-        send('Parsing research output...');
+        send('Parsing research output…');
 
         const prose = parseSection(text, 'overview_prose');
         const fmRaw = parseSection(text, 'frontmatter');
@@ -118,9 +176,9 @@ Full markdown content for logistics.md. Cover: reservations checklist (table for
         const stopsMd = parseSection(text, 'stops_md');
         const logisticsMd = parseSection(text, 'logistics_md');
 
-        if (!prose) throw new Error('Claude did not return overview prose — try again.');
+        if (!prose) throw new Error('No overview prose returned — try again.');
 
-        // Build updated frontmatter
+        // Merge existing frontmatter with research fields
         const existingFm = {};
         const fmMatch = ideaContent.match(/^---\n([\s\S]*?)\n---/);
         if (fmMatch) {
@@ -129,7 +187,6 @@ Full markdown content for logistics.md. Cover: reservations checklist (table for
             if (c > 0) existingFm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
           }
         }
-
         const researchFm = {};
         if (fmRaw) {
           for (const line of fmRaw.split('\n')) {
@@ -137,38 +194,30 @@ Full markdown content for logistics.md. Cover: reservations checklist (table for
             if (c > 0) researchFm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
           }
         }
-
-        const mergedFm = {
+        const merged = {
           ...existingFm,
           ...researchFm,
           status: 'exploring',
           travelers: '[evan, erika]',
           pet_sitter_needed: 'true',
         };
-
-        const fmLines = Object.entries(mergedFm)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('\n');
-
+        const fmLines = Object.entries(merged).map(([k, v]) => `${k}: ${v}`).join('\n');
         const overviewContent = `---\n${fmLines}\n---\n\n${prose}\n`;
 
-        // Write exploring folder
-        send('Writing exploring folder...');
+        send('Writing exploring folder…');
         const dir = join(ROOT, 'exploring', slug);
         mkdirSync(dir, { recursive: true });
 
         writeFileSync(join(dir, 'overview.md'), overviewContent);
         send('  ✓ overview.md');
+        if (routeMd)    { writeFileSync(join(dir, 'route.md'),    routeMd    + '\n'); send('  ✓ route.md'); }
+        if (stopsMd)    { writeFileSync(join(dir, 'stops.md'),    stopsMd    + '\n'); send('  ✓ stops.md'); }
+        if (logisticsMd){ writeFileSync(join(dir, 'logistics.md'), logisticsMd + '\n'); send('  ✓ logistics.md'); }
 
-        if (routeMd) { writeFileSync(join(dir, 'route.md'), routeMd + '\n'); send('  ✓ route.md'); }
-        if (stopsMd) { writeFileSync(join(dir, 'stops.md'), stopsMd + '\n'); send('  ✓ stops.md'); }
-        if (logisticsMd) { writeFileSync(join(dir, 'logistics.md'), logisticsMd + '\n'); send('  ✓ logistics.md'); }
-
-        // Remove idea file
         unlinkSync(ideaPath);
         send('  ✓ removed from ideas/');
 
-        send(`Done — ${fm.title || slug} is now in exploring. Reload to see the updated card.`, true);
+        send(`Done — ${fm.title || slug} is now in exploring. Reload to see it.`, true);
 
       } catch (err) {
         send(`Error: ${err.message}`, true);
