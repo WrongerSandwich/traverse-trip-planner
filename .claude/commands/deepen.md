@@ -49,15 +49,9 @@ Promote a single trip from `ideas/` to `exploring/` with research-backed detail.
    - **Add `national_park: true`** if the primary draw is an NPS unit (national park, preserve, scenic riverway, etc.).
    - Omit any field the research couldn't confidently populate. Omit `starred` unless previously set.
 
-6. **Warm the route cache.** After writing all files, restart the dev server so the new waypoints are geocoded and the OSRM route is fetched and cached:
-   ```bash
-   kill $(lsof -ti:3456) 2>/dev/null
-   npm run dev -- --port 3456 > /tmp/svelte-dev.log 2>&1 &
-   sleep 25
-   grep -E "OSRM|ready" /tmp/svelte-dev.log | tail -5
-   ```
+6. **Summarize** what changed: files created, key findings, anything uncertain worth user input (e.g. rental car upgrade decision, permit requirements, timing gotchas).
 
-7. **Summarize** what changed: files created, key findings, anything uncertain worth user input (e.g. rental car upgrade decision, permit requirements, timing gotchas).
+The geocode, image, and route caches are disk-backed and warm on first request — no manual server restart needed. The new `waypoints` will geocode and the OSRM route will fetch the next time anyone hovers/scrolls to this trip. Routes are pulled lazily via `/api/route/[slug]`, so the SSR payload stays small either way.
 
 ## Guardrails
 
@@ -65,5 +59,4 @@ Promote a single trip from `ideas/` to `exploring/` with research-backed detail.
 - If the researcher returns low-confidence or sparse output, say so and let the user decide whether to proceed or iterate.
 - Never overwrite user prose in an existing `overview.md` on re-deepen — append to sections rather than replace.
 - Don't invent frontmatter values. Omit fields you can't confidently populate.
-- If the trip is already `planned` or `completed`, stop. Deepening is for idea → exploring only.
-- This project has no git history; skip the "commit" step.
+- If the trip is already `planning` or `completed`, stop. Deepening is for idea → exploring only.

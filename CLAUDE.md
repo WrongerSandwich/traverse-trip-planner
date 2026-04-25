@@ -11,18 +11,24 @@ When a user preference or constraint surfaces that isn't in `home.md`, flag it r
 ## Folder structure
 
 ```
-travel-agent/
+atlas-trip-planner/
 ├── CLAUDE.md          # this file — repo conventions
 ├── home.md            # user-specific preferences and constraints
 ├── PRODUCT.md         # design context for the frontend
+├── TODO.md            # deferred UX/perf follow-ups
 ├── .claude/
 │   ├── commands/      # slash commands (seed, deepen)
 │   └── agents/        # subagents (researcher)
 ├── src/               # SvelteKit frontend (npm run dev -- --port 3456)
 ├── ideas/             # parked, lightly sketched (single .md files)
 ├── exploring/         # being researched (folders with overview.md)
-├── planned/           # actively becoming reality (folders)
-└── completed/         # archive with retrospectives
+├── planning/          # actively becoming reality (folders)
+├── completed/         # archive with retrospectives
+└── archived/          # hidden from frontend; structure mirrors source stage
+    ├── ideas/
+    ├── exploring/
+    ├── planning/
+    └── completed/
 ```
 
 ## Lifecycle
@@ -31,8 +37,10 @@ Trips progress through four stages. Earlier-stage fields are never removed — s
 
 1. **idea** — single `.md` file in `ideas/`. Fields: `title`, `status`, `destination`, `pitch`, `created`, `vibe`. For fly-in trips, also add `fly_in: true` and `vehicle: rental`. Target: <30 seconds to create.
 2. **exploring** — promoted to a folder. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out.
-3. **planned** — concrete dates, lodging, reservations. Add `itinerary.md` and `packing.md`.
+3. **planning** — concrete dates, lodging, reservations. The frontend's planning page enables in-place editing of any section + an "Ask Claude" chat that writes section updates back to disk.
 4. **completed** — moved to `completed/` with a `notes.md` retrospective.
+
+**Archive (orthogonal to lifecycle):** any trip can be archived via the detail view. Archived trips move to `archived/<source-stage>/<slug>/` with the original status frontmatter intact. The frontend never displays them, but the seed action still scans them so previously-rejected destinations don't get re-suggested.
 
 ## Frontmatter schema
 
@@ -50,7 +58,7 @@ vehicle (optional override), tags, vibe, cost_tier, waypoints
 ```
 Optional flags: `national_park: true` (for NPS units), `starred: true` (bookmarked)
 
-**Added at planned:**
+**Added at planning:**
 ```
 target_date, pet_sitter, lodging, reservations_needed,
 charging_stops (EV trips), cost_estimate_usd
@@ -67,28 +75,41 @@ charging_stops (EV trips), cost_estimate_usd
 
 Omit fields rather than guess at creation. Dates are ISO 8601. Distances default to miles.
 
-## Slash commands
+## Slash commands and in-browser actions
 
-Two commands are implemented in `.claude/commands/`:
+The same lifecycle operations are reachable two ways: as Claude Code slash commands (run from a terminal session) and as in-browser buttons on the frontend.
 
-- `/seed [n]` — generate n new idea files (default 5, max 15) using `home.md` preferences. Includes fly-in options when appropriate. Restarts the dev server after writing to warm Pexels images.
-- `/deepen <trip>` — dispatch researcher subagent to flesh out an idea into an exploring-stage folder. Adds waypoints, fetches OSRM route, restarts server to cache everything.
+**Slash commands** in `.claude/commands/`:
 
-Other commands listed in earlier versions (`/new-idea`, `/promote`, `/list`, `/pack`) are not yet implemented.
+- `/seed [n]` — generate `n` new idea files (default 5, max 15) using `home.md` preferences. Includes fly-in options when appropriate.
+- `/deepen <trip>` — dispatch the `researcher` subagent to flesh out an idea into an exploring-stage folder. Adds `waypoints` so the OSRM route line will draw on the map.
+
+**In-browser actions** (live on the SvelteKit app):
+
+- **Seed** (`+` button on the home page) — same as `/seed` plus an optional steering prompt. Streams progress over SSE.
+- **Research** (button on idea cards) — same as `/deepen`. Confirms before kicking off.
+- **Start Planning** (exploring trips) — promotes `exploring/<slug>/` → `planning/<slug>/` and rewrites the status frontmatter.
+- **Bookmark** (star icon) — toggles `starred: true|false` in the trip's frontmatter.
+- **Archive** (detail view, gated by confirm) — moves the trip to `archived/<stage>/<slug>/`. The trip vanishes from the UI but stays in the seed-avoidance list.
 
 ## Frontend
 
-The SvelteKit app in `src/` is the primary interface. Run with:
-```bash
-npm run dev -- --port 3456
-```
+The SvelteKit app in `src/` is the primary interface. Two ways to run it:
 
-The frontend reads trip data from the markdown files on each page load. Caches live in:
-- `.image-cache.json` — Pexels photo URLs (disk-backed, survives restarts)
-- `.route-cache.json` — OSRM road route coordinates (disk-backed, survives restarts)
-- Nominatim geocodes are in-memory only (re-fetched on each server restart, ~1.1s/destination)
+- **Dev:** `npm run dev -- --port 3456` (hot reload)
+- **Prod:** `npm run build && pm2 restart atlas` (or `node build/index.js`) — what runs on the home server
 
-**After adding new trips or changing `waypoints`, restart the server** to warm the geocode and OSRM caches. The dev server is at port 3456.
+The frontend reads trip data from the markdown files on each page load. All three external lookups are disk-backed and persist across restarts:
+
+- `.geocode-cache.json` — Nominatim destination + waypoint coordinates
+- `.image-cache.json` — Pexels photo URLs
+- `.route-cache.json` — OSRM road route geometries
+
+`enrichTrips()` runs a GC pass each request that prunes orphaned cache entries (e.g. when a trip is deleted or its `waypoints` change), guarded so a transient empty trip list can't wipe everything.
+
+Routes themselves are **not** shipped in the SSR HTML — that bloated each page load by ~80 KB. They're served lazily via `/api/route/[slug]` and fetched client-side when a card is hovered/scrolled-into-focus.
+
+After adding or renaming trips, the next page load picks them up automatically; no manual cache warming needed.
 
 ## Conventions
 
@@ -97,4 +118,4 @@ The frontend reads trip data from the markdown files on each page load. Caches l
 - When uncertain about a field at creation, omit it
 - Research subagents write to their own files (`route.md`, `stops.md`, etc.) and summarize in `overview.md`; no silent edits to user-written prose
 - Distance, radius, and vehicle-specific logic read from `home.md` frontmatter; don't hardcode user-specific numbers in commands or subagents
-- The project has no git history; the "commit" step in `/deepen` is aspirational
+- After a meaningful unit of work, commit and push — the repo is on GitHub at `WrongerSandwich/atlas-trip-planner`

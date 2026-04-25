@@ -48,18 +48,13 @@ Generate a set of new trip ideas and write them to `ideas/`.
 
    Also add `national_park: true` if the primary draw is an NPS unit (national park, preserve, scenic riverway, etc.).
 
-5. **Warm images.** After writing all files, restart the dev server so Pexels images and geocodes are pre-fetched before the next page load:
-   ```bash
-   kill $(lsof -ti:3456) 2>/dev/null
-   npm run dev -- --port 3456 > /tmp/svelte-dev.log 2>&1 &
-   sleep 30
-   grep -E "Ready|images" /tmp/svelte-dev.log | tail -3
-   ```
+5. **Summarize** what you created. Compact table with columns: title, destination, rough one-way distance (or "fly"), vibe tag, one-line rationale.
 
-6. **Summarize** what you created. Compact table with columns: title, destination, rough one-way distance (or "fly"), vibe tag, one-line rationale.
+The geocode, image, and route caches are disk-backed and warm on first request — no manual server restart needed. Mention to the user that the next visit to the home page will trigger ~1.1s/destination of Nominatim lookups for the new trips (Pexels images come along too).
 
 ## Guardrails
 
 - If `home.md` is missing or thin on taste/location, stop and ask the user to fill it in before continuing.
 - If you can't produce N genuinely distinct on-profile ideas without stretching, produce fewer and say so.
 - Don't invent facts about destinations. If you're unsure whether a detail is true, keep the pitch at a higher level or flag it for `/deepen` to verify.
+- Existing trips include archived ones (`archived/**`) — those should still be in the avoidance list so previously-rejected destinations don't come back.
