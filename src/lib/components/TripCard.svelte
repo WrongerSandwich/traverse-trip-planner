@@ -1,7 +1,9 @@
 <script>
   import MiniMap from './MiniMap.svelte';
 
-  let { trip, starred = false, onclick, onhover, onleave, onbookmark } = $props();
+  let { trip, starred = false, onclick, onhover, onleave, onbookmark, ondeepen } = $props();
+
+  const isIdea = $derived((trip.status || trip._stage) === 'idea');
 
   const STATUS_COLOR = { idea: '#1e40af', exploring: '#c2570a', planned: '#166534', completed: '#6d28d9' };
   const FLY_COLOR = '#0d9488';
@@ -70,6 +72,12 @@
     <h2>{trip.title || trip._slug}</h2>
 
     {#if trip.pitch}<p class="pitch">{trip.pitch}</p>{/if}
+
+    {#if isIdea && ondeepen}
+      <button class="research-btn" onclick={ondeepen} title="Research this trip with Claude">
+        Research →
+      </button>
+    {/if}
 
     <div class="footer">
       {#if isFly}
@@ -275,6 +283,21 @@
     color: var(--text-2);
     font-weight: 500;
   }
+
+  .research-btn {
+    align-self: flex-start;
+    border: 1.5px solid var(--accent-border);
+    background: none;
+    color: var(--accent);
+    font-size: 0.7rem;
+    font-weight: 600;
+    font-family: var(--font);
+    padding: 0.22rem 0.6rem;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .research-btn:hover { background: var(--accent); color: oklch(97% 0.012 80); }
 
   .footer .cost {
     font-size: 0.72rem;

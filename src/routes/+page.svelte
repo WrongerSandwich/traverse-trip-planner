@@ -2,6 +2,9 @@
   import OverviewMap from '$lib/components/OverviewMap.svelte';
   import TripCard from '$lib/components/TripCard.svelte';
   import DetailPanel from '$lib/components/DetailPanel.svelte';
+  import ActionPanel from '$lib/components/ActionPanel.svelte';
+  import { streamAction } from '$lib/utils/action.js';
+  import { invalidateAll } from '$app/navigation';
 
   let { data } = $props();
 
@@ -49,6 +52,49 @@
     (activeNPS ? 1 : 0) +
     (activeStarred ? 1 : 0)
   );
+
+  // ── In-browser actions ──
+  let actionVisible  = $state(false);
+  let actionRunning  = $state(false);
+  let actionMessages = $state([]);
+  let actionDone     = $state(false);
+
+  function actionPush(msg, done = false) {
+    actionMessages = [...actionMessages, msg];
+    if (done) { actionDone = true; actionRunning = false; }
+  }
+
+  async function runSeed() {
+    if (actionRunning) return;
+    actionVisible = true;
+    actionRunning = true;
+    actionDone    = false;
+    actionMessages = [];
+    try {
+      await streamAction('/api/actions/seed', ({ msg, done }) => {
+        actionPush(msg, done);
+        if (done) invalidateAll();
+      });
+    } catch (e) {
+      actionPush(`Error: ${e.message}`, true);
+    }
+  }
+
+  async function runDeepen(slug) {
+    if (actionRunning) return;
+    actionVisible = true;
+    actionRunning = true;
+    actionDone    = false;
+    actionMessages = [];
+    try {
+      await streamAction(`/api/actions/deepen/${encodeURIComponent(slug)}`, ({ msg, done }) => {
+        actionPush(msg, done);
+        if (done) invalidateAll();
+      });
+    } catch (e) {
+      actionPush(`Error: ${e.message}`, true);
+    }
+  }
 
   function clearAttrs() {
     activeMode    = 'all';
@@ -98,6 +144,15 @@
 </script>
 
 <div class="page">
+  {#if actionVisible}
+    <ActionPanel
+      messages={actionMessages}
+      running={actionRunning}
+      done={actionDone}
+      onclose={() => actionVisible = false}
+    />
+  {/if}
+
   <header>
     <div class="wordmark">
       <svg class="logo" width="18" height="26" viewBox="0 0 9 13" aria-hidden="true">
@@ -107,6 +162,18 @@
       </svg>
       <h1>Atlas</h1>
     </div>
+    <button
+      class="seed-btn"
+      onclick={runSeed}
+      disabled={actionRunning}
+      title="Add 5 new trip ideas"
+      aria-label="Add trips"
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+        <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </button>
+
     <div class="header-count">
       {#if attrFilterCount > 0 || activeFilter !== 'all'}
         <span class="count-num">{trips.length}</span>
@@ -238,6 +305,7 @@
               onhover={() => hoveredSlug = trip._slug}
               onleave={() => hoveredSlug = null}
               onbookmark={(e) => toggleBookmark(trip, e)}
+              ondeepen={(e) => { e?.stopPropagation(); runDeepen(trip._slug); }}
             />
           {:else}
             <div class="empty">
@@ -285,6 +353,24 @@
     align-items: center;
     gap: 0.55rem;
   }
+
+  .seed-btn {
+    background: none;
+    border: 1.5px solid oklch(36% 0.06 155);
+    border-radius: 50%;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: oklch(62% 0.022 155);
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    flex-shrink: 0;
+  }
+  .seed-btn:hover:not(:disabled) {
+    border-color: oklch(62% 0.08 155);
+    color: oklch(82% 0.025 155);
+    background: oklch(28% 0.03 155);
+  }
+  .seed-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .logo {
     flex-shrink: 0;
