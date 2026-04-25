@@ -1,6 +1,6 @@
 ---
 title: Atchison Missouri River Town
-status: exploring
+status: planning
 destination: Atchison, KS
 pitch: Atchison sits on Missouri River bluffs with a grid of Victorian and Italianate commercial buildings that survived intact because the town stopped growing in the 1880s when the railroad bypassed it. The Amelia Earhart Birthplace is there — a genuinely good small museum, not a tourist trap — and the International Forest of Friendship is a strange, earnest installation dedicated to aviation history that's worth seeing once. Good for an afternoon or overnight without needing to plan hard. About 1 hour north.
 created: 2026-04-25

@@ -135,6 +135,37 @@
       sendChat();
     }
   }
+
+  // ── Archive ──
+  async function archiveTrip() {
+    if (!trip) return;
+    const label = trip.title || trip._slug;
+    if (!confirm(`Archive "${label}"? It will be hidden from view but the file is kept so the seeder won't suggest it again.`)) return;
+    try {
+      const res = await fetch(`/api/archive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Archive failed: ${res.status}`);
+      await goto('/', { invalidateAll: true });
+    } catch (err) {
+      console.error(err);
+      alert('Could not archive — check the server log.');
+    }
+  }
+
+  // Swipe-right-to-close for the chat panel (slides in from right).
+  // Threshold is generous on purpose — accidental closes are worse than
+  // requiring a deliberate swipe.
+  let swipeStartX = 0, swipeStartY = 0, swipeStartT = 0;
+  function onSwipeStart(e) {
+    const t = e.touches[0];
+    swipeStartX = t.clientX; swipeStartY = t.clientY; swipeStartT = Date.now();
+  }
+  function onSwipeEnd(e) {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeStartX;
+    const dy = t.clientY - swipeStartY;
+    const dt = Date.now() - swipeStartT;
+    if (dx > 80 && Math.abs(dy) < 40 && dt < 500) chatOpen = false;
+  }
 </script>
 
 <svelte:head>
@@ -212,6 +243,11 @@
           {/if}
         </section>
       {/each}
+
+      <div class="danger-zone">
+        <button class="archive-btn" onclick={archiveTrip}>Archive trip</button>
+        <span class="archive-hint">Hides it from view but keeps the file so it won't be re-suggested.</span>
+      </div>
     </main>
   </div>
 
@@ -221,7 +257,10 @@
     </button>
   {/if}
 
-  <aside class="chat" class:open={chatOpen} aria-hidden={!chatOpen}>
+  <div class="chat-backdrop" class:open={chatOpen} onclick={() => chatOpen = false} role="presentation"></div>
+
+  <aside class="chat" class:open={chatOpen} aria-hidden={!chatOpen}
+    ontouchstart={onSwipeStart} ontouchend={onSwipeEnd}>
     <header class="chat-header">
       <span>Ask Claude about this trip</span>
       <button class="chat-close" onclick={() => chatOpen = false} aria-label="Close chat">✕</button>
@@ -269,6 +308,9 @@
 </div>
 
 <style>
+  /* Reset app-shell rules leaked from the home page's :global(html, body) */
+  :global(html, body) { height: auto; overflow: auto; }
+
   .page {
     min-height: 100vh;
     background: var(--bg);
@@ -278,7 +320,7 @@
     flex-direction: column;
   }
 
-  header {
+  .page > header {
     background: var(--header-bg);
     color: var(--header-text);
     padding: 1.1rem 1.75rem;
@@ -317,7 +359,7 @@
     color: var(--planning-text);
   }
 
-  header h1 {
+  .page > header h1 {
     font-size: 1.4rem;
     font-weight: 800;
     line-height: 1;
@@ -411,7 +453,7 @@
 
   .section-header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     margin-bottom: 0.75rem;
     border-bottom: 1px solid var(--border-subtle);
@@ -504,6 +546,32 @@
   .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
   .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--accent-bg); color: var(--accent); padding: 0.1em 0.4em; border-radius: 3px; }
 
+  /* ── Danger zone (archive) ── */
+  .danger-zone {
+    margin-top: 1rem;
+    padding: 1.1rem 0 0;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+  .archive-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-3);
+    font-family: var(--font);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.32rem 0.7rem;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .archive-btn:hover  { border-color: oklch(58% 0.16 25); color: oklch(48% 0.18 25); background: oklch(96% 0.025 25); }
+  .archive-btn:active { transform: scale(0.97); }
+  .archive-hint { font-size: 0.72rem; color: var(--text-3); line-height: 1.45; }
+
   /* ── AI chat ── */
   .chat-fab {
     position: fixed;
@@ -524,6 +592,15 @@
   }
   .chat-fab:hover { transform: translateY(-1px); box-shadow: 0 9px 22px oklch(0% 0 0 / 0.22); }
   .chat-fab.open { background: oklch(28% 0.13 155); }
+
+  .chat-backdrop {
+    position: fixed; inset: 0;
+    background: oklch(10% 0 0 / 0.4);
+    z-index: 902;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .chat-backdrop.open { opacity: 1; pointer-events: auto; }
 
   .chat {
     position: fixed;
@@ -649,8 +726,8 @@
   .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
 
   @media (max-width: 768px) {
-    header { padding: 0.85rem 1rem; gap: 0.55rem; }
-    header h1 { font-size: 1.05rem; }
+    .page > header { padding: 0.85rem 1rem; gap: 0.55rem; }
+    .page > header h1 { font-size: 1.05rem; }
     .meta { width: 100%; margin-left: 0; }
     .hero { height: 200px; }
     .layout { padding: 1rem 0.85rem 6rem; }

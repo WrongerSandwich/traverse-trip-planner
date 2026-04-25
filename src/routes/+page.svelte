@@ -71,38 +71,58 @@
   // ── Mobile scroll-focus ──
   let isMobile = $state(false);
   let scrollFocusedSlug = $state(null);
-  let scrollRaf = null;
+  // Default the map closed on mobile; user can toggle it open. Only flipped
+  // once on initial detection so a viewport resize doesn't override choice.
+  let mapDefaulted = false;
 
+  // Track viewport class
   $effect(() => {
     if (!browser) return;
     const mq = window.matchMedia('(max-width: 768px)');
     isMobile = mq.matches;
+    if (!mapDefaulted) { mapVisible = !mq.matches; mapDefaulted = true; }
     const onChange = e => { isMobile = e.matches; if (!e.matches) scrollFocusedSlug = null; };
     mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  });
 
-    function onScroll() {
-      if (!isMobile) return;
-      if (scrollRaf) return;
-      scrollRaf = requestAnimationFrame(() => {
-        scrollRaf = null;
-        // Aim for 65% down the viewport — below the sticky 45vh map
-        const target = window.innerHeight * 0.65;
-        let best = null, bestDist = Infinity;
-        for (const el of document.querySelectorAll('[id^="card-"]')) {
-          const r = el.getBoundingClientRect();
-          if (r.bottom < 0 || r.top > window.innerHeight) continue;
-          const dist = Math.abs((r.top + r.height / 2) - target);
-          if (dist < bestDist) { bestDist = dist; best = el.id.replace('card-', ''); }
+  // IntersectionObserver-driven focus. Fires reliably during iOS momentum
+  // scroll (unlike scroll events) and runs off the main thread. We exclude
+  // the sticky map area via rootMargin so a card hidden behind the map
+  // doesn't win just because it's technically intersecting.
+  $effect(() => {
+    if (!browser || !isMobile) return;
+    // Re-read these reactives so the effect tears down + re-runs when they change
+    const _trips = trips;
+    const _mapVisible = mapVisible;
+
+    const mapEl = document.querySelector('.map-col');
+    const mapH = mapVisible ? Math.round(mapEl?.getBoundingClientRect().height ?? 0) : 0;
+
+    const visibility = new Map();
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const e of entries) {
+          if (e.isIntersecting) visibility.set(e.target.id, e.intersectionRatio);
+          else visibility.delete(e.target.id);
         }
-        scrollFocusedSlug = best;
-      });
-    }
+        if (visibility.size === 0) return; // keep last focus rather than blanking
+        let best = null, bestRatio = 0;
+        for (const [id, ratio] of visibility) {
+          if (ratio > bestRatio) { bestRatio = ratio; best = id.replace('card-', ''); }
+        }
+        if (best) scrollFocusedSlug = best;
+      },
+      {
+        rootMargin: `-${mapH}px 0px -10% 0px`,
+        threshold: [0, 0.1, 0.25, 0.5, 0.75, 1],
+      }
+    );
 
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      mq.removeEventListener('change', onChange);
-      window.removeEventListener('scroll', onScroll);
-    };
+    // Observe all cards present right now. _trips dependency above causes
+    // the effect to re-run (and re-observe) when the trip list changes.
+    for (const el of document.querySelectorAll('[id^="card-"]')) observer.observe(el);
+    return () => observer.disconnect();
   });
 
   // On mobile use scroll position to drive map focus; mouse hover wins on desktop
@@ -114,6 +134,11 @@
   let actionMessages = $state([]);
   let actionDone     = $state(false);
 
+  // Seed prompt form (the + button opens this instead of running immediately
+  // — gives the user a chance to steer the batch and is its own confirmation).
+  let seedFormOpen = $state(false);
+  let seedPrompt   = $state('');
+
   function actionPush(msg, done = false) {
     actionMessages = [...actionMessages, msg];
     if (done) { actionDone = true; actionRunning = false; }
@@ -121,6 +146,9 @@
 
   async function runSeed() {
     if (actionRunning) return;
+    const prompt = seedPrompt.trim();
+    seedFormOpen = false;
+    seedPrompt   = '';
     actionVisible = true;
     actionRunning = true;
     actionDone    = false;
@@ -129,20 +157,21 @@
       await streamAction('/api/actions/seed', ({ msg, done }) => {
         actionPush(msg, done);
         if (done) invalidateAll();
-      });
+      }, { prompt });
     } catch (e) {
       actionPush(`Error: ${e.message}`, true);
     }
   }
 
-  async function runDeepen(slug) {
+  async function runDeepen(trip) {
     if (actionRunning) return;
+    if (!confirm(`Research "${trip.title || trip._slug}"? This takes 30–60 seconds.`)) return;
     actionVisible = true;
     actionRunning = true;
     actionDone    = false;
     actionMessages = [];
     try {
-      await streamAction(`/api/actions/deepen/${encodeURIComponent(slug)}`, ({ msg, done }) => {
+      await streamAction(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
         actionPush(msg, done);
         if (done) invalidateAll();
       });
@@ -151,8 +180,25 @@
     }
   }
 
+  async function archiveTrip(trip, e) {
+    e?.stopPropagation?.();
+    if (!trip) return;
+    const label = trip.title || trip._slug;
+    if (!confirm(`Archive "${label}"? It will be hidden from view but the file is kept so the seeder won't suggest it again.`)) return;
+    try {
+      const res = await fetch(`/api/archive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Archive failed: ${res.status}`);
+      selectedTrip = null;
+      await invalidateAll();
+    } catch (err) {
+      console.error(err);
+      alert('Could not archive — check the server log.');
+    }
+  }
+
   async function promoteToPlanning(trip, e) {
     e?.stopPropagation?.();
+    if (!confirm(`Move "${trip.title || trip._slug}" into Planning?`)) return;
     const slug = trip._slug;
     try {
       const res = await fetch(`/api/promote/${encodeURIComponent(slug)}`, { method: 'POST' });
@@ -266,10 +312,12 @@
       </div>
       <button
         class="seed-btn"
-        onclick={runSeed}
+        class:open={seedFormOpen}
+        onclick={() => seedFormOpen = !seedFormOpen}
         disabled={actionRunning}
         title="Add 5 new trip ideas"
         aria-label="Add trips"
+        aria-expanded={seedFormOpen}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
           <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -277,6 +325,31 @@
       </button>
     </div>
   </header>
+
+  {#if seedFormOpen}
+    <div class="seed-backdrop" onclick={() => seedFormOpen = false} role="presentation"></div>
+    <div class="seed-popover" role="dialog" aria-label="Generate trip ideas">
+      <label class="seed-label" for="seed-prompt">
+        Generate 5 new ideas
+        <span class="seed-hint">— optional steering, leave blank for general suggestions</span>
+      </label>
+      <textarea
+        id="seed-prompt"
+        bind:value={seedPrompt}
+        placeholder="e.g. fall colors within 4 hours, or fly-in food trips on the East Coast"
+        rows="3"
+        autofocus
+        onkeydown={e => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); runSeed(); }
+          if (e.key === 'Escape') { seedFormOpen = false; }
+        }}
+      ></textarea>
+      <div class="seed-actions">
+        <button class="seed-cancel" onclick={() => { seedFormOpen = false; seedPrompt = ''; }}>Cancel</button>
+        <button class="seed-go" onclick={runSeed}>Generate 5 →</button>
+      </div>
+    </div>
+  {/if}
 
   <div class="layout">
     <div class="map-col" class:map-hidden={!mapVisible}>
@@ -304,9 +377,9 @@
           >
             <svg width="11" height="13" viewBox="0 0 10 13" aria-hidden="true">
               {#if activeStarred}
-                <path d="M1 1h8v11L5 9 1 11V1z" fill="currentColor"/>
+                <path d="M1 1h8v11L5 9 1 12z" fill="currentColor"/>
               {:else}
-                <path d="M1 1h8v11L5 9 1 11V1z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="miter"/>
+                <path d="M1 1h8v11L5 9 1 12z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="miter"/>
               {/if}
             </svg>
           </button>
@@ -398,7 +471,7 @@
               onhover={() => hoveredSlug = trip._slug}
               onleave={() => hoveredSlug = null}
               onbookmark={(e) => toggleBookmark(trip, e)}
-              ondeepen={(e) => { e?.stopPropagation(); runDeepen(trip._slug); }}
+              ondeepen={(e) => { e?.stopPropagation(); runDeepen(trip); }}
               onpromote={(e) => promoteToPlanning(trip, e)}
             />
           {:else}
@@ -420,6 +493,7 @@
   starred={selectedTrip ? isStarred(selectedTrip) : false}
   onbookmark={(e) => selectedTrip && toggleBookmark(selectedTrip, e)}
   onpromote={(e) => selectedTrip && promoteToPlanning(selectedTrip, e)}
+  onarchive={(e) => selectedTrip && archiveTrip(selectedTrip, e)}
   onclose={() => selectedTrip = null}
 />
 
@@ -473,6 +547,83 @@
     background: oklch(28% 0.03 155);
   }
   .seed-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .seed-btn.open {
+    background: oklch(28% 0.03 155);
+    border-color: oklch(62% 0.08 155);
+    color: oklch(82% 0.025 155);
+  }
+  .seed-btn.open svg { transform: rotate(45deg); }
+  .seed-btn svg { transition: transform 0.18s; }
+
+  /* ── Seed prompt popover ── */
+  .seed-backdrop {
+    position: fixed; inset: 0;
+    background: oklch(10% 0 0 / 0.25);
+    z-index: 50;
+  }
+  .seed-popover {
+    position: fixed;
+    top: calc(var(--header-h, 64px) + 0.5rem);
+    right: 1.25rem;
+    width: 360px;
+    max-width: calc(100vw - 1rem);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 12px 32px oklch(0% 0 0 / 0.18), 0 2px 6px oklch(0% 0 0 / 0.08);
+    padding: 0.9rem 1rem 0.85rem;
+    z-index: 51;
+    display: flex; flex-direction: column; gap: 0.55rem;
+  }
+  .seed-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .seed-hint {
+    font-weight: 400;
+    color: var(--text-3);
+    font-size: 0.74rem;
+  }
+  .seed-popover textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.55rem 0.7rem;
+    font-family: var(--font);
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--text);
+    background: var(--surface-raised);
+    resize: vertical;
+    min-height: 60px;
+  }
+  .seed-popover textarea:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
+  .seed-actions {
+    display: flex; gap: 0.5rem; justify-content: flex-end;
+  }
+  .seed-cancel, .seed-go {
+    border-radius: 4px;
+    padding: 0.4rem 0.85rem;
+    font-family: var(--font);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .seed-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+  }
+  .seed-cancel:hover { border-color: var(--accent-border); color: var(--accent); }
+  .seed-go {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: oklch(97% 0.012 80);
+    font-weight: 700;
+  }
+  .seed-go:hover { background: oklch(28% 0.13 155); }
 
   .logo {
     flex-shrink: 0;
@@ -531,6 +682,7 @@
     flex-shrink: 0;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
+    position: relative;
   }
 
   .controls {
@@ -552,7 +704,8 @@
     transition: color 0.12s, border-color 0.12s;
     white-space: nowrap;
   }
-  .tab:hover { color: var(--text); }
+  .tab:hover  { color: var(--text); }
+  .tab:active { color: var(--accent); background: var(--accent-bg); }
   .tab.active {
     color: var(--accent);
     border-bottom-color: var(--accent);
@@ -661,7 +814,8 @@
     transition: border-color 0.1s, background 0.1s, color 0.1s;
     white-space: nowrap;
   }
-  .chip:hover { border-color: var(--accent-border); color: var(--accent); }
+  .chip:hover  { border-color: var(--accent-border); color: var(--accent); }
+  .chip:active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
   .chip.active {
     background: var(--accent);
     border-color: var(--accent);
@@ -791,6 +945,17 @@
     /* ── Controls ── */
     /* Clip horizontal overflow at the bar without hiding the filter panel below */
     .controls-wrap { overflow-x: clip; }
+    /* Fade the right edge as a hint that the bar scrolls horizontally.
+       The fade sits above the controls row and ignores pointer events. */
+    .controls-wrap::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 28px; height: var(--tap-min);
+      background: linear-gradient(to right, oklch(99.2% 0.007 80 / 0), var(--surface));
+      pointer-events: none;
+      z-index: 1;
+    }
     .controls { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
     .tab, .filter-toggle, .sort-select { min-height: var(--tap-min); white-space: nowrap; }
 
@@ -813,6 +978,14 @@
       background: oklch(30% 0.035 155);
       border-color: oklch(52% 0.08 155);
       color: oklch(84% 0.025 155);
+    }
+
+    /* Seed popover spans most of the viewport on phones */
+    .seed-popover {
+      right: 0.5rem;
+      left: 0.5rem;
+      width: auto;
+      max-width: none;
     }
   }
 </style>

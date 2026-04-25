@@ -62,9 +62,9 @@
       >
         <svg width="13" height="15" viewBox="0 0 10 13" aria-hidden="true">
           {#if starred}
-            <path d="M1 1h8v11L5 9 1 11V1z" fill="currentColor"/>
+            <path d="M1 1h8v11L5 9 1 12z" fill="currentColor"/>
           {:else}
-            <path d="M1 1h8v11L5 9 1 11V1z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="miter"/>
+            <path d="M1 1h8v11L5 9 1 12z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="miter"/>
           {/if}
         </svg>
       </button>
@@ -120,6 +120,11 @@
     transform: translateY(-3px);
     box-shadow: 0 8px 24px oklch(0% 0 0 / 0.1), 0 1px 3px oklch(0% 0 0 / 0.05);
     border-color: var(--accent-border);
+  }
+  .card:active {
+    transform: scale(0.985);
+    border-color: var(--accent);
+    transition-duration: 0.05s;
   }
   .card:global(.highlight) { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -206,6 +211,8 @@
 
   .bookmark {
     flex-shrink: 0;
+    align-self: flex-start;
+    position: relative;
     background: none;
     border: none;
     padding: 0.15rem 0.1rem;
@@ -216,7 +223,15 @@
     display: flex;
     align-items: center;
   }
-  .bookmark:hover { color: var(--accent); transform: scale(1.1); }
+  /* Invisible expanded hit area — visible bookmark stays small and aligns
+     naturally with the vibe pill, but tap target meets the 44px guideline. */
+  .bookmark::before {
+    content: '';
+    position: absolute;
+    inset: -10px;
+  }
+  .bookmark:hover  { color: var(--accent); transform: scale(1.1); }
+  .bookmark:active { color: var(--accent); transform: scale(0.92); }
   .bookmark.active { color: var(--accent); }
 
   .vibe {
@@ -302,7 +317,8 @@
     cursor: pointer;
     transition: background 0.12s, color 0.12s;
   }
-  .research-btn:hover { background: var(--accent); color: oklch(97% 0.012 80); }
+  .research-btn:hover  { background: var(--accent); color: oklch(97% 0.012 80); }
+  .research-btn:active { background: var(--accent); color: oklch(97% 0.012 80); transform: scale(0.96); }
 
   .footer .cost {
     font-size: 0.72rem;
@@ -315,12 +331,9 @@
     /* Shorter thumbnail — saves ~50px per card */
     :global(:root) { --thumb-h: 170px; }
 
-    /* Expand tap areas without changing visual size */
-    .bookmark {
-      min-width: var(--tap-min);
-      min-height: var(--tap-min);
-      justify-content: flex-end;
-    }
+    /* Bookmark stays visually small; ::before above provides the tap target.
+       Push the hit-area further out on mobile so a thumb can land on it. */
+    .bookmark::before { inset: -14px; }
     .research-btn { min-height: var(--tap-min); display: flex; align-items: center; }
   }
 </style>

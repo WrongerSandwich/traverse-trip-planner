@@ -2,7 +2,7 @@
   import { marked } from 'marked';
   import MiniMap from './MiniMap.svelte';
 
-  let { trip = null, onclose, starred = false, onbookmark, onpromote } = $props();
+  let { trip = null, onclose, starred = false, onbookmark, onpromote, onarchive } = $props();
 
   const isExploring = $derived((trip?.status || trip?._stage) === 'exploring');
 
@@ -43,13 +43,29 @@
   );
 
   function handleKeydown(e) { if (e.key === 'Escape') onclose?.(); }
+
+  // Swipe-right-to-close. Generous threshold to avoid accidental closes
+  // while scrolling content vertically.
+  let swipeStartX = 0, swipeStartY = 0, swipeStartT = 0;
+  function onSwipeStart(e) {
+    const t = e.touches[0];
+    swipeStartX = t.clientX; swipeStartY = t.clientY; swipeStartT = Date.now();
+  }
+  function onSwipeEnd(e) {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeStartX;
+    const dy = t.clientY - swipeStartY;
+    const dt = Date.now() - swipeStartT;
+    if (dx > 80 && Math.abs(dy) < 40 && dt < 500) onclose?.();
+  }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="backdrop" class:open={!!trip} onclick={onclose} role="presentation"></div>
 
-<aside class="panel" class:open={!!trip}>
+<aside class="panel" class:open={!!trip}
+  ontouchstart={onSwipeStart} ontouchend={onSwipeEnd}>
 
   <!-- Hero: photo with overlay, or dark fallback header -->
   {#if trip?._image}
@@ -70,9 +86,9 @@
       <button class="panel-bookmark" class:active={starred} onclick={onbookmark} aria-label={starred ? 'Remove bookmark' : 'Bookmark'}>
         <svg width="14" height="17" viewBox="0 0 10 13" aria-hidden="true">
           {#if starred}
-            <path d="M1 1h8v11L5 9 1 11V1z" fill="currentColor"/>
+            <path d="M1 1h8v11L5 9 1 12z" fill="currentColor"/>
           {:else}
-            <path d="M1 1h8v11L5 9 1 11V1z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="miter"/>
+            <path d="M1 1h8v11L5 9 1 12z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="miter"/>
           {/if}
         </svg>
       </button>
@@ -130,6 +146,13 @@
       </div>
     {:else}
       <div class="prose">{@html renderedContent}</div>
+    {/if}
+
+    {#if trip && onarchive}
+      <div class="danger-zone">
+        <button class="archive-btn" onclick={onarchive}>Archive trip</button>
+        <span class="archive-hint">Hides it from view but keeps the file so it won't be re-suggested.</span>
+      </div>
     {/if}
   </div>
 
@@ -217,7 +240,7 @@
 
   .hero-nps {
     position: absolute;
-    top: 0.75rem; right: 3.2rem;
+    top: 0.75rem; right: 7.75rem;
     display: flex; align-items: center; gap: 0.22rem;
     font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
     padding: 0.2rem 0.5rem; border-radius: 2px;
@@ -226,28 +249,42 @@
     border: 1px solid oklch(62% 0.05 65 / 0.3);
   }
 
-  .panel-bookmark {
-    position: absolute; top: 0.7rem; right: 2.8rem;
-    background: none; border: none;
-    cursor: pointer; line-height: 1;
-    padding: 0.3rem; border-radius: 3px;
+  /* Floating hero controls — translucent dark pill backdrop keeps them
+     legible against any photo, including high-key/light ones where pure
+     white-on-image disappears. */
+  .panel-bookmark, .close.light {
+    background: oklch(0% 0 0 / 0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0.4rem;
+    display: flex; align-items: center; justify-content: center;
     transition: background 0.12s, color 0.12s, transform 0.12s;
-    display: flex; align-items: center;
   }
-  .panel-bookmark       { color: oklch(70% 0.015 80); }
-  .panel-bookmark:hover { color: oklch(96% 0.01 80); transform: scale(1.1); }
-  .panel-bookmark.active { color: oklch(88% 0.06 80); }
+
+  .panel-bookmark {
+    position: absolute; top: 0.7rem; right: 4.25rem;
+    color: oklch(96% 0.01 80);
+  }
+  .panel-bookmark:hover  { background: oklch(0% 0 0 / 0.65); color: oklch(99% 0 0); transform: scale(1.08); }
+  .panel-bookmark.active { background: oklch(0% 0 0 / 0.55); color: oklch(88% 0.12 85); }
 
   .close {
     position: absolute; top: 0.7rem; right: 0.75rem;
-    background: none; border: none; font-size: 1rem;
-    cursor: pointer; line-height: 1;
+    font-size: 1.3rem;
+    font-weight: 600;
+  }
+  .close.light       { color: oklch(98% 0 0); }
+  .close.light:hover { background: oklch(0% 0 0 / 0.65); color: oklch(99% 0 0); }
+  .close.dark {
+    background: none; border: none; cursor: pointer; line-height: 1;
     padding: 0.3rem; border-radius: 3px;
     transition: background 0.12s, color 0.12s;
+    color: oklch(55% 0.02 155);
   }
-  .close.light { color: oklch(90% 0.01 80); }
-  .close.light:hover { background: oklch(100% 0 0 / 0.15); color: oklch(99% 0 0); }
-  .close.dark  { color: oklch(55% 0.02 155); }
   .close.dark:hover  { color: var(--header-text); background: oklch(100% 0 0 / 0.08); }
 
   /* ── Dark fallback header (no photo) ── */
@@ -342,6 +379,32 @@
     border-radius: 3px;
     font-size: 0.82em;
   }
+
+  /* ── Danger zone (archive) ── */
+  .danger-zone {
+    margin-top: 2.25rem;
+    padding-top: 1.1rem;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+  .archive-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-3);
+    font-family: var(--font);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.32rem 0.7rem;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .archive-btn:hover  { border-color: oklch(58% 0.16 25); color: oklch(48% 0.18 25); background: oklch(96% 0.025 25); }
+  .archive-btn:active { transform: scale(0.97); }
+  .archive-hint { font-size: 0.72rem; color: var(--text-3); line-height: 1.45; }
 
   /* ── Prose ── */
   .prose { font-size: 0.9rem; line-height: 1.75; color: var(--text-2); }

@@ -178,5 +178,35 @@
     "large": "https://images.pexels.com/photos/6208219/pexels-photo-6208219.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
     "photographer": "Daniel",
     "photographer_url": "https://www.pexels.com/@geek4jesus"
+  },
+  "Custer & Black Hills Perimeter": {
+    "medium": "https://images.pexels.com/photos/34181025/pexels-photo-34181025.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/34181025/pexels-photo-34181025.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "Mike Lensing",
+    "photographer_url": "https://www.pexels.com/@mike-lensing-1518709415"
+  },
+  "Fayetteville & Arkansas Hill Country": {
+    "medium": "https://images.pexels.com/photos/704935/pexels-photo-704935.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/704935/pexels-photo-704935.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "David Besh",
+    "photographer_url": "https://www.pexels.com/@david-besh"
+  },
+  "Galveston Island Ramble": {
+    "medium": "https://images.pexels.com/photos/34944663/pexels-photo-34944663.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/34944663/pexels-photo-34944663.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "John Robertson",
+    "photographer_url": "https://www.pexels.com/@john-robertson-1100376905"
+  },
+  "Madison Isthmus Weekend": {
+    "medium": "https://images.pexels.com/photos/13332188/pexels-photo-13332188.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/13332188/pexels-photo-13332188.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "Josh Sorenson",
+    "photographer_url": "https://www.pexels.com/@joshsorenson"
+  },
+  "Paducah & Lower Ohio": {
+    "medium": "https://images.pexels.com/photos/4394336/pexels-photo-4394336.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/4394336/pexels-photo-4394336.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "Kelly",
+    "photographer_url": "https://www.pexels.com/@kelly"
   }
 }

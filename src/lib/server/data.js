@@ -2,39 +2,74 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from '
 import { join } from 'path';
 
 const ROOT = process.cwd();
-const IMAGE_CACHE_PATH = join(ROOT, '.image-cache.json');
-const ROUTE_CACHE_PATH = join(ROOT, '.route-cache.json');
+const IMAGE_CACHE_PATH   = join(ROOT, '.image-cache.json');
+const ROUTE_CACHE_PATH   = join(ROOT, '.route-cache.json');
+const GEOCODE_CACHE_PATH = join(ROOT, '.geocode-cache.json');
 
 // ── Caches ──
-const geocodeCache = {};
-let imageCache = {};
-let routeCache = {};
-try { imageCache = JSON.parse(readFileSync(IMAGE_CACHE_PATH, 'utf8')); } catch {}
-try { routeCache = JSON.parse(readFileSync(ROUTE_CACHE_PATH, 'utf8')); } catch {}
+let geocodeCache = {};
+let imageCache   = {};
+let routeCache   = {};
+try { imageCache   = JSON.parse(readFileSync(IMAGE_CACHE_PATH,   'utf8')); } catch {}
+try { routeCache   = JSON.parse(readFileSync(ROUTE_CACHE_PATH,   'utf8')); } catch {}
+try { geocodeCache = JSON.parse(readFileSync(GEOCODE_CACHE_PATH, 'utf8')); } catch {}
 
-function saveImageCache() {
-  writeFileSync(IMAGE_CACHE_PATH, JSON.stringify(imageCache, null, 2));
-}
-function saveRouteCache() {
-  writeFileSync(ROUTE_CACHE_PATH, JSON.stringify(routeCache, null, 2));
+function saveImageCache()   { writeFileSync(IMAGE_CACHE_PATH,   JSON.stringify(imageCache,   null, 2)); }
+function saveRouteCache()   { writeFileSync(ROUTE_CACHE_PATH,   JSON.stringify(routeCache,   null, 2)); }
+function saveGeocodeCache() { writeFileSync(GEOCODE_CACHE_PATH, JSON.stringify(geocodeCache, null, 2)); }
+
+function pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys) {
+  let routesDropped = 0, imagesDropped = 0, geocodesDropped = 0;
+  for (const k of Object.keys(routeCache)) {
+    if (!liveRouteKeys.has(k)) { delete routeCache[k]; routesDropped++; }
+  }
+  for (const k of Object.keys(imageCache)) {
+    if (!liveImageKeys.has(k)) { delete imageCache[k]; imagesDropped++; }
+  }
+  for (const k of Object.keys(geocodeCache)) {
+    if (!liveGeocodeKeys.has(k)) { delete geocodeCache[k]; geocodesDropped++; }
+  }
+  if (routesDropped)   saveRouteCache();
+  if (imagesDropped)   saveImageCache();
+  if (geocodesDropped) saveGeocodeCache();
+  if (routesDropped || imagesDropped || geocodesDropped) {
+    console.log(`cache GC: dropped ${routesDropped} route(s), ${imagesDropped} image(s), ${geocodesDropped} geocode(s)`);
+  }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── Geocoding ──
+// Only cache on a real 200 response (including legitimate empty results).
+// Transient failures (429, network errors) return null without caching, so
+// the next page load retries instead of sticking the destination as broken.
 export async function geocode(destination) {
   if (geocodeCache[destination] !== undefined) return geocodeCache[destination];
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'road-trip-planner/personal' } });
-    const data = await res.json();
-    const coords = data.length ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
-    geocodeCache[destination] = coords;
-    return coords;
-  } catch {
-    geocodeCache[destination] = null;
-    return null;
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'atlas-trip-planner/1.0 (personal)' } });
+      if (res.status === 429) {
+        if (attempt === 0) { await sleep(2000); continue; }
+        console.warn('geocode rate-limited (429) for', destination);
+        return null;
+      }
+      if (!res.ok) {
+        console.warn('geocode HTTP', res.status, 'for', destination);
+        return null;
+      }
+      const data = await res.json();
+      const coords = data.length ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
+      geocodeCache[destination] = coords;
+      saveGeocodeCache();
+      return coords;
+    } catch (e) {
+      if (attempt === 0) { await sleep(500); continue; }
+      console.warn('geocode error for', destination, '—', e.message);
+      return null;
+    }
   }
+  return null;
 }
 
 // ── Pexels images ──
@@ -61,11 +96,14 @@ export async function fetchImage(query) {
 }
 
 // ── OSRM road routing ──
+function routeCacheKey(geocodedCoords) {
+  return geocodedCoords.map(c => c.join(',')).join(';');
+}
+
 async function fetchRoute(geocodedCoords) {
   if (!geocodedCoords || geocodedCoords.length < 2) return null;
 
-  // Cache key: stable string of the input coordinates
-  const cacheKey = geocodedCoords.map(c => c.join(',')).join(';');
+  const cacheKey = routeCacheKey(geocodedCoords);
   if (routeCache[cacheKey] !== undefined) return routeCache[cacheKey];
 
   try {
@@ -193,9 +231,14 @@ export async function enrichTrips() {
   const homeCoords = home?.coords ?? null;
   const trips = collectTrips();
 
+  const liveRouteKeys   = new Set();
+  const liveImageKeys   = new Set();
+  const liveGeocodeKeys = new Set();
+
   for (const trip of trips) {
     // Geocode
     const dest = trip.destination;
+    if (dest) liveGeocodeKeys.add(dest);
     if (dest && geocodeCache[dest] === undefined) {
       trip._coords = await geocode(dest);
       await sleep(1100);
@@ -205,6 +248,7 @@ export async function enrichTrips() {
 
     // Image
     const q = imageQuery(trip);
+    if (q) liveImageKeys.add(q);
     if (q && imageCache[q] === undefined) {
       trip._image = await fetchImage(q);
       await sleep(300);
@@ -217,14 +261,23 @@ export async function enrichTrips() {
       const wps = Array.isArray(trip.waypoints) ? trip.waypoints : [trip.waypoints];
       const geocoded = [];
       for (const wp of wps) {
+        liveGeocodeKeys.add(wp);
         const needsFetch = geocodeCache[wp] === undefined;
         const coord = await geocode(wp);
         if (needsFetch) await sleep(1100);
         if (coord) geocoded.push(coord);
       }
-      trip._route_coords = geocoded.length >= 2 ? await fetchRoute(geocoded) : null;
+      if (geocoded.length >= 2) {
+        liveRouteKeys.add(routeCacheKey(geocoded));
+        const route = await fetchRoute(geocoded);
+        // Coords are fetched lazily by the client via /api/route/[slug] —
+        // shipping them here added 40 KB per route to every page load.
+        trip._has_route = !!(route && route.length >= 2);
+      } else {
+        trip._has_route = false;
+      }
     } else {
-      trip._route_coords = null;
+      trip._has_route = false;
     }
 
     // Cost + drive time
@@ -237,7 +290,33 @@ export async function enrichTrips() {
     }
   }
 
+  // GC orphaned cache entries — only when we found at least one trip, so a
+  // transient empty load (mid-promote, etc.) can't nuke the caches.
+  if (trips.length > 0) pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys);
+
   return trips;
+}
+
+// Lazy-loaded by /api/route/[slug]. Geocode + route caches make this near-instant
+// for any trip enrichTrips has already touched.
+export async function getTripRoute(slug) {
+  for (const stage of ['exploring', 'planning', 'completed']) {
+    const fp = join(ROOT, stage, slug, 'overview.md');
+    if (!existsSync(fp)) continue;
+    const fm = parseFrontmatter(readFileSync(fp, 'utf8'));
+    if (!fm?.waypoints) return null;
+    const wps = Array.isArray(fm.waypoints) ? fm.waypoints : [fm.waypoints];
+    const geocoded = [];
+    for (const wp of wps) {
+      const needsFetch = geocodeCache[wp] === undefined;
+      const coord = await geocode(wp);
+      if (needsFetch) await sleep(1100);
+      if (coord) geocoded.push(coord);
+    }
+    if (geocoded.length < 2) return null;
+    return await fetchRoute(geocoded);
+  }
+  return null;
 }
 
 // ── Bookmark toggle ──

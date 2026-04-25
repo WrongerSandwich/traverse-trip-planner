@@ -13,6 +13,30 @@
   let spokesGroup;   // LayerGroup — remove()/addTo() hides/shows all spokes atomically
   let mapReady = $state(false);
 
+  // Per-session route coords cache. Server ships only `_has_route: bool` to
+  // avoid 40 KB-per-route SSR bloat; we fetch the actual geometry on hover.
+  // slug → coords[] | null (= no route) | 'pending'
+  let routeCoordsCache = $state({});
+
+  // Marker click "pins" a trip — route stays drawn until the user clicks
+  // empty map space or another marker. The popup's "Open details →" button
+  // is what actually opens the side panel. This split lets touch users
+  // explore routes without the panel covering the screen.
+  let pinnedSlug = $state(null);
+
+  function ensureRouteCoords(slug) {
+    if (routeCoordsCache[slug] !== undefined) return;
+    routeCoordsCache[slug] = 'pending';
+    fetch(`/api/route/${encodeURIComponent(slug)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { routeCoordsCache[slug] = data?.coords ?? null; })
+      .catch(() => { routeCoordsCache[slug] = null; });
+  }
+  function getRouteCoords(slug) {
+    const v = routeCoordsCache[slug];
+    return Array.isArray(v) ? v : null;
+  }
+
   const markers  = {}; // slug → { marker, trip, line }
   let driveBounds         = null;
   let flightLine          = null;
@@ -60,8 +84,9 @@
     if (spokesGroup && !map.hasLayer(spokesGroup)) spokesGroup.addTo(map);
     if (routeLine) routeLine.setStyle({ opacity: 0.8 });
     // Re-hide the active trip's spoke if it has a route (spokesGroup.addTo re-showed it)
-    const active = (hoveredSlug ?? selectedSlug) ? markers[hoveredSlug ?? selectedSlug] : null;
-    if (active?.line && active.trip._route_coords?.length >= 2) {
+    const activeSlug = hoveredSlug ?? pinnedSlug ?? selectedSlug;
+    const active = activeSlug ? markers[activeSlug] : null;
+    if (active?.line && active.trip._has_route && getRouteCoords(activeSlug)) {
       active.line.setStyle({ opacity: 0 });
     }
   }
@@ -123,6 +148,20 @@
         if (returnArmed) { returnArmed = false; restoreSpokes(); }
       });
 
+      // Click on empty map area unpins (marker clicks don't bubble here).
+      map.on('click', () => { pinnedSlug = null; map.closePopup(); });
+
+      // Delegated handler for the "Open details →" button rendered inside popups.
+      map.on('popupopen', e => {
+        const btn = e.popup.getElement()?.querySelector('.map-popup-open');
+        if (!btn) return;
+        btn.onclick = ev => {
+          ev.stopPropagation();
+          const trip = markers[btn.dataset.slug]?.trip;
+          if (trip) onTripClick?.(trip);
+        };
+      });
+
       mapReady = true;
     })();
     return () => { destroyed = true; map?.remove(); };
@@ -164,9 +203,11 @@
 
       const marker = L.marker([lat, lon], { icon: makeIcon(color, false) })
         .bindPopup(L.popup({ closeButton: false }).setContent(
-          `<div class="map-popup"><strong>${trip.title || trip._slug}</strong><small>${trip.destination || ''}</small></div>`
+          `<div class="map-popup"><strong>${trip.title || trip._slug}</strong>` +
+          `<small>${trip.destination || ''}</small>` +
+          `<button class="map-popup-open" data-slug="${trip._slug}">Open details →</button></div>`
         ))
-        .on('click', () => onTripClick?.(trip))
+        .on('click', () => { pinnedSlug = trip._slug; })
         .addTo(map);
 
       markers[trip._slug] = { marker, trip, line };
@@ -181,12 +222,12 @@
     }
   });
 
-  // Hover/select: icons + flight arc + map movement.
-  // hoveredSlug takes priority; selectedSlug fills in when nothing is hovered.
+  // Hover/select/pin: icons + flight arc + map movement.
+  // Priority: live hover > pinned-via-marker-click > parent-driven selection.
   let prevEffective = null;
   $effect(() => {
     if (!mapReady || !L) return;
-    const hovered = hoveredSlug ?? selectedSlug;
+    const hovered = hoveredSlug ?? pinnedSlug ?? selectedSlug;
 
     const prevEntry = prevEffective ? markers[prevEffective] : null;
     const currEntry = hovered       ? markers[hovered]       : null;
@@ -205,10 +246,16 @@
     cancelRouteReveal();
     if (prevEntry?.line && !flyInMode) prevEntry.line.setStyle({ opacity: 0.35 });
     if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-    if (currEntry?.trip._route_coords?.length >= 2) {
+    if (currEntry?.trip._has_route) {
+      // Kick off the lazy fetch if we haven't seen this slug yet. When the
+      // cache updates, this $effect re-runs and the coords will be available.
+      if (routeCoordsCache[hovered] === undefined) ensureRouteCoords(hovered);
+    }
+    const currCoords = currEntry?.trip._has_route ? getRouteCoords(hovered) : null;
+    if (currCoords && currCoords.length >= 2) {
       // Hide this trip's spoke so it doesn't show through the route line.
       if (currEntry.line && !flyInMode) currEntry.line.setStyle({ opacity: 0 });
-      routeLine = L.polyline(currEntry.trip._route_coords, {
+      routeLine = L.polyline(currCoords, {
         color: markerColor(currEntry.trip),
         weight: 2.5,
         opacity: 0,
@@ -262,9 +309,10 @@
       if (flyInMode) restoreSpokes(); // restore if transitioning from fly-in
       hideSpokes();
 
-      // No OSRM route: draw just this trip's spoke as a temporary overlay.
+      // No route coords available right now (either trip has none, or its
+      // route is still being fetched) — draw a temporary spoke as a stand-in.
       // Reveal it on moveend so it doesn't appear pre-move in the wrong viewport.
-      if (!currEntry.trip._route_coords?.length && home?.coords) {
+      if (!currCoords && home?.coords) {
         activeSpokeHighlight = L.polyline(
           [home.coords, currEntry.trip._coords],
           { color: markerColor(currEntry.trip), weight: 2, opacity: 0, dashArray: '5, 6', className: 'spoke-highlight' }

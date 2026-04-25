@@ -8,29 +8,44 @@ function sse(controller, encoder, msg, done = false) {
   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
 }
 
+function readDestinationsFromStageDir(stageDir, destinations) {
+  if (!existsSync(stageDir)) return;
+  for (const entry of readdirSync(stageDir, { withFileTypes: true })) {
+    let file;
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      file = join(stageDir, entry.name);
+    } else if (entry.isDirectory()) {
+      const ov = join(stageDir, entry.name, 'overview.md');
+      if (existsSync(ov)) file = ov;
+    }
+    if (!file) continue;
+    const dest = readFileSync(file, 'utf8').match(/^destination: (.+)$/m)?.[1]?.trim();
+    if (dest) destinations.push(dest);
+  }
+}
+
 function collectExistingDestinations() {
   const destinations = [];
+  // Live stages
   for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
-    const dir = join(ROOT, stage);
-    if (!existsSync(dir)) continue;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      let file;
-      if (entry.isFile() && entry.name.endsWith('.md')) {
-        file = join(dir, entry.name);
-      } else if (entry.isDirectory()) {
-        const ov = join(dir, entry.name, 'overview.md');
-        if (existsSync(ov)) file = ov;
-      }
-      if (!file) continue;
-      const dest = readFileSync(file, 'utf8').match(/^destination: (.+)$/m)?.[1]?.trim();
-      if (dest) destinations.push(dest);
-    }
+    readDestinationsFromStageDir(join(ROOT, stage), destinations);
+  }
+  // Archived trips — invisible to the frontend but should still block re-suggestion
+  for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
+    readDestinationsFromStageDir(join(ROOT, 'archived', stage), destinations);
   }
   return destinations;
 }
 
-export function POST() {
+export async function POST({ request }) {
   const encoder = new TextEncoder();
+
+  // Optional user-supplied steering prompt. Body is JSON; absence is fine.
+  let userPrompt = '';
+  try {
+    const body = await request.json();
+    userPrompt = (body?.prompt || '').trim().slice(0, 500);
+  } catch { /* no body, no prompt — fine */ }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -42,7 +57,11 @@ export function POST() {
         const existing = collectExistingDestinations();
         const today = new Date().toISOString().slice(0, 10);
 
-        send(`Asking Claude for 5 new ideas (avoiding ${existing.length} existing destinations)...`);
+        send(
+          userPrompt
+            ? `Asking Claude for 5 ideas matching "${userPrompt}" (avoiding ${existing.length} existing)...`
+            : `Asking Claude for 5 new ideas (avoiding ${existing.length} existing destinations)...`
+        );
 
         const client = new Anthropic();
 
@@ -77,11 +96,15 @@ vehicle: rental
 For trips involving an NPS unit (national park, preserve, scenic riverway) add:
 national_park: true`;
 
+        const userMessage = userPrompt
+          ? `Generate 5 new trip ideas. The user has asked specifically for: ${userPrompt}\n\nStill obey the diversity and "would they actually go?" rules — interpret their request through the taste profile, don't override it.`
+          : 'Generate 5 new trip ideas.';
+
         const response = await client.messages.create({
           model: 'claude-sonnet-4-6',
           max_tokens: 3000,
           system,
-          messages: [{ role: 'user', content: 'Generate 5 new trip ideas.' }],
+          messages: [{ role: 'user', content: userMessage }],
         });
 
         const text = response.content.find(b => b.type === 'text')?.text ?? '';

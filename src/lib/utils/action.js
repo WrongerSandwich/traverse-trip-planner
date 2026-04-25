@@ -3,8 +3,13 @@
  * Resolves when the server sends { done: true }.
  * Rejects on network/server errors.
  */
-export async function streamAction(url, onMessage) {
-  const res = await fetch(url, { method: 'POST' });
+export async function streamAction(url, onMessage, body = null) {
+  const init = { method: 'POST' };
+  if (body !== null) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(url, init);
   if (!res.ok) throw new Error(`Server error ${res.status}`);
 
   const reader = res.body.getReader();
