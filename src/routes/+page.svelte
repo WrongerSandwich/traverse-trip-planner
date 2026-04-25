@@ -54,8 +54,19 @@
     (activeStarred ? 1 : 0)
   );
 
-  // ── Mobile map toggle ──
+  // ── Mobile map toggle + header measurement ──
   let mapVisible = $state(true);
+  let headerEl  = $state(null);
+
+  $effect(() => {
+    if (!browser || !headerEl) return;
+    const set = () =>
+      document.documentElement.style.setProperty('--header-h', `${headerEl.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(headerEl);
+    return () => ro.disconnect();
+  });
 
   // ── Mobile scroll-focus ──
   let isMobile = $state(false);
@@ -197,7 +208,7 @@
     />
   {/if}
 
-  <header>
+  <header bind:this={headerEl}>
     <div class="wordmark">
       <svg class="logo" width="18" height="26" viewBox="0 0 9 13" aria-hidden="true">
         <!-- Compass needle: solid north, muted south -->
@@ -720,19 +731,27 @@
     /* Stacked layout — must override desktop overflow:hidden or sticky breaks */
     .layout { grid-template-columns: 1fr; overflow: visible; height: auto; }
 
+    /* overflow:clip clips visually WITHOUT creating a BFC, so sticky still works */
+    .page { overflow-x: clip; }
+    .cards-col { height: auto; overflow-x: clip; overflow-y: visible; }
+
+    /* Sticky header — keeps Atlas bar visible while scrolling */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
+
+    /* Map sticks just below the header */
     .map-col {
       height: var(--map-h-mobile);
       overflow: hidden;
       position: sticky;
-      top: 0;
-      z-index: 10;
+      top: var(--header-h, 56px);
+      z-index: 20;
       transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     }
     .map-col.map-hidden { height: 0; }
-
-    /* Prevent any child from widening the document */
-    .page { overflow-x: hidden; }
-    .cards-col { height: auto; overflow-x: hidden; overflow-y: visible; }
 
     /* Controls: clip overflow at the wrapper, scroll inside */
     .controls-wrap { overflow: hidden; }
