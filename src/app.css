@@ -1,0 +1,56 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Surface */
+  --bg:            oklch(96.5% 0.016 80);
+  --surface:       oklch(99.2% 0.007 80);
+  --surface-raised: oklch(99.8% 0.004 80);
+  --border:        oklch(88% 0.014 80);
+  --border-subtle: oklch(92% 0.010 80);
+
+  /* Text */
+  --text:          oklch(19% 0.015 80);
+  --text-2:        oklch(44% 0.013 80);
+  --text-3:        oklch(64% 0.010 80);
+
+  /* Accent — deep forest green */
+  --accent:        oklch(36% 0.12 155);
+  --accent-mid:    oklch(52% 0.14 155);
+  --accent-bg:     oklch(94.5% 0.04 155);
+  --accent-border: oklch(82% 0.07 155);
+
+  /* Header */
+  --header-bg:     oklch(22% 0.028 155);
+  --header-text:   oklch(94% 0.018 80);
+
+  /* Status */
+  --idea-bg:       oklch(93% 0.024 250);
+  --idea-text:     oklch(38% 0.13 255);
+  --exploring-bg:  oklch(93% 0.040 70);
+  --exploring-text: oklch(42% 0.14 55);
+  --planned-bg:    oklch(93% 0.040 155);
+  --planned-text:  oklch(34% 0.12 155);
+  --completed-bg:  oklch(93% 0.024 300);
+  --completed-text: oklch(40% 0.12 300);
+
+  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Leaflet popup */
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  box-shadow: 0 4px 20px oklch(0% 0 0 / 0.12);
+  padding: 0;
+}
+.leaflet-popup-content { margin: 0; font-family: var(--font); }
+.map-popup { padding: 0.65rem 0.9rem; min-width: 140px; }
+.map-popup strong { display: block; font-size: 0.82rem; line-height: 1.3; color: var(--text); font-weight: 600; }
+.map-popup small  { color: var(--text-3); font-size: 0.72rem; }

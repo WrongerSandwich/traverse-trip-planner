@@ -1,0 +1,11 @@
+node_modules/
+.svelte-kit/
+build/
+.DS_Store
+
+# API keys — never commit
+.env
+
+# Vite/dev logs
+*.log
+/tmp/
