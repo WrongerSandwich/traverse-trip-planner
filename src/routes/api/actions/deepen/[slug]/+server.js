@@ -36,7 +36,6 @@ async function runResearchAgent(client, system, userMsg, onSearch) {
       system,
       tools,
       messages,
-      betas: ['web-search-2025-03-05'],
     });
 
     const textBlocks = response.content.filter(b => b.type === 'text');
