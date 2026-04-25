@@ -735,8 +735,11 @@
     .header-count { display: none; }
 
     /* ── Page / layout ── */
-    /* overflow:clip clips visually WITHOUT creating a BFC, so sticky still works */
-    .page { height: auto; overflow-x: clip; grid-template-rows: auto auto; }
+    /* overflow:clip clips visually WITHOUT creating a scroll container, so sticky still works.
+       Must override BOTH axes — the desktop rule sets `overflow: hidden` shorthand, and leaving
+       overflow-y as hidden makes .page a scroll container, which traps position:sticky inside
+       .page (height:auto = no scroll room) instead of letting it stick to the body scroll. */
+    .page { height: auto; overflow: clip; grid-template-rows: auto auto; }
     /* Stacked single column */
     .layout { grid-template-columns: 1fr; overflow: visible; height: auto; }
 
