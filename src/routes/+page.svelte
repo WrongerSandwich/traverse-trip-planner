@@ -723,53 +723,63 @@
     /* Seed button larger tap target on mobile */
     .seed-btn { width: var(--tap-min); height: var(--tap-min); }
 
-    /* Header tighter on mobile */
-    header { padding: 0.8rem 1.1rem; }
-    header h1 { font-size: 1.2rem; }
-    .count-num { font-size: 1.3rem; }
-
-    /* Stacked layout — must override desktop overflow:hidden or sticky breaks */
-    .layout { grid-template-columns: 1fr; overflow: visible; height: auto; }
-
-    /* overflow:clip clips visually WITHOUT creating a BFC, so sticky still works */
-    .page { overflow-x: clip; }
-    .cards-col { height: auto; overflow-x: clip; overflow-y: visible; }
-
-    /* Sticky header — keeps Atlas bar visible while scrolling */
+    /* ── Header ── */
     header {
+      padding: 0.75rem 1rem;
       position: sticky;
       top: 0;
       z-index: 30;
     }
+    header h1 { font-size: 1.15rem; }
+    /* Count takes too much space on narrow screens — hide it */
+    .header-count { display: none; }
 
-    /* Map sticks just below the header */
+    /* ── Page / layout ── */
+    /* overflow:clip clips visually WITHOUT creating a BFC, so sticky still works */
+    .page { height: auto; overflow-x: clip; grid-template-rows: auto auto; }
+    /* Stacked single column */
+    .layout { grid-template-columns: 1fr; overflow: visible; height: auto; }
+
+    /* Cards column: simple block flow, no desktop flex/shadow */
+    .cards-col {
+      height: auto;
+      display: block;
+      overflow-x: clip;
+      box-shadow: none;
+    }
+
+    /* ── Sticky map just below the header ── */
     .map-col {
       height: var(--map-h-mobile);
       overflow: hidden;
       position: sticky;
-      top: var(--header-h, 56px);
+      top: var(--header-h, 70px);
       z-index: 20;
       transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     }
     .map-col.map-hidden { height: 0; }
 
-    /* Controls: clip overflow at the wrapper, scroll inside */
-    .controls-wrap { overflow: hidden; }
+    /* ── Controls ── */
+    /* Clip horizontal overflow at the bar without hiding the filter panel below */
+    .controls-wrap { overflow-x: clip; }
     .controls { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
     .tab, .filter-toggle, .sort-select { min-height: var(--tap-min); white-space: nowrap; }
 
-    /* Filter panel needs more vertical room for larger targets */
+    /* Filter panel */
     .filter-panel.open { max-height: 200px; }
     .chip { min-height: 36px; padding: 0.35rem 0.7rem; font-size: 0.74rem; }
-    .filter-groups { gap: 1.25rem; padding: 0.8rem 1.1rem; }
+    .filter-groups { gap: 1.25rem; padding: 0.8rem 1rem; }
 
-    /* Body scrolls on mobile — scroll-area doesn't need its own container */
-    .scroll-area { overflow-y: visible; min-height: 0; }
+    /* ── Cards ── */
+    /* scroll-area is now just a plain block; body handles scrolling */
+    .scroll-area { flex: none; overflow-y: visible; }
     .grid { padding: 1rem 0.85rem 3rem; gap: 0.75rem; }
-
     .empty { padding: 3rem 1rem; }
 
-    /* Map toggle active state — filled when map is showing */
+    /* ── Seed button ── */
+    .seed-btn { width: var(--tap-min); height: var(--tap-min); }
+
+    /* ── Map toggle active state ── */
     .map-toggle.map-showing {
       background: oklch(30% 0.035 155);
       border-color: oklch(52% 0.08 155);
