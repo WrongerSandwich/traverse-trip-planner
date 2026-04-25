@@ -120,7 +120,7 @@
 
   /* ── Thumbnail ── */
   .thumb {
-    height: 220px;
+    height: var(--thumb-h, 220px);
     flex-shrink: 0;
     background: var(--border);
     overflow: hidden;
@@ -304,5 +304,18 @@
     font-weight: 700;
     color: var(--text);
     margin-left: auto;
+  }
+
+  @media (max-width: 768px) {
+    /* Shorter thumbnail — saves ~50px per card */
+    :global(:root) { --thumb-h: 170px; }
+
+    /* Expand tap areas without changing visual size */
+    .bookmark {
+      min-width: var(--tap-min);
+      min-height: var(--tap-min);
+      justify-content: flex-end;
+    }
+    .research-btn { min-height: var(--tap-min); display: flex; align-items: center; }
   }
 </style>

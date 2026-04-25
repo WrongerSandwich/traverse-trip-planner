@@ -84,6 +84,14 @@
   }
   .spinner-label { font-size: 0.74rem; }
 
+  @media (max-width: 768px) {
+    .panel {
+      bottom: 0; right: 0; left: 0;
+      width: 100%;
+      border-radius: 10px 10px 0 0;
+    }
+  }
+
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner {
     width: 12px; height: 12px;

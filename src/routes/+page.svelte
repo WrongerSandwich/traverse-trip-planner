@@ -53,6 +53,9 @@
     (activeStarred ? 1 : 0)
   );
 
+  // ── Mobile map toggle ──
+  let mapVisible = $state(true);
+
   // ── In-browser actions ──
   let actionVisible  = $state(false);
   let actionRunning  = $state(false);
@@ -174,6 +177,18 @@
       </svg>
     </button>
 
+    <button
+      class="map-toggle"
+      onclick={() => mapVisible = !mapVisible}
+      aria-label={mapVisible ? 'Hide map' : 'Show map'}
+    >
+      <svg width="15" height="13" viewBox="0 0 15 13" aria-hidden="true">
+        <path d="M0 0l5 2 5-2 5 2v11l-5-2-5 2-5-2V0z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+        <path d="M5 2v11M10 0v11" stroke="currentColor" stroke-width="1.3"/>
+      </svg>
+      {mapVisible ? 'Map' : 'Map'}
+    </button>
+
     <div class="header-count">
       {#if attrFilterCount > 0 || activeFilter !== 'all'}
         <span class="count-num">{trips.length}</span>
@@ -186,7 +201,7 @@
   </header>
 
   <div class="layout">
-    <div class="map-col">
+    <div class="map-col" class:map-hidden={!mapVisible}>
       <OverviewMap {trips} home={data.home} {hoveredSlug}
         selectedSlug={selectedTrip?._slug}
         onTripClick={t => selectedTrip = t} />
@@ -617,13 +632,65 @@
   }
   .empty-clear:hover { border-color: var(--accent-border); color: var(--accent); }
 
+  /* ── Mobile map toggle button — hidden on desktop ── */
+  .map-toggle { display: none; }
+
   @media (max-width: 768px) {
     :global(html, body) { overflow: auto; }
     .page { height: auto; }
+
+    /* Map toggle button visible on mobile */
+    .map-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: none;
+      border: 1px solid oklch(36% 0.06 155);
+      border-radius: 4px;
+      color: oklch(62% 0.022 155);
+      font-family: var(--font);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+      min-height: var(--tap-min);
+      transition: background 0.12s, color 0.12s;
+    }
+    .map-toggle:hover { background: oklch(28% 0.03 155); color: oklch(82% 0.02 155); }
+
+    /* Seed button larger tap target on mobile */
+    .seed-btn { width: var(--tap-min); height: var(--tap-min); }
+
+    /* Header tighter on mobile */
+    header { padding: 0.8rem 1.1rem; }
+    header h1 { font-size: 1.2rem; }
+    .count-num { font-size: 1.3rem; }
+
+    /* Stacked layout */
     .layout { grid-template-columns: 1fr; }
-    .map-col { height: 300px; }
+
+    .map-col {
+      height: var(--map-h-mobile);
+      overflow: hidden;
+      transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .map-col.map-hidden { height: 0; }
+
     .cards-col { height: auto; overflow: visible; }
-    .grid { overflow: visible; }
-    .filter-panel.open { max-height: 160px; }
+
+    /* Controls: horizontal scroll so tabs don't wrap */
+    .controls { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+    .tab, .filter-toggle, .sort-select { min-height: var(--tap-min); white-space: nowrap; }
+
+    /* Filter panel needs more vertical room for larger targets */
+    .filter-panel.open { max-height: 200px; }
+    .chip { min-height: 36px; padding: 0.35rem 0.7rem; font-size: 0.74rem; }
+    .filter-groups { gap: 1.25rem; padding: 0.8rem 1.1rem; }
+
+    .scroll-area { overflow: visible; }
+    .grid { overflow: visible; padding: 1rem 0.85rem 3rem; gap: 0.75rem; }
+
+    .empty { padding: 3rem 1rem; }
   }
 </style>

@@ -328,5 +328,20 @@
   .prose :global(td) { padding: 0.4rem 0.65rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
   .prose :global(tr:last-child td) { border-bottom: none; }
 
-  @media (max-width: 600px) { .panel { width: 100vw; } }
+  @media (max-width: 768px) {
+    .panel { width: 100vw; }
+
+    /* Shorter hero — reclaims viewport for content */
+    .hero { height: 180px; }
+
+    /* Larger tap targets on tabs and close */
+    .tab { min-height: var(--tap-min); padding: 0 1rem; }
+    .panel-bookmark, .close { min-width: var(--tap-min); min-height: var(--tap-min); }
+
+    /* Tighter body padding */
+    .body { padding: 1.1rem 1.1rem 2.5rem; }
+
+    /* Smaller map strip */
+    .panel-map { height: 120px; }
+  }
 </style>
