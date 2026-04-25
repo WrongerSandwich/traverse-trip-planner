@@ -166,19 +166,8 @@
       <h1>Atlas</h1>
     </div>
     <button
-      class="seed-btn"
-      onclick={runSeed}
-      disabled={actionRunning}
-      title="Add 5 new trip ideas"
-      aria-label="Add trips"
-    >
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-        <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-      </svg>
-    </button>
-
-    <button
       class="map-toggle"
+      class:map-showing={mapVisible}
       onclick={() => mapVisible = !mapVisible}
       aria-label={mapVisible ? 'Hide map' : 'Show map'}
     >
@@ -189,14 +178,27 @@
       {mapVisible ? 'Map' : 'Map'}
     </button>
 
-    <div class="header-count">
-      {#if attrFilterCount > 0 || activeFilter !== 'all'}
-        <span class="count-num">{trips.length}</span>
-        <span class="count-label">of {data.trips.length}</span>
-      {:else}
-        <span class="count-num">{data.trips.length}</span>
-        <span class="count-label">destination{data.trips.length !== 1 ? 's' : ''}</span>
-      {/if}
+    <div class="header-right">
+      <div class="header-count">
+        {#if attrFilterCount > 0 || activeFilter !== 'all'}
+          <span class="count-num">{trips.length}</span>
+          <span class="count-label">of {data.trips.length}</span>
+        {:else}
+          <span class="count-num">{data.trips.length}</span>
+          <span class="count-label">destination{data.trips.length !== 1 ? 's' : ''}</span>
+        {/if}
+      </div>
+      <button
+        class="seed-btn"
+        onclick={runSeed}
+        disabled={actionRunning}
+        title="Add 5 new trip ideas"
+        aria-label="Add trips"
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
   </header>
 
@@ -367,6 +369,13 @@
     display: flex;
     align-items: center;
     gap: 0.55rem;
+  }
+
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
   }
 
   .seed-btn {
@@ -673,13 +682,19 @@
     .map-col {
       height: var(--map-h-mobile);
       overflow: hidden;
+      position: sticky;
+      top: 0;
+      z-index: 10;
       transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     }
     .map-col.map-hidden { height: 0; }
 
-    .cards-col { height: auto; overflow: visible; }
+    /* Prevent any child from widening the document */
+    .page, .cards-col { overflow-x: hidden; }
+    .cards-col { height: auto; }
 
-    /* Controls: horizontal scroll so tabs don't wrap */
+    /* Controls: clip overflow at the wrapper, scroll inside */
+    .controls-wrap { overflow: hidden; }
     .controls { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
     .tab, .filter-toggle, .sort-select { min-height: var(--tap-min); white-space: nowrap; }
 
@@ -688,9 +703,17 @@
     .chip { min-height: 36px; padding: 0.35rem 0.7rem; font-size: 0.74rem; }
     .filter-groups { gap: 1.25rem; padding: 0.8rem 1.1rem; }
 
-    .scroll-area { overflow: visible; }
-    .grid { overflow: visible; padding: 1rem 0.85rem 3rem; gap: 0.75rem; }
+    /* Restore scroll-area scrolling (was removed by overflow:visible) */
+    .scroll-area { overflow-y: auto; }
+    .grid { padding: 1rem 0.85rem 3rem; gap: 0.75rem; }
 
     .empty { padding: 3rem 1rem; }
+
+    /* Map toggle active state — filled when map is showing */
+    .map-toggle.map-showing {
+      background: oklch(30% 0.035 155);
+      border-color: oklch(52% 0.08 155);
+      color: oklch(84% 0.025 155);
+    }
   }
 </style>
