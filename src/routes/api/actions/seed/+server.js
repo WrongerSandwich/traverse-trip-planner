@@ -10,7 +10,7 @@ function sse(controller, encoder, msg, done = false) {
 
 function collectExistingDestinations() {
   const destinations = [];
-  for (const stage of ['ideas', 'exploring', 'planned', 'completed']) {
+  for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
     const dir = join(ROOT, stage);
     if (!existsSync(dir)) continue;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

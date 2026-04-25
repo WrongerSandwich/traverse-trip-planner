@@ -4,7 +4,7 @@
   import DetailPanel from '$lib/components/DetailPanel.svelte';
   import ActionPanel from '$lib/components/ActionPanel.svelte';
   import { streamAction } from '$lib/utils/action.js';
-  import { invalidateAll } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
   import { browser } from '$app/environment';
 
   let { data } = $props();
@@ -151,6 +151,30 @@
     }
   }
 
+  async function promoteToPlanning(trip, e) {
+    e?.stopPropagation?.();
+    const slug = trip._slug;
+    try {
+      const res = await fetch(`/api/promote/${encodeURIComponent(slug)}`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Promote failed: ${res.status}`);
+      // Close any open detail panel and navigate to the dedicated planning page
+      selectedTrip = null;
+      await goto(`/trips/${encodeURIComponent(slug)}`, { invalidateAll: true });
+    } catch (err) {
+      console.error(err);
+      alert('Could not move trip into Planning — check the server log.');
+    }
+  }
+
+  function openTrip(trip) {
+    const stage = trip._stage || trip.status;
+    if (stage === 'planning') {
+      goto(`/trips/${encodeURIComponent(trip._slug)}`);
+    } else {
+      selectedTrip = trip;
+    }
+  }
+
   function clearAttrs() {
     activeMode    = 'all';
     activeDist    = 'any';
@@ -258,14 +282,14 @@
     <div class="map-col" class:map-hidden={!mapVisible}>
       <OverviewMap {trips} home={data.home} hoveredSlug={effectiveHovered}
         selectedSlug={selectedTrip?._slug}
-        onTripClick={t => selectedTrip = t} />
+        onTripClick={t => openTrip(t)} />
     </div>
 
     <div class="cards-col">
       <!-- Stage tabs + filter toggle + sort -->
       <div class="controls-wrap">
         <div class="controls">
-          {#each ['all','idea','exploring','planned','completed'] as f}
+          {#each ['all','idea','exploring','planning','completed'] as f}
             <button class="tab" class:active={activeFilter === f} onclick={() => activeFilter = f}>
               {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
@@ -370,11 +394,12 @@
           {#each trips as trip (trip._slug)}
             <TripCard {trip}
               starred={isStarred(trip)}
-              onclick={() => selectedTrip = trip}
+              onclick={() => openTrip(trip)}
               onhover={() => hoveredSlug = trip._slug}
               onleave={() => hoveredSlug = null}
               onbookmark={(e) => toggleBookmark(trip, e)}
               ondeepen={(e) => { e?.stopPropagation(); runDeepen(trip._slug); }}
+              onpromote={(e) => promoteToPlanning(trip, e)}
             />
           {:else}
             <div class="empty">
@@ -394,6 +419,7 @@
   trip={selectedTrip}
   starred={selectedTrip ? isStarred(selectedTrip) : false}
   onbookmark={(e) => selectedTrip && toggleBookmark(selectedTrip, e)}
+  onpromote={(e) => selectedTrip && promoteToPlanning(selectedTrip, e)}
   onclose={() => selectedTrip = null}
 />
 

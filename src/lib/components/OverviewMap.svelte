@@ -3,7 +3,7 @@
 
   let { trips = [], home = null, hoveredSlug = null, selectedSlug = null, onTripClick } = $props();
 
-  const STATUS_COLOR = { idea: '#1e40af', exploring: '#c2570a', planned: '#166534', completed: '#6d28d9' };
+  const STATUS_COLOR = { idea: '#1e40af', exploring: '#c2570a', planning: '#166534', completed: '#6d28d9' };
   const FLY_COLOR = '#0d9488';
   const markerColor = t => t.fly_in === 'true' ? FLY_COLOR : (STATUS_COLOR[t.status || t._stage] || '#888');
 
