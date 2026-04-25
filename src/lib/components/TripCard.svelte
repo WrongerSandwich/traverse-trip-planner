@@ -1,11 +1,12 @@
 <script>
   import MiniMap from './MiniMap.svelte';
 
-  let { trip, starred = false, onclick, onhover, onleave, onbookmark, ondeepen } = $props();
+  let { trip, starred = false, onclick, onhover, onleave, onbookmark, ondeepen, onpromote } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
+  const isExploring = $derived((trip.status || trip._stage) === 'exploring');
 
-  const STATUS_COLOR = { idea: '#1e40af', exploring: '#c2570a', planned: '#166534', completed: '#6d28d9' };
+  const STATUS_COLOR = { idea: '#1e40af', exploring: '#c2570a', planning: '#166534', completed: '#6d28d9' };
   const FLY_COLOR = '#0d9488';
 
   const status  = $derived(trip.status || trip._stage || 'idea');
@@ -76,6 +77,10 @@
     {#if isIdea && ondeepen}
       <button class="research-btn" onclick={ondeepen} title="Research this trip with Claude">
         Research →
+      </button>
+    {:else if isExploring && onpromote}
+      <button class="research-btn" onclick={onpromote} title="Move into Planning">
+        Start Planning →
       </button>
     {/if}
 

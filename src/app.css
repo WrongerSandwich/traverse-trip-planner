@@ -28,8 +28,8 @@
   --idea-text:     oklch(38% 0.13 255);
   --exploring-bg:  oklch(93% 0.040 70);
   --exploring-text: oklch(42% 0.14 55);
-  --planned-bg:    oklch(93% 0.040 155);
-  --planned-text:  oklch(34% 0.12 155);
+  --planning-bg:   oklch(93% 0.040 155);
+  --planning-text: oklch(34% 0.12 155);
   --completed-bg:  oklch(93% 0.024 300);
   --completed-text: oklch(40% 0.12 300);
 

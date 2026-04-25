@@ -158,7 +158,7 @@ export function parseFrontmatter(content) {
 // ── Collect raw trips ──
 function collectTrips() {
   const trips = [];
-  for (const stage of ['ideas', 'exploring', 'planned', 'completed']) {
+  for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
     const dir = join(ROOT, stage);
     if (!existsSync(dir)) continue;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -244,7 +244,7 @@ export async function enrichTrips() {
 function findTripFile(slug) {
   const ideaPath = join(ROOT, 'ideas', `${slug}.md`);
   if (existsSync(ideaPath)) return ideaPath;
-  for (const stage of ['exploring', 'planned', 'completed']) {
+  for (const stage of ['exploring', 'planning', 'completed']) {
     const p = join(ROOT, stage, slug, 'overview.md');
     if (existsSync(p)) return p;
   }
@@ -276,7 +276,7 @@ export function toggleStarred(slug) {
 
 // ── Trip file content ──
 export function getTripFiles(slug) {
-  for (const stage of ['exploring', 'planned', 'completed']) {
+  for (const stage of ['exploring', 'planning', 'completed']) {
     const dir = join(ROOT, stage, slug);
     if (existsSync(dir) && statSync(dir).isDirectory()) {
       const files = {};

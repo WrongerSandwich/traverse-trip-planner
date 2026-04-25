@@ -2,9 +2,11 @@
   import { marked } from 'marked';
   import MiniMap from './MiniMap.svelte';
 
-  let { trip = null, onclose, starred = false, onbookmark } = $props();
+  let { trip = null, onclose, starred = false, onbookmark, onpromote } = $props();
 
-  const STATUS_COLOR = { idea: '#1e40af', exploring: '#c2570a', planned: '#166534', completed: '#6d28d9' };
+  const isExploring = $derived((trip?.status || trip?._stage) === 'exploring');
+
+  const STATUS_COLOR = { idea: '#1e40af', exploring: '#c2570a', planning: '#166534', completed: '#6d28d9' };
   const FLY_COLOR = '#0d9488';
   const markerColor = t => t?.fly_in === 'true' ? FLY_COLOR : (STATUS_COLOR[t?.status || t?._stage] || '#888');
 
@@ -113,6 +115,12 @@
 
   <!-- Content -->
   <div class="body">
+    {#if isExploring && onpromote}
+      <div class="promote-row">
+        <button class="promote-btn" onclick={onpromote}>Start Planning →</button>
+        <p class="promote-hint">Move into Planning to start adding dates, lodging, and edits.</p>
+      </div>
+    {/if}
     {#if loading}
       <div class="empty">Loading…</div>
     {:else if !tripFiles || tabs.length === 0}
@@ -286,6 +294,37 @@
 
   /* ── Body ── */
   .body { flex: 1; overflow-y: auto; padding: 1.5rem 1.75rem 3rem; }
+
+  .promote-row {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.75rem 0.95rem;
+    margin: 0 0 1.4rem;
+    background: var(--planning-bg);
+    border-left: 3px solid var(--planning-text);
+    border-radius: 3px;
+  }
+  .promote-btn {
+    background: var(--planning-text);
+    color: oklch(97% 0.012 80);
+    border: none;
+    padding: 0.5rem 0.9rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    font-family: var(--font);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, transform 0.1s;
+  }
+  .promote-btn:hover { background: oklch(28% 0.13 155); transform: translateY(-1px); }
+  .promote-hint {
+    font-size: 0.78rem;
+    color: var(--planning-text);
+    line-height: 1.4;
+    margin: 0;
+  }
 
   .empty {
     color: var(--text-3);
