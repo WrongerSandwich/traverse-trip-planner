@@ -3,6 +3,7 @@
   import { invalidateAll, goto } from '$app/navigation';
   import MiniMap from '$lib/components/MiniMap.svelte';
   import { tripColor } from '$lib/utils/colors.js';
+  import { swipeClose } from '$lib/actions/swipeClose.js';
 
   let { data } = $props();
 
@@ -147,21 +148,7 @@
     }
   }
 
-  // Swipe-right-to-close for the chat panel (slides in from right).
-  // Threshold is generous on purpose — accidental closes are worse than
-  // requiring a deliberate swipe.
-  let swipeStartX = 0, swipeStartY = 0, swipeStartT = 0;
-  function onSwipeStart(e) {
-    const t = e.touches[0];
-    swipeStartX = t.clientX; swipeStartY = t.clientY; swipeStartT = Date.now();
-  }
-  function onSwipeEnd(e) {
-    const t = e.changedTouches[0];
-    const dx = t.clientX - swipeStartX;
-    const dy = t.clientY - swipeStartY;
-    const dt = Date.now() - swipeStartT;
-    if (dx > 80 && Math.abs(dy) < 40 && dt < 500) chatOpen = false;
-  }
+
 </script>
 
 <svelte:head>
@@ -256,7 +243,7 @@
   <div class="chat-backdrop" class:open={chatOpen} onclick={() => chatOpen = false} role="presentation"></div>
 
   <aside class="chat" class:open={chatOpen} aria-hidden={!chatOpen}
-    ontouchstart={onSwipeStart} ontouchend={onSwipeEnd}>
+    use:swipeClose={() => chatOpen = false}>
     <header class="chat-header">
       <span>Ask Claude about this trip</span>
       <button class="chat-close" onclick={() => chatOpen = false} aria-label="Close chat">✕</button>

@@ -2,6 +2,7 @@
   import { marked } from 'marked';
   import MiniMap from './MiniMap.svelte';
   import { tripColor } from '$lib/utils/colors.js';
+  import { swipeClose } from '$lib/actions/swipeClose.js';
 
   let { trip = null, onclose, starred = false, onbookmark, onpromote, onarchive } = $props();
 
@@ -44,20 +45,7 @@
 
   function handleKeydown(e) { if (e.key === 'Escape') onclose?.(); }
 
-  // Swipe-right-to-close. Generous threshold to avoid accidental closes
-  // while scrolling content vertically.
-  let swipeStartX = 0, swipeStartY = 0, swipeStartT = 0;
-  function onSwipeStart(e) {
-    const t = e.touches[0];
-    swipeStartX = t.clientX; swipeStartY = t.clientY; swipeStartT = Date.now();
-  }
-  function onSwipeEnd(e) {
-    const t = e.changedTouches[0];
-    const dx = t.clientX - swipeStartX;
-    const dy = t.clientY - swipeStartY;
-    const dt = Date.now() - swipeStartT;
-    if (dx > 80 && Math.abs(dy) < 40 && dt < 500) onclose?.();
-  }
+
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -65,7 +53,7 @@
 <div class="backdrop" class:open={!!trip} onclick={onclose} role="presentation"></div>
 
 <aside class="panel" class:open={!!trip}
-  ontouchstart={onSwipeStart} ontouchend={onSwipeEnd}>
+  use:swipeClose={() => onclose?.()}>
 
   <!-- Hero: photo with overlay, or dark fallback header -->
   {#if trip?._image}
