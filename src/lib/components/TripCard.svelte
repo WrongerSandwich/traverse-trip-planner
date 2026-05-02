@@ -1,16 +1,14 @@
 <script>
   import MiniMap from './MiniMap.svelte';
+  import { tripColor } from '$lib/utils/colors.js';
 
   let { trip, starred = false, onclick, onhover, onleave, onbookmark, ondeepen, onpromote } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
   const isExploring = $derived((trip.status || trip._stage) === 'exploring');
 
-  const STATUS_COLOR = { idea: '#1e40af', exploring: '#c2570a', planning: '#166534', completed: '#6d28d9' };
-  const FLY_COLOR = '#0d9488';
-
   const status  = $derived(trip.status || trip._stage || 'idea');
-  const color   = $derived(trip.fly_in === 'true' ? FLY_COLOR : (STATUS_COLOR[status] || '#888'));
+  const color   = $derived(tripColor(trip));
   const date    = $derived(trip.created ? new Date(trip.created).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '');
   const driveLabel = $derived(
     trip._drive_hours != null
