@@ -143,12 +143,6 @@
     "photographer": "John Hanson",
     "photographer_url": "https://www.pexels.com/@john-hanson-2150619980"
   },
-  "Fort Scott Civil War Town": {
-    "medium": "https://images.pexels.com/photos/18159272/pexels-photo-18159272.jpeg?auto=compress&cs=tinysrgb&h=350",
-    "large": "https://images.pexels.com/photos/18159272/pexels-photo-18159272.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
-    "photographer": "Chad Brocker",
-    "photographer_url": "https://www.pexels.com/@chadbrocker"
-  },
   "Konza Prairie Manhattan Kansas": {
     "medium": "https://images.pexels.com/photos/17935037/pexels-photo-17935037.jpeg?auto=compress&cs=tinysrgb&h=350",
     "large": "https://images.pexels.com/photos/17935037/pexels-photo-17935037.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
@@ -208,5 +202,35 @@
     "large": "https://images.pexels.com/photos/4394336/pexels-photo-4394336.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
     "photographer": "Kelly",
     "photographer_url": "https://www.pexels.com/@kelly"
+  },
+  "Buffalo National River — North Arkansas Bluff Country": {
+    "medium": "https://images.pexels.com/photos/34688137/pexels-photo-34688137.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/34688137/pexels-photo-34688137.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "Ramakanth Chilekampalli",
+    "photographer_url": "https://www.pexels.com/@ramakanth-chilekampalli-473906109"
+  },
+  "Cuyahoga Valley National Park & Akron Art Belt": {
+    "medium": "https://images.pexels.com/photos/36446758/pexels-photo-36446758.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/36446758/pexels-photo-36446758.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "Kandice Boyd-Roberts",
+    "photographer_url": "https://www.pexels.com/@kandice-boyd-roberts-2151992603"
+  },
+  "Great Sand Dunes & San Luis Valley": {
+    "medium": "https://images.pexels.com/photos/11513317/pexels-photo-11513317.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/11513317/pexels-photo-11513317.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "Frank Schrader",
+    "photographer_url": "https://www.pexels.com/@franki-frank"
+  },
+  "Isle Royale — Lake Superior's Roadless Island": {
+    "medium": "https://images.pexels.com/photos/34677657/pexels-photo-34677657.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/34677657/pexels-photo-34677657.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "Ken Jacobsen",
+    "photographer_url": "https://www.pexels.com/@ken-jacobsen-2153687226"
+  },
+  "Sleeping Bear Dunes & Leelanau Peninsula": {
+    "medium": "https://images.pexels.com/photos/10958422/pexels-photo-10958422.jpeg?auto=compress&cs=tinysrgb&h=350",
+    "large": "https://images.pexels.com/photos/10958422/pexels-photo-10958422.jpeg?auto=compress&cs=tinysrgb&h=650&w=940",
+    "photographer": "Ralitsa Racheva",
+    "photographer_url": "https://www.pexels.com/@ralitsa-racheva-568537"
   }
 }

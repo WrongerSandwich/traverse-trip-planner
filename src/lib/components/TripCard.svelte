@@ -28,7 +28,7 @@
   {#if trip._image}
     <div class="thumb photo">
       <img src={trip._image.medium} alt={trip.title || trip.destination} loading="lazy" />
-      <span class="badge">{status}</span>
+      <span class="badge">{status}{trip.locked === 'true' ? ' · locked' : ''}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
       <div class="credit">
         <a href={trip._image.photographer_url} target="_blank" rel="noopener">{trip._image.photographer}</a> / Pexels
@@ -37,13 +37,13 @@
   {:else if Array.isArray(trip._coords)}
     <div class="thumb">
       <MiniMap coords={trip._coords} {color} />
-      <span class="badge">{status}</span>
+      <span class="badge">{status}{trip.locked === 'true' ? ' · locked' : ''}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
     </div>
   {:else}
     <div class="thumb placeholder">
       🗺️
-      <span class="badge">{status}</span>
+      <span class="badge">{status}{trip.locked === 'true' ? ' · locked' : ''}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
     </div>
   {/if}

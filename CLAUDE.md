@@ -63,6 +63,7 @@ Optional flags: `national_park: true` (for NPS units), `starred: true` (bookmark
 target_date, pet_sitter, lodging, reservations_needed,
 charging_stops (EV trips), cost_estimate_usd
 ```
+Optional planning flag: `locked: true` (trip is frozen; itinerary has been generated)
 
 ### Field notes
 
@@ -71,6 +72,7 @@ charging_stops (EV trips), cost_estimate_usd
 - `waypoints` — key cities along the driving route as an inline array: `[Overland Park KS, Leavenworth KS, Atchison KS]`. Used by the frontend to fetch an OSRM road-following route line. For fly-in trips, use the driving segment from arrival airport to destination. Required for the solid route line to appear on the map.
 - `national_park: true` — add to any trip where the primary draw is an NPS unit (national park, preserve, scenic riverway). Surfaces a badge on the trip card.
 - `starred: true` — bookmarked trip. Toggled by the frontend; write it here if pre-seeding a bookmark.
+- `locked: true` — trip is frozen. Editing and Ask Claude are disabled. An AI-generated `itinerary.md` exists in the same folder. Unlock to resume editing; re-lock to regenerate the itinerary.
 - `cost_tier` — `budget` | `mid` | `splurge`. Calibrated to the trip type (fly-in "mid" is different from drive "mid").
 
 Omit fields rather than guess at creation. Dates are ISO 8601. Distances default to miles.
@@ -90,6 +92,9 @@ The same lifecycle operations are reachable two ways: as Claude Code slash comma
 - **Research** (button on idea cards) — same as `/deepen`. Confirms before kicking off.
 - **Start Planning** (exploring trips) — promotes `exploring/<slug>/` → `planning/<slug>/` and rewrites the status frontmatter.
 - **Bookmark** (star icon) — toggles `starred: true|false` in the trip's frontmatter.
+- **Lock trip** (planning detail view) — calls Claude to generate a day-by-day `itinerary.md` from the existing sections, then sets `locked: true`. Editing and Ask Claude are hidden while locked.
+- **Unlock to edit** (locked detail view) — clears `locked: true`. The `itinerary.md` is kept but editing is restored. Re-lock to regenerate the itinerary.
+- **Print / Save PDF** (locked detail view) — opens the browser print dialog with print CSS that hides all chrome so only the itinerary renders.
 - **Archive** (detail view, gated by confirm) — moves the trip to `archived/<stage>/<slug>/`. The trip vanishes from the UI but stays in the seed-avoidance list.
 
 ## Frontend

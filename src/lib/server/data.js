@@ -322,6 +322,25 @@ export async function getTripRoute(slug) {
   return null;
 }
 
+// ── Lock toggle ──
+export function setLocked(slug, locked) {
+  const filePath = join(ROOT, 'planning', slug, 'overview.md');
+  if (!existsSync(filePath)) return null;
+
+  const content = readFileSync(filePath, 'utf8');
+  if (!parseFrontmatter(content)) return null;
+
+  let updated;
+  if (/^locked:/m.test(content)) {
+    updated = content.replace(/^locked:.*$/m, `locked: ${locked}`);
+  } else {
+    updated = content.replace(/(\n---\n)/, `\nlocked: ${locked}$1`);
+  }
+
+  writeFileSync(filePath, updated);
+  return { locked };
+}
+
 // ── Bookmark toggle ──
 function findTripFile(slug) {
   const ideaPath = join(ROOT, 'ideas', `${slug}.md`);
@@ -362,7 +381,7 @@ export function getTripFiles(slug) {
     const dir = join(ROOT, stage, slug);
     if (existsSync(dir) && statSync(dir).isDirectory()) {
       const files = {};
-      for (const name of ['overview', 'route', 'stops', 'logistics']) {
+      for (const name of ['overview', 'route', 'stops', 'logistics', 'itinerary']) {
         const fp = join(dir, `${name}.md`);
         if (!existsSync(fp)) continue;
         let content = readFileSync(fp, 'utf8');

@@ -15,10 +15,6 @@
     36.0625843,
     -94.1574328
   ],
-  "Fort Scott, KS": [
-    37.8399791,
-    -94.7082882
-  ],
   "Galveston, TX": [
     29.3872254,
     -94.992736
@@ -202,5 +198,47 @@
   "Strong City KS": [
     38.3972359,
     -96.5369508
+  ],
+  "Jasper, AR": [
+    36.0081324,
+    -93.1865659
+  ],
+  "Peninsula, OH": [
+    41.241167,
+    -81.552618
+  ],
+  "Alamosa, CO": [
+    37.5780995,
+    -105.7890452
+  ],
+  "Houghton, MI (island access)": null,
+  "Traverse City adjacent — Leland or Glen Arbor, MI": null,
+  "Columbia MO": [
+    38.951883,
+    -92.3337366
+  ],
+  "Jefferson City MO": [
+    38.577359,
+    -92.1724265
+  ],
+  "Hermann MO": [
+    38.7042119,
+    -91.4373845
+  ],
+  "Des Moines IA": [
+    41.5868654,
+    -93.6249494
+  ],
+  "Cedar Rapids IA": [
+    41.9758872,
+    -91.6704053
+  ],
+  "Dubuque IA": [
+    42.5006243,
+    -90.6647985
+  ],
+  "Madison WI": [
+    43.07469,
+    -89.3841663
   ]
 }

@@ -12,12 +12,14 @@
     route: 'Route',
     stops: 'Stops',
     logistics: 'Logistics',
+    itinerary: 'Itinerary',
   };
-  const SECTION_ORDER = ['overview', 'route', 'stops', 'logistics'];
+  const SECTION_ORDER = ['overview', 'route', 'stops', 'logistics', 'itinerary'];
 
   const trip = $derived(data.trip);
   const stage = $derived(data.stage);
   const isPlanning = $derived(stage === 'planning');
+  const isLocked = $derived(trip?.locked === 'true');
 
   // Local section content state, seeded from server load. Edits live here until saved.
   let sections = $state({ ...data.files });
@@ -25,6 +27,7 @@
   let editing = $state({});      // { route: true, ... }
   let drafts  = $state({});      // staging textareas while editing
   let saving  = $state({});
+  let locking = $state(false);
 
   // Refresh sections when nav causes a new load (rarely, but safe).
   $effect(() => { sections = { ...data.files }; });
@@ -133,6 +136,34 @@
     }
   }
 
+  // ── Lock / Unlock ──
+  async function lockTrip() {
+    if (!trip || locking) return;
+    locking = true;
+    try {
+      const res = await fetch(`/api/lock/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Lock failed: ${res.status}`);
+      await invalidateAll();
+    } catch (err) {
+      console.error(err);
+      alert('Could not lock the trip — check the server log.');
+    } finally {
+      locking = false;
+    }
+  }
+
+  async function unlockTrip() {
+    if (!trip) return;
+    try {
+      const res = await fetch(`/api/lock/${encodeURIComponent(trip._slug)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Unlock failed: ${res.status}`);
+      await invalidateAll();
+    } catch (err) {
+      console.error(err);
+      alert('Could not unlock the trip — check the server log.');
+    }
+  }
+
   // ── Archive ──
   async function archiveTrip() {
     if (!trip) return;
@@ -158,7 +189,7 @@
 <div class="page">
   <header>
     <button class="back" onclick={() => goto('/')} aria-label="Back to all trips">← All trips</button>
-    <span class="stage-pill">{stage || 'planning'}</span>
+    <span class="stage-pill" class:locked-pill={isLocked}>{isLocked ? 'locked' : (stage || 'planning')}</span>
     <h1>{trip?.title || trip?._slug}</h1>
     <div class="meta">
       {#if trip?.destination}<span>{trip.destination}</span>{/if}
@@ -180,10 +211,24 @@
 
   <div class="layout">
     <main class="content">
-      {#if isPlanning}
+      {#if isPlanning && !isLocked}
         <div class="callout">
           <strong>Planning mode.</strong>
           Edit any section below. Use <em>Ask Claude</em> to request changes — Claude reads your current sections and writes updates back to the markdown.
+          <div class="callout-actions">
+            <button class="lock-btn" onclick={lockTrip} disabled={locking}>
+              {locking ? 'Generating itinerary…' : '🔒 Lock trip & generate itinerary'}
+            </button>
+          </div>
+        </div>
+      {:else if isPlanning && isLocked}
+        <div class="callout locked-callout">
+          <strong>Locked — read-only.</strong>
+          Editing is frozen. The itinerary below was generated from your planning sections.
+          <div class="callout-actions">
+            <button class="unlock-btn" onclick={unlockTrip}>Unlock to edit</button>
+            <button class="print-btn" onclick={() => window.print()}>Print / Save PDF</button>
+          </div>
         </div>
       {:else}
         <div class="callout warn">
@@ -197,35 +242,41 @@
         </div>
       {/if}
 
-      {#each availableSections as section}
-        <section class="section">
-          <header class="section-header">
-            <h2>{SECTION_LABELS[section] || section}</h2>
-            {#if isPlanning && !editing[section]}
-              <button class="edit-btn" onclick={() => startEdit(section)}>Edit</button>
-            {/if}
-          </header>
+      {#if isLocked && sections.itinerary}
+        <div class="itinerary-view">
+          {@html marked.parse(sections.itinerary || '')}
+        </div>
+      {:else}
+        {#each availableSections.filter(s => s !== 'itinerary') as section}
+          <section class="section">
+            <header class="section-header">
+              <h2>{SECTION_LABELS[section] || section}</h2>
+              {#if isPlanning && !isLocked && !editing[section]}
+                <button class="edit-btn" onclick={() => startEdit(section)}>Edit</button>
+              {/if}
+            </header>
 
-          {#if editing[section]}
-            <textarea
-              class="editor"
-              bind:value={drafts[section]}
-              spellcheck="true"
-              rows="14"
-            ></textarea>
-            <div class="editor-actions">
-              <button class="save-btn" onclick={() => saveEdit(section)} disabled={saving[section]}>
-                {saving[section] ? 'Saving…' : 'Save'}
-              </button>
-              <button class="cancel-btn" onclick={() => cancelEdit(section)} disabled={saving[section]}>
-                Cancel
-              </button>
-            </div>
-          {:else}
-            <div class="prose">{@html marked.parse(sections[section] || '')}</div>
-          {/if}
-        </section>
-      {/each}
+            {#if editing[section]}
+              <textarea
+                class="editor"
+                bind:value={drafts[section]}
+                spellcheck="true"
+                rows="14"
+              ></textarea>
+              <div class="editor-actions">
+                <button class="save-btn" onclick={() => saveEdit(section)} disabled={saving[section]}>
+                  {saving[section] ? 'Saving…' : 'Save'}
+                </button>
+                <button class="cancel-btn" onclick={() => cancelEdit(section)} disabled={saving[section]}>
+                  Cancel
+                </button>
+              </div>
+            {:else}
+              <div class="prose">{@html marked.parse(sections[section] || '')}</div>
+            {/if}
+          </section>
+        {/each}
+      {/if}
 
       <div class="danger-zone">
         <button class="archive-btn" onclick={archiveTrip}>Archive trip</button>
@@ -234,7 +285,7 @@
     </main>
   </div>
 
-  {#if isPlanning}
+  {#if isPlanning && !isLocked}
     <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask Claude">
       {chatOpen ? '✕' : '✨ Ask Claude'}
     </button>
@@ -341,6 +392,10 @@
     background: var(--planning-bg);
     color: var(--planning-text);
   }
+  .stage-pill.locked-pill {
+    background: oklch(94% 0.045 55);
+    color: oklch(35% 0.12 55);
+  }
 
   .page > header h1 {
     font-size: 1.4rem;
@@ -419,6 +474,57 @@
     color: oklch(36% 0.14 55);
     border-left-color: oklch(48% 0.14 55);
   }
+  .callout.locked-callout {
+    background: oklch(96% 0.03 55);
+    color: oklch(30% 0.10 55);
+    border-left-color: oklch(50% 0.12 55);
+  }
+  .callout-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.65rem;
+  }
+  .lock-btn {
+    background: oklch(25% 0.08 155);
+    color: oklch(93% 0.018 80);
+    border: none;
+    padding: 0.4rem 0.85rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .lock-btn:hover:not(:disabled) { background: oklch(20% 0.06 155); }
+  .lock-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .unlock-btn {
+    background: none;
+    border: 1.5px solid oklch(50% 0.12 55);
+    color: oklch(30% 0.10 55);
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .unlock-btn:hover { background: oklch(50% 0.12 55); color: oklch(97% 0 0); }
+  .print-btn {
+    background: none;
+    border: 1.5px solid oklch(60% 0.03 155);
+    color: oklch(40% 0.06 155);
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .print-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   .map-strip {
     height: 220px;
@@ -707,6 +813,77 @@
     cursor: pointer;
   }
   .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Itinerary view (locked state) ── */
+  .itinerary-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+  .itinerary-view :global(h2) {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin: 0;
+    padding: 0.7rem 1.1rem 0.6rem;
+    background: oklch(96% 0.03 55);
+    border-left: 3px solid oklch(50% 0.12 55);
+    border-radius: 4px;
+  }
+  .itinerary-view :global(h3) {
+    font-size: 0.64rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-3);
+    margin: 1rem 0 0.3rem;
+  }
+  .itinerary-view :global(h3:first-of-type) { margin-top: 0.55rem; }
+  .itinerary-view :global(p) {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text-2);
+    margin: 0 0 0.4rem;
+    font-weight: 700;
+  }
+  .itinerary-view :global(ul) { margin: 0 0 0.5rem 0; list-style: none; padding: 0; }
+  .itinerary-view :global(li) {
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--text-2);
+    padding: 0.22rem 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .itinerary-view :global(li:last-child) { border-bottom: none; }
+  .itinerary-view :global(strong) { font-weight: 700; color: var(--text); }
+
+  /* ── Print styles ── */
+  @media print {
+    .page > header,
+    .chat-fab,
+    .chat-backdrop,
+    .chat,
+    .callout,
+    .danger-zone,
+    .map-strip,
+    .hero { display: none !important; }
+
+    .page { background: #fff; color: #111; }
+    .layout { padding: 0; }
+    .content { max-width: 100%; }
+
+    .itinerary-view :global(h2) {
+      background: #f5f0e8;
+      border-left-color: #92400e;
+      color: #1a1a1a;
+      page-break-after: avoid;
+    }
+    .itinerary-view :global(h3) { color: #666; }
+    .itinerary-view :global(p),
+    .itinerary-view :global(li) { color: #333; font-size: 10pt; }
+    .itinerary-view { page-break-inside: avoid; }
+  }
 
   @media (max-width: 768px) {
     .page > header { padding: 0.85rem 1rem; gap: 0.55rem; }
