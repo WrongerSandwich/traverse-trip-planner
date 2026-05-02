@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
+// TODO: export ROOT from here and remove the duplicate `const ROOT = process.cwd()` in each API route handler
 const ROOT = process.cwd();
 const IMAGE_CACHE_PATH   = join(ROOT, '.image-cache.json');
 const ROUTE_CACHE_PATH   = join(ROOT, '.route-cache.json');
@@ -14,6 +15,7 @@ try { imageCache   = JSON.parse(readFileSync(IMAGE_CACHE_PATH,   'utf8')); } cat
 try { routeCache   = JSON.parse(readFileSync(ROUTE_CACHE_PATH,   'utf8')); } catch {}
 try { geocodeCache = JSON.parse(readFileSync(GEOCODE_CACHE_PATH, 'utf8')); } catch {}
 
+// TODO: add try/catch to these saves — a writeFileSync failure (disk full, permissions) is currently silent
 function saveImageCache()   { writeFileSync(IMAGE_CACHE_PATH,   JSON.stringify(imageCache,   null, 2)); }
 function saveRouteCache()   { writeFileSync(ROUTE_CACHE_PATH,   JSON.stringify(routeCache,   null, 2)); }
 function saveGeocodeCache() { writeFileSync(GEOCODE_CACHE_PATH, JSON.stringify(geocodeCache, null, 2)); }
@@ -226,6 +228,7 @@ export function getHome() {
 }
 
 // ── Enrich trips ──
+// TODO: split into enrichWithGeodata() (geocode/image/route I/O) and enrichWithCalculations() (pure transforms); pruneCaches() can be called explicitly after enrichment
 export async function enrichTrips() {
   const home = getHome();
   const homeCoords = home?.coords ?? null;

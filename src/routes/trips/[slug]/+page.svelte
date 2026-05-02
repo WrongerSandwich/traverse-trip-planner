@@ -2,6 +2,7 @@
   import { marked } from 'marked';
   import { invalidateAll, goto } from '$app/navigation';
   import MiniMap from '$lib/components/MiniMap.svelte';
+  import { tripColor } from '$lib/utils/colors.js';
 
   let { data } = $props();
 
@@ -12,9 +13,6 @@
     logistics: 'Logistics',
   };
   const SECTION_ORDER = ['overview', 'route', 'stops', 'logistics'];
-
-  const STATUS_COLOR = { idea: '#1e40af', exploring: '#c2570a', planning: '#166534', completed: '#6d28d9' };
-  const FLY_COLOR = '#0d9488';
 
   const trip = $derived(data.trip);
   const stage = $derived(data.stage);
@@ -30,9 +28,7 @@
   // Refresh sections when nav causes a new load (rarely, but safe).
   $effect(() => { sections = { ...data.files }; });
 
-  const markerColor = $derived(
-    trip?.fly_in === 'true' ? FLY_COLOR : (STATUS_COLOR[stage] || '#888')
-  );
+  const markerColor = $derived(tripColor(trip));
 
   const driveLabel = $derived(
     trip?._drive_hours != null
