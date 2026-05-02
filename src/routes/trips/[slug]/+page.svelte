@@ -19,6 +19,7 @@
   const trip = $derived(data.trip);
   const stage = $derived(data.stage);
   const isPlanning = $derived(stage === 'planning');
+  const isCompleted = $derived(stage === 'completed');
   const isLocked = $derived(trip?.locked === 'true');
 
   // Local section content state, seeded from server load. Edits live here until saved.
@@ -28,6 +29,7 @@
   let drafts  = $state({});      // staging textareas while editing
   let saving  = $state({});
   let locking = $state(false);
+  let completing = $state(false);
 
   // Refresh sections when nav causes a new load (rarely, but safe).
   $effect(() => { sections = { ...data.files }; });
@@ -164,6 +166,24 @@
     }
   }
 
+  // ── Complete ──
+  async function completeTrip() {
+    if (!trip || completing) return;
+    const label = trip.title || trip._slug;
+    if (!confirm(`Mark "${label}" as completed? It will move out of Planning.`)) return;
+    completing = true;
+    try {
+      const res = await fetch(`/api/complete/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Complete failed: ${res.status}`);
+      await goto('/', { invalidateAll: true });
+    } catch (err) {
+      console.error(err);
+      alert('Could not mark trip as completed — check the server log.');
+    } finally {
+      completing = false;
+    }
+  }
+
   // ── Archive ──
   async function archiveTrip() {
     if (!trip) return;
@@ -189,7 +209,7 @@
 <div class="page">
   <header>
     <button class="back" onclick={() => goto('/')} aria-label="Back to all trips">← All trips</button>
-    <span class="stage-pill" class:locked-pill={isLocked}>{isLocked ? 'locked' : (stage || 'planning')}</span>
+    <span class="stage-pill" class:locked-pill={isLocked && isPlanning}>{isLocked && isPlanning ? 'locked' : (stage || 'planning')}</span>
     <h1>{trip?.title || trip?._slug}</h1>
     <div class="meta">
       {#if trip?.destination}<span>{trip.destination}</span>{/if}
@@ -219,6 +239,9 @@
             <button class="lock-btn" onclick={lockTrip} disabled={locking}>
               {locking ? 'Generating itinerary…' : '🔒 Lock trip & generate itinerary'}
             </button>
+            <button class="complete-btn" onclick={completeTrip} disabled={completing}>
+              {completing ? 'Completing…' : 'Mark as Completed'}
+            </button>
           </div>
         </div>
       {:else if isPlanning && isLocked}
@@ -228,7 +251,15 @@
           <div class="callout-actions">
             <button class="unlock-btn" onclick={unlockTrip}>Unlock to edit</button>
             <button class="print-btn" onclick={() => window.print()}>Print / Save PDF</button>
+            <button class="complete-btn" onclick={completeTrip} disabled={completing}>
+              {completing ? 'Completing…' : 'Mark as Completed'}
+            </button>
           </div>
+        </div>
+      {:else if isCompleted}
+        <div class="callout completed-callout">
+          <strong>Completed.</strong>
+          This trip is done. All sections are preserved below.
         </div>
       {:else}
         <div class="callout warn">
@@ -525,6 +556,25 @@
     transition: background 0.12s, border-color 0.12s;
   }
   .print-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .complete-btn {
+    background: none;
+    border: 1.5px solid oklch(55% 0.14 295);
+    color: oklch(40% 0.14 295);
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .complete-btn:hover:not(:disabled) { background: oklch(40% 0.14 295); color: oklch(97% 0 0); }
+  .complete-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .callout.completed-callout {
+    background: oklch(96% 0.03 295);
+    color: oklch(35% 0.12 295);
+    border-left-color: oklch(50% 0.14 295);
+  }
 
   .map-strip {
     height: 220px;
