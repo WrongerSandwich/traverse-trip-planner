@@ -6,6 +6,9 @@ build/
 # API keys — never commit
 .env
 
+# Personal preferences — copy home.example.md to home.md and edit it
+home.md
+
 # Vite/dev logs
 *.log
 /tmp/

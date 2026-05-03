@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { json } from '@sveltejs/kit';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { ROOT } from '$lib/server/data.js';
+import { ROOT, readHomeMd } from '$lib/server/data.js';
 const SECTIONS = ['overview', 'route', 'stops', 'logistics'];
 
 function readSections(slug) {
@@ -67,9 +67,7 @@ export async function POST({ params, request }) {
   const messages = Array.isArray(body?.messages) ? body.messages : [];
   if (messages.length === 0) return new Response('No messages', { status: 400 });
 
-  const homeMd = existsSync(join(ROOT, 'home.md'))
-    ? readFileSync(join(ROOT, 'home.md'), 'utf8')
-    : '';
+  const homeMd = readHomeMd();
 
   const sectionDump = SECTIONS
     .filter(s => trip.sections[s] !== undefined)
@@ -85,7 +83,7 @@ Current section content:
 
 ${sectionDump}
 
-Traveler context (Overland Park, KS home base, preferences, constraints):
+Traveler context (home base, preferences, constraints):
 ${homeMd}
 
 Today's date: ${new Date().toISOString().slice(0, 10)}

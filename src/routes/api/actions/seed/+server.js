@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { ROOT } from '$lib/server/data.js';
+import { ROOT, readHomeMd } from '$lib/server/data.js';
 
 function sse(controller, encoder, msg, done = false) {
   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
@@ -52,7 +52,7 @@ export async function POST({ request }) {
 
       try {
         send('Reading home.md and existing trips...');
-        const homeMd = readFileSync(join(ROOT, 'home.md'), 'utf8');
+        const homeMd = readHomeMd();
         const existing = collectExistingDestinations();
         const today = new Date().toISOString().slice(0, 10);
 
@@ -64,9 +64,7 @@ export async function POST({ request }) {
 
         const client = new Anthropic();
 
-        const system = `You are a travel planning assistant for Evan and Erika, based in Overland Park, KS.
-
-Here is their full personal context:
+        const system = `You are a travel planning assistant. Here is the traveler's full personal context:
 ${homeMd}
 
 Generate exactly 5 new trip ideas. Rules:

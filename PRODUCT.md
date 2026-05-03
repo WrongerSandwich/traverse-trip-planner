@@ -6,17 +6,17 @@ product
 
 ## Users
 
-Evan and Erika — a couple planning trips together from Overland Park, KS. Two primary contexts:
+One or two travelers, self-hosted on a home server accessed over LAN. Two primary contexts:
 
 **Desktop (planning mode):** At home on a laptop, leisurely and anticipatory, browsing ideas, looking at routes, deciding between options. This is where new trips get seeded and deepened.
 
-**Mobile (reference and discovery mode):** On a phone anywhere in the house, on the couch, in the kitchen. Erika or Evan checking what's bookmarked, seeing what's been researched, triggering a deepen or seed. Not a booking flow. Quick reads, not deep research sessions. The map should still work; the detail panel should still be usable; the card list should be the primary browsing surface.
+**Mobile (reference and discovery mode):** On a phone anywhere in the house, on the couch, in the kitchen. Checking what's bookmarked, seeing what's been researched, triggering a deepen or seed. Not a booking flow. Quick reads, not deep research sessions. The map should still work; the detail panel should still be usable; the card list should be the primary browsing surface.
 
-The app runs on a home server and is accessed over LAN — not a public web app. Both users are comfortable with technology. Mobile-friendliness means useful-on-phone, not app-store-polish.
+Both users are comfortable with technology. Mobile-friendliness means useful-on-phone, not app-store-polish.
 
 ## Product Purpose
 
-A personal travel filing cabinet — road trips and fly-in destinations. Ideas get seeded, researched, deepened, and eventually planned and completed. The tool tracks the full lifecycle of a trip from loose pitch to retrospective. Success looks like Evan and Erika actually going somewhere they found in this tool — and coming back to log that they did.
+A personal travel filing cabinet — road trips and fly-in destinations. Ideas get seeded, researched, deepened, and eventually planned and completed. The tool tracks the full lifecycle of a trip from loose pitch to retrospective. Success looks like the user actually going somewhere they found in this tool — and coming back to log that they did.
 
 ## Brand Personality
 

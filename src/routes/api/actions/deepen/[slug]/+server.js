@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { ROOT } from '$lib/server/data.js';
+import { ROOT, readHomeMd, parseFrontmatter } from '$lib/server/data.js';
 
 function sse(controller, encoder, msg, done = false) {
   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
@@ -99,7 +99,8 @@ export function POST({ params }) {
 
         send('Reading trip idea and home preferences…');
         const ideaContent = readFileSync(ideaPath, 'utf8');
-        const homeMd = readFileSync(join(ROOT, 'home.md'), 'utf8');
+        const homeMd = readHomeMd();
+        const homeFm = parseFrontmatter(homeMd) || {};
         const today = new Date().toISOString().slice(0, 10);
 
         const fm = {};
@@ -118,7 +119,7 @@ export function POST({ params }) {
 The trip to research:
 ${ideaContent}
 
-The travelers' personal context (Overland Park, KS home base, preferences, constraints):
+The travelers' personal context (home base, preferences, constraints):
 ${homeMd}
 
 Today's date: ${today}
@@ -144,7 +145,7 @@ ev_friendly:
 tags:
 vibe:
 cost_tier:
-waypoints: [key cities along the driving route, e.g. Overland Park KS, Leavenworth KS, Atchison KS. For fly-in: driving segment from arrival airport to destination.]
+waypoints: [key cities along the driving route, e.g. Home City ST, Midpoint City ST, Destination City ST. For fly-in: driving segment from arrival airport to destination.]
 </frontmatter>
 
 <route_md>
@@ -196,8 +197,8 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
           ...existingFm,
           ...researchFm,
           status: 'exploring',
-          travelers: '[evan, erika]',
-          pet_sitter_needed: 'true',
+          travelers: homeFm.travelers || '[you]',
+          pet_sitter_needed: String(homeFm.pets_need_sitter ?? 'false'),
         };
         const fmLines = Object.entries(merged).map(([k, v]) => `${k}: ${v}`).join('\n');
         const overviewContent = `---\n${fmLines}\n---\n\n${prose}\n`;

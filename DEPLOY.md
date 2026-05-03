@@ -18,17 +18,20 @@ sudo npm install -g pm2
 git clone <your-repo-url> atlas
 cd atlas
 
-# 2. Create .env with your API keys (not in git)
-cat > .env << 'EOF'
-PEXELS_API_KEY=your_pexels_key_here
-ANTHROPIC_API_KEY=your_anthropic_key_here
-EOF
+# 2. Configure your preferences
+cp home.example.md home.md
+# Edit home.md — set your home city/coords, traveler name(s), vehicle(s), and taste profile.
+# This file drives all AI features; the more honest detail you add, the better the suggestions.
 
-# 3. Install dependencies and build
+# 3. Set up your API keys
+cp .env.example .env
+# Edit .env — paste your ANTHROPIC_API_KEY and PEXELS_API_KEY.
+
+# 4. Install dependencies and build
 npm install
 npm run build
 
-# 4. Start with PM2
+# 5. Start with PM2
 pm2 start ecosystem.config.cjs
 pm2 save                        # persist across reboots
 pm2 startup                     # enable auto-start (follow the printed command)
@@ -64,5 +67,7 @@ pm2 stop atlas       # stop
 
 - **Geocode cache** (Nominatim) is in-memory and re-fetched on each restart. With ~30 trips at 1.1s each, warmup takes ~35s after restart. The app is functional immediately; the map markers fill in during warmup.
 - **Image + route caches** (`.image-cache.json`, `.route-cache.json`) are on disk and survive restarts.
-- **`.env` is gitignored** — never committed. Re-create it manually on the server after cloning.
-- The `ANTHROPIC_API_KEY` enables the in-browser "Add trips" (seed) and "Research →" (deepen) buttons. Without it, the buttons will fail gracefully.
+- **`.env` is gitignored** — never committed. Use `.env.example` as your template.
+- **`home.md` is gitignored** — your personal preferences stay local. Use `home.example.md` as your template.
+- The `ANTHROPIC_API_KEY` enables the in-browser "Add trips" (seed) and "Research →" (deepen) buttons. Without it, those buttons will fail with a clear error.
+- The `PEXELS_API_KEY` enables trip card photos. Without it, cards show a map thumbnail instead.

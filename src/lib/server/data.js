@@ -223,6 +223,14 @@ function collectTrips() {
 }
 
 // ── Home ──
+export function readHomeMd() {
+  const p = join(ROOT, 'home.md');
+  if (!existsSync(p)) {
+    throw new Error('home.md not found — copy home.example.md to home.md and fill in your details.');
+  }
+  return readFileSync(p, 'utf8');
+}
+
 export function getHome() {
   const p = join(ROOT, 'home.md');
   if (!existsSync(p)) return null;

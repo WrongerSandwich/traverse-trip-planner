@@ -5,7 +5,7 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 ## UX — mobile
 
 - **DetailPanel hero title wraps awkwardly on narrow screens.** The 1.45 rem `h2` overlaid on a 180px-tall hero can wrap to 3 lines for longer titles like "Atchison Missouri River Town", crowding the destination/mode chips. Consider a smaller mobile font size or a 2-line clamp with ellipsis. — `src/lib/components/DetailPanel.svelte`
-- **Mobile map eats 45vh.** When Erika is reading cards, almost half the viewport is map. Could be ~30vh by default with a "make bigger" pull tab, or auto-shrink on scroll. — `--map-h-mobile` in `src/app.css`
+- **Mobile map eats 45vh.** When browsing cards on mobile, almost half the viewport is map. Could be ~30vh by default with a "make bigger" pull tab, or auto-shrink on scroll. — `--map-h-mobile` in `src/app.css`
 - **`✨` emoji on the "Ask Claude" FAB renders inconsistently** across platforms (Apple coloured, Android monochrome). Swap for an inline SVG icon. — `src/routes/trips/[slug]/+page.svelte`
 
 ## UX — general
