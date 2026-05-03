@@ -2,9 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { json } from '@sveltejs/kit';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { setLocked } from '$lib/server/data.js';
-
-const ROOT = process.cwd();
+import { setLocked, ROOT } from '$lib/server/data.js';
 const SECTIONS = ['overview', 'route', 'stops', 'logistics'];
 
 function readSections(slug) {

@@ -1,8 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { existsSync, mkdirSync, renameSync, statSync } from 'fs';
 import { join } from 'path';
-
-const ROOT = process.cwd();
+import { ROOT } from '$lib/server/data.js';
 
 // Find the trip's current location across all live stages.
 // Ideas live as single .md files; later stages are folders with overview.md.

@@ -1,8 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
-
-const ROOT = process.cwd();
+import { ROOT } from '$lib/server/data.js';
 
 function sse(controller, encoder, msg, done = false) {
   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));

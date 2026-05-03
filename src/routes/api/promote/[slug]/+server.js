@@ -1,8 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'fs';
 import { join } from 'path';
-
-const ROOT = process.cwd();
+import { ROOT } from '$lib/server/data.js';
 
 export function POST({ params }) {
   const { slug } = params;

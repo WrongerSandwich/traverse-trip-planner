@@ -1,8 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
-// TODO: export ROOT from here and remove the duplicate `const ROOT = process.cwd()` in each API route handler
-const ROOT = process.cwd();
+export const ROOT = process.cwd();
 const IMAGE_CACHE_PATH   = join(ROOT, '.image-cache.json');
 const ROUTE_CACHE_PATH   = join(ROOT, '.route-cache.json');
 const GEOCODE_CACHE_PATH = join(ROOT, '.geocode-cache.json');
