@@ -14,10 +14,16 @@ try { imageCache   = JSON.parse(readFileSync(IMAGE_CACHE_PATH,   'utf8')); } cat
 try { routeCache   = JSON.parse(readFileSync(ROUTE_CACHE_PATH,   'utf8')); } catch {}
 try { geocodeCache = JSON.parse(readFileSync(GEOCODE_CACHE_PATH, 'utf8')); } catch {}
 
-// TODO: add try/catch to these saves — a writeFileSync failure (disk full, permissions) is currently silent
-function saveImageCache()   { writeFileSync(IMAGE_CACHE_PATH,   JSON.stringify(imageCache,   null, 2)); }
-function saveRouteCache()   { writeFileSync(ROUTE_CACHE_PATH,   JSON.stringify(routeCache,   null, 2)); }
-function saveGeocodeCache() { writeFileSync(GEOCODE_CACHE_PATH, JSON.stringify(geocodeCache, null, 2)); }
+function saveCache(path, data, label) {
+  try {
+    writeFileSync(path, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.warn(`failed to save ${label} cache to ${path} —`, e.message);
+  }
+}
+function saveImageCache()   { saveCache(IMAGE_CACHE_PATH,   imageCache,   'image'); }
+function saveRouteCache()   { saveCache(ROUTE_CACHE_PATH,   routeCache,   'route'); }
+function saveGeocodeCache() { saveCache(GEOCODE_CACHE_PATH, geocodeCache, 'geocode'); }
 
 function pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys) {
   let routesDropped = 0, imagesDropped = 0, geocodesDropped = 0;
