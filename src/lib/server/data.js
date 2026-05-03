@@ -259,7 +259,7 @@ export async function enrichTrips() {
     if (q) liveImageKeys.add(q);
     if (q && imageCache[q] === undefined) {
       trip._image = await fetchImage(q);
-      await sleep(300);
+      await sleep(50);
     } else {
       trip._image = imageCache[q] ?? null;
     }

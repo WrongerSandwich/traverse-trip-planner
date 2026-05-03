@@ -17,7 +17,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 ## Performance
 
 - **Memoize `enrichTrips()` for ~30s.** Currently re-runs on every page load even when the result is identical (all caches hit). For a self-hosted personal tool it's <50ms — only worth doing if traffic ever scales.
-- **Pexels 300ms inter-fetch sleep at `data.js:228`.** Pexels' free tier is 200/hour, so this is over-conservative. Drop or shrink to ~50 ms — saves ~10s on a cold image cache rebuild.
 - **Batch cache writes inside `enrichTrips()`.** `saveGeocodeCache()` / `saveImageCache()` fire after every successful fetch (35+ `writeFileSync` calls during cold start). Buffer in memory and write once at the end.
 
 ## Architecture
