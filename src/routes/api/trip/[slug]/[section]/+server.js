@@ -1,8 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-
-const ROOT = process.cwd();
+import { ROOT } from '$lib/server/data.js';
 const VALID_SECTIONS = new Set(['overview', 'route', 'stops', 'logistics']);
 
 function sectionPath(slug, section) {
