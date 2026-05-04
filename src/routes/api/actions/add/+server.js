@@ -1,0 +1,125 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
+import { ROOT, readHomeMd } from '$lib/server/data.js';
+import { collectExistingDestinations } from '$lib/server/destinations.js';
+
+function sse(controller, encoder, msg, done = false) {
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
+}
+
+export async function POST({ request }) {
+  const encoder = new TextEncoder();
+
+  let destination = '';
+  try {
+    const body = await request.json();
+    destination = (body?.destination || '').trim().slice(0, 100);
+  } catch { /* no body */ }
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (msg, done = false) => sse(controller, encoder, msg, done);
+
+      try {
+        if (!destination) {
+          send('Error: No destination provided.', true);
+          controller.close();
+          return;
+        }
+
+        send(`Checking existing trips for ${destination}...`);
+        const existing = collectExistingDestinations();
+        const destLower = destination.toLowerCase();
+        const duplicate = existing.find(d => d.toLowerCase() === destLower);
+        if (duplicate) {
+          send(`Error: "${duplicate}" is already in your trips.`, true);
+          controller.close();
+          return;
+        }
+
+        const homeMd = readHomeMd();
+        const today = new Date().toISOString().slice(0, 10);
+
+        send(`Asking Claude to create an idea for ${destination}...`);
+
+        const client = new Anthropic();
+
+        const system = `You are a travel planning assistant. Here is the traveler's full personal context:
+${homeMd}
+
+The traveler already has trips for these destinations:
+${existing.length > 0 ? existing.map(d => `- ${d}`).join('\n') : '(none yet)'}
+
+The user wants to add a specific destination. Before generating, check whether the requested destination is already covered — meaning it is the same place, a suburb/neighborhood within the same metro area, or so geographically close that a separate trip idea would be redundant (e.g. user requests "Overland Park, KS" when "Kansas City, MO" is already on the list).
+
+If it IS a near-duplicate, respond with ONLY this tag (no other text):
+<duplicate>the matching existing destination</duplicate>
+
+If it is NOT a near-duplicate, create exactly one trip idea. Rules:
+- Use the traveler's taste profile to write a concrete, specific pitch — name the actual draw, not generic adjectives.
+- Do NOT second-guess or filter the destination; the user already decided to go.
+- For fly-in trips add: fly_in: true and vehicle: rental
+- For trips involving an NPS unit add: national_park: true
+
+Output the trip as a single file block in this exact format, with nothing outside the tags:
+
+<file name="ideas/[kebab-case-slug].md">
+---
+title: [Human-readable title]
+status: idea
+destination: [Town, State]
+pitch: [2–3 sentences naming the specific draw. Concrete, not generic.]
+created: ${today}
+vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
+---
+</file>`;
+
+        const response = await client.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 600,
+          system,
+          messages: [{ role: 'user', content: `Add a trip idea for: ${destination}` }],
+        });
+
+        const text = response.content.find(b => b.type === 'text')?.text ?? '';
+
+        const dupMatch = text.match(/<duplicate>([\s\S]*?)<\/duplicate>/);
+        if (dupMatch) {
+          send(`Error: Too close to an existing trip — "${dupMatch[1].trim()}" is already in your list.`, true);
+          controller.close();
+          return;
+        }
+
+        const fileRegex = /<file name="([^"]+)">([\s\S]*?)<\/file>/g;
+        const files = [];
+        let m;
+        while ((m = fileRegex.exec(text)) !== null) {
+          files.push({ name: m[1].trim(), content: m[2].trim() });
+        }
+
+        if (files.length === 0) throw new Error('Claude returned no file blocks — try again.');
+
+        const file = files[0];
+        const path = join(ROOT, file.name);
+        writeFileSync(path, file.content + '\n');
+        const title = file.content.match(/^title: (.+)$/m)?.[1] ?? file.name;
+        send(`  ✓ ${title}`);
+        send('Done — new trip added. Reload to see it.', true);
+
+      } catch (err) {
+        send(`Error: ${err.message}`, true);
+      }
+
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}

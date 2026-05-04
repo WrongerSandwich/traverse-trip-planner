@@ -1,39 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { ROOT, readHomeMd } from '$lib/server/data.js';
+import { collectExistingDestinations } from '$lib/server/destinations.js';
 
 function sse(controller, encoder, msg, done = false) {
   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
-}
-
-function readDestinationsFromStageDir(stageDir, destinations) {
-  if (!existsSync(stageDir)) return;
-  for (const entry of readdirSync(stageDir, { withFileTypes: true })) {
-    let file;
-    if (entry.isFile() && entry.name.endsWith('.md')) {
-      file = join(stageDir, entry.name);
-    } else if (entry.isDirectory()) {
-      const ov = join(stageDir, entry.name, 'overview.md');
-      if (existsSync(ov)) file = ov;
-    }
-    if (!file) continue;
-    const dest = readFileSync(file, 'utf8').match(/^destination: (.+)$/m)?.[1]?.trim();
-    if (dest) destinations.push(dest);
-  }
-}
-
-function collectExistingDestinations() {
-  const destinations = [];
-  // Live stages
-  for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
-    readDestinationsFromStageDir(join(ROOT, stage), destinations);
-  }
-  // Archived trips — invisible to the frontend but should still block re-suggestion
-  for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
-    readDestinationsFromStageDir(join(ROOT, 'archived', stage), destinations);
-  }
-  return destinations;
 }
 
 export async function POST({ request }) {

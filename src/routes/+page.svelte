@@ -139,6 +139,10 @@
   let seedFormOpen = $state(false);
   let seedPrompt   = $state('');
 
+  // Pin form — add one specific destination
+  let pinFormOpen = $state(false);
+  let pinDest     = $state('');
+
   function actionPush(msg, done = false) {
     actionMessages = [...actionMessages, msg];
     if (done) { actionDone = true; actionRunning = false; }
@@ -158,6 +162,26 @@
         actionPush(msg, done);
         if (done) invalidateAll();
       }, { prompt });
+    } catch (e) {
+      actionPush(`Error: ${e.message}`, true);
+    }
+  }
+
+  async function runPin() {
+    if (actionRunning) return;
+    const dest = pinDest.trim();
+    if (!dest) return;
+    pinFormOpen = false;
+    pinDest     = '';
+    actionVisible = true;
+    actionRunning = true;
+    actionDone    = false;
+    actionMessages = [];
+    try {
+      await streamAction('/api/actions/add', ({ msg, done }) => {
+        actionPush(msg, done);
+        if (done) invalidateAll();
+      }, { destination: dest });
     } catch (e) {
       actionPush(`Error: ${e.message}`, true);
     }
@@ -313,7 +337,7 @@
       <button
         class="seed-btn"
         class:open={seedFormOpen}
-        onclick={() => seedFormOpen = !seedFormOpen}
+        onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
         disabled={actionRunning}
         title="Add 5 new trip ideas"
         aria-label="Add trips"
@@ -321,6 +345,20 @@
       >
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
           <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button
+        class="seed-btn pin-btn"
+        class:open={pinFormOpen}
+        onclick={() => { pinFormOpen = !pinFormOpen; seedFormOpen = false; }}
+        disabled={actionRunning}
+        title="Add a specific destination"
+        aria-label="Add destination"
+        aria-expanded={pinFormOpen}
+      >
+        <svg width="12" height="15" viewBox="0 0 12 15" aria-hidden="true">
+          <path d="M6 0C3.24 0 1 2.24 1 5c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5z" fill="currentColor" opacity="0.85"/>
+          <circle cx="6" cy="5" r="1.8" fill="var(--surface)"/>
         </svg>
       </button>
     </div>
@@ -347,6 +385,32 @@
       <div class="seed-actions">
         <button class="seed-cancel" onclick={() => { seedFormOpen = false; seedPrompt = ''; }}>Cancel</button>
         <button class="seed-go" onclick={runSeed}>Generate 5 →</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if pinFormOpen}
+    <div class="seed-backdrop" onclick={() => pinFormOpen = false} role="presentation"></div>
+    <div class="seed-popover" role="dialog" aria-label="Add specific destination">
+      <label class="seed-label" for="pin-dest">
+        Add a destination
+        <span class="seed-hint">— name a specific place to add as an idea</span>
+      </label>
+      <input
+        id="pin-dest"
+        type="text"
+        class="pin-input"
+        bind:value={pinDest}
+        placeholder="e.g. Marfa, TX or Boundary Waters, MN"
+        autofocus
+        onkeydown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); runPin(); }
+          if (e.key === 'Escape') { pinFormOpen = false; }
+        }}
+      />
+      <div class="seed-actions">
+        <button class="seed-cancel" onclick={() => { pinFormOpen = false; pinDest = ''; }}>Cancel</button>
+        <button class="seed-go" onclick={runPin}>Add →</button>
       </div>
     </div>
   {/if}
@@ -554,6 +618,10 @@
   }
   .seed-btn.open svg { transform: rotate(45deg); }
   .seed-btn svg { transition: transform 0.18s; }
+  .pin-btn svg { transform: none !important; }
+  .pin-btn { color: oklch(58% 0.06 30); border-color: oklch(36% 0.06 30); }
+  .pin-btn:hover:not(:disabled) { border-color: oklch(62% 0.1 30); color: oklch(82% 0.06 30); background: oklch(28% 0.04 30); }
+  .pin-btn.open { background: oklch(28% 0.04 30); border-color: oklch(62% 0.1 30); color: oklch(82% 0.06 30); }
 
   /* ── Seed prompt popover ── */
   .seed-backdrop {
@@ -600,6 +668,17 @@
     min-height: 60px;
   }
   .seed-popover textarea:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
+  .pin-input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.55rem 0.7rem;
+    font-family: var(--font);
+    font-size: 0.84rem;
+    color: var(--text);
+    background: var(--surface-raised);
+  }
+  .pin-input:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
   .seed-actions {
     display: flex; gap: 0.5rem; justify-content: flex-end;
   }
