@@ -15,23 +15,29 @@ export function POST({ params }) {
     return new Response('Trip already in planning stage', { status: 409 });
   }
 
-  mkdirSync(join(ROOT, 'planning'), { recursive: true });
+  try {
+    mkdirSync(join(ROOT, 'planning'), { recursive: true });
 
-  // Move the folder. Rename works as long as both paths are on the same fs.
-  renameSync(fromDir, toDir);
+    // Move the folder. Rename works as long as both paths are on the same fs.
+    renameSync(fromDir, toDir);
 
-  // Rewrite overview.md frontmatter status: exploring -> planning
-  const overviewPath = join(toDir, 'overview.md');
-  if (existsSync(overviewPath)) {
-    const content = readFileSync(overviewPath, 'utf8');
-    let updated;
-    if (/^status:.*$/m.test(content)) {
-      updated = content.replace(/^status:.*$/m, 'status: planning');
-    } else {
-      updated = content.replace(/^---\n/, '---\nstatus: planning\n');
+    // Rewrite overview.md frontmatter status: exploring -> planning
+    const overviewPath = join(toDir, 'overview.md');
+    if (existsSync(overviewPath)) {
+      const content = readFileSync(overviewPath, 'utf8');
+      let updated;
+      if (/^status:.*$/m.test(content)) {
+        updated = content.replace(/^status:.*$/m, 'status: planning');
+      } else {
+        updated = content.replace(/^---\n/, '---\nstatus: planning\n');
+      }
+      writeFileSync(overviewPath, updated);
     }
-    writeFileSync(overviewPath, updated);
+  } catch (err) {
+    return new Response(`Failed to promote trip: ${err.message}`, { status: 500 });
   }
 
+  // TODO: extract shared promoteTrip(slug, fromStage, toStage, newStatus) utility
+  // to deduplicate this pattern with complete/[slug] and archive/[slug]
   return json({ ok: true, slug, stage: 'planning' });
 }

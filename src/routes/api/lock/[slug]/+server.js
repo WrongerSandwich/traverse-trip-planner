@@ -30,10 +30,12 @@ export async function POST({ params }) {
     .join('\n\n');
 
   const client = new Anthropic();
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4000,
-    system: `You are Atlas, a travel itinerary formatter. Given the planning sections for a road trip, synthesize them into a clean day-by-day itinerary in markdown.
+  let response;
+  try {
+    response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      system: `You are Atlas, a travel itinerary formatter. Given the planning sections for a road trip, synthesize them into a clean day-by-day itinerary in markdown.
 
 Format rules:
 - Use ## for each day heading: "## Day 1 — [Day of Week], [Month Day, Year]" (derive the date from the overview if a specific date is mentioned; otherwise use just the day name or omit the date)
@@ -44,13 +46,16 @@ Format rules:
 - Keep it scannable — this will be printed and carried on the trip
 - Do not add introductory prose, a title header, or any closing text — start directly with ## Day 1
 - If the trip is a single day, output one ## Day block`,
-    messages: [
-      {
-        role: 'user',
-        content: `Here are the planning sections for this trip:\n\n${sectionDump}\n\nGenerate the day-by-day itinerary now.`,
-      },
-    ],
-  });
+      messages: [
+        {
+          role: 'user',
+          content: `Here are the planning sections for this trip:\n\n${sectionDump}\n\nGenerate the day-by-day itinerary now.`,
+        },
+      ],
+    });
+  } catch (err) {
+    return new Response(`Itinerary generation failed: ${err.message}`, { status: 502 });
+  }
 
   const itinerary = response.content
     .filter(b => b.type === 'text')
@@ -58,7 +63,11 @@ Format rules:
     .join('\n')
     .trim();
 
-  writeFileSync(join(trip.dir, 'itinerary.md'), `${itinerary}\n`);
+  try {
+    writeFileSync(join(trip.dir, 'itinerary.md'), `${itinerary}\n`);
+  } catch (err) {
+    return new Response(`Failed to write itinerary: ${err.message}`, { status: 500 });
+  }
 
   const lockResult = setLocked(slug, true);
   if (!lockResult) return new Response('Failed to update frontmatter', { status: 500 });

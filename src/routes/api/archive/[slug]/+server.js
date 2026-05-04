@@ -32,6 +32,13 @@ export function POST({ params }) {
 
   if (existsSync(dest)) return new Response('Already archived', { status: 409 });
 
-  renameSync(trip.path, dest);
+  try {
+    renameSync(trip.path, dest);
+  } catch (err) {
+    return new Response(`Failed to archive trip: ${err.message}`, { status: 500 });
+  }
+
+  // TODO: extract shared promoteTrip(slug, fromStage, toStage, newStatus) utility
+  // to deduplicate this pattern with promote/[slug] and complete/[slug]
   return json({ ok: true, slug, fromStage: trip.stage });
 }
