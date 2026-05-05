@@ -2,10 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { ROOT, readHomeMd, parseFrontmatter } from '$lib/server/data.js';
-
-function sse(controller, encoder, msg, done = false) {
-  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
-}
+import { sseStream } from '$lib/server/sse.js';
 
 function findIdeaFile(slug) {
   const p = join(ROOT, 'ideas', `${slug}.md`);
@@ -87,34 +84,29 @@ export function GET({ params }) {
 
 export function POST({ params }) {
   const { slug } = params;
-  const encoder = new TextEncoder();
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (msg, done = false) => sse(controller, encoder, msg, done);
+  return sseStream(async (send) => {
+    const ideaPath = findIdeaFile(slug);
+    if (!ideaPath) throw new Error(`No idea file found for slug: ${slug}`);
 
-      try {
-        const ideaPath = findIdeaFile(slug);
-        if (!ideaPath) throw new Error(`No idea file found for slug: ${slug}`);
+    send('Reading trip idea and home preferences…');
+    const ideaContent = readFileSync(ideaPath, 'utf8');
+    const homeMd = readHomeMd();
+    const homeFm = parseFrontmatter(homeMd) || {};
+    const today = new Date().toISOString().slice(0, 10);
 
-        send('Reading trip idea and home preferences…');
-        const ideaContent = readFileSync(ideaPath, 'utf8');
-        const homeMd = readHomeMd();
-        const homeFm = parseFrontmatter(homeMd) || {};
-        const today = new Date().toISOString().slice(0, 10);
+    const fm = {};
+    for (const line of ideaContent.split('\n')) {
+      if (line === '---') continue;
+      const c = line.indexOf(':');
+      if (c > 0) fm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
+    }
 
-        const fm = {};
-        for (const line of ideaContent.split('\n')) {
-          if (line === '---') continue;
-          const c = line.indexOf(':');
-          if (c > 0) fm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
-        }
+    send(`Researching ${fm.title || slug} with live web search…`);
 
-        send(`Researching ${fm.title || slug} with live web search…`);
+    const client = new Anthropic();
 
-        const client = new Anthropic();
-
-        const system = `You are a meticulous travel researcher. Your job is to produce detailed, accurate, useful research for a specific trip idea using web search to find current information.
+    const system = `You are a meticulous travel researcher. Your job is to produce detailed, accurate, useful research for a specific trip idea using web search to find current information.
 
 The trip to research:
 ${ideaContent}
@@ -160,77 +152,62 @@ Full markdown for stops.md. ## headers per location. Key sights, food, lodging m
 Full markdown for logistics.md. Reservations checklist (table), seasonal notes, pet sitter reminder for overnights, cell coverage, gotchas. Flag anything that needs re-verification before the trip.
 </logistics_md>`;
 
-        const text = await runResearchAgent(
-          client,
-          system,
-          'Research this trip thoroughly using web search.',
-          (msg) => send(msg),
-        );
+    const text = await runResearchAgent(
+      client,
+      system,
+      'Research this trip thoroughly using web search.',
+      (msg) => send(msg),
+    );
 
-        send('Parsing research output…');
+    send('Parsing research output…');
 
-        const prose = parseSection(text, 'overview_prose');
-        const fmRaw = parseSection(text, 'frontmatter');
-        const routeMd = parseSection(text, 'route_md');
-        const stopsMd = parseSection(text, 'stops_md');
-        const logisticsMd = parseSection(text, 'logistics_md');
+    const prose = parseSection(text, 'overview_prose');
+    const fmRaw = parseSection(text, 'frontmatter');
+    const routeMd = parseSection(text, 'route_md');
+    const stopsMd = parseSection(text, 'stops_md');
+    const logisticsMd = parseSection(text, 'logistics_md');
 
-        if (!prose) throw new Error('No overview prose returned — try again.');
+    if (!prose) throw new Error('No overview prose returned — try again.');
 
-        // Merge existing frontmatter with research fields
-        const existingFm = {};
-        const fmMatch = ideaContent.match(/^---\n([\s\S]*?)\n---/);
-        if (fmMatch) {
-          for (const line of fmMatch[1].split('\n')) {
-            const c = line.indexOf(':');
-            if (c > 0) existingFm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
-          }
-        }
-        const researchFm = {};
-        if (fmRaw) {
-          for (const line of fmRaw.split('\n')) {
-            const c = line.indexOf(':');
-            if (c > 0) researchFm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
-          }
-        }
-        const merged = {
-          ...existingFm,
-          ...researchFm,
-          status: 'exploring',
-          travelers: homeFm.travelers || '[you]',
-          pet_sitter_needed: String(homeFm.pets_need_sitter ?? 'false'),
-        };
-        const fmLines = Object.entries(merged).map(([k, v]) => `${k}: ${v}`).join('\n');
-        const overviewContent = `---\n${fmLines}\n---\n\n${prose}\n`;
-
-        send('Writing exploring folder…');
-        const dir = join(ROOT, 'exploring', slug);
-        mkdirSync(dir, { recursive: true });
-
-        writeFileSync(join(dir, 'overview.md'), overviewContent);
-        send('  ✓ overview.md');
-        if (routeMd)    { writeFileSync(join(dir, 'route.md'),    routeMd    + '\n'); send('  ✓ route.md'); }
-        if (stopsMd)    { writeFileSync(join(dir, 'stops.md'),    stopsMd    + '\n'); send('  ✓ stops.md'); }
-        if (logisticsMd){ writeFileSync(join(dir, 'logistics.md'), logisticsMd + '\n'); send('  ✓ logistics.md'); }
-
-        unlinkSync(ideaPath);
-        send('  ✓ removed from ideas/');
-
-        send(`Done — ${fm.title || slug} is now in exploring. Reload to see it.`, true);
-
-      } catch (err) {
-        send(`Error: ${err.message}`, true);
+    // Merge existing frontmatter with research fields
+    const existingFm = {};
+    const fmMatch = ideaContent.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      for (const line of fmMatch[1].split('\n')) {
+        const c = line.indexOf(':');
+        if (c > 0) existingFm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
       }
+    }
+    const researchFm = {};
+    if (fmRaw) {
+      for (const line of fmRaw.split('\n')) {
+        const c = line.indexOf(':');
+        if (c > 0) researchFm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
+      }
+    }
+    const merged = {
+      ...existingFm,
+      ...researchFm,
+      status: 'exploring',
+      travelers: homeFm.travelers || '[you]',
+      pet_sitter_needed: String(homeFm.pets_need_sitter ?? 'false'),
+    };
+    const fmLines = Object.entries(merged).map(([k, v]) => `${k}: ${v}`).join('\n');
+    const overviewContent = `---\n${fmLines}\n---\n\n${prose}\n`;
 
-      controller.close();
-    },
-  });
+    send('Writing exploring folder…');
+    const dir = join(ROOT, 'exploring', slug);
+    mkdirSync(dir, { recursive: true });
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
+    writeFileSync(join(dir, 'overview.md'), overviewContent);
+    send('  ✓ overview.md');
+    if (routeMd)    { writeFileSync(join(dir, 'route.md'),    routeMd    + '\n'); send('  ✓ route.md'); }
+    if (stopsMd)    { writeFileSync(join(dir, 'stops.md'),    stopsMd    + '\n'); send('  ✓ stops.md'); }
+    if (logisticsMd){ writeFileSync(join(dir, 'logistics.md'), logisticsMd + '\n'); send('  ✓ logistics.md'); }
+
+    unlinkSync(ideaPath);
+    send('  ✓ removed from ideas/');
+
+    send(`Done — ${fm.title || slug} is now in exploring. Reload to see it.`, true);
   });
 }
