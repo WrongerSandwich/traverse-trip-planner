@@ -3,49 +3,41 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { ROOT, readHomeMd } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
+import { sseStream } from '$lib/server/sse.js';
 
-function sse(controller, encoder, msg, done = false) {
-  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
-}
+// TODO: consolidate trip-lookup helpers (findTripFile/findTrip/findIdeaFile) into data.js
+// TODO: extract readSections() shared by lock/+server.js and trip/[slug]/chat/+server.js
 
 export async function POST({ request }) {
-  const encoder = new TextEncoder();
-
   let destination = '';
   try {
     const body = await request.json();
     destination = (body?.destination || '').trim().slice(0, 100);
   } catch { /* no body */ }
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (msg, done = false) => sse(controller, encoder, msg, done);
+  return sseStream(async (send) => {
+    if (!destination) {
+      send('Error: No destination provided.', true);
+      return;
+    }
 
-      try {
-        if (!destination) {
-          send('Error: No destination provided.', true);
-          controller.close();
-          return;
-        }
+    send(`Checking existing trips for ${destination}...`);
+    const existing = collectExistingDestinations();
+    const destLower = destination.toLowerCase();
+    const duplicate = existing.find(d => d.toLowerCase() === destLower);
+    if (duplicate) {
+      send(`Error: "${duplicate}" is already in your trips.`, true);
+      return;
+    }
 
-        send(`Checking existing trips for ${destination}...`);
-        const existing = collectExistingDestinations();
-        const destLower = destination.toLowerCase();
-        const duplicate = existing.find(d => d.toLowerCase() === destLower);
-        if (duplicate) {
-          send(`Error: "${duplicate}" is already in your trips.`, true);
-          controller.close();
-          return;
-        }
+    const homeMd = readHomeMd();
+    const today = new Date().toISOString().slice(0, 10);
 
-        const homeMd = readHomeMd();
-        const today = new Date().toISOString().slice(0, 10);
+    send(`Asking Claude to create an idea for ${destination}...`);
 
-        send(`Asking Claude to create an idea for ${destination}...`);
+    const client = new Anthropic();
 
-        const client = new Anthropic();
-
-        const system = `You are a travel planning assistant. Here is the traveler's full personal context:
+    const system = `You are a travel planning assistant. Here is the traveler's full personal context:
 ${homeMd}
 
 The traveler already has trips for these destinations:
@@ -75,51 +67,35 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
 ---
 </file>`;
 
-        const response = await client.messages.create({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 600,
-          system,
-          messages: [{ role: 'user', content: `Add a trip idea for: ${destination}` }],
-        });
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 600,
+      system,
+      messages: [{ role: 'user', content: `Add a trip idea for: ${destination}` }],
+    });
 
-        const text = response.content.find(b => b.type === 'text')?.text ?? '';
+    const text = response.content.find(b => b.type === 'text')?.text ?? '';
 
-        const dupMatch = text.match(/<duplicate>([\s\S]*?)<\/duplicate>/);
-        if (dupMatch) {
-          send(`Error: Too close to an existing trip — "${dupMatch[1].trim()}" is already in your list.`, true);
-          controller.close();
-          return;
-        }
+    const dupMatch = text.match(/<duplicate>([\s\S]*?)<\/duplicate>/);
+    if (dupMatch) {
+      send(`Error: Too close to an existing trip — "${dupMatch[1].trim()}" is already in your list.`, true);
+      return;
+    }
 
-        const fileRegex = /<file name="([^"]+)">([\s\S]*?)<\/file>/g;
-        const files = [];
-        let m;
-        while ((m = fileRegex.exec(text)) !== null) {
-          files.push({ name: m[1].trim(), content: m[2].trim() });
-        }
+    const fileRegex = /<file name="([^"]+)">([\s\S]*?)<\/file>/g;
+    const files = [];
+    let m;
+    while ((m = fileRegex.exec(text)) !== null) {
+      files.push({ name: m[1].trim(), content: m[2].trim() });
+    }
 
-        if (files.length === 0) throw new Error('Claude returned no file blocks — try again.');
+    if (files.length === 0) throw new Error('Claude returned no file blocks — try again.');
 
-        const file = files[0];
-        const path = join(ROOT, file.name);
-        writeFileSync(path, file.content + '\n');
-        const title = file.content.match(/^title: (.+)$/m)?.[1] ?? file.name;
-        send(`  ✓ ${title}`);
-        send('Done — new trip added. Reload to see it.', true);
-
-      } catch (err) {
-        send(`Error: ${err.message}`, true);
-      }
-
-      controller.close();
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
+    const file = files[0];
+    const path = join(ROOT, file.name);
+    writeFileSync(path, file.content + '\n');
+    const title = file.content.match(/^title: (.+)$/m)?.[1] ?? file.name;
+    send(`  ✓ ${title}`);
+    send('Done — new trip added. Reload to see it.', true);
   });
 }
