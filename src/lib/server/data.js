@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, renameSync } from 'fs';
 import { join } from 'path';
 
 export const ROOT = process.cwd();
@@ -410,4 +410,33 @@ export function getTripFiles(slug) {
     return { slug, stage: 'ideas', files: raw ? { overview: raw } : {} };
   }
   return null;
+}
+
+// ── Stage transition utility ──
+// Moves a trip folder from one stage directory to another and updates
+// the status field in overview.md. Used by promote, complete, and archive routes.
+export function moveTrip(slug, fromStage, toStage, newStatus) {
+  const fromDir = join(ROOT, fromStage, slug);
+  const toDir   = join(ROOT, toStage, slug);
+
+  if (!existsSync(fromDir)) return { error: `Trip not in ${fromStage} stage`, status: 404 };
+  if (existsSync(toDir))    return { error: `Trip already exists in ${toStage}`, status: 409 };
+
+  try {
+    mkdirSync(join(ROOT, toStage), { recursive: true });
+    renameSync(fromDir, toDir);
+
+    const overviewPath = join(toDir, 'overview.md');
+    if (existsSync(overviewPath)) {
+      const content = readFileSync(overviewPath, 'utf8');
+      const updated = /^status:.*$/m.test(content)
+        ? content.replace(/^status:.*$/m, `status: ${newStatus}`)
+        : content.replace(/^---\n/, `---\nstatus: ${newStatus}\n`);
+      writeFileSync(overviewPath, updated);
+    }
+  } catch (err) {
+    return { error: err.message, status: 500 };
+  }
+
+  return null; // null = success; caller reads slug/stage from its own context
 }

@@ -38,7 +38,8 @@ export function POST({ params }) {
     return new Response(`Failed to archive trip: ${err.message}`, { status: 500 });
   }
 
-  // TODO: extract shared promoteTrip(slug, fromStage, toStage, newStatus) utility
-  // to deduplicate this pattern with promote/[slug] and complete/[slug]
+  // TODO: ideas are single .md files while multi-stage trips are directories,
+  // so archive can't reuse moveTrip() from data.js without teaching it about
+  // the file/dir distinction. Extend moveTrip() if unarchive support is added.
   return json({ ok: true, slug, fromStage: trip.stage });
 }
