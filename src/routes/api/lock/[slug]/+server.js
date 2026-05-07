@@ -10,7 +10,7 @@ export async function POST({ params }) {
   if (!trip) return new Response('Trip not in planning stage', { status: 404 });
 
   const sectionDump = PLANNING_SECTIONS
-    .filter(s => trip.sections[s])
+    .filter(s => trip.sections[s]?.trim())
     .map(s => `<section name="${s}">\n${trip.sections[s]}\n</section>`)
     .join('\n\n');
 

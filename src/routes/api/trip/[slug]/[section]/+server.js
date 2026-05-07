@@ -2,7 +2,6 @@ import { json } from '@sveltejs/kit';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { ROOT, PLANNING_SECTIONS, writePlanningSection } from '$lib/server/data.js';
-// TODO: wrap request.json() in a try/catch and return 400 on malformed JSON
 const VALID_SECTIONS = new Set(PLANNING_SECTIONS);
 
 function sectionPath(slug, section) {
@@ -20,6 +19,7 @@ export async function PUT({ params, request }) {
     return new Response('Trip not in planning stage', { status: 404 });
   }
 
+  // TODO: wrap in .catch(() => null) and return 400 on malformed JSON (unlike chat/+server.js which already does this)
   const body = await request.json();
   const newBody = typeof body?.content === 'string' ? body.content : null;
   if (newBody === null) {
