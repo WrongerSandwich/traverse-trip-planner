@@ -1,8 +1,9 @@
 import { json } from '@sveltejs/kit';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { ROOT } from '$lib/server/data.js';
-const VALID_SECTIONS = new Set(['overview', 'route', 'stops', 'logistics']);
+import { ROOT, PLANNING_SECTIONS, writePlanningSection } from '$lib/server/data.js';
+// TODO: wrap request.json() in a try/catch and return 400 on malformed JSON
+const VALID_SECTIONS = new Set(PLANNING_SECTIONS);
 
 function sectionPath(slug, section) {
   return join(ROOT, 'planning', slug, `${section}.md`);
@@ -26,24 +27,12 @@ export async function PUT({ params, request }) {
   }
 
   const filePath = sectionPath(slug, section);
-
-  if (section === 'overview') {
-    // Preserve frontmatter; only replace the body below the closing ---.
-    let frontmatter = '';
-    if (existsSync(filePath)) {
-      const existing = readFileSync(filePath, 'utf8');
-      const match = existing.match(/^(---\n[\s\S]*?\n---\n)/);
-      if (match) frontmatter = match[1];
-    }
-    const trimmedBody = newBody.replace(/^\s+/, '');
-    const final = frontmatter
-      ? `${frontmatter}\n${trimmedBody}${trimmedBody.endsWith('\n') ? '' : '\n'}`
-      : `${trimmedBody}${trimmedBody.endsWith('\n') ? '' : '\n'}`;
-    writeFileSync(filePath, final);
-  } else {
-    const final = newBody.endsWith('\n') ? newBody : `${newBody}\n`;
-    writeFileSync(filePath, final);
+  let frontmatter = '';
+  if (section === 'overview' && existsSync(filePath)) {
+    const match = readFileSync(filePath, 'utf8').match(/^(---\n[\s\S]*?\n---\n)/);
+    if (match) frontmatter = match[1];
   }
+  writePlanningSection(dir, section, frontmatter, newBody);
 
   return json({ ok: true, slug, section });
 }
