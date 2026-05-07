@@ -1,29 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { json } from '@sveltejs/kit';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { ROOT, readHomeMd } from '$lib/server/data.js';
-const SECTIONS = ['overview', 'route', 'stops', 'logistics'];
-
-function readSections(slug) {
-  const dir = join(ROOT, 'planning', slug);
-  if (!existsSync(dir)) return null;
-  const out = { dir, frontmatter: '', sections: {} };
-  for (const name of SECTIONS) {
-    const fp = join(dir, `${name}.md`);
-    if (!existsSync(fp)) continue;
-    let content = readFileSync(fp, 'utf8');
-    if (name === 'overview') {
-      const fm = content.match(/^(---\n[\s\S]*?\n---\n)/);
-      if (fm) {
-        out.frontmatter = fm[1];
-        content = content.slice(fm[1].length).replace(/^\s+/, '');
-      }
-    }
-    out.sections[name] = content;
-  }
-  return out;
-}
+import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS } from '$lib/server/data.js';
 
 function parseUpdates(text) {
   const updates = {};
@@ -31,7 +8,7 @@ function parseUpdates(text) {
   let m;
   while ((m = re.exec(text)) !== null) {
     const section = m[1].trim();
-    if (!SECTIONS.includes(section)) continue;
+    if (!PLANNING_SECTIONS.includes(section)) continue;
     updates[section] = m[2].trim();
   }
   return updates;
@@ -44,23 +21,9 @@ function parseReply(text) {
   return text.replace(/<update[\s\S]*?<\/update>/g, '').trim();
 }
 
-function writeSection(dir, section, frontmatter, content) {
-  const fp = join(dir, `${section}.md`);
-  if (section === 'overview') {
-    const trimmed = content.replace(/^\s+/, '');
-    const final = frontmatter
-      ? `${frontmatter}\n${trimmed}${trimmed.endsWith('\n') ? '' : '\n'}`
-      : `${trimmed}${trimmed.endsWith('\n') ? '' : '\n'}`;
-    writeFileSync(fp, final);
-  } else {
-    const final = content.endsWith('\n') ? content : `${content}\n`;
-    writeFileSync(fp, final);
-  }
-}
-
 export async function POST({ params, request }) {
   const { slug } = params;
-  const trip = readSections(slug);
+  const trip = readPlanningTrip(slug);
   if (!trip) return new Response('Trip not in planning stage', { status: 404 });
 
   const body = await request.json().catch(() => ({}));
@@ -69,7 +32,7 @@ export async function POST({ params, request }) {
 
   const homeMd = readHomeMd();
 
-  const sectionDump = SECTIONS
+  const sectionDump = PLANNING_SECTIONS
     .filter(s => trip.sections[s] !== undefined)
     .map(s => `<current section="${s}">\n${trip.sections[s]}\n</current>`)
     .join('\n\n');
@@ -121,7 +84,7 @@ Your output format:
   const updates = parseUpdates(text);
 
   for (const [section, content] of Object.entries(updates)) {
-    writeSection(trip.dir, section, trip.frontmatter, content);
+    writePlanningSection(trip.dir, section, trip.frontmatter, content);
   }
 
   return json({ reply, updates });

@@ -1,30 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { json } from '@sveltejs/kit';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { join } from 'path';
-import { setLocked, ROOT } from '$lib/server/data.js';
-const SECTIONS = ['overview', 'route', 'stops', 'logistics'];
-
-function readSections(slug) {
-  const dir = join(ROOT, 'planning', slug);
-  if (!existsSync(dir)) return null;
-  const out = { dir, sections: {} };
-  for (const name of SECTIONS) {
-    const fp = join(dir, `${name}.md`);
-    if (!existsSync(fp)) continue;
-    let content = readFileSync(fp, 'utf8');
-    if (name === 'overview') content = content.replace(/^---\n[\s\S]*?\n---\n*/, '').trimStart();
-    if (content.trim()) out.sections[name] = content;
-  }
-  return out;
-}
+import { setLocked, readPlanningTrip, PLANNING_SECTIONS } from '$lib/server/data.js';
 
 export async function POST({ params }) {
   const { slug } = params;
-  const trip = readSections(slug);
+  const trip = readPlanningTrip(slug);
   if (!trip) return new Response('Trip not in planning stage', { status: 404 });
 
-  const sectionDump = SECTIONS
+  const sectionDump = PLANNING_SECTIONS
     .filter(s => trip.sections[s])
     .map(s => `<section name="${s}">\n${trip.sections[s]}\n</section>`)
     .join('\n\n');

@@ -335,6 +335,48 @@ export async function getTripRoute(slug) {
   return null;
 }
 
+// ── Planning section utilities ──
+export const PLANNING_SECTIONS = ['overview', 'route', 'stops', 'logistics'];
+
+// Returns { dir, frontmatter, sections } for a trip in the planning stage,
+// or null if the directory doesn't exist. `frontmatter` is the raw YAML block
+// from overview.md (with trailing newline); `sections` maps section name →
+// prose body (frontmatter stripped for overview).
+export function readPlanningTrip(slug) {
+  const dir = join(ROOT, 'planning', slug);
+  if (!existsSync(dir)) return null;
+  const out = { dir, frontmatter: '', sections: {} };
+  for (const name of PLANNING_SECTIONS) {
+    const fp = join(dir, `${name}.md`);
+    if (!existsSync(fp)) continue;
+    let content = readFileSync(fp, 'utf8');
+    if (name === 'overview') {
+      const fm = content.match(/^(---\n[\s\S]*?\n---\n)/);
+      if (fm) {
+        out.frontmatter = fm[1];
+        content = content.slice(fm[1].length).replace(/^\s+/, '');
+      }
+    }
+    out.sections[name] = content;
+  }
+  return out;
+}
+
+// Writes a single planning section file, preserving frontmatter for overview.
+export function writePlanningSection(dir, section, frontmatter, content) {
+  const fp = join(dir, `${section}.md`);
+  if (section === 'overview') {
+    const trimmed = content.replace(/^\s+/, '');
+    const final = frontmatter
+      ? `${frontmatter}\n${trimmed}${trimmed.endsWith('\n') ? '' : '\n'}`
+      : `${trimmed}${trimmed.endsWith('\n') ? '' : '\n'}`;
+    writeFileSync(fp, final);
+  } else {
+    const final = content.endsWith('\n') ? content : `${content}\n`;
+    writeFileSync(fp, final);
+  }
+}
+
 // ── Lock toggle ──
 export function setLocked(slug, locked) {
   const filePath = join(ROOT, 'planning', slug, 'overview.md');
