@@ -3,7 +3,7 @@ import { join } from 'path';
 import { ROOT, readHomeMd } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream } from '$lib/server/sse.js';
-import { chat } from '$lib/server/ai.js';
+import { chat, formatUsage } from '$lib/server/ai.js';
 import { config } from '$lib/server/config.js';
 
 const NAME = config.assistantName;
@@ -62,7 +62,7 @@ national_park: true`;
       ? `Generate 5 new trip ideas. The user has asked specifically for: ${userPrompt}\n\nStill obey the diversity and "would they actually go?" rules — interpret their request through the taste profile, don't override it.`
       : 'Generate 5 new trip ideas.';
 
-    const { text } = await chat({
+    const { text, usage } = await chat({
       ...config.modelDefault,
       label: 'seed',
       system,
@@ -87,6 +87,7 @@ national_park: true`;
       send(`  ✓ ${title}`);
     }
 
+    send(formatUsage(usage));
     send(`Done — ${files.length} new trips added. Reload to see them.`, true);
   });
 }

@@ -16,7 +16,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 - **Stream lock-itinerary generation.** "🔒 Lock trip & generate itinerary" sits silent for 20–30s while the model works. Both adapters can be extended to support streaming; for lock specifically, pipe tokens through SSE so the user sees the itinerary materializing in real time. — `src/routes/api/lock/[slug]/+server.js`, both `src/lib/server/ai/*.js`
 - **Persist planning chat to localStorage.** Each `/api/trip/[slug]/chat` call is stateless on the server; conversations live in the browser tab only and vanish on refresh. Add localStorage persistence keyed by slug. — `src/routes/trips/[slug]/+page.svelte`
 - **Cancel button for long-running /deepen.** Once started, deepen runs to completion (15–90s + tokens). For misclicks or runaway research, an abort button + `AbortController` on the fetch would help. SSE channel can stream the cancellation acknowledgement. — `src/routes/+page.svelte`, `src/routes/api/actions/deepen/[slug]/+server.js`
-- **Surface token usage in the SSE stream.** The `[ai] …` log already has the per-call token counts. Bubble it up as a final SSE message ("Used 14k in / 3k out · ~$0.18") so BYOK users see what each action cost. — `src/lib/server/ai.js`, all five action endpoints
 
 ## Performance
 

@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from '
 import { join } from 'path';
 import { ROOT, readHomeMd, parseFrontmatter } from '$lib/server/data.js';
 import { sseStream } from '$lib/server/sse.js';
-import { chat } from '$lib/server/ai.js';
+import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { config } from '$lib/server/config.js';
 
@@ -90,7 +90,7 @@ Full markdown for stops.md. ## headers per location. Key sights, food, lodging m
 Full markdown for logistics.md. Reservations checklist (table), seasonal notes, pet sitter reminder for overnights, cell coverage, gotchas. Flag anything that needs re-verification before the trip.
 </logistics_md>`;
 
-    const { text } = await chat({
+    const { text, usage } = await chat({
       ...config.modelResearch,
       label: 'deepen',
       maxTokens: 8000,
@@ -156,6 +156,7 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
     unlinkSync(ideaPath);
     send('  ✓ removed from ideas/');
 
+    send(formatUsage(usage));
     send(`Done — ${fm.title || slug} is now in exploring. Reload to see it.`, true);
   });
 }
