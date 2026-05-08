@@ -4,11 +4,11 @@ export { formatUsage } from '../utils/format.js';
 
 const adapters = { anthropic, openai };
 
-export async function chat({ provider, model, system, messages, maxTokens, tools, onToolCall, onActivity, label, signal }) {
+export async function chat({ provider, model, system, messages, maxTokens, tools, onToolCall, onActivity, label, signal, onText }) {
   const adapter = adapters[provider];
   if (!adapter) throw new Error(`No AI adapter registered for provider "${provider}".`);
   const start = Date.now();
-  const result = await adapter.chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal });
+  const result = await adapter.chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText });
   const ms = Date.now() - start;
   const u = result.usage || {};
   const tag = label ? `${label} ` : '';

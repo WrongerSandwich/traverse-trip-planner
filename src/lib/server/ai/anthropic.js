@@ -35,10 +35,18 @@ function accumUsage(acc, u) {
   return acc;
 }
 
-export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal }) {
+export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText }) {
   const client = new Anthropic();
   const apiTools = translateTools(tools);
   const usage = { input: 0, output: 0, total: 0, turns: 0 };
+
+  // Streaming path: when onText is set and there are no tools, stream text chunks
+  // through the callback. Tools + streaming together aren't supported here — tool
+  // loops require synchronous decisions that don't compose cleanly with token
+  // streaming. (Lock is the only consumer today; lock has no tools.)
+  if (onText && (!apiTools || apiTools.length === 0)) {
+    return streamChat({ client, model, system, messages, maxTokens, signal, onText, usage });
+  }
 
   let convo = messages.map(m => ({ ...m }));
 
@@ -118,4 +126,36 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
   }
 
   throw new Error(`Anthropic adapter: hit ${MAX_TOOL_TURNS}-turn safety limit.`);
+}
+
+async function streamChat({ client, model, system, messages, maxTokens, signal, onText, usage }) {
+  if (signal?.aborted) throw signal.reason ?? new Error('Aborted');
+  let final;
+  try {
+    const stream = client.messages.stream({
+      model,
+      max_tokens: maxTokens,
+      system,
+      messages,
+    }, signal ? { signal } : undefined);
+    stream.on('text', (chunk) => {
+      try { onText(chunk); } catch { /* user callback errors don't kill the stream */ }
+    });
+    final = await stream.finalMessage();
+  } catch (err) {
+    const status = err?.status;
+    const detail = err?.error?.error?.message || err?.message;
+    const wrapped = new AdapterError({
+      provider: 'anthropic',
+      model,
+      status,
+      summary: formatSummary({ provider: 'anthropic', model, status, detail }),
+      cause: err,
+    });
+    logAdapterError(wrapped);
+    throw wrapped;
+  }
+  accumUsage(usage, final.usage);
+  usage.total = usage.input + usage.output;
+  return { text: extractText(final.content), usage };
 }

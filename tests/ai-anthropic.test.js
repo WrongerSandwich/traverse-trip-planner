@@ -1,17 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // vi.hoisted shares state with the hoisted vi.mock factory below.
-const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }));
+const { mockCreate, mockStream } = vi.hoisted(() => ({
+  mockCreate: vi.fn(),
+  mockStream: vi.fn(),
+}));
 
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class {
-    constructor() { this.messages = { create: mockCreate }; }
+    constructor() { this.messages = { create: mockCreate, stream: mockStream }; }
   },
 }));
 
 const { chat } = await import('../src/lib/server/ai/anthropic.js');
 
-beforeEach(() => mockCreate.mockReset());
+beforeEach(() => {
+  mockCreate.mockReset();
+  mockStream.mockReset();
+});
 
 describe('Anthropic adapter — single turn', () => {
   it('returns text and normalized usage on end_turn', async () => {
@@ -270,6 +276,53 @@ describe('Anthropic adapter — AbortSignal', () => {
       onToolCall: async () => ({}),
     })).rejects.toThrow(/cancelled/);
     expect(mockCreate).toHaveBeenCalledTimes(1); // didn't loop again
+  });
+});
+
+describe('Anthropic adapter — streaming', () => {
+  it('uses messages.stream() and emits text chunks via onText', async () => {
+    const fakeStream = {
+      on(event, cb) {
+        if (event === 'text') { cb('Hello '); cb('world'); }
+        return this;
+      },
+      async finalMessage() {
+        return {
+          content: [{ type: 'text', text: 'Hello world' }],
+          usage: { input_tokens: 12, output_tokens: 4 },
+        };
+      },
+    };
+    mockStream.mockReturnValue(fakeStream);
+
+    const chunks = [];
+    const { text, usage } = await chat({
+      model: 'claude-test', system: 's',
+      messages: [{ role: 'user', content: 'hi' }], maxTokens: 100,
+      onText: (c) => chunks.push(c),
+    });
+
+    expect(chunks).toEqual(['Hello ', 'world']);
+    expect(text).toBe('Hello world');
+    expect(usage).toEqual({ input: 12, output: 4, total: 16, turns: 1 });
+    expect(mockCreate).not.toHaveBeenCalled(); // streaming bypasses .create
+    expect(mockStream).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to non-streaming path when tools are present', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'no stream' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    await chat({
+      model: 'm', system: 's',
+      messages: [{ role: 'user', content: 'x' }], maxTokens: 10,
+      tools: [{ kind: 'normalized', name: 'web_search', description: 'd', inputSchema: { type: 'object' } }],
+      onText: vi.fn(),
+    });
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockStream).not.toHaveBeenCalled();
   });
 });
 

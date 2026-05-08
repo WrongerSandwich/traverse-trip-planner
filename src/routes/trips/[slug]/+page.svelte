@@ -5,6 +5,7 @@
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
+  import { streamAction } from '$lib/utils/action.js';
 
   let { data } = $props();
 
@@ -31,6 +32,8 @@
   let saving  = $state({});
   let locking = $state(false);
   let completing = $state(false);
+  let lockStreamingText = $state('');
+  let lockStatus = $state('');
 
   // Refresh sections when nav causes a new load (rarely, but safe).
   $effect(() => { sections = { ...data.files }; });
@@ -170,15 +173,24 @@
   async function lockTrip() {
     if (!trip || locking) return;
     locking = true;
+    lockStreamingText = '';
+    lockStatus = 'Generating itinerary…';
     try {
-      const res = await fetch(`/api/lock/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
-      if (!res.ok) throw new Error(`Lock failed: ${res.status}`);
-      await invalidateAll();
+      await streamAction(`/api/lock/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
+        if (msg.startsWith('itinerary:')) {
+          lockStreamingText += msg.slice('itinerary:'.length);
+        } else {
+          lockStatus = msg;
+        }
+        if (done && !msg.toLowerCase().startsWith('error')) invalidateAll();
+      });
     } catch (err) {
       console.error(err);
       alert('Could not lock the trip — check the server log.');
     } finally {
       locking = false;
+      // Keep the streamed text visible until invalidateAll has refreshed the page;
+      // the locked-state render replaces this UI naturally.
     }
   }
 
@@ -276,6 +288,14 @@
               {completing ? 'Completing…' : 'Mark as Completed'}
             </button>
           </div>
+          {#if locking}
+            <div class="lock-stream">
+              <div class="lock-status">{lockStatus}</div>
+              {#if lockStreamingText}
+                <pre class="lock-preview">{lockStreamingText}</pre>
+              {/if}
+            </div>
+          {/if}
         </div>
       {:else if isPlanning && isLocked}
         <div class="callout locked-callout">
@@ -571,6 +591,30 @@
   }
   .lock-btn:hover:not(:disabled) { background: oklch(20% 0.06 155); }
   .lock-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .lock-stream {
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px dashed oklch(82% 0.025 155 / 0.6);
+  }
+  .lock-status {
+    font-size: 0.78rem;
+    color: var(--text-2);
+    margin-bottom: 0.5rem;
+  }
+  .lock-preview {
+    margin: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    background: oklch(99% 0.005 80);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    padding: 0.75rem 0.9rem;
+    font-family: var(--font);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    color: var(--text);
+  }
   .unlock-btn {
     background: none;
     border: 1.5px solid oklch(50% 0.12 55);

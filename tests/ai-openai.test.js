@@ -130,6 +130,63 @@ describe('OpenAI adapter — AbortSignal', () => {
   });
 });
 
+describe('OpenAI adapter — streaming', () => {
+  function streamingResponse(chunks) {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      start(controller) {
+        for (const c of chunks) controller.enqueue(encoder.encode(c));
+        controller.close();
+      },
+    });
+    return { ok: true, status: 200, body, text: async () => '', json: async () => ({}) };
+  }
+
+  it('parses SSE chunks and emits text via onText', async () => {
+    fetch.mockResolvedValueOnce(streamingResponse([
+      'data: {"choices":[{"delta":{"content":"Hello "}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"world"}}]}\n\n',
+      'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n',
+      'data: [DONE]\n\n',
+    ]));
+
+    const chunks = [];
+    const { text, usage } = await chat({
+      model: 'gpt', system: 's',
+      messages: [{ role: 'user', content: 'go' }], maxTokens: 100,
+      onText: (c) => chunks.push(c),
+    });
+
+    expect(chunks).toEqual(['Hello ', 'world']);
+    expect(text).toBe('Hello world');
+    expect(usage.input).toBe(5);
+    expect(usage.output).toBe(2);
+    expect(usage.turns).toBe(1);
+
+    // Body sent must include stream: true
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body.stream).toBe(true);
+    expect(body.stream_options.include_usage).toBe(true);
+  });
+
+  it('falls back to non-streaming path when tools are present', async () => {
+    fetch.mockResolvedValueOnce(jsonResponse({
+      choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    }));
+    const onText = vi.fn();
+    await chat({
+      model: 'gpt', system: 's',
+      messages: [{ role: 'user', content: 'x' }], maxTokens: 10,
+      tools: [{ kind: 'normalized', name: 'web_search', description: 'd', inputSchema: { type: 'object' } }],
+      onText,
+    });
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body.stream).toBeUndefined(); // non-streaming branch
+    expect(onText).not.toHaveBeenCalled();
+  });
+});
+
 describe('OpenAI adapter — tool loop', () => {
   it('calls onToolCall and feeds results back as role:tool', async () => {
     fetch.mockResolvedValueOnce(jsonResponse({

@@ -13,7 +13,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 - **Pexels images aren't responsive.** `loading="lazy"` is set, but the same `medium` URL is shipped to mobile and desktop (different physical sizes). Use `srcset` to send the smaller variant on phones. — `src/lib/components/TripCard.svelte`
 - **Cost range format `~$700–1,050` may read as cryptic.** Consider switching to "$700 to $1,050" or just a single midpoint figure with a small range badge.
 - **No keyboard arrow-key navigation between cards.** Cards are `role="button"`, but moving between them requires `Tab`. Adding ↑/↓ navigation would help keyboard users.
-- **Stream lock-itinerary generation.** "🔒 Lock trip & generate itinerary" sits silent for 20–30s while the model works. Both adapters can be extended to support streaming; for lock specifically, pipe tokens through SSE so the user sees the itinerary materializing in real time. — `src/routes/api/lock/[slug]/+server.js`, both `src/lib/server/ai/*.js`
 
 ## Performance
 

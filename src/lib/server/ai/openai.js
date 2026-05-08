@@ -59,7 +59,7 @@ function accumUsage(acc, u) {
   return acc;
 }
 
-export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal }) {
+export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText }) {
   const apiTools = translateTools(tools);
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY not set.');
@@ -68,6 +68,11 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
     ...(system ? [{ role: 'system', content: system }] : []),
     ...messages.map(m => ({ role: m.role, content: m.content })),
   ];
+
+  // Streaming path: when onText is set and no tools, pipe deltas through callback.
+  if (onText && (!apiTools || apiTools.length === 0)) {
+    return streamChat({ apiKey, model, maxTokens, messages: convo, signal, onText, usage });
+  }
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     if (signal?.aborted) throw signal.reason ?? new Error('Aborted');
@@ -129,4 +134,60 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
   }
 
   throw new Error(`OpenAI adapter: hit ${MAX_TOOL_TURNS}-turn safety limit.`);
+}
+
+async function streamChat({ apiKey, model, maxTokens, messages, signal, onText, usage }) {
+  if (signal?.aborted) throw signal.reason ?? new Error('Aborted');
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      messages,
+      stream: true,
+      stream_options: { include_usage: true },
+    }),
+    ...(signal ? { signal } : {}),
+  });
+  if (!res.ok) {
+    const cause = await res.text();
+    const err = adapterErrorFromResponse({ provider: 'openai', model, status: res.status, cause });
+    logAdapterError(err);
+    throw err;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let fullText = '';
+
+  while (true) {
+    if (signal?.aborted) throw signal.reason ?? new Error('Aborted');
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (payload === '[DONE]') continue;
+      let event;
+      try { event = JSON.parse(payload); } catch { continue; }
+      if (event.usage) accumUsage(usage, event.usage);
+      const delta = event.choices?.[0]?.delta?.content;
+      if (delta) {
+        fullText += delta;
+        try { onText(delta); } catch { /* user callback errors don't kill the stream */ }
+      }
+    }
+  }
+
+  usage.total = usage.input + usage.output;
+  if (usage.turns === 0) usage.turns = 1; // streaming counts as one turn even if usage event was missing
+  return { text: fullText, usage };
 }
