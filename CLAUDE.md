@@ -17,8 +17,7 @@ atlas-trip-planner/
 ├── PRODUCT.md         # design context for the frontend
 ├── TODO.md            # deferred UX/perf follow-ups
 ├── .claude/
-│   ├── commands/      # slash commands (seed, deepen)
-│   └── agents/        # subagents (researcher)
+│   └── agents/        # subagents (researcher) — for ad-hoc Claude Code use
 ├── src/               # SvelteKit frontend (npm run dev -- --port 3456)
 ├── ideas/             # parked, lightly sketched (single .md files)
 ├── exploring/         # being researched (folders with overview.md)
@@ -77,25 +76,24 @@ Optional planning flag: `locked: true` (trip is frozen; itinerary has been gener
 
 Omit fields rather than guess at creation. Dates are ISO 8601. Distances default to miles.
 
-## Slash commands and in-browser actions
+## In-browser actions
 
-The same lifecycle operations are reachable two ways: as Claude Code slash commands (run from a terminal session) and as in-browser buttons on the frontend.
+All lifecycle operations live in the SvelteKit app — the browser is the canonical interface.
 
-**Slash commands** in `.claude/commands/`:
-
-- `/seed [n]` — generate `n` new idea files (default 5, max 15) using `home.md` preferences. Includes fly-in options when appropriate.
-- `/deepen <trip>` — dispatch the `researcher` subagent to flesh out an idea into an exploring-stage folder. Adds `waypoints` so the OSRM route line will draw on the map.
-
-**In-browser actions** (live on the SvelteKit app):
-
-- **Seed** (`+` button on the home page) — same as `/seed` plus an optional steering prompt. Streams progress over SSE.
-- **Research** (button on idea cards) — same as `/deepen`. Confirms before kicking off.
+- **Seed** (`+` button on the home page) — generates 5 new idea files using `home.md` preferences. Optional steering prompt to focus the batch (e.g. "fly-in national parks", "within 3 hours"). Streams progress over SSE.
+- **Add destination** (pin button on the home page) — generates a single idea file for a specific destination you name. Includes a semantic duplicate check against existing trips.
+- **Research →** (button on idea cards) — promotes an idea into an exploring-stage folder with web-searched details: hours, prices, lodging, route highlights, logistics. Adds `waypoints` so the OSRM route line draws on the map. Cancellable mid-run (the cancel button aborts the in-flight model call, not just the listener).
 - **Start Planning** (exploring trips) — promotes `exploring/<slug>/` → `planning/<slug>/` and rewrites the status frontmatter.
 - **Bookmark** (star icon) — toggles `starred: true|false` in the trip's frontmatter.
-- **Lock trip** (planning detail view) — calls Claude to generate a day-by-day `itinerary.md` from the existing sections, then sets `locked: true`. Editing and Ask Claude are hidden while locked.
+- **Lock trip** (planning detail view) — synthesizes a day-by-day `itinerary.md` from the existing sections (streamed in real time), then sets `locked: true`. Editing and the assistant chat are hidden while locked.
 - **Unlock to edit** (locked detail view) — clears `locked: true`. The `itinerary.md` is kept but editing is restored. Re-lock to regenerate the itinerary.
 - **Print / Save PDF** (locked detail view) — opens the browser print dialog with print CSS that hides all chrome so only the itinerary renders.
+- **Share** (any detail view, when `ATLAS_SHARE_SECRET` is set) — generates a public read-only `/share/<token>` URL backed by an HMAC of the slug. Disabling revokes access immediately.
 - **Archive** (detail view, gated by confirm) — moves the trip to `archived/<stage>/<slug>/`. The trip vanishes from the UI but stays in the seed-avoidance list.
+
+### Ad-hoc research via Claude Code
+
+`.claude/agents/researcher.md` defines a `researcher` subagent that Claude Code can dispatch for one-off destination research outside the formal lifecycle ("what's the best time of year to visit Glacier?"). It's not invoked by any in-browser action — those reimplement the research loop directly via `chat()` + the `web_search` tool. Use the subagent when you want Claude Code to do exploratory research without writing files.
 
 ## Frontend
 
@@ -124,7 +122,6 @@ After adding or renaming trips, the next page load picks them up automatically; 
 - Research subagents write to their own files (`route.md`, `stops.md`, etc.) and summarize in `overview.md`; no silent edits to user-written prose
 - Distance, radius, and vehicle-specific logic read from `home.md` frontmatter; don't hardcode user-specific numbers in commands or subagents
 - All model calls go through `chat()` in `src/lib/server/ai.js`; all web search goes through `search()` / `searchToolDefinition()` in `src/lib/server/search.js`. Don't `import Anthropic` (or any other SDK) in route handlers — add a new adapter under `src/lib/server/{ai,search}/` instead. Pass a `label` to `chat()` so token-usage logs are grouped by feature.
-- Slash commands (`.claude/commands/*.md`) and the in-browser SSE endpoints (`src/routes/api/actions/*`) implement the same flows separately — they share neither prompts nor code. When iterating on prompt logic, update both or accept the drift consciously.
 - Page data on every route includes `data.features` (from `getFeatureAvailability()`) and `data.assistantName` (from `ATLAS_ASSISTANT_NAME`). Use them to gate UI affordances and render assistant-name strings rather than hardcoding.
 - `npm run smoke` does a 1-token round-trip per configured provider plus a tool-loop probe when search backend is non-builtin. Run it before deploys and after env changes.
 - After a meaningful unit of work, commit and push — the repo is on GitHub at `WrongerSandwich/atlas-trip-planner`
