@@ -58,11 +58,35 @@ describe('OpenAI adapter — single turn', () => {
     })).rejects.toThrow(/anthropic-native tool|tavily/);
   });
 
-  it('surfaces API errors with the response body', async () => {
-    fetch.mockResolvedValueOnce(jsonResponse({ error: { message: 'rate limited' } }, false, 429));
+  it('surfaces non-retriable API errors with the response body', async () => {
+    // Use 400 (non-retriable) so the test doesn't actually retry.
+    fetch.mockResolvedValueOnce(jsonResponse({ error: { message: 'bad request' } }, false, 400));
     await expect(chat({
       model: 'gpt', system: 's', messages: [{ role: 'user', content: 'hi' }], maxTokens: 10,
-    })).rejects.toThrow(/OpenAI API 429/);
+    })).rejects.toThrow(/OpenAI API 400/);
+  });
+
+  it('retries on 429 and succeeds when the next attempt clears', async () => {
+    vi.useFakeTimers();
+    try {
+      fetch.mockResolvedValueOnce(jsonResponse({ error: { message: 'rate limited' } }, false, 429));
+      fetch.mockResolvedValueOnce(jsonResponse({
+        choices: [{ message: { role: 'assistant', content: 'recovered' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 5, completion_tokens: 2 },
+      }));
+
+      const promise = chat({
+        model: 'gpt', system: 's', messages: [{ role: 'user', content: 'hi' }], maxTokens: 10,
+      });
+
+      // Drain backoff so the second fetch fires.
+      await vi.runAllTimersAsync();
+      const { text } = await promise;
+      expect(text).toBe('recovered');
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

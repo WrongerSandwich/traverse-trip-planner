@@ -1,3 +1,5 @@
+import { withRetry } from '../retry.js';
+
 const MAX_TOOL_TURNS = 20;
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
@@ -23,21 +25,23 @@ function findTool(tools, name) {
 }
 
 async function callApi({ apiKey, model, maxTokens, tools, messages }) {
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      ...(tools ? { tools } : {}),
-      messages,
-    }),
-  });
-  if (!res.ok) throw new Error(`OpenAI API ${res.status}: ${await res.text()}`);
-  return res.json();
+  return withRetry(async () => {
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        ...(tools ? { tools } : {}),
+        messages,
+      }),
+    });
+    if (!res.ok) throw new Error(`OpenAI API ${res.status}: ${await res.text()}`);
+    return res.json();
+  }, { label: `openai ${model}` });
 }
 
 function accumUsage(acc, u) {
