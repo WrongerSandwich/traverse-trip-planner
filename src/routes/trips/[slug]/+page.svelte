@@ -236,7 +236,12 @@
           <strong>Planning mode.</strong>
           Edit any section below. Use <em>Ask Claude</em> to request changes — Claude reads your current sections and writes updates back to the markdown.
           <div class="callout-actions">
-            <button class="lock-btn" onclick={lockTrip} disabled={locking}>
+            <button
+              class="lock-btn"
+              onclick={lockTrip}
+              disabled={locking || !data.features?.lock}
+              title={data.features?.lock ? '' : 'Default model not configured — see .env'}
+            >
               {locking ? 'Generating itinerary…' : '🔒 Lock trip & generate itinerary'}
             </button>
             <button class="complete-btn" onclick={completeTrip} disabled={completing}>
@@ -316,7 +321,7 @@
     </main>
   </div>
 
-  {#if isPlanning && !isLocked}
+  {#if isPlanning && !isLocked && data.features?.chat}
     <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask Claude">
       {chatOpen ? '✕' : '✨ Ask Claude'}
     </button>

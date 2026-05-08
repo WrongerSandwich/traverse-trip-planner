@@ -1,6 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { json } from '@sveltejs/kit';
 import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS } from '$lib/server/data.js';
+import { chat } from '$lib/server/ai.js';
+import { config } from '$lib/server/config.js';
 
 function parseUpdates(text) {
   const updates = {};
@@ -71,15 +72,13 @@ Your output format:
     content: String(m.content || ''),
   }));
 
-  const client = new Anthropic();
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 6000,
+  const { text } = await chat({
+    ...config.modelDefault,
+    maxTokens: 6000,
     system,
     messages: apiMessages,
   });
 
-  const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
   const reply = parseReply(text);
   const updates = parseUpdates(text);
 

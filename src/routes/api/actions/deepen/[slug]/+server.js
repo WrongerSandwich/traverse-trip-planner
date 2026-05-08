@@ -1,8 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { ROOT, readHomeMd, parseFrontmatter } from '$lib/server/data.js';
 import { sseStream } from '$lib/server/sse.js';
+import { chat } from '$lib/server/ai.js';
+import { search, searchToolDefinition } from '$lib/server/search.js';
+import { config } from '$lib/server/config.js';
 
 function findIdeaFile(slug) {
   const p = join(ROOT, 'ideas', `${slug}.md`);
@@ -12,68 +14,6 @@ function findIdeaFile(slug) {
 function parseSection(text, tag) {
   const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
   return m?.[1]?.trim() ?? null;
-}
-
-/**
- * Run a research agent loop with web search.
- * Calls the API repeatedly until stop_reason is "end_turn",
- * passing back tool_results for each web_search call so Anthropic
- * can incorporate the search results.
- */
-async function runResearchAgent(client, system, userMsg, onSearch) {
-  const tools = [{ type: 'web_search_20250305', name: 'web_search' }];
-  let messages = [{ role: 'user', content: userMsg }];
-  const MAX_TURNS = 20; // safety ceiling
-
-  for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const response = await client.messages.create({
-      model: 'claude-opus-4-7',
-      max_tokens: 8000,
-      system,
-      tools,
-      messages,
-    });
-
-    const textBlocks = response.content.filter(b => b.type === 'text');
-    const text = textBlocks.map(b => b.text).join('\n');
-
-    if (response.stop_reason === 'end_turn') {
-      return text;
-    }
-
-    if (response.stop_reason === 'tool_use') {
-      // Add assistant's full response to the conversation
-      messages = [...messages, { role: 'assistant', content: response.content }];
-
-      // Acknowledge each web_search call so Anthropic can provide results
-      const toolResults = [];
-      for (const block of response.content) {
-        if (block.type === 'tool_use' && block.name === 'web_search') {
-          const query = block.input?.query ?? '';
-          if (query) onSearch?.(`Searching: "${query}"`);
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: '', // Anthropic fills in results server-side
-          });
-        }
-      }
-
-      if (toolResults.length > 0) {
-        messages = [...messages, { role: 'user', content: toolResults }];
-      } else if (text) {
-        // tool_use with no web_search blocks — return whatever text we have
-        return text;
-      }
-      continue;
-    }
-
-    // max_tokens or other stop — return what we have
-    if (text) return text;
-    throw new Error(`Unexpected stop_reason: ${response.stop_reason}`);
-  }
-
-  throw new Error(`Research agent hit the ${MAX_TURNS}-turn safety limit.`);
 }
 
 export function GET({ params }) {
@@ -103,8 +43,6 @@ export function POST({ params }) {
     }
 
     send(`Researching ${fm.title || slug} with live web search…`);
-
-    const client = new Anthropic();
 
     const system = `You are a meticulous travel researcher. Your job is to produce detailed, accurate, useful research for a specific trip idea using web search to find current information.
 
@@ -152,12 +90,22 @@ Full markdown for stops.md. ## headers per location. Key sights, food, lodging m
 Full markdown for logistics.md. Reservations checklist (table), seasonal notes, pet sitter reminder for overnights, cell coverage, gotchas. Flag anything that needs re-verification before the trip.
 </logistics_md>`;
 
-    const text = await runResearchAgent(
-      client,
+    const { text } = await chat({
+      ...config.modelResearch,
+      maxTokens: 8000,
       system,
-      'Research this trip thoroughly using web search.',
-      (msg) => send(msg),
-    );
+      messages: [{ role: 'user', content: 'Research this trip thoroughly using web search.' }],
+      tools: [searchToolDefinition()],
+      onActivity: ({ type, name, input }) => {
+        if (type === 'tool_call' && name === 'web_search' && input?.query) {
+          send(`Searching: "${input.query}"`);
+        }
+      },
+      onToolCall: async ({ name, input }) => {
+        if (name === 'web_search') return search({ query: input.query });
+        return null;
+      },
+    });
 
     send('Parsing research output…');
 
@@ -169,7 +117,6 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
 
     if (!prose) throw new Error('No overview prose returned — try again.');
 
-    // Merge existing frontmatter with research fields
     const existingFm = {};
     const fmMatch = ideaContent.match(/^---\n([\s\S]*?)\n---/);
     if (fmMatch) {

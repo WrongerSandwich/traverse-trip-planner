@@ -69,5 +69,66 @@ pm2 stop atlas       # stop
 - **Image + route caches** (`.image-cache.json`, `.route-cache.json`) are on disk and survive restarts.
 - **`.env` is gitignored** — never committed. Use `.env.example` as your template.
 - **`home.md` is gitignored** — your personal preferences stay local. Use `home.example.md` as your template.
-- The `ANTHROPIC_API_KEY` enables the in-browser "Add trips" (seed) and "Research →" (deepen) buttons. Without it, those buttons will fail with a clear error.
 - The `PEXELS_API_KEY` enables trip card photos. Without it, cards show a map thumbnail instead.
+
+## Provider configuration (BYOK)
+
+Atlas talks to model and search providers through a thin adapter layer. The defaults preserve the original Anthropic-only behavior, so existing deployments keep working without env changes. To switch providers, set the `ATLAS_*` variables in `.env`.
+
+### What each feature needs
+
+| Feature                    | Requires                                                |
+| -------------------------- | ------------------------------------------------------- |
+| Seed / Add (`+`, pin)      | `modelDefault` provider with valid key                  |
+| Lock & generate itinerary  | `modelDefault` provider with valid key                  |
+| Ask Claude (planning chat) | `modelDefault` provider with valid key                  |
+| Research → (deepen)        | `modelResearch` provider with key **+** search backend  |
+
+If a feature's backing provider isn't configured, its button is disabled in the UI with a tooltip pointing at `.env`. The startup banner (printed to the server log) lists which features are wired.
+
+### Supported providers
+
+| Slot           | Variable                            | Values                              |
+| -------------- | ----------------------------------- | ----------------------------------- |
+| Default model  | `ATLAS_MODEL_DEFAULT_PROVIDER`      | `anthropic` (default) · `openai`    |
+| Default model  | `ATLAS_MODEL_DEFAULT`               | model id (e.g. `claude-sonnet-4-6`, `gpt-4o-mini`) |
+| Research model | `ATLAS_MODEL_RESEARCH_PROVIDER`     | `anthropic` (default) · `openai`    |
+| Research model | `ATLAS_MODEL_RESEARCH`              | tool-use-capable model id           |
+| Search backend | `ATLAS_SEARCH_PROVIDER`             | `anthropic-builtin` (default) · `tavily` |
+
+`anthropic-builtin` runs Anthropic's server-side `web_search` tool — only valid when the research model is also Anthropic. `tavily` is portable across any model provider but requires a `TAVILY_API_KEY`.
+
+### Sample configurations
+
+**Anthropic-only (default — no env changes needed):**
+```
+ANTHROPIC_API_KEY=sk-ant-...
+PEXELS_API_KEY=...
+```
+
+**OpenAI-only (no Anthropic dependency):**
+```
+OPENAI_API_KEY=sk-proj-...
+TAVILY_API_KEY=tvly-...
+PEXELS_API_KEY=...
+
+ATLAS_MODEL_DEFAULT_PROVIDER=openai
+ATLAS_MODEL_DEFAULT=gpt-4o-mini
+ATLAS_MODEL_RESEARCH_PROVIDER=openai
+ATLAS_MODEL_RESEARCH=gpt-4o
+ATLAS_SEARCH_PROVIDER=tavily
+```
+
+**Mixed (cheap default, smart research, portable search):**
+```
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-proj-...
+TAVILY_API_KEY=tvly-...
+PEXELS_API_KEY=...
+
+ATLAS_MODEL_DEFAULT_PROVIDER=openai
+ATLAS_MODEL_DEFAULT=gpt-4o-mini
+ATLAS_MODEL_RESEARCH_PROVIDER=anthropic
+ATLAS_MODEL_RESEARCH=claude-opus-4-7
+ATLAS_SEARCH_PROVIDER=tavily
+```

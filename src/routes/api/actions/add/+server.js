@@ -1,9 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { ROOT, readHomeMd } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream } from '$lib/server/sse.js';
+import { chat } from '$lib/server/ai.js';
+import { config } from '$lib/server/config.js';
 
 // TODO: consolidate trip-lookup helpers (findTripFile/findTrip/findIdeaFile) into data.js
 // TODO: extract readSections() shared by lock/+server.js and trip/[slug]/chat/+server.js
@@ -35,8 +36,6 @@ export async function POST({ request }) {
 
     send(`Asking Claude to create an idea for ${destination}...`);
 
-    const client = new Anthropic();
-
     const system = `You are a travel planning assistant. Here is the traveler's full personal context:
 ${homeMd}
 
@@ -50,6 +49,7 @@ If it IS a near-duplicate, respond with ONLY this tag (no other text):
 
 If it is NOT a near-duplicate, create exactly one trip idea. Rules:
 - Use the traveler's taste profile to write a concrete, specific pitch — name the actual draw, not generic adjectives.
+- Do not invent facts about the destination. If you are unsure whether a specific detail is true (a venue still operating, an event still running, a route still open), keep the pitch at a higher level and let /deepen verify the specifics later.
 - Do NOT second-guess or filter the destination; the user already decided to go.
 - For fly-in trips add: fly_in: true and vehicle: rental
 - For trips involving an NPS unit add: national_park: true
@@ -67,14 +67,13 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
 ---
 </file>`;
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 600,
+    const { text } = await chat({
+      ...config.modelDefault,
       system,
+      maxTokens: 600,
       messages: [{ role: 'user', content: `Add a trip idea for: ${destination}` }],
     });
 
-    const text = response.content.find(b => b.type === 'text')?.text ?? '';
 
     const dupMatch = text.match(/<duplicate>([\s\S]*?)<\/duplicate>/);
     if (dupMatch) {

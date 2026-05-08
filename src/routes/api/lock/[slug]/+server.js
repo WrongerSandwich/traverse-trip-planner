@@ -1,8 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { json } from '@sveltejs/kit';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { setLocked, readPlanningTrip, PLANNING_SECTIONS } from '$lib/server/data.js';
+import { chat } from '$lib/server/ai.js';
+import { config } from '$lib/server/config.js';
 
 export async function POST({ params }) {
   const { slug } = params;
@@ -14,12 +15,11 @@ export async function POST({ params }) {
     .map(s => `<section name="${s}">\n${trip.sections[s]}\n</section>`)
     .join('\n\n');
 
-  const client = new Anthropic();
-  let response;
+  let itinerary;
   try {
-    response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
+    const { text } = await chat({
+      ...config.modelDefault,
+      maxTokens: 4000,
       system: `You are Atlas, a travel itinerary formatter. Given the planning sections for a road trip, synthesize them into a clean day-by-day itinerary in markdown.
 
 Format rules:
@@ -38,15 +38,10 @@ Format rules:
         },
       ],
     });
+    itinerary = text.trim();
   } catch (err) {
     return new Response(`Itinerary generation failed: ${err.message}`, { status: 502 });
   }
-
-  const itinerary = response.content
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('\n')
-    .trim();
 
   try {
     writeFileSync(join(trip.dir, 'itinerary.md'), `${itinerary}\n`);

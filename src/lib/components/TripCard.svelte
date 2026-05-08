@@ -72,8 +72,13 @@
 
     {#if trip.pitch}<p class="pitch">{trip.pitch}</p>{/if}
 
-    {#if isIdea && ondeepen}
-      <button class="research-btn" onclick={ondeepen} title="Research this trip with Claude">
+    {#if isIdea}
+      <button
+        class="research-btn"
+        onclick={ondeepen}
+        disabled={!ondeepen}
+        title={ondeepen ? 'Research this trip with Claude' : 'Deepen unavailable — research model or search backend not configured'}
+      >
         Research →
       </button>
     {:else if isExploring && onpromote}

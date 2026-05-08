@@ -338,8 +338,8 @@
         class="seed-btn"
         class:open={seedFormOpen}
         onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
-        disabled={actionRunning}
-        title="Add 5 new trip ideas"
+        disabled={actionRunning || !data.features?.seed}
+        title={data.features?.seed ? 'Add 5 new trip ideas' : 'Default model not configured — see .env'}
         aria-label="Add trips"
         aria-expanded={seedFormOpen}
       >
@@ -351,8 +351,8 @@
         class="seed-btn pin-btn"
         class:open={pinFormOpen}
         onclick={() => { pinFormOpen = !pinFormOpen; seedFormOpen = false; }}
-        disabled={actionRunning}
-        title="Add a specific destination"
+        disabled={actionRunning || !data.features?.add}
+        title={data.features?.add ? 'Add a specific destination' : 'Default model not configured — see .env'}
         aria-label="Add destination"
         aria-expanded={pinFormOpen}
       >
@@ -535,7 +535,7 @@
               onhover={() => hoveredSlug = trip._slug}
               onleave={() => hoveredSlug = null}
               onbookmark={(e) => toggleBookmark(trip, e)}
-              ondeepen={(e) => { e?.stopPropagation(); runDeepen(trip); }}
+              ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
               onpromote={(e) => promoteToPlanning(trip, e)}
             />
           {:else}

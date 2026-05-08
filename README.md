@@ -18,10 +18,11 @@ Atlas is designed to be self-hosted. You bring your own API keys; nothing is sha
 
 **Requirements:**
 - Node.js 20+
-- An [Anthropic API key](https://console.anthropic.com/) (for AI features)
+- A model provider API key — [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/) (for AI features)
 - A [Pexels API key](https://www.pexels.com/api/) (free, for trip card photos)
+- *Optional:* a [Tavily](https://tavily.com/) API key — required only if you use a non-Anthropic model and want the `Research →` (deepen) feature
 
-See **[DEPLOY.md](DEPLOY.md)** for full setup instructions.
+See **[DEPLOY.md](DEPLOY.md)** for full setup instructions, including provider switching.
 
 ## Quick start
 
@@ -51,4 +52,4 @@ Your personal preferences live in `home.md` (gitignored — see `home.example.md
 
 ## Tech
 
-SvelteKit · Leaflet · OSRM (routing) · Nominatim (geocoding) · Pexels (photos) · Anthropic Claude
+SvelteKit · Leaflet · OSRM (routing) · Nominatim (geocoding) · Pexels (photos). AI calls go through a provider-agnostic adapter — Anthropic and OpenAI are supported out of the box. See [DEPLOY.md](DEPLOY.md#provider-configuration-byok).

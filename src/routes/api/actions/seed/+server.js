@@ -1,9 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { ROOT, readHomeMd } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream } from '$lib/server/sse.js';
+import { chat } from '$lib/server/ai.js';
+import { config } from '$lib/server/config.js';
 
 export async function POST({ request }) {
   // Optional user-supplied steering prompt. Body is JSON; absence is fine.
@@ -25,8 +26,6 @@ export async function POST({ request }) {
         : `Asking Claude for 5 new ideas (avoiding ${existing.length} existing destinations)...`
     );
 
-    const client = new Anthropic();
-
     const system = `You are a travel planning assistant. Here is the traveler's full personal context:
 ${homeMd}
 
@@ -36,6 +35,7 @@ Generate exactly 5 new trip ideas. Rules:
 - Do NOT propose any of these existing destinations: ${existing.join(', ')}.
 - Include a mix of road trips and fly-in destinations where appropriate.
 - Be concrete — name the specific draw, not generic adjectives.
+- Do not invent facts about destinations. If you are unsure whether a specific detail is true (a venue still operating, an event still running, a route still open), keep the pitch at a higher level and let /deepen verify the specifics later.
 
 Output each trip as a file block in this exact format, with nothing outside the tags:
 
@@ -60,14 +60,13 @@ national_park: true`;
       ? `Generate 5 new trip ideas. The user has asked specifically for: ${userPrompt}\n\nStill obey the diversity and "would they actually go?" rules — interpret their request through the taste profile, don't override it.`
       : 'Generate 5 new trip ideas.';
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
+    const { text } = await chat({
+      ...config.modelDefault,
       system,
+      maxTokens: 3000,
       messages: [{ role: 'user', content: userMessage }],
     });
 
-    const text = response.content.find(b => b.type === 'text')?.text ?? '';
     const fileRegex = /<file name="([^"]+)">([\s\S]*?)<\/file>/g;
     const files = [];
     let m;
