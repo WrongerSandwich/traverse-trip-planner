@@ -26,7 +26,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 
 - **Service worker / offline support** would be valuable for a travel tool used in the field. Cache trip markdown + Pexels thumbnails + map tiles for offline read. Substantial effort.
 - **Settle slash-command vs browser-action drift.** `.claude/commands/seed.md` + `deepen.md` and `src/routes/api/actions/{seed,deepen}` implement equivalent flows separately — different prompts, different parsing. Either delete the slash commands (browser is canonical) or have both read prompts from a shared location. Currently flagged as "drift consciously" in CLAUDE.md, which decays without enforcement. — `.claude/commands/`, `src/routes/api/actions/`
-- **Single frontmatter parser.** `data.js` has a regex-based parser; `actions/deepen/[slug]/+server.js` re-implements ad-hoc string-split parsing inline. Consolidate so multi-line values, list fields, and edge cases are handled consistently in one place. — `src/lib/server/data.js`, `src/routes/api/actions/deepen/[slug]/+server.js`
 
 ## Provider abstraction follow-ups
 

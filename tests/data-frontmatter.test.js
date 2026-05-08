@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFrontmatter } from '../src/lib/server/data.js';
+import { parseFrontmatter, parseFrontmatterFields } from '../src/lib/server/data.js';
 
 describe('parseFrontmatter', () => {
   it('parses a standard idea-stage frontmatter', () => {
@@ -92,5 +92,42 @@ locked: false
 waypoints: []
 ---`;
     expect(parseFrontmatter(md).waypoints).toEqual(['']);
+  });
+});
+
+describe('parseFrontmatterFields', () => {
+  it('parses raw key:value lines without requiring fences', () => {
+    const text = `region: Ozarks
+home_distance_mi: 420
+weekend_viable: true`;
+    expect(parseFrontmatterFields(text)).toEqual({
+      region: 'Ozarks',
+      home_distance_mi: '420',
+      weekend_viable: 'true',
+    });
+  });
+
+  it('still recognizes inline list values', () => {
+    const text = `waypoints: [Overland Park KS, Leavenworth KS, Atchison KS]`;
+    expect(parseFrontmatterFields(text).waypoints)
+      .toEqual(['Overland Park KS', 'Leavenworth KS', 'Atchison KS']);
+  });
+
+  it('returns an empty object for empty input', () => {
+    expect(parseFrontmatterFields('')).toEqual({});
+  });
+
+  it('skips lines without colons', () => {
+    const text = `not a kv line
+title: Trip
+also not`;
+    expect(parseFrontmatterFields(text)).toEqual({ title: 'Trip' });
+  });
+
+  it('parseFrontmatter delegates to parseFrontmatterFields with same array semantics', () => {
+    const md = `---
+tags: [a, b]
+---`;
+    expect(parseFrontmatter(md).tags).toEqual(parseFrontmatterFields('tags: [a, b]').tags);
   });
 });

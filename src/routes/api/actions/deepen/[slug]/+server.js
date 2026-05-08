@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { ROOT, readHomeMd, parseFrontmatter } from '$lib/server/data.js';
+import { ROOT, readHomeMd, parseFrontmatter, parseFrontmatterFields } from '$lib/server/data.js';
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
@@ -35,12 +35,7 @@ export function POST({ params }) {
     const homeFm = parseFrontmatter(homeMd) || {};
     const today = new Date().toISOString().slice(0, 10);
 
-    const fm = {};
-    for (const line of ideaContent.split('\n')) {
-      if (line === '---') continue;
-      const c = line.indexOf(':');
-      if (c > 0) fm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
-    }
+    const fm = parseFrontmatter(ideaContent) || {};
 
     send(`Researching ${fm.title || slug} with live web search…`);
 
@@ -118,29 +113,18 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
 
     if (!prose) throw new Error('No overview prose returned — try again.');
 
-    const existingFm = {};
-    const fmMatch = ideaContent.match(/^---\n([\s\S]*?)\n---/);
-    if (fmMatch) {
-      for (const line of fmMatch[1].split('\n')) {
-        const c = line.indexOf(':');
-        if (c > 0) existingFm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
-      }
-    }
-    const researchFm = {};
-    if (fmRaw) {
-      for (const line of fmRaw.split('\n')) {
-        const c = line.indexOf(':');
-        if (c > 0) researchFm[line.slice(0, c).trim()] = line.slice(c + 1).trim();
-      }
-    }
+    const existingFm = parseFrontmatter(ideaContent) || {};
+    const researchFm = fmRaw ? parseFrontmatterFields(fmRaw) : {};
     const merged = {
       ...existingFm,
       ...researchFm,
       status: 'exploring',
-      travelers: homeFm.travelers || '[you]',
+      travelers: homeFm.travelers ?? '[you]',
       pet_sitter_needed: String(homeFm.pets_need_sitter ?? 'false'),
     };
-    const fmLines = Object.entries(merged).map(([k, v]) => `${k}: ${v}`).join('\n');
+    const fmLines = Object.entries(merged)
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? `[${v.join(', ')}]` : v}`)
+      .join('\n');
     const overviewContent = `---\n${fmLines}\n---\n\n${prose}\n`;
 
     send('Writing exploring folder…');

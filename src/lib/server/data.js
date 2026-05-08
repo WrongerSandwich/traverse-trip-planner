@@ -184,11 +184,16 @@ function estimateCost(trip, homeCoords) {
 }
 
 // ── Frontmatter parser ──
-export function parseFrontmatter(content) {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return null;
+
+/**
+ * Parse the body of a frontmatter block (the lines between `---` fences) into
+ * an object. Inline-list values like `[a, b, c]` become arrays; everything
+ * else stays as a string. Use this when you have raw key:value lines without
+ * fences (e.g. AI-generated frontmatter inside an XML tag).
+ */
+export function parseFrontmatterFields(text) {
   const data = {};
-  for (const line of match[1].split('\n')) {
+  for (const line of text.split('\n')) {
     const colon = line.indexOf(':');
     if (colon < 1) continue;
     const key = line.slice(0, colon).trim();
@@ -198,6 +203,12 @@ export function parseFrontmatter(content) {
       : raw;
   }
   return data;
+}
+
+export function parseFrontmatter(content) {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return null;
+  return parseFrontmatterFields(match[1]);
 }
 
 // ── Collect raw trips ──
