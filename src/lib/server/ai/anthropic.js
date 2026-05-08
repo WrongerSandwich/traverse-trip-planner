@@ -26,9 +26,18 @@ function extractText(content) {
   return content.filter(b => b.type === 'text').map(b => b.text).join('\n');
 }
 
+function accumUsage(acc, u) {
+  if (!u) return acc;
+  acc.input += u.input_tokens || 0;
+  acc.output += u.output_tokens || 0;
+  acc.turns += 1;
+  return acc;
+}
+
 export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity }) {
   const client = new Anthropic();
   const apiTools = translateTools(tools);
+  const usage = { input: 0, output: 0, total: 0, turns: 0 };
 
   let convo = messages.map(m => ({ ...m }));
 
@@ -40,14 +49,16 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
       ...(apiTools ? { tools: apiTools } : {}),
       messages: convo,
     });
+    accumUsage(usage, response.usage);
+    usage.total = usage.input + usage.output;
 
     if (response.stop_reason === 'end_turn' || response.stop_reason === 'max_tokens') {
-      return { text: extractText(response.content), usage: response.usage };
+      return { text: extractText(response.content), usage };
     }
 
     if (response.stop_reason !== 'tool_use') {
       const text = extractText(response.content);
-      if (text) return { text, usage: response.usage };
+      if (text) return { text, usage };
       throw new Error(`Anthropic adapter: unexpected stop_reason "${response.stop_reason}".`);
     }
 
@@ -82,7 +93,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
 
     if (toolResults.length === 0) {
       const text = extractText(response.content);
-      if (text) return { text, usage: response.usage };
+      if (text) return { text, usage };
       throw new Error('Anthropic adapter: tool_use stop with no tool_use blocks.');
     }
 

@@ -6,7 +6,7 @@
 
 import 'dotenv/config';
 import { chat } from '../src/lib/server/ai.js';
-import { search } from '../src/lib/server/search.js';
+import { search, searchToolDefinition } from '../src/lib/server/search.js';
 import { config, describeConfig } from '../src/lib/server/config.js';
 
 const d = describeConfig();
@@ -67,6 +67,35 @@ if (d.search.provider === 'anthropic-builtin') {
   });
 } else {
   console.log(`  search()${' '.repeat(30)} — skipped (key missing)`);
+}
+
+// Tool-loop seam: only meaningful for non-builtin search backends, which forces
+// chat() to translate normalized tool definitions and route tool_calls through
+// onToolCall. This is the abstraction's biggest unverified path on Anthropic
+// and the entire portable path on OpenAI.
+if (d.search.provider !== 'anthropic-builtin' && d.modelResearch.ok && d.search.ok) {
+  await probe(`tool loop — ${d.modelResearch.provider} + ${d.search.provider}`, async () => {
+    let toolCalled = false;
+    const { text } = await chat({
+      ...config.modelResearch,
+      label: 'smoke-tool-loop',
+      system: 'You have a web_search tool. When asked a factual question, you must call it before answering.',
+      messages: [{ role: 'user', content: 'In what year was Yellowstone established as a national park? Use web_search to verify.' }],
+      maxTokens: 400,
+      tools: [searchToolDefinition()],
+      onActivity: ({ type, name }) => { if (type === 'tool_call' && name === 'web_search') toolCalled = true; },
+      onToolCall: async ({ name, input }) => {
+        if (name === 'web_search') return search({ query: input.query, maxResults: 3 });
+        return null;
+      },
+    });
+    if (!toolCalled) throw new Error('model did not call web_search');
+    if (!text.trim()) throw new Error('empty final response');
+  });
+} else if (d.search.provider !== 'anthropic-builtin') {
+  console.log(`  tool loop${' '.repeat(29)} — skipped (research model or search key missing)`);
+} else {
+  console.log(`  tool loop${' '.repeat(29)} — skipped (anthropic-builtin doesn't go through normalized-tool path)`);
 }
 
 console.log('────────────────────────────────────────────');

@@ -64,6 +64,7 @@ national_park: true`;
 
     const { text } = await chat({
       ...config.modelDefault,
+      label: 'seed',
       system,
       maxTokens: 3000,
       messages: [{ role: 'user', content: userMessage }],

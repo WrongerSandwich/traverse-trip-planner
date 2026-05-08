@@ -74,6 +74,7 @@ Your output format:
 
   const { text } = await chat({
     ...config.modelDefault,
+    label: 'chat',
     maxTokens: 6000,
     system,
     messages: apiMessages,

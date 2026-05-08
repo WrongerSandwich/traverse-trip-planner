@@ -71,6 +71,7 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
 
     const { text } = await chat({
       ...config.modelDefault,
+      label: 'add',
       system,
       maxTokens: 600,
       messages: [{ role: 'user', content: `Add a trip idea for: ${destination}` }],

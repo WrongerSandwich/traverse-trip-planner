@@ -40,10 +40,19 @@ async function callApi({ apiKey, model, maxTokens, tools, messages }) {
   return res.json();
 }
 
+function accumUsage(acc, u) {
+  if (!u) return acc;
+  acc.input += u.prompt_tokens || 0;
+  acc.output += u.completion_tokens || 0;
+  acc.turns += 1;
+  return acc;
+}
+
 export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity }) {
   const apiTools = translateTools(tools);
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY not set.');
+  const usage = { input: 0, output: 0, total: 0, turns: 0 };
   let convo = [
     ...(system ? [{ role: 'system', content: system }] : []),
     ...messages.map(m => ({ role: m.role, content: m.content })),
@@ -51,6 +60,9 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     const data = await callApi({ apiKey, model, maxTokens, tools: apiTools, messages: convo });
+    accumUsage(usage, data.usage);
+    usage.total = usage.input + usage.output;
+
     const choice = data.choices?.[0];
     if (!choice) throw new Error('OpenAI adapter: no choices returned.');
 
@@ -58,7 +70,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
     const finish = choice.finish_reason;
 
     if (finish === 'stop' || finish === 'length') {
-      return { text: message.content ?? '', usage: data.usage };
+      return { text: message.content ?? '', usage };
     }
 
     if (finish === 'tool_calls') {
@@ -94,14 +106,14 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
       }
 
       if (toolMessages.length === 0) {
-        return { text: message.content ?? '', usage: data.usage };
+        return { text: message.content ?? '', usage };
       }
 
       convo = [...convo, ...toolMessages];
       continue;
     }
 
-    return { text: message.content ?? '', usage: data.usage };
+    return { text: message.content ?? '', usage };
   }
 
   throw new Error(`OpenAI adapter: hit ${MAX_TOOL_TURNS}-turn safety limit.`);

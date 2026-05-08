@@ -19,6 +19,7 @@ export async function POST({ params }) {
   try {
     const { text } = await chat({
       ...config.modelDefault,
+      label: 'lock',
       maxTokens: 4000,
       system: `You are Atlas, a travel itinerary formatter. Given the planning sections for a road trip, synthesize them into a clean day-by-day itinerary in markdown.
 
