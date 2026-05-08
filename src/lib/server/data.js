@@ -503,6 +503,26 @@ export function toggleStarred(slug) {
   return { starred: nowStarred };
 }
 
+// ── Share toggle ──
+export function setShared(slug, shared) {
+  const filePath = findTripFile(slug);
+  if (!filePath) return null;
+
+  const content = readFileSync(filePath, 'utf8');
+  if (!parseFrontmatter(content)) return null;
+
+  let updated;
+  if (/^shared:/m.test(content)) {
+    updated = content.replace(/^shared:.*$/m, `shared: ${shared}`);
+  } else {
+    updated = content.replace(/(\n---\n)/, `\nshared: ${shared}$1`);
+  }
+
+  writeFileSync(filePath, updated);
+  invalidateEnrichCache();
+  return { shared };
+}
+
 // ── Trip file content ──
 export function getTripFiles(slug) {
   for (const stage of ['exploring', 'planning', 'completed']) {

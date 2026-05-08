@@ -16,6 +16,7 @@ const ATLAS_KEYS = [
   'ATLAS_MODEL_LOCK_PROVIDER', 'ATLAS_MODEL_LOCK',
   'ATLAS_MODEL_CHAT_PROVIDER', 'ATLAS_MODEL_CHAT',
   'ATLAS_MODEL_DEEPEN_PROVIDER', 'ATLAS_MODEL_DEEPEN',
+  'ATLAS_SHARE_SECRET',
 ];
 
 function clearEnv() {
@@ -99,15 +100,23 @@ describe('getFeatureAvailability', () => {
   it('disables every feature when no keys are set', async () => {
     const { getFeatureAvailability } = await loadConfig();
     expect(getFeatureAvailability()).toEqual({
-      seed: false, add: false, lock: false, chat: false, deepen: false,
+      seed: false, add: false, lock: false, chat: false, deepen: false, share: false,
     });
   });
 
   it('enables all features with anthropic + builtin search', async () => {
     const { getFeatureAvailability } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
     expect(getFeatureAvailability()).toEqual({
-      seed: true, add: true, lock: true, chat: true, deepen: true,
+      seed: true, add: true, lock: true, chat: true, deepen: true, share: false,
     });
+  });
+
+  it('enables share when ATLAS_SHARE_SECRET is set', async () => {
+    const { getFeatureAvailability } = await loadConfig({
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      ATLAS_SHARE_SECRET: 'shh',
+    });
+    expect(getFeatureAvailability().share).toBe(true);
   });
 
   it('disables only deepen when search backend is misconfigured', async () => {

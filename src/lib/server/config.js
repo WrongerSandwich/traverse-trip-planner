@@ -38,6 +38,7 @@ export const config = {
     provider: env('ATLAS_SEARCH_PROVIDER', 'anthropic-builtin'),
   },
   assistantName: env('ATLAS_ASSISTANT_NAME', 'Claude'),
+  shareSecret: env('ATLAS_SHARE_SECRET', ''),
 };
 
 const PROVIDER_KEYS = {
@@ -73,6 +74,7 @@ export function getFeatureAvailability() {
     const ok = providerKeyOk(config.features[feature].provider);
     result[feature] = feature === 'deepen' ? (ok && search) : ok;
   }
+  result.share = Boolean(config.shareSecret);
   return result;
 }
 

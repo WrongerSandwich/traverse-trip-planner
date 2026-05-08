@@ -224,6 +224,59 @@
     }
   }
 
+  // ── Share ──
+  let shareUrl = $state('');
+  let shareBusy = $state(false);
+
+  $effect(() => {
+    // Rehydrate share state when navigating between trips. $effect runs only
+    // client-side, so location.origin is safe to read.
+    shareUrl = trip?.shared === 'true' && trip?._shareUrl
+      ? `${location.origin}${trip._shareUrl}`
+      : '';
+  });
+
+  async function enableShare() {
+    if (!trip || shareBusy) return;
+    shareBusy = true;
+    try {
+      const res = await fetch(`/api/share/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Share failed: ${res.status}`);
+      const data = await res.json();
+      shareUrl = `${location.origin}${data.url}`;
+      await invalidateAll();
+    } catch (err) {
+      console.error(err);
+      alert('Could not enable sharing — check the server log.');
+    } finally {
+      shareBusy = false;
+    }
+  }
+
+  async function disableShare() {
+    if (!trip || shareBusy) return;
+    if (!confirm('Disable the share link? Anyone who already has the URL will lose access.')) return;
+    shareBusy = true;
+    try {
+      const res = await fetch(`/api/share/${encodeURIComponent(trip._slug)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`Disable failed: ${res.status}`);
+      shareUrl = '';
+      await invalidateAll();
+    } catch (err) {
+      console.error(err);
+      alert('Could not disable sharing — check the server log.');
+    } finally {
+      shareBusy = false;
+    }
+  }
+
+  async function copyShareUrl() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+    } catch { /* clipboard blocked — user can copy manually */ }
+  }
+
   // ── Archive ──
   async function archiveTrip() {
     if (!trip) return;
@@ -360,6 +413,24 @@
             {/if}
           </section>
         {/each}
+      {/if}
+
+      {#if data.features?.share}
+        <div class="share-zone">
+          {#if shareUrl}
+            <div class="share-active">
+              <input class="share-url" type="text" readonly value={shareUrl} onfocus={(e) => e.target.select()} />
+              <button class="share-copy" onclick={copyShareUrl} type="button">Copy</button>
+              <button class="share-disable" onclick={disableShare} disabled={shareBusy}>Disable</button>
+            </div>
+            <span class="share-hint">Anyone with this link can view the trip read-only. Disabling revokes access immediately.</span>
+          {:else}
+            <button class="share-enable" onclick={enableShare} disabled={shareBusy}>
+              {shareBusy ? 'Generating…' : 'Generate share link'}
+            </button>
+            <span class="share-hint">Creates a public read-only URL anyone can view (no Atlas account needed).</span>
+          {/if}
+        </div>
       {/if}
 
       <div class="danger-zone">
@@ -771,6 +842,52 @@
   .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--accent-bg); color: var(--accent); padding: 0.1em 0.4em; border-radius: 3px; }
 
   /* ── Danger zone (archive) ── */
+  .share-zone {
+    margin-top: 1.25rem;
+    padding: 1rem 0 0;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+  .share-active { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; width: 100%; }
+  .share-url {
+    flex: 1; min-width: 220px;
+    font-family: var(--font);
+    font-size: 0.78rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--surface-raised);
+    color: var(--text-2);
+  }
+  .share-enable, .share-copy, .share-disable {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    font-family: var(--font);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.32rem 0.7rem;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .share-enable:hover:not(:disabled),
+  .share-copy:hover:not(:disabled) {
+    border-color: var(--accent-border);
+    color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .share-disable:hover:not(:disabled) {
+    border-color: oklch(58% 0.16 25);
+    color: oklch(48% 0.18 25);
+    background: oklch(96% 0.025 25);
+  }
+  .share-enable:disabled, .share-copy:disabled, .share-disable:disabled { opacity: 0.5; cursor: not-allowed; }
+  .share-hint { font-size: 0.72rem; color: var(--text-3); line-height: 1.45; }
+
   .danger-zone {
     margin-top: 1rem;
     padding: 1.1rem 0 0;

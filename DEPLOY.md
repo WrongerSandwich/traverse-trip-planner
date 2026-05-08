@@ -105,6 +105,8 @@ If a feature's backing provider isn't configured, its button is disabled in the 
 
 `ATLAS_ASSISTANT_NAME` only affects user-facing UI strings ("Ask Claude…", SSE progress messages). Set it to whatever fits the model you've configured.
 
+**Public share links** are off by default. Set `ATLAS_SHARE_SECRET` (e.g. `openssl rand -base64 32`) to enable a "Generate share link" button on the trip detail view. The link is `/share/<token>` where the token is `HMAC-SHA256(slug, secret)`; tokens are deterministic but tied per-trip via a `shared: true` frontmatter flag, so disabling share on a trip revokes access immediately even if someone has the URL. Rotating `ATLAS_SHARE_SECRET` invalidates every existing share link.
+
 **Per-feature overrides** let you route specific actions to a different model than the slot default — e.g. use Haiku for the deterministic itinerary-generation call (`lock`) while keeping Sonnet for everything else:
 
 ```
