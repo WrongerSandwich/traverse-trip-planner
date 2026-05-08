@@ -10,7 +10,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 
 ## UX — general
 
-- **Pexels images aren't responsive.** `loading="lazy"` is set, but the same `medium` URL is shipped to mobile and desktop (different physical sizes). Use `srcset` to send the smaller variant on phones. — `src/lib/components/TripCard.svelte`
 - **Cost range format `~$700–1,050` may read as cryptic.** Consider switching to "$700 to $1,050" or just a single midpoint figure with a small range badge.
 - **No keyboard arrow-key navigation between cards.** Cards are `role="button"`, but moving between them requires `Tab`. Adding ↑/↓ navigation would help keyboard users.
 

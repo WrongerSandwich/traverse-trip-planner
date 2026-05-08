@@ -27,7 +27,13 @@
   <!-- Thumbnail with status badge overlay -->
   {#if trip._image}
     <div class="thumb photo">
-      <img src={trip._image.medium} alt={trip.title || trip.destination} loading="lazy" />
+      <img
+        src={trip._image.medium}
+        srcset="{trip._image.medium} 350w, {trip._image.large} 940w"
+        sizes="(max-width: 768px) 95vw, 360px"
+        alt={trip.title || trip.destination}
+        loading="lazy"
+      />
       <span class="badge">{status}{trip.locked === 'true' ? ' · locked' : ''}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
       <div class="credit">

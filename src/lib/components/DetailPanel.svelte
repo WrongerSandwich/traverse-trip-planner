@@ -58,7 +58,12 @@
   <!-- Hero: photo with overlay, or dark fallback header -->
   {#if trip?._image}
     <div class="hero">
-      <img src={trip._image.large || trip._image.medium} alt={trip?.title || ''} />
+      <img
+        src={trip._image.large || trip._image.medium}
+        srcset={trip._image.medium && trip._image.large ? `${trip._image.medium} 350w, ${trip._image.large} 940w` : undefined}
+        sizes="(max-width: 768px) 100vw, 420px"
+        alt={trip?.title || ''}
+      />
       <div class="hero-overlay">
         {#if trip.vibe}<span class="hero-vibe">{trip.vibe}</span>{/if}
         <h2>{trip?.title || trip?._slug || ''}</h2>
