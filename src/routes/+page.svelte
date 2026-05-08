@@ -133,6 +133,14 @@
   let actionRunning  = $state(false);
   let actionMessages = $state([]);
   let actionDone     = $state(false);
+  let actionAborter  = $state(null); // AbortController for the running action, null if none cancellable
+
+  function cancelAction() {
+    if (actionAborter) {
+      actionAborter.abort();
+      actionPush('Cancelled by user.', true);
+    }
+  }
 
   // Seed prompt form (the + button opens this instead of running immediately
   // — gives the user a chance to steer the batch and is its own confirmation).
@@ -194,13 +202,19 @@
     actionRunning = true;
     actionDone    = false;
     actionMessages = [];
+    actionAborter = new AbortController();
     try {
       await streamAction(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
         actionPush(msg, done);
         if (done) invalidateAll();
-      });
+      }, null, actionAborter.signal);
+      // If the loop returned without a `done: true` (i.e. aborted mid-stream),
+      // make sure the panel reflects the cancelled state.
+      if (!actionDone) actionPush('Cancelled.', true);
     } catch (e) {
       actionPush(`Error: ${e.message}`, true);
+    } finally {
+      actionAborter = null;
     }
   }
 
@@ -299,6 +313,7 @@
       running={actionRunning}
       done={actionDone}
       onclose={() => actionVisible = false}
+      oncancel={actionAborter ? cancelAction : null}
     />
   {/if}
 

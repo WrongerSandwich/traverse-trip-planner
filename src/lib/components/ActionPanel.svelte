@@ -1,5 +1,5 @@
 <script>
-  let { messages = [], running = false, done = false, onclose } = $props();
+  let { messages = [], running = false, done = false, onclose, oncancel = null } = $props();
 
   const isError = $derived(messages.some(m => m.toLowerCase().startsWith('error')));
 </script>
@@ -24,6 +24,9 @@
       <div class="spinner-row">
         <span class="spinner"></span>
         <span class="spinner-label">Working…</span>
+        {#if oncancel}
+          <button class="cancel-btn" onclick={oncancel} type="button">Cancel</button>
+        {/if}
       </div>
     {/if}
   </div>
@@ -82,7 +85,23 @@
     display: flex; align-items: center; gap: 0.5rem;
     margin-top: 0.25rem; color: oklch(50% 0.02 155);
   }
-  .spinner-label { font-size: 0.74rem; }
+  .spinner-label { font-size: 0.74rem; flex: 1; }
+
+  .cancel-btn {
+    background: none;
+    border: 1px solid oklch(35% 0.025 155);
+    color: oklch(72% 0.018 155);
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.3rem 0.6rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: color 0.12s, border-color 0.12s;
+  }
+  .cancel-btn:hover { color: var(--header-text); border-color: oklch(50% 0.04 155); }
 
   @media (max-width: 768px) {
     .panel {

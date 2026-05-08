@@ -82,6 +82,25 @@ describe('withRetry', () => {
     expect(fn).toHaveBeenCalledTimes(3); // initial + 2 retries
   });
 
+  it('throws immediately when signal is already aborted, never calls fn', async () => {
+    const fn = vi.fn().mockResolvedValue('ok');
+    const controller = new AbortController();
+    controller.abort(new Error('cancelled'));
+    await expect(withRetry(fn, { signal: controller.signal })).rejects.toThrow(/cancelled/);
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it('does not retry after the signal aborts mid-flight', async () => {
+    const controller = new AbortController();
+    const fn = vi.fn().mockImplementation(async () => {
+      controller.abort(new Error('cancelled'));
+      throw new Error('OpenAI API 500: down');
+    });
+    await expect(withRetry(fn, { signal: controller.signal, baseDelay: 10 }))
+      .rejects.toThrow(/cancelled/);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it('uses exponential backoff for delay between attempts', async () => {
     const fn = vi.fn()
       .mockRejectedValueOnce(new Error('500'))

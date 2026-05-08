@@ -22,8 +22,9 @@ export function GET({ params }) {
   return new Response('ok');
 }
 
-export function POST({ params }) {
+export function POST({ params, request }) {
   const { slug } = params;
+  const signal = request.signal;
 
   return sseStream(async (send) => {
     const ideaPath = findIdeaFile(slug);
@@ -92,13 +93,14 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
       system,
       messages: [{ role: 'user', content: 'Research this trip thoroughly using web search.' }],
       tools: [searchToolDefinition()],
+      signal,
       onActivity: ({ type, name, input }) => {
         if (type === 'tool_call' && name === 'web_search' && input?.query) {
           send(`Searching: "${input.query}"`);
         }
       },
       onToolCall: async ({ name, input }) => {
-        if (name === 'web_search') return search({ query: input.query });
+        if (name === 'web_search') return search({ query: input.query, signal });
         return null;
       },
     });

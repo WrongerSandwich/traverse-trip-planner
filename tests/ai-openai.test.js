@@ -105,6 +105,31 @@ describe('OpenAI adapter — single turn', () => {
   });
 });
 
+describe('OpenAI adapter — AbortSignal', () => {
+  it('passes signal to fetch', async () => {
+    fetch.mockResolvedValueOnce(jsonResponse({
+      choices: [{ message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    }));
+    const controller = new AbortController();
+    await chat({
+      model: 'gpt', system: 's', messages: [{ role: 'user', content: 'go' }],
+      maxTokens: 10, signal: controller.signal,
+    });
+    expect(fetch.mock.calls[0][1].signal).toBe(controller.signal);
+  });
+
+  it('throws immediately if signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('cancelled'));
+    await expect(chat({
+      model: 'gpt', system: 's', messages: [{ role: 'user', content: 'go' }],
+      maxTokens: 10, signal: controller.signal,
+    })).rejects.toThrow(/cancelled/);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe('OpenAI adapter — tool loop', () => {
   it('calls onToolCall and feeds results back as role:tool', async () => {
     fetch.mockResolvedValueOnce(jsonResponse({

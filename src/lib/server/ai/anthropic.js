@@ -35,7 +35,7 @@ function accumUsage(acc, u) {
   return acc;
 }
 
-export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity }) {
+export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal }) {
   const client = new Anthropic();
   const apiTools = translateTools(tools);
   const usage = { input: 0, output: 0, total: 0, turns: 0 };
@@ -43,6 +43,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
   let convo = messages.map(m => ({ ...m }));
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+    if (signal?.aborted) throw signal.reason ?? new Error('Aborted');
     let response;
     try {
       response = await client.messages.create({
@@ -51,7 +52,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
         system,
         ...(apiTools ? { tools: apiTools } : {}),
         messages: convo,
-      });
+      }, signal ? { signal } : undefined);
     } catch (err) {
       const status = err?.status;
       const detail = err?.error?.error?.message || err?.message;

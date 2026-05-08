@@ -25,12 +25,14 @@ function isRetriable(err) {
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 export async function withRetry(fn, opts = {}) {
-  const { retries = DEFAULT_RETRIES, baseDelay = DEFAULT_BASE_DELAY_MS, label = 'request' } = opts;
+  const { retries = DEFAULT_RETRIES, baseDelay = DEFAULT_BASE_DELAY_MS, label = 'request', signal = null } = opts;
   let attempt = 0;
   while (true) {
+    if (signal?.aborted) throw signal.reason ?? new Error('Aborted');
     try {
       return await fn();
     } catch (err) {
+      if (signal?.aborted) throw signal.reason ?? err;
       if (attempt >= retries || !isRetriable(err)) throw err;
       const delay = baseDelay * Math.pow(2, attempt);
       console.log(`[retry] ${label} attempt ${attempt + 1}/${retries} failed (${err.message}); retrying in ${delay}ms`);

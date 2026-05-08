@@ -16,7 +16,7 @@ export function searchToolDefinition() {
   };
 }
 
-export async function search({ query, maxResults = 5 }) {
+export async function search({ query, maxResults = 5, signal = null }) {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) throw new Error('TAVILY_API_KEY not set.');
 
@@ -31,6 +31,7 @@ export async function search({ query, maxResults = 5 }) {
         include_answer: false,
         search_depth: 'advanced',
       }),
+      ...(signal ? { signal } : {}),
     });
     if (!res.ok) {
       const cause = await res.text();
@@ -39,7 +40,7 @@ export async function search({ query, maxResults = 5 }) {
       throw err;
     }
     return res.json();
-  }, { label: 'tavily' });
+  }, { label: 'tavily', signal });
 
   return (data.results ?? []).map(r => ({
     title: r.title,

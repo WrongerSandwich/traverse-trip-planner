@@ -25,7 +25,7 @@ function findTool(tools, name) {
   return tools?.find(t => (t.kind === 'anthropic-native' ? t.spec.name : t.name) === name);
 }
 
-async function callApi({ apiKey, model, maxTokens, tools, messages }) {
+async function callApi({ apiKey, model, maxTokens, tools, messages, signal }) {
   return withRetry(async () => {
     const res = await fetch(ENDPOINT, {
       method: 'POST',
@@ -39,6 +39,7 @@ async function callApi({ apiKey, model, maxTokens, tools, messages }) {
         ...(tools ? { tools } : {}),
         messages,
       }),
+      ...(signal ? { signal } : {}),
     });
     if (!res.ok) {
       const cause = await res.text();
@@ -47,7 +48,7 @@ async function callApi({ apiKey, model, maxTokens, tools, messages }) {
       throw err;
     }
     return res.json();
-  }, { label: `openai ${model}` });
+  }, { label: `openai ${model}`, signal });
 }
 
 function accumUsage(acc, u) {
@@ -58,7 +59,7 @@ function accumUsage(acc, u) {
   return acc;
 }
 
-export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity }) {
+export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal }) {
   const apiTools = translateTools(tools);
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY not set.');
@@ -69,7 +70,8 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
   ];
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
-    const data = await callApi({ apiKey, model, maxTokens, tools: apiTools, messages: convo });
+    if (signal?.aborted) throw signal.reason ?? new Error('Aborted');
+    const data = await callApi({ apiKey, model, maxTokens, tools: apiTools, messages: convo, signal });
     accumUsage(usage, data.usage);
     usage.total = usage.input + usage.output;
 

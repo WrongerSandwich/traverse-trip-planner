@@ -11,20 +11,32 @@
  *     send('Done.', true);
  *   });
  */
+function isAbort(err) {
+  if (!err) return false;
+  return err.name === 'AbortError' || err.code === 'ABORT_ERR' || err === 'AbortError';
+}
+
 export function sseStream(handler) {
   const encoder = new TextEncoder();
+  let cancelled = false;
   const stream = new ReadableStream({
     async start(controller) {
       const send = (msg, done = false) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
+        if (cancelled) return; // client gone — drop the write
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
+        } catch { /* stream is closed — ignore */ }
       };
       try {
         await handler(send);
       } catch (err) {
-        send(`Error: ${err.message}`, true);
+        if (!cancelled && !isAbort(err)) send(`Error: ${err.message}`, true);
       } finally {
-        controller.close();
+        try { controller.close(); } catch { /* already closed */ }
       }
+    },
+    cancel() {
+      cancelled = true;
     },
   });
   return new Response(stream, {

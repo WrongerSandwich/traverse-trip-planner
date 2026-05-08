@@ -226,6 +226,53 @@ describe('Anthropic adapter — error wrapping', () => {
   });
 });
 
+describe('Anthropic adapter — AbortSignal', () => {
+  it('passes signal through to the SDK call', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const controller = new AbortController();
+    await chat({
+      model: 'm', system: 's', messages: [{ role: 'user', content: 'x' }],
+      maxTokens: 10, signal: controller.signal,
+    });
+    // SDK call gets the signal in its options arg (second positional).
+    expect(mockCreate.mock.calls[0][1]).toEqual({ signal: controller.signal });
+  });
+
+  it('throws immediately if the signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('user cancelled'));
+    await expect(chat({
+      model: 'm', system: 's', messages: [{ role: 'user', content: 'x' }],
+      maxTokens: 10, signal: controller.signal,
+    })).rejects.toThrow(/user cancelled/);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('aborts mid-loop between turns', async () => {
+    const controller = new AbortController();
+    // Turn 1: tool call
+    mockCreate.mockImplementationOnce(() => {
+      controller.abort(new Error('cancelled'));
+      return Promise.resolve({
+        content: [{ type: 'tool_use', id: 't', name: 'web_search', input: {} }],
+        stop_reason: 'tool_use',
+        usage: { input_tokens: 10, output_tokens: 1 },
+      });
+    });
+    await expect(chat({
+      model: 'm', system: 's', messages: [{ role: 'user', content: 'x' }],
+      maxTokens: 10, signal: controller.signal,
+      tools: [{ kind: 'normalized', name: 'web_search', description: 'd', inputSchema: { type: 'object' } }],
+      onToolCall: async () => ({}),
+    })).rejects.toThrow(/cancelled/);
+    expect(mockCreate).toHaveBeenCalledTimes(1); // didn't loop again
+  });
+});
+
 describe('Anthropic adapter — usage accumulation', () => {
   it('sums input/output across multiple turns', async () => {
     mockCreate.mockResolvedValueOnce({
