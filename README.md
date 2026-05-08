@@ -4,9 +4,9 @@ A personal travel filing cabinet — road trips and fly-in destinations — mana
 
 ## What it does
 
-- **Seed** — generate trip ideas based on your home base, taste, and constraints (uses Claude)
-- **Research** — flesh out an idea with live web-searched details: hours, prices, lodging, routes (uses Claude + web search)
-- **Plan** — edit trip sections in-browser, chat with Claude to refine them, then lock the trip to generate a day-by-day itinerary
+- **Seed** — generate trip ideas based on your home base, taste, and constraints (uses an LLM)
+- **Research** — flesh out an idea with live web-searched details: hours, prices, lodging, routes (uses an LLM + web search)
+- **Plan** — edit trip sections in-browser, chat with the assistant to refine them, then lock the trip to generate a day-by-day itinerary
 - **Map** — all trips rendered on an interactive map with drive-time routing
 - **Filter** — by stage, drive time, cost tier, fly vs. drive, NPS units, bookmarks
 

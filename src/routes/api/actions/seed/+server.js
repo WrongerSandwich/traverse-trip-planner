@@ -6,6 +6,8 @@ import { sseStream } from '$lib/server/sse.js';
 import { chat } from '$lib/server/ai.js';
 import { config } from '$lib/server/config.js';
 
+const NAME = config.assistantName;
+
 export async function POST({ request }) {
   // Optional user-supplied steering prompt. Body is JSON; absence is fine.
   let userPrompt = '';
@@ -22,8 +24,8 @@ export async function POST({ request }) {
 
     send(
       userPrompt
-        ? `Asking Claude for 5 ideas matching "${userPrompt}" (avoiding ${existing.length} existing)...`
-        : `Asking Claude for 5 new ideas (avoiding ${existing.length} existing destinations)...`
+        ? `Asking ${NAME} for 5 ideas matching "${userPrompt}" (avoiding ${existing.length} existing)...`
+        : `Asking ${NAME} for 5 new ideas (avoiding ${existing.length} existing destinations)...`
     );
 
     const system = `You are a travel planning assistant. Here is the traveler's full personal context:
@@ -74,7 +76,7 @@ national_park: true`;
       files.push({ name: m[1].trim(), content: m[2].trim() });
     }
 
-    if (files.length === 0) throw new Error('Claude returned no file blocks — try again.');
+    if (files.length === 0) throw new Error(`${NAME} returned no file blocks — try again.`);
 
     send(`Writing ${files.length} idea files...`);
     for (const file of files) {

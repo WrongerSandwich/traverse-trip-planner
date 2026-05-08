@@ -15,6 +15,7 @@ export const config = {
   search: {
     provider: env('ATLAS_SEARCH_PROVIDER', 'anthropic-builtin'),
   },
+  assistantName: env('ATLAS_ASSISTANT_NAME', 'Claude'),
 };
 
 const PROVIDER_KEYS = {

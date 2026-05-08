@@ -77,7 +77,7 @@
         class="research-btn"
         onclick={ondeepen}
         disabled={!ondeepen}
-        title={ondeepen ? 'Research this trip with Claude' : 'Deepen unavailable — research model or search backend not configured'}
+        title={ondeepen ? 'Research this trip with web search' : 'Deepen unavailable — research model or search backend not configured'}
       >
         Research →
       </button>

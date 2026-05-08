@@ -234,7 +234,7 @@
       {#if isPlanning && !isLocked}
         <div class="callout">
           <strong>Planning mode.</strong>
-          Edit any section below. Use <em>Ask Claude</em> to request changes — Claude reads your current sections and writes updates back to the markdown.
+          Edit any section below. Use <em>Ask {data.assistantName}</em> to request changes — {data.assistantName} reads your current sections and writes updates back to the markdown.
           <div class="callout-actions">
             <button
               class="lock-btn"
@@ -322,8 +322,8 @@
   </div>
 
   {#if isPlanning && !isLocked && data.features?.chat}
-    <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask Claude">
-      {chatOpen ? '✕' : '✨ Ask Claude'}
+    <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask {data.assistantName}">
+      {chatOpen ? '✕' : `✨ Ask ${data.assistantName}`}
     </button>
   {/if}
 
@@ -332,7 +332,7 @@
   <aside class="chat" class:open={chatOpen} aria-hidden={!chatOpen}
     use:swipeClose={() => chatOpen = false}>
     <header class="chat-header">
-      <span>Ask Claude about this trip</span>
+      <span>Ask {data.assistantName} about this trip</span>
       <button class="chat-close" onclick={() => chatOpen = false} aria-label="Close chat">✕</button>
     </header>
 
@@ -345,7 +345,7 @@
             <li>"Trim the route down to one direct option."</li>
             <li>"Suggest a vegetarian-friendly dinner spot in Atchison."</li>
           </ul>
-          <p class="hint">Claude can edit your section files directly. Updates apply on save.</p>
+          <p class="hint">{data.assistantName} can edit your section files directly. Updates apply on save.</p>
         </div>
       {:else}
         {#each chatMessages as m}

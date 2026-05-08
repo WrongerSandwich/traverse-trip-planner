@@ -6,6 +6,8 @@ import { sseStream } from '$lib/server/sse.js';
 import { chat } from '$lib/server/ai.js';
 import { config } from '$lib/server/config.js';
 
+const NAME = config.assistantName;
+
 // TODO: consolidate trip-lookup helpers (findTripFile/findTrip/findIdeaFile) into data.js
 // TODO: extract readSections() shared by lock/+server.js and trip/[slug]/chat/+server.js
 
@@ -34,7 +36,7 @@ export async function POST({ request }) {
     const homeMd = readHomeMd();
     const today = new Date().toISOString().slice(0, 10);
 
-    send(`Asking Claude to create an idea for ${destination}...`);
+    send(`Asking ${NAME} to create an idea for ${destination}...`);
 
     const system = `You are a travel planning assistant. Here is the traveler's full personal context:
 ${homeMd}
@@ -88,7 +90,7 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
       files.push({ name: m[1].trim(), content: m[2].trim() });
     }
 
-    if (files.length === 0) throw new Error('Claude returned no file blocks — try again.');
+    if (files.length === 0) throw new Error(`${NAME} returned no file blocks — try again.`);
 
     const file = files[0];
     const path = join(ROOT, file.name);
