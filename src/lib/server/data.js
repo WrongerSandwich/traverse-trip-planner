@@ -80,10 +80,33 @@ export async function geocode(destination) {
 }
 
 // ── Pexels images ──
+//
+// Cache entries are wrapped: `{ value, fetchedAt }`. Legacy bare entries
+// (objects or null without a `fetchedAt` field) survive a deploy and are
+// treated as fresh until they're rewritten on next fetch.
+export const IMAGE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function readImageCacheEntry(cache, query, now = Date.now(), ttlMs = IMAGE_CACHE_TTL_MS) {
+  const entry = cache[query];
+  if (entry === undefined) return { state: 'miss' };
+  // Legacy bare value (cached miss or pre-TTL hit). No expiry.
+  if (entry === null || typeof entry.fetchedAt !== 'number') {
+    return { state: 'hit', value: entry };
+  }
+  if (now - entry.fetchedAt > ttlMs) return { state: 'expired' };
+  return { state: 'hit', value: entry.value };
+}
+
+export function writeImageCacheEntry(cache, query, value, now = Date.now()) {
+  cache[query] = { value, fetchedAt: now };
+}
+
 export async function fetchImage(query) {
-  if (imageCache[query] !== undefined) return imageCache[query];
+  const cached = readImageCacheEntry(imageCache, query);
+  if (cached.state === 'hit') return cached.value;
+  // miss or expired — refetch
   const key = process.env.PEXELS_API_KEY;
-  if (!key) { imageCache[query] = null; return null; }
+  if (!key) { writeImageCacheEntry(imageCache, query, null); return null; }
   try {
     const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=3&orientation=landscape`;
     const res = await fetch(url, { headers: { Authorization: key } });
@@ -92,12 +115,12 @@ export async function fetchImage(query) {
     const result = photo
       ? { medium: photo.src.medium, large: photo.src.large, photographer: photo.photographer, photographer_url: photo.photographer_url }
       : null;
-    imageCache[query] = result;
+    writeImageCacheEntry(imageCache, query, result);
     saveImageCache();
     return result;
   } catch (e) {
     console.error('Pexels error for', query, e.message);
-    imageCache[query] = null;
+    writeImageCacheEntry(imageCache, query, null);
     return null;
   }
 }
@@ -276,11 +299,16 @@ export async function enrichTrips() {
     // Image
     const q = imageQuery(trip);
     if (q) liveImageKeys.add(q);
-    if (q && imageCache[q] === undefined) {
-      trip._image = await fetchImage(q);
-      await sleep(50);
+    if (q) {
+      const cached = readImageCacheEntry(imageCache, q);
+      if (cached.state === 'hit') {
+        trip._image = cached.value;
+      } else {
+        trip._image = await fetchImage(q);
+        await sleep(50);
+      }
     } else {
-      trip._image = imageCache[q] ?? null;
+      trip._image = null;
     }
 
     // Route waypoints → geocode → OSRM road geometry

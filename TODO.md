@@ -35,7 +35,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 ## Robustness
 
 - **Sanitize provider error messages.** `ai/openai.js` includes the verbatim response body in thrown errors (`OpenAI API 400: ...`). For the hosted path that could leak system-prompt fragments to end users. Wrap raw errors in a normalized shape with a public-safe message and the raw payload only on a server-only field. — `src/lib/server/ai/openai.js`, `src/lib/server/ai/anthropic.js`
-- **TTL on Pexels image cache.** `.image-cache.json` entries are written once and never expire — only a slug rename triggers recomputation. Pexels CDN URLs can rot silently. Add e.g. 30-day per-entry expiry with refresh on miss. — `src/lib/server/data.js`
 
 ## Future extension (technically near)
 
