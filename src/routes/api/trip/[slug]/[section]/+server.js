@@ -19,12 +19,18 @@ export async function PUT({ params, request }) {
     return new Response('Trip not in planning stage', { status: 404 });
   }
 
-  // TODO: wrap in .catch(() => null) and return 400 on malformed JSON (unlike chat/+server.js which already does this)
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (body === null) {
+    return new Response('Invalid JSON body', { status: 400 });
+  }
   const newBody = typeof body?.content === 'string' ? body.content : null;
   if (newBody === null) {
     return new Response('Missing "content"', { status: 400 });
   }
+
+  // TODO: consolidate findTripFile() in data.js, findTrip() in archive/[slug]/+server.js, and
+  // findIdeaFile() in deepen/[slug]/+server.js into a single exported helper returning
+  // { path, stage, kind: 'file' | 'dir' } — all three traverse the same stage directories.
 
   const filePath = sectionPath(slug, section);
   let frontmatter = '';
