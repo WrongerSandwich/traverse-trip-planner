@@ -442,7 +442,14 @@
 
   {#if isPlanning && !isLocked && data.features?.chat}
     <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask {data.assistantName}">
-      {chatOpen ? '✕' : `✨ Ask ${data.assistantName}`}
+      {#if chatOpen}
+        ✕
+      {:else}
+        <svg class="fab-icon" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 1.2L9.4 5.6 14 7l-4.6 1.4L8 12.8 6.6 8.4 2 7l4.6-1.4z M13 11l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor"/>
+        </svg>
+        Ask {data.assistantName}
+      {/if}
     </button>
   {/if}
 
@@ -930,9 +937,13 @@
     box-shadow: 0 6px 18px oklch(0% 0 0 / 0.18);
     z-index: 902;
     transition: transform 0.12s, box-shadow 0.12s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
   }
   .chat-fab:hover { transform: translateY(-1px); box-shadow: 0 9px 22px oklch(0% 0 0 / 0.22); }
   .chat-fab.open { background: oklch(28% 0.13 155); }
+  .fab-icon { display: block; }
 
   .chat-backdrop {
     position: fixed; inset: 0;

@@ -429,6 +429,19 @@
     /* Shorter hero — reclaims viewport for content */
     .hero { height: 180px; }
 
+    /* Smaller title + 2-line clamp so long names don't crowd the destination/mode chips */
+    .hero h2 {
+      font-size: 1.2rem;
+      letter-spacing: -0.02em;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      word-break: break-word;
+    }
+
     /* Larger tap targets on tabs and close */
     .tab { min-height: var(--tap-min); padding: 0 1rem; }
     .panel-bookmark, .close { min-width: var(--tap-min); min-height: var(--tap-min); }

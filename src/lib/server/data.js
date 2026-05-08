@@ -194,10 +194,10 @@ function fmt(n) { return '$' + (Math.round(n / 50) * 50).toLocaleString('en-US')
 function estimateCost(trip, homeCoords) {
   const flyIn = trip.fly_in === 'true';
   if (trip.cost_tier) {
-    if (flyIn) return { budget: '~$1,200–1,800', mid: '~$1,800–3,000', splurge: '~$3,000+' }[trip.cost_tier] || null;
-    return { budget: '~$300–600', mid: '~$700–1,400', splurge: '~$1,500+' }[trip.cost_tier] || null;
+    if (flyIn) return { budget: '$1,200–$1,800', mid: '$1,800–$3,000', splurge: '$3,000+' }[trip.cost_tier] || null;
+    return { budget: '$300–$600', mid: '$700–$1,400', splurge: '$1,500+' }[trip.cost_tier] || null;
   }
-  if (flyIn) return '~$1,500–3,000';
+  if (flyIn) return '$1,500–$3,000';
   if (!homeCoords || !Array.isArray(trip._coords)) return null;
 
   const dist = haversine(homeCoords, trip._coords);
@@ -213,7 +213,7 @@ function estimateCost(trip, homeCoords) {
   }
 
   const low = gas + nights * lodging + (nights + 1) * food;
-  return `~${fmt(low)}–${fmt(low * 1.45).slice(1)}`;
+  return `${fmt(low)}–${fmt(low * 1.45)}`;
 }
 
 // ── Frontmatter parser ──
