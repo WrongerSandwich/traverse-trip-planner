@@ -11,7 +11,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 ## UX — general
 
 - **Cost range format `~$700–1,050` may read as cryptic.** Consider switching to "$700 to $1,050" or just a single midpoint figure with a small range badge.
-- **No keyboard arrow-key navigation between cards.** Cards are `role="button"`, but moving between them requires `Tab`. Adding ↑/↓ navigation would help keyboard users.
 
 ## Architecture
 

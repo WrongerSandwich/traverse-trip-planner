@@ -17,10 +17,27 @@
   );
 
   const isFly = $derived(trip.fly_in === 'true');
+
+  function handleKey(e) {
+    if (e.key === 'Enter') return onclick?.();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      const next = e.currentTarget.nextElementSibling;
+      if (next?.classList?.contains('card')) {
+        e.preventDefault();
+        next.focus();
+      }
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      const prev = e.currentTarget.previousElementSibling;
+      if (prev?.classList?.contains('card')) {
+        e.preventDefault();
+        prev.focus();
+      }
+    }
+  }
 </script>
 
 <article class="card" onclick={onclick} id="card-{trip._slug}" role="button" tabindex="0"
-  onkeydown={e => e.key === 'Enter' && onclick?.()}
+  onkeydown={handleKey}
   onmouseenter={onhover}
   onmouseleave={onleave}>
 
