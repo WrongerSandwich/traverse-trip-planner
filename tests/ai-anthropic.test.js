@@ -202,6 +202,30 @@ describe('Anthropic adapter — normalized (client-side) tool loop', () => {
   });
 });
 
+describe('Anthropic adapter — error wrapping', () => {
+  it('wraps SDK errors as AdapterError with status and cause', async () => {
+    const sdkErr = Object.assign(new Error('rate limit exceeded'), { status: 429 });
+    mockCreate.mockRejectedValueOnce(sdkErr);
+
+    let thrown;
+    try {
+      await chat({
+        model: 'claude-test', system: 's',
+        messages: [{ role: 'user', content: 'hi' }], maxTokens: 10,
+      });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown.name).toBe('AdapterError');
+    expect(thrown.provider).toBe('anthropic');
+    expect(thrown.model).toBe('claude-test');
+    expect(thrown.status).toBe(429);
+    expect(thrown.message).toMatch(/Rate limited/);
+    expect(thrown.cause).toBe(sdkErr);
+  });
+});
+
 describe('Anthropic adapter — usage accumulation', () => {
   it('sums input/output across multiple turns', async () => {
     mockCreate.mockResolvedValueOnce({

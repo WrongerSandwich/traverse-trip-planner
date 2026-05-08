@@ -32,9 +32,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 - **Validate the OpenAI adapter against a real key.** The seam is wired and unit-tested for error paths, but no token has actually crossed `ai/openai.js` yet. Set `ATLAS_MODEL_DEFAULT_PROVIDER=openai`, `ATLAS_MODEL_DEFAULT=gpt-4o-mini`, `OPENAI_API_KEY=...` and run `npm run smoke`.
 - **Validate the normalized-tool path with Tavily.** Anthropic + `anthropic-builtin` is already exercised on every `/deepen`, but the *normalized* tool translation (used by Tavily on either provider) has only been unit-tested. Sign up for a Tavily key (1k searches/month free), set `ATLAS_SEARCH_PROVIDER=tavily TAVILY_API_KEY=...`, and `npm run smoke` runs the tool-loop probe. Required before claiming OpenAI + Tavily works end-to-end.
 
-## Robustness
-
-- **Sanitize provider error messages.** `ai/openai.js` includes the verbatim response body in thrown errors (`OpenAI API 400: ...`). For the hosted path that could leak system-prompt fragments to end users. Wrap raw errors in a normalized shape with a public-safe message and the raw payload only on a server-only field. — `src/lib/server/ai/openai.js`, `src/lib/server/ai/anthropic.js`
 
 ## Future extension (technically near)
 

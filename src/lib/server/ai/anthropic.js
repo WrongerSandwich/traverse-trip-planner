@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { AdapterError, formatSummary, logAdapterError } from '../errors.js';
 
 const MAX_TOOL_TURNS = 20;
 
@@ -42,13 +43,28 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
   let convo = messages.map(m => ({ ...m }));
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
-    const response = await client.messages.create({
-      model,
-      max_tokens: maxTokens,
-      system,
-      ...(apiTools ? { tools: apiTools } : {}),
-      messages: convo,
-    });
+    let response;
+    try {
+      response = await client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        system,
+        ...(apiTools ? { tools: apiTools } : {}),
+        messages: convo,
+      });
+    } catch (err) {
+      const status = err?.status;
+      const detail = err?.error?.error?.message || err?.message;
+      const wrapped = new AdapterError({
+        provider: 'anthropic',
+        model,
+        status,
+        summary: formatSummary({ provider: 'anthropic', model, status, detail }),
+        cause: err,
+      });
+      logAdapterError(wrapped);
+      throw wrapped;
+    }
     accumUsage(usage, response.usage);
     usage.total = usage.input + usage.output;
 

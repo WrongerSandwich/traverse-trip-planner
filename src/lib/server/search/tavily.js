@@ -1,4 +1,5 @@
 import { withRetry } from '../retry.js';
+import { adapterErrorFromResponse, logAdapterError } from '../errors.js';
 
 export function searchToolDefinition() {
   return {
@@ -31,7 +32,12 @@ export async function search({ query, maxResults = 5 }) {
         search_depth: 'advanced',
       }),
     });
-    if (!res.ok) throw new Error(`Tavily search failed: ${res.status} ${await res.text()}`);
+    if (!res.ok) {
+      const cause = await res.text();
+      const err = adapterErrorFromResponse({ provider: 'tavily', status: res.status, cause });
+      logAdapterError(err);
+      throw err;
+    }
     return res.json();
   }, { label: 'tavily' });
 

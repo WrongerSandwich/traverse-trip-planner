@@ -58,12 +58,27 @@ describe('OpenAI adapter — single turn', () => {
     })).rejects.toThrow(/anthropic-native tool|tavily/);
   });
 
-  it('surfaces non-retriable API errors with the response body', async () => {
-    // Use 400 (non-retriable) so the test doesn't actually retry.
+  it('throws a sanitized AdapterError on non-retriable HTTP failures', async () => {
     fetch.mockResolvedValueOnce(jsonResponse({ error: { message: 'bad request' } }, false, 400));
-    await expect(chat({
-      model: 'gpt', system: 's', messages: [{ role: 'user', content: 'hi' }], maxTokens: 10,
-    })).rejects.toThrow(/OpenAI API 400/);
+    let thrown;
+    try {
+      await chat({
+        model: 'gpt-test', system: 's', messages: [{ role: 'user', content: 'hi' }], maxTokens: 10,
+      });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeDefined();
+    expect(thrown.name).toBe('AdapterError');
+    expect(thrown.provider).toBe('openai');
+    expect(thrown.model).toBe('gpt-test');
+    expect(thrown.status).toBe(400);
+    expect(thrown.message).toMatch(/openai\/gpt-test/);
+    expect(thrown.message).toMatch(/Client error \(400\)/);
+    // Public message must not leak the raw response body.
+    expect(thrown.message).not.toContain('bad request');
+    // Cause is preserved on the error for server-side debugging.
+    expect(thrown.cause).toContain('bad request');
   });
 
   it('retries on 429 and succeeds when the next attempt clears', async () => {

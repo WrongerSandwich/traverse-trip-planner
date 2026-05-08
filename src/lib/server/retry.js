@@ -8,12 +8,16 @@ const DEFAULT_RETRIES = 3;
 const DEFAULT_BASE_DELAY_MS = 1000;
 const RETRIABLE_STATUS = /\b(429|500|502|503|504)\b/;
 
+const RETRIABLE_HTTP_STATUSES = new Set([429, 500, 502, 503, 504]);
+
 function isRetriable(err) {
   if (!err) return false;
+  // AdapterError exposes the parsed HTTP status directly.
+  if (typeof err.status === 'number' && RETRIABLE_HTTP_STATUSES.has(err.status)) return true;
   // Network-level failures from fetch (TypeError on Node) and Node's connection errors.
   if (err.name === 'TypeError') return true;
   if (err.code && /^(ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN)$/.test(err.code)) return true;
-  // Status codes baked into thrown error messages by the adapters.
+  // Fallback: status codes baked into thrown error messages by SDKs we don't wrap.
   if (RETRIABLE_STATUS.test(err.message || '')) return true;
   return false;
 }

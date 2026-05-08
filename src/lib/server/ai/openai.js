@@ -1,4 +1,5 @@
 import { withRetry } from '../retry.js';
+import { adapterErrorFromResponse, logAdapterError } from '../errors.js';
 
 const MAX_TOOL_TURNS = 20;
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
@@ -39,7 +40,12 @@ async function callApi({ apiKey, model, maxTokens, tools, messages }) {
         messages,
       }),
     });
-    if (!res.ok) throw new Error(`OpenAI API ${res.status}: ${await res.text()}`);
+    if (!res.ok) {
+      const cause = await res.text();
+      const err = adapterErrorFromResponse({ provider: 'openai', model, status: res.status, cause });
+      logAdapterError(err);
+      throw err;
+    }
     return res.json();
   }, { label: `openai ${model}` });
 }

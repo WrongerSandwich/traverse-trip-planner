@@ -27,6 +27,19 @@ describe('isRetriable', () => {
     expect(isRetriable(null)).toBe(false);
     expect(isRetriable(undefined)).toBe(false);
   });
+
+  it('recognizes AdapterError.status without parsing the message', () => {
+    // No status in the message — message-pattern regex would miss it.
+    const e = Object.assign(new Error('Rate limited'), { status: 429 });
+    expect(isRetriable(e)).toBe(true);
+
+    const e2 = Object.assign(new Error('Provider unavailable'), { status: 503 });
+    expect(isRetriable(e2)).toBe(true);
+
+    // Non-retriable status takes precedence over message regex.
+    const e3 = Object.assign(new Error('Client error'), { status: 400 });
+    expect(isRetriable(e3)).toBe(false);
+  });
 });
 
 describe('withRetry', () => {
