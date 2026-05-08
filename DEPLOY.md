@@ -99,10 +99,20 @@ If a feature's backing provider isn't configured, its button is disabled in the 
 | Research model | `ATLAS_MODEL_RESEARCH`              | tool-use-capable model id           |
 | Search backend | `ATLAS_SEARCH_PROVIDER`             | `anthropic-builtin` (default) · `tavily` |
 | Assistant name | `ATLAS_ASSISTANT_NAME`              | display name in UI (default `Claude`)    |
+| Per-feature    | `ATLAS_MODEL_<FEATURE>(_PROVIDER)?` | optional override; `<FEATURE>` ∈ `SEED`, `ADD`, `LOCK`, `CHAT`, `DEEPEN` |
 
 `anthropic-builtin` runs Anthropic's server-side `web_search` tool — only valid when the research model is also Anthropic. `tavily` is portable across any model provider but requires a `TAVILY_API_KEY`.
 
 `ATLAS_ASSISTANT_NAME` only affects user-facing UI strings ("Ask Claude…", SSE progress messages). Set it to whatever fits the model you've configured.
+
+**Per-feature overrides** let you route specific actions to a different model than the slot default — e.g. use Haiku for the deterministic itinerary-generation call (`lock`) while keeping Sonnet for everything else:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+ATLAS_MODEL_LOCK=claude-haiku-4-5
+```
+
+Both `ATLAS_MODEL_<FEATURE>` (model id) and `ATLAS_MODEL_<FEATURE>_PROVIDER` (provider) are independent overrides; either or both can be set. An override that points to a provider with no key configured disables only that feature, leaving the rest working — the startup banner shows per-feature provider/model and marks overrides explicitly.
 
 ### Sample configurations
 

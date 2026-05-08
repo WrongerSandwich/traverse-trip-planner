@@ -63,7 +63,7 @@ national_park: true`;
       : 'Generate 5 new trip ideas.';
 
     const { text, usage } = await chat({
-      ...config.modelDefault,
+      ...config.features.seed,
       label: 'seed',
       system,
       maxTokens: 3000,

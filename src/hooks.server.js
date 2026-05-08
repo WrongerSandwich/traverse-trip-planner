@@ -17,8 +17,11 @@ function printConfigBanner() {
   console.log(`  research model : ${fmt(d.modelResearch)}`);
   console.log(`  search backend : ${d.search.provider} ${d.search.ok ? '✓' : '✗'}`);
   console.log('  features:');
-  for (const [name, ok] of Object.entries(d.features)) {
-    console.log(`    ${name.padEnd(7)} ${ok ? '✓' : '✗ (unavailable — see env)'}`);
+  for (const [name, info] of Object.entries(d.features)) {
+    const status = info.ok ? '✓' : '✗';
+    const detail = `${info.provider}/${info.model}${info.overridden ? ' (override)' : ''}`;
+    const tail = info.ok ? '' : ' (unavailable — see env)';
+    console.log(`    ${name.padEnd(7)} ${status} ${detail}${tail}`);
   }
   if (d.issues.length > 0) {
     console.log('  config issues:');

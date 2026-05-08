@@ -70,7 +70,7 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
 </file>`;
 
     const { text, usage } = await chat({
-      ...config.modelDefault,
+      ...config.features.add,
       label: 'add',
       system,
       maxTokens: 600,

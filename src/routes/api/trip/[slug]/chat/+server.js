@@ -73,7 +73,7 @@ Your output format:
   }));
 
   const { text } = await chat({
-    ...config.modelDefault,
+    ...config.features.chat,
     label: 'chat',
     maxTokens: 6000,
     system,

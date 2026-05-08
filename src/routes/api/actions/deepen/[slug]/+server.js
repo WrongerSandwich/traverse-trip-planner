@@ -91,7 +91,7 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
 </logistics_md>`;
 
     const { text, usage } = await chat({
-      ...config.modelResearch,
+      ...config.features.deepen,
       label: 'deepen',
       maxTokens: 8000,
       system,

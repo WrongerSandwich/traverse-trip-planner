@@ -10,6 +10,12 @@ const ATLAS_KEYS = [
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'TAVILY_API_KEY',
+  // Per-feature overrides
+  'ATLAS_MODEL_SEED_PROVIDER', 'ATLAS_MODEL_SEED',
+  'ATLAS_MODEL_ADD_PROVIDER', 'ATLAS_MODEL_ADD',
+  'ATLAS_MODEL_LOCK_PROVIDER', 'ATLAS_MODEL_LOCK',
+  'ATLAS_MODEL_CHAT_PROVIDER', 'ATLAS_MODEL_CHAT',
+  'ATLAS_MODEL_DEEPEN_PROVIDER', 'ATLAS_MODEL_DEEPEN',
 ];
 
 function clearEnv() {
@@ -135,7 +141,9 @@ describe('describeConfig', () => {
     expect(d.modelDefault.ok).toBe(true);
     expect(d.modelResearch.ok).toBe(true);
     expect(d.search.ok).toBe(true);
-    expect(d.features.deepen).toBe(true);
+    expect(d.features.deepen.ok).toBe(true);
+    expect(d.features.deepen.provider).toBe('anthropic');
+    expect(d.features.deepen.overridden).toBe(false);
     expect(d.issues).toEqual([]);
   });
 
@@ -144,5 +152,70 @@ describe('describeConfig', () => {
     const d = describeConfig();
     expect(d.modelDefault.ok).toBe(false);
     expect(d.search.ok).toBe(true); // anthropic-builtin doesn't need its own key
+  });
+
+  it('flags overridden features in the snapshot', async () => {
+    const { describeConfig } = await loadConfig({
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      ATLAS_MODEL_LOCK: 'claude-haiku-4-5',
+    });
+    const d = describeConfig();
+    expect(d.features.lock.overridden).toBe(true);
+    expect(d.features.lock.model).toBe('claude-haiku-4-5');
+    expect(d.features.seed.overridden).toBe(false);
+  });
+});
+
+describe('per-feature model overrides', () => {
+  it('every feature inherits its slot defaults when no overrides set', async () => {
+    const { config } = await loadConfig();
+    expect(config.features.seed).toEqual(config.modelDefault);
+    expect(config.features.add).toEqual(config.modelDefault);
+    expect(config.features.lock).toEqual(config.modelDefault);
+    expect(config.features.chat).toEqual(config.modelDefault);
+    expect(config.features.deepen).toEqual(config.modelResearch);
+  });
+
+  it('ATLAS_MODEL_LOCK overrides only the lock feature', async () => {
+    const { config } = await loadConfig({
+      ATLAS_MODEL_LOCK: 'claude-haiku-4-5',
+    });
+    expect(config.features.lock.model).toBe('claude-haiku-4-5');
+    expect(config.features.lock.provider).toBe('anthropic'); // inherits slot's provider
+    expect(config.features.seed.model).toBe('claude-sonnet-4-6'); // others untouched
+  });
+
+  it('ATLAS_MODEL_CHAT_PROVIDER allows different provider per feature', async () => {
+    const { config } = await loadConfig({
+      ATLAS_MODEL_CHAT_PROVIDER: 'openai',
+      ATLAS_MODEL_CHAT: 'gpt-4o-mini',
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      OPENAI_API_KEY: 'sk-test',
+    });
+    expect(config.features.chat).toEqual({ provider: 'openai', model: 'gpt-4o-mini' });
+    expect(config.features.seed.provider).toBe('anthropic');
+  });
+
+  it('disables only the overridden feature when its provider key is missing', async () => {
+    const { getFeatureAvailability } = await loadConfig({
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      ATLAS_MODEL_LOCK_PROVIDER: 'openai',
+      // OPENAI_API_KEY missing
+    });
+    const f = getFeatureAvailability();
+    expect(f.seed).toBe(true);
+    expect(f.add).toBe(true);
+    expect(f.lock).toBe(false); // override breaks only lock
+    expect(f.chat).toBe(true);
+    expect(f.deepen).toBe(true);
+  });
+
+  it('flags missing provider key for an overridden feature in validateConfig', async () => {
+    const { validateConfig } = await loadConfig({
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      ATLAS_MODEL_LOCK_PROVIDER: 'openai',
+    });
+    const issues = validateConfig();
+    expect(issues.some(i => i.includes('Feature lock') && i.includes('OPENAI_API_KEY'))).toBe(true);
   });
 });
