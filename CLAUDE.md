@@ -123,4 +123,8 @@ After adding or renaming trips, the next page load picks them up automatically; 
 - When uncertain about a field at creation, omit it
 - Research subagents write to their own files (`route.md`, `stops.md`, etc.) and summarize in `overview.md`; no silent edits to user-written prose
 - Distance, radius, and vehicle-specific logic read from `home.md` frontmatter; don't hardcode user-specific numbers in commands or subagents
+- All model calls go through `chat()` in `src/lib/server/ai.js`; all web search goes through `search()` / `searchToolDefinition()` in `src/lib/server/search.js`. Don't `import Anthropic` (or any other SDK) in route handlers — add a new adapter under `src/lib/server/{ai,search}/` instead. Pass a `label` to `chat()` so token-usage logs are grouped by feature.
+- Slash commands (`.claude/commands/*.md`) and the in-browser SSE endpoints (`src/routes/api/actions/*`) implement the same flows separately — they share neither prompts nor code. When iterating on prompt logic, update both or accept the drift consciously.
+- Page data on every route includes `data.features` (from `getFeatureAvailability()`) and `data.assistantName` (from `ATLAS_ASSISTANT_NAME`). Use them to gate UI affordances and render assistant-name strings rather than hardcoding.
+- `npm run smoke` does a 1-token round-trip per configured provider plus a tool-loop probe when search backend is non-builtin. Run it before deploys and after env changes.
 - After a meaningful unit of work, commit and push — the repo is on GitHub at `WrongerSandwich/atlas-trip-planner`

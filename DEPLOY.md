@@ -27,8 +27,9 @@ cp home.example.md home.md
 cp .env.example .env
 # Edit .env — paste your ANTHROPIC_API_KEY and PEXELS_API_KEY.
 
-# 4. Install dependencies and build
+# 4. Install dependencies, verify provider keys, and build
 npm install
+npm run smoke         # 1-token round trip per configured provider; <1¢
 npm run build
 
 # 5. Start with PM2
@@ -58,10 +59,12 @@ pm2 restart atlas
 
 ```bash
 pm2 status           # check if running
-pm2 logs atlas       # tail logs
+pm2 logs atlas       # tail logs (includes provider banner + per-call token usage)
 pm2 restart atlas    # restart after code changes
 pm2 stop atlas       # stop
 ```
+
+The startup banner lists which providers are wired and which features are available. Each AI call also emits a one-line `[ai] <label> <provider>/<model> — N in / N out (T turns, ms)` log so you can grep for total spend per feature.
 
 ## Notes
 
@@ -95,8 +98,11 @@ If a feature's backing provider isn't configured, its button is disabled in the 
 | Research model | `ATLAS_MODEL_RESEARCH_PROVIDER`     | `anthropic` (default) · `openai`    |
 | Research model | `ATLAS_MODEL_RESEARCH`              | tool-use-capable model id           |
 | Search backend | `ATLAS_SEARCH_PROVIDER`             | `anthropic-builtin` (default) · `tavily` |
+| Assistant name | `ATLAS_ASSISTANT_NAME`              | display name in UI (default `Claude`)    |
 
 `anthropic-builtin` runs Anthropic's server-side `web_search` tool — only valid when the research model is also Anthropic. `tavily` is portable across any model provider but requires a `TAVILY_API_KEY`.
+
+`ATLAS_ASSISTANT_NAME` only affects user-facing UI strings ("Ask Claude…", SSE progress messages). Set it to whatever fits the model you've configured.
 
 ### Sample configurations
 

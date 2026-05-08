@@ -30,7 +30,9 @@ See **[DEPLOY.md](DEPLOY.md)** for full setup instructions, including provider s
 git clone <repo-url> atlas && cd atlas
 cp home.example.md home.md   # edit with your home city, vehicles, taste
 cp .env.example .env         # edit with your API keys
-npm install && npm run build
+npm install
+npm run smoke                # optional: 1-token round-trip per provider
+npm run build
 node build/index.js
 ```
 
@@ -53,3 +55,7 @@ Your personal preferences live in `home.md` (gitignored — see `home.example.md
 ## Tech
 
 SvelteKit · Leaflet · OSRM (routing) · Nominatim (geocoding) · Pexels (photos). AI calls go through a provider-agnostic adapter — Anthropic and OpenAI are supported out of the box. See [DEPLOY.md](DEPLOY.md#provider-configuration-byok).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
