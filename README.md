@@ -1,6 +1,8 @@
 # Atlas
 
-A personal travel filing cabinet — road trips and fly-in destinations — managed through a web UI and Claude. Trips live as markdown files that progress through a lifecycle: **idea → exploring → planning → completed**.
+[![CI](https://github.com/WrongerSandwich/atlas-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/WrongerSandwich/atlas-trip-planner/actions/workflows/ci.yml)
+
+A personal travel filing cabinet — road trips and fly-in destinations — managed through a web UI and an LLM. Trips live as markdown files that progress through a lifecycle: **idea → exploring → planning → completed**.
 
 ## What it does
 
@@ -55,6 +57,10 @@ Your personal preferences live in `home.md` (gitignored — see `home.example.md
 ## Tech
 
 SvelteKit · Leaflet · OSRM (routing) · Nominatim (geocoding) · Pexels (photos). AI calls go through a provider-agnostic adapter — Anthropic and OpenAI are supported out of the box. See [DEPLOY.md](DEPLOY.md#provider-configuration-byok).
+
+## Contributing
+
+PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and conventions; [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 ## License
 

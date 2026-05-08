@@ -39,11 +39,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 - **Sanitize provider error messages.** `ai/openai.js` includes the verbatim response body in thrown errors (`OpenAI API 400: ...`). For the hosted path that could leak system-prompt fragments to end users. Wrap raw errors in a normalized shape with a public-safe message and the raw payload only on a server-only field. — `src/lib/server/ai/openai.js`, `src/lib/server/ai/anthropic.js`
 - **TTL on Pexels image cache.** `.image-cache.json` entries are written once and never expire — only a slug rename triggers recomputation. Pexels CDN URLs can rot silently. Add e.g. 30-day per-entry expiry with refresh on miss. — `src/lib/server/data.js`
 
-## Open-source readiness
-
-- **GitHub Actions on PRs.** No CI exists. A minimal workflow that runs `npm install && npm run build` (and `npm run smoke` if a key is configured as a secret) would catch breakage before merge. — `.github/workflows/`
-- **CONTRIBUTING.md + SECURITY.md stubs.** Conventional OSS hygiene; takes ten minutes; signals the project takes external contribution and vuln reporting seriously. SECURITY.md should specify how to report (e.g., email, GitHub Security Advisories) and that secrets must never be filed in public issues.
-
 ## Future extension (technically near)
 
 - **ICS calendar export for planned trips.** `target_date` is already in planning frontmatter. A `/api/cal.ics` endpoint that emits one VEVENT per planning-stage trip with a date would feed Google/Apple/Outlook calendars without further work. Per-trip `/api/cal/[slug].ics` is also small. — new route under `src/routes/api/cal/`
