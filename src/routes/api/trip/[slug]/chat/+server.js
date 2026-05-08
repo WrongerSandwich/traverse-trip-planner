@@ -72,7 +72,7 @@ Your output format:
     content: String(m.content || ''),
   }));
 
-  const { text } = await chat({
+  const { text, usage } = await chat({
     ...config.features.chat,
     label: 'chat',
     maxTokens: 6000,
@@ -87,5 +87,5 @@ Your output format:
     writePlanningSection(trip.dir, section, trip.frontmatter, content);
   }
 
-  return json({ reply, updates });
+  return json({ reply, updates, usage });
 }

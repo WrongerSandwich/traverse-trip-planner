@@ -3,6 +3,7 @@
   import { invalidateAll, goto } from '$app/navigation';
   import MiniMap from '$lib/components/MiniMap.svelte';
   import { tripColor } from '$lib/utils/colors.js';
+  import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
 
   let { data } = $props();
@@ -134,6 +135,7 @@
           role: 'assistant',
           content: data.reply || '(no reply)',
           updated: Object.keys(data.updates || {}),
+          usage: data.usage,
         },
       ];
       // Apply any updates the model wrote to disk
@@ -386,6 +388,9 @@
               <div class="msg-updates">
                 Updated: {m.updated.map(s => SECTION_LABELS[s] || s).join(', ')}
               </div>
+            {/if}
+            {#if m.usage}
+              <div class="msg-usage">{formatUsage(m.usage)}</div>
             {/if}
           </div>
         {/each}
@@ -861,6 +866,12 @@
     color: var(--planning-text);
     text-transform: uppercase;
     letter-spacing: 0.06em;
+  }
+  .msg-usage {
+    margin-top: 0.35rem;
+    font-size: 0.7rem;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
   }
 
   .typing { display: inline-flex; gap: 4px; }

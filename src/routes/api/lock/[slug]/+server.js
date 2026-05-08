@@ -16,8 +16,9 @@ export async function POST({ params }) {
     .join('\n\n');
 
   let itinerary;
+  let usage;
   try {
-    const { text } = await chat({
+    const result = await chat({
       ...config.features.lock,
       label: 'lock',
       maxTokens: 4000,
@@ -39,7 +40,8 @@ Format rules:
         },
       ],
     });
-    itinerary = text.trim();
+    itinerary = result.text.trim();
+    usage = result.usage;
   } catch (err) {
     return new Response(`Itinerary generation failed: ${err.message}`, { status: 502 });
   }
@@ -53,7 +55,7 @@ Format rules:
   const lockResult = setLocked(slug, true);
   if (!lockResult) return new Response('Failed to update frontmatter', { status: 500 });
 
-  return json({ ok: true });
+  return json({ ok: true, usage });
 }
 
 export async function DELETE({ params }) {
