@@ -397,6 +397,9 @@ export function setLocked(slug, locked) {
 }
 
 // ── Bookmark toggle ──
+// TODO: findTripFile() here, findIdeaFile() in deepen/[slug]/+server.js, and findTrip() in
+// archive/[slug]/+server.js all implement similar cross-stage trip lookup logic. Consolidate
+// into a single exported function returning { path, stage } to reduce duplication.
 function findTripFile(slug) {
   const ideaPath = join(ROOT, 'ideas', `${slug}.md`);
   if (existsSync(ideaPath)) return ideaPath;
