@@ -14,8 +14,8 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 - **Cost range format `~$700–1,050` may read as cryptic.** Consider switching to "$700 to $1,050" or just a single midpoint figure with a small range badge.
 - **No keyboard arrow-key navigation between cards.** Cards are `role="button"`, but moving between them requires `Tab`. Adding ↑/↓ navigation would help keyboard users.
 - **Stream lock-itinerary generation.** "🔒 Lock trip & generate itinerary" sits silent for 20–30s while the model works. Both adapters can be extended to support streaming; for lock specifically, pipe tokens through SSE so the user sees the itinerary materializing in real time. — `src/routes/api/lock/[slug]/+server.js`, both `src/lib/server/ai/*.js`
-- **Persist planning chat to localStorage.** Each `/api/trip/[slug]/chat` call is stateless on the server; conversations live in the browser tab only and vanish on refresh. Add localStorage persistence keyed by slug. — `src/routes/trips/[slug]/+page.svelte`
 - **Cancel button for long-running /deepen.** Once started, deepen runs to completion (15–90s + tokens). For misclicks or runaway research, an abort button + `AbortController` on the fetch would help. SSE channel can stream the cancellation acknowledgement. — `src/routes/+page.svelte`, `src/routes/api/actions/deepen/[slug]/+server.js`
+- **Surface token usage for lock + planning chat.** SSE actions (seed/add/deepen) now stream a `Used N in / N out · T turns` line, but lock and planning chat return plain JSON and have no equivalent. Either return `usage` in the JSON response and render it in a toast/status row, or migrate those endpoints to SSE. — `src/routes/api/lock/[slug]/+server.js`, `src/routes/api/trip/[slug]/chat/+server.js`, `src/routes/trips/[slug]/+page.svelte`
 
 ## Performance
 

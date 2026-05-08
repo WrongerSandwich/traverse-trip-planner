@@ -84,6 +84,32 @@
   let chatInput = $state('');
   let chatBusy = $state(false);
 
+  const chatStorageKey = $derived(trip?._slug ? `atlas-chat-${trip._slug}` : null);
+
+  // Load chat history when slug changes (new trip = new history).
+  $effect(() => {
+    if (!chatStorageKey) return;
+    try {
+      const stored = localStorage.getItem(chatStorageKey);
+      chatMessages = stored ? JSON.parse(stored) : [];
+    } catch {
+      chatMessages = [];
+    }
+  });
+
+  // Persist chat history on every change.
+  $effect(() => {
+    if (!chatStorageKey) return;
+    try {
+      if (chatMessages.length === 0) localStorage.removeItem(chatStorageKey);
+      else localStorage.setItem(chatStorageKey, JSON.stringify(chatMessages));
+    } catch { /* quota / disabled storage — silently drop */ }
+  });
+
+  function clearChat() {
+    chatMessages = [];
+  }
+
   async function sendChat() {
     const text = chatInput.trim();
     if (!text || chatBusy) return;
@@ -333,7 +359,12 @@
     use:swipeClose={() => chatOpen = false}>
     <header class="chat-header">
       <span>Ask {data.assistantName} about this trip</span>
-      <button class="chat-close" onclick={() => chatOpen = false} aria-label="Close chat">✕</button>
+      <div class="chat-header-actions">
+        {#if chatMessages.length > 0}
+          <button class="chat-clear" onclick={clearChat} disabled={chatBusy} title="Clear conversation history">Clear</button>
+        {/if}
+        <button class="chat-close" onclick={() => chatOpen = false} aria-label="Close chat">✕</button>
+      </div>
     </header>
 
     <div class="chat-log">
@@ -770,12 +801,20 @@
     font-size: 0.85rem;
     font-weight: 700;
   }
+  .chat-header-actions { display: flex; align-items: center; gap: 0.4rem; }
   .chat-close {
     background: none; border: none; color: oklch(70% 0.02 155);
     cursor: pointer; font-size: 1rem; line-height: 1;
     padding: 0.2rem 0.35rem; border-radius: 3px;
   }
   .chat-close:hover { color: var(--header-text); background: oklch(100% 0 0 / 0.08); }
+  .chat-clear {
+    background: none; border: 1px solid oklch(100% 0 0 / 0.18); color: oklch(80% 0.02 155);
+    cursor: pointer; font-size: 0.7rem; font-weight: 500; line-height: 1;
+    padding: 0.3rem 0.55rem; border-radius: 3px; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .chat-clear:hover:not(:disabled) { color: var(--header-text); background: oklch(100% 0 0 / 0.08); }
+  .chat-clear:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .chat-log {
     flex: 1;
