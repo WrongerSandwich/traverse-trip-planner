@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
-import { ROOT, readHomeMd, parseFrontmatter, parseFrontmatterFields } from '$lib/server/data.js';
+import { ROOT, readHomeMd, parseFrontmatter, parseFrontmatterFields, invalidateEnrichCache } from '$lib/server/data.js';
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
@@ -142,6 +142,7 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
     unlinkSync(ideaPath);
     send('  ✓ removed from ideas/');
 
+    invalidateEnrichCache();
     send(formatUsage(usage));
     send(`Done — ${fm.title || slug} is now in exploring. Reload to see it.`, true);
   });

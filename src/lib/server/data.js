@@ -14,6 +14,13 @@ try { imageCache   = JSON.parse(readFileSync(IMAGE_CACHE_PATH,   'utf8')); } cat
 try { routeCache   = JSON.parse(readFileSync(ROUTE_CACHE_PATH,   'utf8')); } catch {}
 try { geocodeCache = JSON.parse(readFileSync(GEOCODE_CACHE_PATH, 'utf8')); } catch {}
 
+// Cache writes are batched: fetchers mark their cache dirty, and a single
+// flushCaches() at the end of a request writes only the dirty ones. This
+// turns ~35 writeFileSync calls during a cold enrichTrips into at most 3.
+let geocodeDirty = false;
+let imageDirty   = false;
+let routeDirty   = false;
+
 function saveCache(path, data, label) {
   try {
     writeFileSync(path, JSON.stringify(data, null, 2));
@@ -21,9 +28,12 @@ function saveCache(path, data, label) {
     console.warn(`failed to save ${label} cache to ${path} —`, e.message);
   }
 }
-function saveImageCache()   { saveCache(IMAGE_CACHE_PATH,   imageCache,   'image'); }
-function saveRouteCache()   { saveCache(ROUTE_CACHE_PATH,   routeCache,   'route'); }
-function saveGeocodeCache() { saveCache(GEOCODE_CACHE_PATH, geocodeCache, 'geocode'); }
+
+export function flushCaches() {
+  if (geocodeDirty) { saveCache(GEOCODE_CACHE_PATH, geocodeCache, 'geocode'); geocodeDirty = false; }
+  if (imageDirty)   { saveCache(IMAGE_CACHE_PATH,   imageCache,   'image');   imageDirty   = false; }
+  if (routeDirty)   { saveCache(ROUTE_CACHE_PATH,   routeCache,   'route');   routeDirty   = false; }
+}
 
 function pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys) {
   let routesDropped = 0, imagesDropped = 0, geocodesDropped = 0;
@@ -36,9 +46,9 @@ function pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys) {
   for (const k of Object.keys(geocodeCache)) {
     if (!liveGeocodeKeys.has(k)) { delete geocodeCache[k]; geocodesDropped++; }
   }
-  if (routesDropped)   saveRouteCache();
-  if (imagesDropped)   saveImageCache();
-  if (geocodesDropped) saveGeocodeCache();
+  if (routesDropped)   routeDirty   = true;
+  if (imagesDropped)   imageDirty   = true;
+  if (geocodesDropped) geocodeDirty = true;
   if (routesDropped || imagesDropped || geocodesDropped) {
     console.log(`cache GC: dropped ${routesDropped} route(s), ${imagesDropped} image(s), ${geocodesDropped} geocode(s)`);
   }
@@ -68,7 +78,7 @@ export async function geocode(destination) {
       const data = await res.json();
       const coords = data.length ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
       geocodeCache[destination] = coords;
-      saveGeocodeCache();
+      geocodeDirty = true;
       return coords;
     } catch (e) {
       if (attempt === 0) { await sleep(500); continue; }
@@ -116,7 +126,7 @@ export async function fetchImage(query) {
       ? { medium: photo.src.medium, large: photo.src.large, photographer: photo.photographer, photographer_url: photo.photographer_url }
       : null;
     writeImageCacheEntry(imageCache, query, result);
-    saveImageCache();
+    imageDirty = true;
     return result;
   } catch (e) {
     console.error('Pexels error for', query, e.message);
@@ -146,14 +156,14 @@ async function fetchRoute(geocodedCoords) {
     if (data.code !== 'Ok' || !data.routes?.[0]?.geometry?.coordinates) {
       console.warn('OSRM returned no route for', cacheKey);
       routeCache[cacheKey] = null;
-      saveRouteCache();
+      routeDirty = true;
       return null;
     }
 
     // GeoJSON is [lon, lat] — flip to [lat, lon] for Leaflet
     const coords = data.routes[0].geometry.coordinates.map(([lon, lat]) => [lat, lon]);
     routeCache[cacheKey] = coords;
-    saveRouteCache();
+    routeDirty = true;
     console.log(`OSRM: cached route with ${coords.length} points`);
     return coords;
   } catch (e) {
@@ -276,7 +286,19 @@ export function getHome() {
 
 // ── Enrich trips ──
 // TODO: split into enrichWithGeodata() (geocode/image/route I/O) and enrichWithCalculations() (pure transforms); pruneCaches() can be called explicitly after enrichment
+// 30-second memo on the enriched trip list so rapid-fire page loads (multiple
+// browser tabs, F5 spam) don't re-walk the file system. Mutating endpoints
+// call `invalidateEnrichCache()` to force a refresh.
+const ENRICH_TTL_MS = 30_000;
+let enrichMemo = null;
+let enrichTime = 0;
+
+export function invalidateEnrichCache() {
+  enrichMemo = null;
+}
+
 export async function enrichTrips() {
+  if (enrichMemo && Date.now() - enrichTime < ENRICH_TTL_MS) return enrichMemo;
   const home = getHome();
   const homeCoords = home?.coords ?? null;
   const trips = collectTrips();
@@ -349,6 +371,10 @@ export async function enrichTrips() {
   // transient empty load (mid-promote, etc.) can't nuke the caches.
   if (trips.length > 0) pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys);
 
+  flushCaches();
+
+  enrichMemo = trips;
+  enrichTime = Date.now();
   return trips;
 }
 
@@ -368,8 +394,10 @@ export async function getTripRoute(slug) {
       if (needsFetch) await sleep(1100);
       if (coord) geocoded.push(coord);
     }
-    if (geocoded.length < 2) return null;
-    return await fetchRoute(geocoded);
+    if (geocoded.length < 2) { flushCaches(); return null; }
+    const route = await fetchRoute(geocoded);
+    flushCaches();
+    return route;
   }
   return null;
 }
@@ -414,6 +442,7 @@ export function writePlanningSection(dir, section, frontmatter, content) {
     const final = content.endsWith('\n') ? content : `${content}\n`;
     writeFileSync(fp, final);
   }
+  invalidateEnrichCache();
 }
 
 // ── Lock toggle ──
@@ -432,6 +461,7 @@ export function setLocked(slug, locked) {
   }
 
   writeFileSync(filePath, updated);
+  invalidateEnrichCache();
   return { locked };
 }
 
@@ -469,6 +499,7 @@ export function toggleStarred(slug) {
   }
 
   writeFileSync(filePath, updated);
+  invalidateEnrichCache();
   return { starred: nowStarred };
 }
 
@@ -522,5 +553,6 @@ export function moveTrip(slug, fromStage, toStage, newStatus) {
     return { error: err.message, status: 500 };
   }
 
+  invalidateEnrichCache();
   return null; // null = success; caller reads slug/stage from its own context
 }

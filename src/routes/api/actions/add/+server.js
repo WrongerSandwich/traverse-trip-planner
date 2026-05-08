@@ -1,6 +1,6 @@
 import { writeFileSync } from 'fs';
 import { join } from 'path';
-import { ROOT, readHomeMd } from '$lib/server/data.js';
+import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
@@ -98,6 +98,7 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
     writeFileSync(path, file.content + '\n');
     const title = file.content.match(/^title: (.+)$/m)?.[1] ?? file.name;
     send(`  ✓ ${title}`);
+    invalidateEnrichCache();
     send(formatUsage(usage));
     send('Done — new trip added. Reload to see it.', true);
   });

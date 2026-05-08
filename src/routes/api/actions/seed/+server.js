@@ -1,6 +1,6 @@
 import { writeFileSync } from 'fs';
 import { join } from 'path';
-import { ROOT, readHomeMd } from '$lib/server/data.js';
+import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
@@ -87,6 +87,7 @@ national_park: true`;
       send(`  ✓ ${title}`);
     }
 
+    invalidateEnrichCache();
     send(formatUsage(usage));
     send(`Done — ${files.length} new trips added. Reload to see them.`, true);
   });

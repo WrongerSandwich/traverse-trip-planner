@@ -14,11 +14,6 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 - **Cost range format `~$700–1,050` may read as cryptic.** Consider switching to "$700 to $1,050" or just a single midpoint figure with a small range badge.
 - **No keyboard arrow-key navigation between cards.** Cards are `role="button"`, but moving between them requires `Tab`. Adding ↑/↓ navigation would help keyboard users.
 
-## Performance
-
-- **Memoize `enrichTrips()` for ~30s.** Currently re-runs on every page load even when the result is identical (all caches hit). For a self-hosted personal tool it's <50ms — only worth doing if traffic ever scales.
-- **Batch cache writes inside `enrichTrips()`.** `saveGeocodeCache()` / `saveImageCache()` fire after every successful fetch (35+ `writeFileSync` calls during cold start). Buffer in memory and write once at the end.
-
 ## Architecture
 
 - **Service worker / offline support** would be valuable for a travel tool used in the field. Cache trip markdown + Pexels thumbnails + map tiles for offline read. Substantial effort.
