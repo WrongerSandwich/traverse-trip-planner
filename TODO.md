@@ -39,6 +39,5 @@ Smaller pain points and ideas that surfaced during work but weren't worth blocki
 
 ## Future extension (technically near)
 
-- **ICS calendar export for planned trips.** `target_date` is already in planning frontmatter. A `/api/cal.ics` endpoint that emits one VEVENT per planning-stage trip with a date would feed Google/Apple/Outlook calendars without further work. Per-trip `/api/cal/[slug].ics` is also small. — new route under `src/routes/api/cal/`
 - **Multimodal: receipt photos → notes.md retros.** Both Anthropic and OpenAI support image content in `messages`. A "Add to retro" upload on the completed view could attach photos, run them through `chat()` with image blocks, and append a parsed line (date · merchant · amount · category) to the trip's `notes.md`. Requires extending the adapter `messages` shape to accept `{type: 'image', ...}` content blocks. — `src/lib/server/ai/`, `src/routes/trips/[slug]/+page.svelte`
 - **Public read-only share URLs.** A `/share/[token]` route renders a single trip without chrome (or with a "Atlas — view-only" frame), suitable for sending plans to non-Atlas-using travel companions. Token = HMAC of slug + a secret stored as `ATLAS_SHARE_SECRET`; persisted in trip frontmatter as `share_token: ...` so it survives across deployments. — new route, frontmatter schema extension

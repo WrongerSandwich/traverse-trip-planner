@@ -11,6 +11,7 @@ A personal travel filing cabinet — road trips and fly-in destinations — mana
 - **Plan** — edit trip sections in-browser, chat with the assistant to refine them, then lock the trip to generate a day-by-day itinerary
 - **Map** — all trips rendered on an interactive map with drive-time routing
 - **Filter** — by stage, drive time, cost tier, fly vs. drive, NPS units, bookmarks
+- **Calendar** — subscribe to `/api/cal.ics` from Google/Apple/Outlook to see planned trips on your calendar; per-trip feed at `/api/cal/<slug>.ics`
 
 All trip data is plain markdown on disk — readable, portable, and easy to edit directly.
 
