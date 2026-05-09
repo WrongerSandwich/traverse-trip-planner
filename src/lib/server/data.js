@@ -465,18 +465,26 @@ export function setLocked(slug, locked) {
   return { locked };
 }
 
-// ── Bookmark toggle ──
-// TODO: findTripFile() here, findIdeaFile() in deepen/[slug]/+server.js, and findTrip() in
-// archive/[slug]/+server.js all implement similar cross-stage trip lookup logic. Consolidate
-// into a single exported function returning { path, stage } to reduce duplication.
-function findTripFile(slug) {
+// ── Trip location ──
+// Returns { kind: 'file'|'dir', path, stage } for the trip's current live location,
+// or null if not found. kind='file' means an idea .md; kind='dir' means a stage folder.
+// TODO: findIdeaFile() in deepen/[slug]/+server.js is intentionally idea-only (deepening
+// only applies to ideas), but could be simplified to use findTripLocation if that changes.
+export function findTripLocation(slug) {
   const ideaPath = join(ROOT, 'ideas', `${slug}.md`);
-  if (existsSync(ideaPath)) return ideaPath;
+  if (existsSync(ideaPath)) return { kind: 'file', path: ideaPath, stage: 'ideas' };
   for (const stage of ['exploring', 'planning', 'completed']) {
-    const p = join(ROOT, stage, slug, 'overview.md');
-    if (existsSync(p)) return p;
+    const dir = join(ROOT, stage, slug);
+    if (existsSync(dir)) return { kind: 'dir', path: dir, stage };
   }
   return null;
+}
+
+// ── Bookmark toggle ──
+function findTripFile(slug) {
+  const loc = findTripLocation(slug);
+  if (!loc) return null;
+  return loc.kind === 'file' ? loc.path : join(loc.path, 'overview.md');
 }
 
 export function toggleStarred(slug) {
