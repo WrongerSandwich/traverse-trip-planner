@@ -124,11 +124,11 @@
 
 <style>
   .card {
-    background: var(--surface);
+    background: var(--surface-raised);
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid var(--border-subtle);
-    box-shadow: 0 1px 2px oklch(0% 0 0 / 0.04), 0 3px 10px oklch(0% 0 0 / 0.05);
+    border: 1px solid var(--bone-200);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 3px 10px rgba(0, 0, 0, 0.05);
     display: flex;
     flex-direction: column;
     cursor: pointer;
@@ -140,21 +140,21 @@
   }
   .card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 8px 24px oklch(0% 0 0 / 0.1), 0 1px 3px oklch(0% 0 0 / 0.05);
-    border-color: var(--accent-border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05);
+    border-color: var(--forest-200);
   }
   .card:active {
     transform: scale(0.985);
-    border-color: var(--accent);
+    border-color: var(--forest-800);
     transition-duration: 0.05s;
   }
-  .card:global(.highlight) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card:global(.highlight) { outline: 2px solid var(--forest-800); outline-offset: 2px; }
 
   /* ── Thumbnail ── */
   .thumb {
     height: var(--thumb-h, 220px);
     flex-shrink: 0;
-    background: var(--border);
+    background: var(--bone-400);
     overflow: hidden;
     position: relative;
   }
@@ -180,8 +180,8 @@
     text-transform: uppercase;
     padding: 0.18rem 0.5rem;
     border-radius: 2px;
-    background: oklch(12% 0.01 80 / 0.72);
-    color: oklch(93% 0.008 80);
+    background: rgba(31, 25, 14, 0.72);
+    color: var(--bone-100);
     backdrop-filter: blur(4px);
   }
 
@@ -199,15 +199,15 @@
     text-transform: uppercase;
     padding: 0.25rem 0.6rem;
     border-radius: 2px;
-    background: oklch(30% 0.07 52 / 0.93);
-    color: oklch(93% 0.022 68);
-    border: 1px solid oklch(62% 0.05 65 / 0.35);
+    background: var(--sunset-800);
+    color: var(--bone-100);
+    border: 1px solid rgba(201, 182, 149, 0.35);
   }
 
   .credit {
     position: absolute; bottom: 0; right: 0;
-    background: oklch(10% 0 0 / 0.45);
-    color: oklch(90% 0 0 / 0.7);
+    background: rgba(20, 20, 20, 0.45);
+    color: rgba(230, 230, 230, 0.7);
     font-size: 0.56rem; padding: 0.14rem 0.45rem; border-radius: 3px 0 0 0;
   }
   .credit a { color: inherit; text-decoration: none; }
@@ -222,7 +222,7 @@
     flex: 1;
     transition: background 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .card:hover .body { background: var(--accent-bg); }
+  .card:hover .body { background: var(--forest-50); }
 
   .top-row {
     display: flex;
@@ -240,7 +240,7 @@
     border: none;
     padding: 0.15rem 0.1rem;
     cursor: pointer;
-    color: var(--text-3);
+    color: var(--text-tertiary);
     line-height: 1;
     transition: color 0.12s, transform 0.12s;
     display: flex;
@@ -253,9 +253,9 @@
     position: absolute;
     inset: -10px;
   }
-  .bookmark:hover  { color: var(--accent); transform: scale(1.1); }
-  .bookmark:active { color: var(--accent); transform: scale(0.92); }
-  .bookmark.active { color: var(--accent); }
+  .bookmark:hover  { color: var(--forest-800); transform: scale(1.1); }
+  .bookmark:active { color: var(--forest-800); transform: scale(0.92); }
+  .bookmark.active { color: var(--forest-800); }
 
   .eyebrow {
     align-self: flex-start;
@@ -272,7 +272,7 @@
     font-size: 1.25rem;
     font-weight: 500;
     line-height: 1.2;
-    color: var(--text);
+    color: var(--text-primary);
     letter-spacing: 0.005em;
     margin: 0;
   }
@@ -280,7 +280,7 @@
   .pitch {
     font-size: 0.825rem;
     line-height: 1.65;
-    color: var(--text-2);
+    color: var(--text-secondary);
     flex: 1;
     margin: 0;
   }
@@ -293,7 +293,7 @@
     gap: 0.5rem;
     flex-wrap: wrap;
     padding-top: 0.55rem;
-    border-top: 1px solid var(--border-subtle);
+    border-top: 1px solid var(--bone-200);
     margin-top: auto;
     font-family: var(--font-mono);
     font-size: 11px;
@@ -308,7 +308,7 @@
   }
   .footer .sep { color: var(--bone-400); }
   .footer .cost {
-    color: var(--text);
+    color: var(--text-primary);
     font-weight: 500;
     white-space: nowrap;
   }

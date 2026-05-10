@@ -68,34 +68,8 @@
   --state-info:    var(--sky-600);
   --state-warning: var(--sunset-400);
 
-  /* ── Legacy aliases ──────────────────────────────────────────────────── */
-  /* Component CSS still references these names. Phase 5 will purge them
-     and switch each component to the semantic tokens above. Until then,
-     these aliases keep the existing component styles working against the
-     new palette. */
-
-  /* Surfaces */
-  --bg:            var(--surface-page);
-  --surface:       var(--surface-raised);
-  --border:        var(--bone-400);
-  --border-subtle: var(--bone-200);
-
-  /* Text */
-  --text:   var(--text-primary);
-  --text-2: var(--text-secondary);
-  --text-3: var(--text-tertiary);
-
-  /* Accent — forest greens */
-  --accent:        var(--forest-800);
-  --accent-mid:    var(--forest-600);
-  --accent-bg:     var(--forest-50);
-  --accent-border: var(--forest-200);
-
-  /* Header */
-  --header-bg:   var(--surface-invert);
-  --header-text: var(--text-inverse);
-
-  /* Status pills — agreed mapping:
+  /* ── Status pills ────────────────────────────────────────────────────── */
+  /* Stage-specific composite tokens used by lifecycle badges. Agreed mapping:
        idea       → sky
        exploring  → sunset
        planning   → forest
@@ -114,10 +88,6 @@
   --font-serif: 'Fraunces', ui-serif, Georgia, serif;
   --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono:  'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-
-  /* Legacy alias — most component CSS still uses var(--font). Resolves to
-     the sans stack so existing surfaces keep their body register. */
-  --font: var(--font-sans);
 
   /* ── Layout constants ────────────────────────────────────────────────── */
   --thumb-h: 220px;
@@ -241,10 +211,10 @@ body {
 /* Leaflet popup */
 .leaflet-popup-content-wrapper {
   border-radius: 8px;
-  box-shadow: 0 4px 20px oklch(0% 0 0 / 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   padding: 0;
 }
-.leaflet-popup-content { margin: 0; font-family: var(--font); }
+.leaflet-popup-content { margin: 0; font-family: var(--font-sans); }
 .map-popup { padding: 0.65rem 0.9rem; min-width: 140px; }
 .map-popup strong {
   display: block;
@@ -252,20 +222,20 @@ body {
   font-size: 0.95rem;
   font-weight: 500;
   line-height: 1.2;
-  color: var(--text);
+  color: var(--text-primary);
   letter-spacing: 0.005em;
 }
-.map-popup small { display: block; color: var(--text-3); font-size: 0.72rem; margin-top: 0.15rem; font-family: var(--font-mono); }
+.map-popup small { display: block; color: var(--text-tertiary); font-size: 0.72rem; margin-top: 0.15rem; font-family: var(--font-mono); }
 .map-popup-open {
   display: block;
   margin-top: 0.55rem;
   padding: 0.35rem 0.6rem;
-  font-family: var(--font);
+  font-family: var(--font-sans);
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 1px solid var(--accent-border);
+  color: var(--forest-800);
+  background: var(--forest-50);
+  border: 1px solid var(--forest-200);
   border-radius: 3px;
   cursor: pointer;
   width: 100%;
@@ -273,6 +243,6 @@ body {
   transition: background 0.12s, color 0.12s;
 }
 .map-popup-open:hover, .map-popup-open:active {
-  background: var(--accent);
+  background: var(--forest-800);
   color: var(--text-inverse);
 }
