@@ -33,9 +33,6 @@
     <h1>{trip?.title || trip?._slug}</h1>
     <div class="meta">
       {#if trip?.destination}<span>{trip.destination}</span>{/if}
-      {#if trip?.fly_in === 'true'}
-        <span class="mode">✈ fly</span>
-      {/if}
       {#if trip?.target_date}<span class="date">{trip.target_date}</span>{/if}
     </div>
   </header>

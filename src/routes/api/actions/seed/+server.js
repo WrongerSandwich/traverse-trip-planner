@@ -31,11 +31,11 @@ export async function POST({ request }) {
     const system = `You are a travel planning assistant. Here is the traveler's full personal context:
 ${homeMd}
 
-Generate exactly 5 new trip ideas. Rules:
+Generate exactly 5 new road trip ideas. Rules:
+- Atlas is road-trip only. Every idea must be drivable from the traveler's home base — do not propose destinations that would require flying.
 - Diverse across region, vibe, and distance. Do not cluster.
 - Each must pass a "would they actually go?" test against the taste profile above.
 - Do NOT propose any of these existing destinations: ${existing.join(', ')}.
-- Include a mix of road trips and fly-in destinations where appropriate.
 - Be concrete — name the specific draw, not generic adjectives.
 - Do not invent facts about destinations. If you are unsure whether a specific detail is true (a venue still operating, an event still running, a route still open), keep the pitch at a higher level and let /deepen verify the specifics later.
 
@@ -50,10 +50,6 @@ pitch: [2–3 sentences naming the specific draw. Concrete, not generic.]
 created: ${today}
 vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
 </file>
-
-For fly-in trips add these two lines inside the frontmatter:
-fly_in: true
-vehicle: rental
 
 For trips involving an NPS unit (national park, preserve, scenic riverway) add:
 national_park: true`;

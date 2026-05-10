@@ -38,14 +38,9 @@
 
   const markers  = {}; // slug → { marker, trip, line }
   let driveBounds         = null;
-  let flightLine          = null;
   let routeLine           = null;
   let activeSpokeHighlight = null; // temporary spoke shown for drive trips without an OSRM route
 
-  // flyInMode stays true from the moment a fly-in is hovered until the
-  // return animation fully settles. This prevents any intermediate hover
-  // (e.g. card → space → drive card) from restoring spokes mid-flight.
-  let flyInMode      = false;
   let returnArmed    = false;
   let returnArmTimer = null;
   let routeRevealTimer = null; // delayed registration so interrupted-animation moveend fires first
@@ -78,7 +73,6 @@
   }
   function hideSpokes()    { spokesGroup?.remove(); }
   function restoreSpokes() {
-    flyInMode = false;
     if (activeSpokeHighlight) { map.removeLayer(activeSpokeHighlight); activeSpokeHighlight = null; }
     if (spokesGroup && !map.hasLayer(spokesGroup)) spokesGroup.addTo(map);
     if (routeLine) routeLine.setStyle({ opacity: 0.8 });
@@ -99,22 +93,6 @@
       className: '',
       html: `<div style="width:${size}px;height:${size}px;background:${color};border:2px solid #fff;border-radius:50%;box-shadow:${shadow};transition:width .15s,height .15s,box-shadow .15s"></div>`,
       iconSize: [size, size], iconAnchor: [size / 2, size / 2],
-    });
-  }
-
-  function greatCirclePoints([lat1d, lon1d], [lat2d, lon2d], n = 80) {
-    const r = d => d * Math.PI / 180, deg = x => x * 180 / Math.PI;
-    const [φ1, λ1, φ2, λ2] = [r(lat1d), r(lon1d), r(lat2d), r(lon2d)];
-    const Δ = 2 * Math.asin(Math.sqrt(
-      Math.sin((φ2-φ1)/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2
-    ));
-    if (Δ < 1e-10) return [[lat1d, lon1d]];
-    return Array.from({ length: n + 1 }, (_, i) => {
-      const f = i / n, A = Math.sin((1-f)*Δ)/Math.sin(Δ), B = Math.sin(f*Δ)/Math.sin(Δ);
-      const x = A*Math.cos(φ1)*Math.cos(λ1) + B*Math.cos(φ2)*Math.cos(λ2);
-      const y = A*Math.cos(φ1)*Math.sin(λ1) + B*Math.cos(φ2)*Math.sin(λ2);
-      const z = A*Math.sin(φ1)               + B*Math.sin(φ2);
-      return [deg(Math.atan2(z, Math.sqrt(x**2+y**2))), deg(Math.atan2(y, x))];
     });
   }
 
@@ -173,7 +151,6 @@
 
     disarm();
     cancelRouteReveal();
-    if (flightLine)          { map.removeLayer(flightLine);          flightLine          = null; }
     if (routeLine)           { map.removeLayer(routeLine);           routeLine           = null; }
     if (activeSpokeHighlight){ map.removeLayer(activeSpokeHighlight); activeSpokeHighlight = null; }
 
@@ -190,7 +167,7 @@
       const [lat, lon] = trip._coords;
       const color = markerColor(trip);
 
-      if (trip.fly_in !== 'true') drivePoints.push([lat, lon]);
+      drivePoints.push([lat, lon]);
 
       // Spokes go into spokesGroup so they can be hidden/shown as one unit
       let line = null;
@@ -221,7 +198,7 @@
     }
   });
 
-  // Hover/select/pin: icons + flight arc + map movement.
+  // Hover/select/pin: icons + map movement.
   // Priority: live hover > pinned-via-marker-click > parent-driven selection.
   let prevEffective = null;
   $effect(() => {
@@ -230,10 +207,8 @@
 
     const prevEntry = prevEffective ? markers[prevEffective] : null;
     const currEntry = hovered       ? markers[hovered]       : null;
-    const prevWasFlyIn = prevEntry?.trip.fly_in === 'true';
-    const currIsFlyIn  = currEntry?.trip.fly_in === 'true';
-    const currHasDriveDest = !currIsFlyIn && Array.isArray(currEntry?.trip._coords) && home?.coords;
-    const prevHasDriveDest = !prevWasFlyIn && Array.isArray(prevEntry?.trip._coords);
+    const currHasDriveDest = Array.isArray(currEntry?.trip._coords) && home?.coords;
+    const prevHasDriveDest = Array.isArray(prevEntry?.trip._coords);
 
     // Marker icons
     if (prevEntry) { prevEntry.marker.setIcon(makeIcon(markerColor(prevEntry.trip), false)); prevEntry.marker.setZIndexOffset(0); }
@@ -243,7 +218,7 @@
     // Route line (solid, from waypoints) — drawn at opacity 0 then faded in
     // after the zoom settles. Cancel any pending reveal from a previous hover.
     cancelRouteReveal();
-    if (prevEntry?.line && !flyInMode) prevEntry.line.setStyle({ opacity: 0.35 });
+    if (prevEntry?.line) prevEntry.line.setStyle({ opacity: 0.35 });
     if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
     if (currEntry?.trip._has_route) {
       // Kick off the lazy fetch if we haven't seen this slug yet. When the
@@ -253,59 +228,24 @@
     const currCoords = currEntry?.trip._has_route ? getRouteCoords(hovered) : null;
     if (currCoords && currCoords.length >= 2) {
       // Hide this trip's spoke so it doesn't show through the route line.
-      if (currEntry.line && !flyInMode) currEntry.line.setStyle({ opacity: 0 });
+      if (currEntry.line) currEntry.line.setStyle({ opacity: 0 });
       routeLine = L.polyline(currCoords, {
         color: markerColor(currEntry.trip),
         weight: 2.5,
         opacity: 0,
         className: 'route-line',
       }).addTo(map);
-      if (currIsFlyIn) {
-        // Fly-in: route revealed by restoreSpokes() on return, not here.
-        setTimeout(() => {
-          if (routeLine && !flyInMode) {
-            routeLine.setStyle({ opacity: 0.8 });
-            if (currEntry?.line) currEntry.line.setStyle({ opacity: 0 });
-          }
-        }, 80);
-      } else {
-        // Drive trip: delay 50ms then listen for moveend. The delay lets any
-        // interrupted-animation moveend fire first so we only catch B's zoom settling.
-        scheduleRouteReveal(routeLine, currEntry?.line);
-      }
+      // Delay 50ms then listen for moveend. The delay lets any
+      // interrupted-animation moveend fire first so we only catch B's zoom settling.
+      scheduleRouteReveal(routeLine, currEntry?.line);
     }
 
-    // Arc + camera
-    if (flightLine) { map.removeLayer(flightLine); flightLine = null; }
+    // Camera
     if (activeSpokeHighlight) { map.removeLayer(activeSpokeHighlight); activeSpokeHighlight = null; }
 
-    if (currIsFlyIn && Array.isArray(currEntry.trip._coords) && home?.coords) {
-      // ── Fly-in: arc + zoom out, hide all spokes ──
-      flyInMode = true;
-      disarm();
-      hideSpokes();
-
-      flightLine = L.polyline(greatCirclePoints(home.coords, currEntry.trip._coords), {
-        color: '#22c55e', weight: 2.5, opacity: 0, className: 'flight-arc',
-      }).addTo(map);
-      setTimeout(() => { if (flightLine) flightLine.setStyle({ opacity: 0.9 }); }, 80);
-
-      map.flyToBounds(
-        L.latLngBounds([home.coords, currEntry.trip._coords]),
-        { padding: [60, 60], maxZoom: 6, duration: 0.75, easeLinearity: 0.5 }
-      );
-
-    } else if ((prevWasFlyIn || flyInMode) && !currHasDriveDest) {
-      // ── Leaving fly-in (or mid-flight) to nothing ──
-      if (driveBounds) {
-        map.flyToBounds(driveBounds, { padding: [48, 32], maxZoom: 8, duration: 0.75, easeLinearity: 0.5 });
-        armReturn();
-      }
-
-    } else if (currHasDriveDest) {
+    if (currHasDriveDest) {
       // ── Drive trip: zoom in, hide all other spokes, show only this trip's line ──
       disarm();
-      if (flyInMode) restoreSpokes(); // restore if transitioning from fly-in
       hideSpokes();
 
       // No route coords available right now (either trip has none, or its
@@ -349,7 +289,6 @@
 <style>
   .map { width: 100%; height: 100%; background: #ddd8d0; }
   .map :global(.leaflet-container) { height: 100%; }
-  .map :global(.flight-arc) { transition: stroke-opacity 0.45s ease; }
   .map :global(.route-line)      { transition: stroke-opacity 0.4s ease; }
   .map :global(.spoke-highlight) { transition: stroke-opacity 0.4s ease; }
 </style>

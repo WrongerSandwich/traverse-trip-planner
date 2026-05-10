@@ -69,9 +69,7 @@
         <h2>{trip?.title || trip?._slug || ''}</h2>
         <div class="hero-meta">
           {#if trip.destination}<span class="hero-dest">{trip.destination}</span>{/if}
-          {#if trip.fly_in === 'true'}
-            <span class="hero-mode fly">✈ fly</span>
-          {:else if driveLabel}
+          {#if driveLabel}
             <span class="hero-mode drive">{driveLabel}</span>
           {/if}
         </div>
@@ -229,7 +227,6 @@
     border-radius: 2px;
   }
   .hero-mode.drive { background: oklch(93.5% 0.048 155 / 0.9); color: oklch(30% 0.12 155); }
-  .hero-mode.fly   { background: oklch(93.5% 0.048 195 / 0.9); color: oklch(26% 0.12 195); }
 
   .hero-nps {
     position: absolute;

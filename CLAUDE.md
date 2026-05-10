@@ -1,6 +1,6 @@
 # Atlas
 
-A personal travel filing cabinet — road trips and fly-in destinations — managed via Claude Code. Trips live as markdown; status is encoded by both folder location and frontmatter so files are self-describing.
+A personal road-trip filing cabinet — managed via Claude Code. Trips live as markdown; status is encoded by both folder location and frontmatter so files are self-describing. Fly-in destinations are out of scope — every idea should be drivable from `home.md`'s `home_coords`.
 
 ## Personal context
 
@@ -34,7 +34,7 @@ atlas-trip-planner/
 
 Trips progress through four stages. Earlier-stage fields are never removed — structure accrues as a trip matures.
 
-1. **idea** — single `.md` file in `ideas/`. Fields: `title`, `status`, `destination`, `pitch`, `created`, `vibe`. For fly-in trips, also add `fly_in: true` and `vehicle: rental`. Target: <30 seconds to create.
+1. **idea** — single `.md` file in `ideas/`. Fields: `title`, `status`, `destination`, `pitch`, `created`, `vibe`. Target: <30 seconds to create.
 2. **exploring** — promoted to a folder. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out.
 3. **planning** — concrete dates, lodging, reservations. The frontend's planning page enables in-place editing of any section + an "Ask Claude" chat that writes section updates back to disk.
 4. **completed** — moved to `completed/` with a `notes.md` retrospective.
@@ -47,7 +47,6 @@ Trips progress through four stages. Earlier-stage fields are never removed — s
 ```
 title, status, destination, pitch, created, vibe
 ```
-For fly-in trips also add: `fly_in: true`, `vehicle: rental`
 
 **Added at exploring:**
 ```
@@ -67,12 +66,11 @@ Optional planning flag: `locked: true` (trip is frozen; itinerary has been gener
 ### Field notes
 
 - `vibe` — short phrase describing the trip character (e.g. `"quirky mountain town"`, `"coastal scenic drive"`). Required at idea stage.
-- `fly_in: true` — marks a trip that requires flying. Add `vehicle: rental` alongside it.
-- `waypoints` — key cities along the driving route as an inline array: `[Overland Park KS, Leavenworth KS, Atchison KS]`. Used by the frontend to fetch an OSRM road-following route line. For fly-in trips, use the driving segment from arrival airport to destination. Required for the solid route line to appear on the map.
+- `waypoints` — key cities along the driving route as an inline array: `[Overland Park KS, Leavenworth KS, Atchison KS]`. Used by the frontend to fetch an OSRM road-following route line. Required for the solid route line to appear on the map.
 - `national_park: true` — add to any trip where the primary draw is an NPS unit (national park, preserve, scenic riverway). Surfaces a badge on the trip card.
 - `starred: true` — bookmarked trip. Toggled by the frontend; write it here if pre-seeding a bookmark.
 - `locked: true` — trip is frozen. Editing and Ask Claude are disabled. An AI-generated `itinerary.md` exists in the same folder. Unlock to resume editing; re-lock to regenerate the itinerary.
-- `cost_tier` — `budget` | `mid` | `splurge`. Calibrated to the trip type (fly-in "mid" is different from drive "mid").
+- `cost_tier` — `budget` | `mid` | `splurge`.
 
 Omit fields rather than guess at creation. Dates are ISO 8601. Distances default to miles.
 
@@ -80,7 +78,7 @@ Omit fields rather than guess at creation. Dates are ISO 8601. Distances default
 
 All lifecycle operations live in the SvelteKit app — the browser is the canonical interface.
 
-- **Seed** (`+` button on the home page) — generates 5 new idea files using `home.md` preferences. Optional steering prompt to focus the batch (e.g. "fly-in national parks", "within 3 hours"). Streams progress over SSE.
+- **Seed** (`+` button on the home page) — generates 5 new idea files using `home.md` preferences. Optional steering prompt to focus the batch (e.g. "fall colors within 4 hours", "scenic byways with quirky small towns"). Streams progress over SSE.
 - **Add destination** (pin button on the home page) — generates a single idea file for a specific destination you name. Includes a semantic duplicate check against existing trips.
 - **Research →** (button on idea cards) — promotes an idea into an exploring-stage folder with web-searched details: hours, prices, lodging, route highlights, logistics. Adds `waypoints` so the OSRM route line draws on the map. Cancellable mid-run (the cancel button aborts the in-flight model call, not just the listener).
 - **Start Planning** (exploring trips) — promotes `exploring/<slug>/` → `planning/<slug>/` and rewrites the status frontmatter.

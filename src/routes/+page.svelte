@@ -18,7 +18,6 @@
   let hoveredSlug  = $state(null);
   // Extended filters
   let filterOpen   = $state(false);
-  let activeMode   = $state('all');   // 'all' | 'drive' | 'fly'
   let activeDist   = $state('any');   // 'any' | 'u3' | '3-6' | '6plus'
   let activeCost   = $state('any');   // 'any' | 'budget' | 'mid' | 'splurge'
   let activeNPS      = $state(false);
@@ -43,11 +42,7 @@
     }
   }
 
-  // Reset distance when fly is selected
-  $effect(() => { if (activeMode === 'fly') activeDist = 'any'; });
-
   const attrFilterCount = $derived(
-    (activeMode !== 'all' ? 1 : 0) +
     (activeDist !== 'any' ? 1 : 0) +
     (activeCost !== 'any' ? 1 : 0) +
     (activeNPS ? 1 : 0) +
@@ -260,7 +255,6 @@
   }
 
   function clearAttrs() {
-    activeMode    = 'all';
     activeDist    = 'any';
     activeCost    = 'any';
     activeNPS     = false;
@@ -275,9 +269,7 @@
   const filtered = $derived(
     data.trips.filter(t => {
       if (activeFilter !== 'all' && t.status !== activeFilter && t._stage !== activeFilter) return false;
-      if (activeMode === 'drive' && t.fly_in === 'true') return false;
-      if (activeMode === 'fly'   && t.fly_in !== 'true') return false;
-      if (activeDist !== 'any' && t.fly_in !== 'true') {
+      if (activeDist !== 'any') {
         const h = t._drive_hours;
         if (activeDist === 'u3'    && !(h != null && h <= 3))          return false;
         if (activeDist === '3-6'   && !(h != null && h > 3 && h <= 6)) return false;
@@ -389,7 +381,7 @@
       <textarea
         id="seed-prompt"
         bind:value={seedPrompt}
-        placeholder="e.g. fall colors within 4 hours, or fly-in food trips on the East Coast"
+        placeholder="e.g. fall colors within 4 hours, or scenic byways with quirky small towns"
         rows="3"
         autofocus
         onkeydown={e => {
@@ -491,24 +483,13 @@
           <div class="filter-groups">
 
             <div class="filter-group">
-              <div class="group-label">Mode</div>
+              <div class="group-label">Drive time</div>
               <div class="chips">
-                {#each [['all','All'],['drive','Drive'],['fly','Fly']] as [val, label]}
-                  <button class="chip" class:active={activeMode === val} onclick={() => activeMode = val}>{label}</button>
+                {#each [['any','Any'],['u3','≤3hr'],['3-6','3–6hr'],['6plus','6hr+']] as [val, label]}
+                  <button class="chip" class:active={activeDist === val} onclick={() => activeDist = val}>{label}</button>
                 {/each}
               </div>
             </div>
-
-            {#if activeMode !== 'fly'}
-              <div class="filter-group">
-                <div class="group-label">Drive time</div>
-                <div class="chips">
-                  {#each [['any','Any'],['u3','≤3hr'],['3-6','3–6hr'],['6plus','6hr+']] as [val, label]}
-                    <button class="chip" class:active={activeDist === val} onclick={() => activeDist = val}>{label}</button>
-                  {/each}
-                </div>
-              </div>
-            {/if}
 
             <div class="filter-group">
               <div class="group-label">Budget</div>

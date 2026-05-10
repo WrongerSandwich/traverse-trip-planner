@@ -306,9 +306,7 @@
     <h1>{trip?.title || trip?._slug}</h1>
     <div class="meta">
       {#if trip?.destination}<span>{trip.destination}</span>{/if}
-      {#if trip?.fly_in === 'true'}
-        <span class="mode fly">✈ fly</span>
-      {:else if driveLabel}
+      {#if driveLabel}
         <span class="mode drive">{driveLabel}</span>
       {/if}
       {#if trip?._cost}<span class="cost">{trip._cost}</span>{/if}
@@ -592,7 +590,6 @@
     border-radius: 2px;
   }
   .meta .mode.drive { background: oklch(93.5% 0.048 155 / 0.9); color: oklch(30% 0.12 155); }
-  .meta .mode.fly   { background: oklch(93.5% 0.048 195 / 0.9); color: oklch(26% 0.12 195); }
   .meta .cost { font-weight: 700; color: oklch(94% 0.018 80); }
 
   .hero {

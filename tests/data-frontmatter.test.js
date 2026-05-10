@@ -77,12 +77,12 @@ body`;
 
   it('parses boolean-like and numeric values as strings', () => {
     const md = `---
-fly_in: true
+weekend_viable: true
 home_distance_mi: 420
 locked: false
 ---`;
     const fm = parseFrontmatter(md);
-    expect(fm.fly_in).toBe('true');
+    expect(fm.weekend_viable).toBe('true');
     expect(fm.home_distance_mi).toBe('420');
     expect(fm.locked).toBe('false');
   });

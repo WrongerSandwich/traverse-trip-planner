@@ -16,8 +16,6 @@
       : null
   );
 
-  const isFly = $derived(trip.fly_in === 'true');
-
   function handleKey(e) {
     if (e.key === 'Enter') return onclick?.();
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
@@ -111,9 +109,7 @@
     {/if}
 
     <div class="footer">
-      {#if isFly}
-        <span class="mode-chip fly">✈ fly</span>
-      {:else if driveLabel}
+      {#if driveLabel}
         <span class="mode-chip drive">{driveLabel}</span>
       {/if}
       {#if trip.destination}
@@ -318,10 +314,6 @@
   .mode-chip.drive {
     background: oklch(93.5% 0.048 155);
     color: oklch(32% 0.12 155);
-  }
-  .mode-chip.fly {
-    background: oklch(93.5% 0.048 195);
-    color: oklch(28% 0.12 195);
   }
 
   .footer .dest {
