@@ -1,40 +1,121 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Surface */
-  --bg:            oklch(96.5% 0.016 80);
-  --surface:       oklch(99.2% 0.007 80);
-  --surface-raised: oklch(99.8% 0.004 80);
-  --border:        oklch(88% 0.014 80);
-  --border-subtle: oklch(92% 0.010 80);
+  /* ── Brand palette ───────────────────────────────────────────────────── */
+
+  /* Forest — primary */
+  --forest-50:  #E6EFE9;
+  --forest-100: #C8DCD0;
+  --forest-200: #95B8A2;
+  --forest-400: #4D8067;
+  --forest-600: #2D5840;
+  --forest-800: #1F4332;
+  --forest-900: #112619;
+
+  /* Bone — surface/neutral */
+  --bone-50:  #FCFAF5;
+  --bone-100: #F6F1E5;
+  --bone-200: #EBE0C9;
+  --bone-400: #C9B695;
+  --bone-600: #9A8A6F;
+  --bone-800: #5F5341;
+  --bone-900: #3D3527;
+
+  /* Sunset — accent */
+  --sunset-50:  #FCEEE2;
+  --sunset-100: #F7D2B0;
+  --sunset-200: #F0B080;
+  --sunset-400: #E0884F;
+  --sunset-600: #D87B3F;
+  --sunset-800: #8D4C24;
+  --sunset-900: #5C2F14;
+
+  /* Sky — info/navy */
+  --sky-50:  #E8EEF2;
+  --sky-100: #C5D2DC;
+  --sky-200: #95ABBA;
+  --sky-400: #5B7E92;
+  --sky-600: #3D5A6E;
+  --sky-800: #25394A;
+  --sky-900: #16252F;
+
+  /* Bark — deep accent */
+  --bark-50:  #F4EDE7;
+  --bark-100: #DCC9B8;
+  --bark-200: #B7977C;
+  --bark-400: #876248;
+  --bark-600: #5C4031;
+  --bark-800: #3C2922;
+  --bark-900: #211611;
+
+  /* Embers — semantic-only (danger) */
+  --embers-600: #A82F1F;
+
+  /* ── Semantic tokens (preferred by new code) ─────────────────────────── */
+
+  --text-primary:   var(--forest-900);
+  --text-secondary: var(--forest-600);
+  --text-tertiary:  var(--bone-600);
+  --text-inverse:   var(--bone-200);
+
+  --surface-page:   var(--bone-50);
+  --surface-raised: var(--bone-100);
+  --surface-sunken: var(--bone-200);
+  --surface-invert: var(--forest-800);
+
+  --state-success: var(--forest-600);
+  --state-danger:  var(--embers-600);
+  --state-info:    var(--sky-600);
+  --state-warning: var(--sunset-400);
+
+  /* ── Legacy aliases ──────────────────────────────────────────────────── */
+  /* Component CSS still references these names. Phase 5 will purge them
+     and switch each component to the semantic tokens above. Until then,
+     these aliases keep the existing component styles working against the
+     new palette. */
+
+  /* Surfaces */
+  --bg:            var(--surface-page);
+  --surface:       var(--surface-raised);
+  --border:        var(--bone-400);
+  --border-subtle: var(--bone-200);
 
   /* Text */
-  --text:          oklch(19% 0.015 80);
-  --text-2:        oklch(44% 0.013 80);
-  --text-3:        oklch(64% 0.010 80);
+  --text:   var(--text-primary);
+  --text-2: var(--text-secondary);
+  --text-3: var(--text-tertiary);
 
-  /* Accent — deep forest green */
-  --accent:        oklch(36% 0.12 155);
-  --accent-mid:    oklch(52% 0.14 155);
-  --accent-bg:     oklch(94.5% 0.04 155);
-  --accent-border: oklch(82% 0.07 155);
+  /* Accent — forest greens */
+  --accent:        var(--forest-800);
+  --accent-mid:    var(--forest-600);
+  --accent-bg:     var(--forest-50);
+  --accent-border: var(--forest-200);
 
   /* Header */
-  --header-bg:     oklch(22% 0.028 155);
-  --header-text:   oklch(94% 0.018 80);
+  --header-bg:   var(--surface-invert);
+  --header-text: var(--text-inverse);
 
-  /* Status */
-  --idea-bg:       oklch(93% 0.024 250);
-  --idea-text:     oklch(38% 0.13 255);
-  --exploring-bg:  oklch(93% 0.040 70);
-  --exploring-text: oklch(42% 0.14 55);
-  --planning-bg:   oklch(93% 0.040 155);
-  --planning-text: oklch(34% 0.12 155);
-  --completed-bg:  oklch(93% 0.024 300);
-  --completed-text: oklch(40% 0.12 300);
+  /* Status pills — agreed mapping:
+       idea       → sky
+       exploring  → sunset
+       planning   → forest
+       completed  → bark
+   */
+  --idea-bg:        var(--sky-100);
+  --idea-text:      var(--sky-600);
+  --exploring-bg:   var(--sunset-100);
+  --exploring-text: var(--sunset-800);
+  --planning-bg:    var(--forest-100);
+  --planning-text:  var(--forest-600);
+  --completed-bg:   var(--bark-100);
+  --completed-text: var(--bark-600);
 
+  /* ── Typography ──────────────────────────────────────────────────────── */
+  /* Phase 3 introduces --font-serif and --font-mono and swaps DM Sans for
+     Inter. For Phase 2 we keep the existing sans stack to minimize change. */
   --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
+  /* ── Layout constants ────────────────────────────────────────────────── */
   --thumb-h: 220px;
   --map-h-mobile: 28vh;
   --tap-min: 44px;
@@ -42,8 +123,8 @@
 
 body {
   font-family: var(--font);
-  background: var(--bg);
-  color: var(--text);
+  background: var(--surface-page);
+  color: var(--text-primary);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
@@ -76,5 +157,5 @@ body {
 }
 .map-popup-open:hover, .map-popup-open:active {
   background: var(--accent);
-  color: oklch(97% 0.012 80);
+  color: var(--text-inverse);
 }

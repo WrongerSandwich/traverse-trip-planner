@@ -659,7 +659,7 @@
     font-size: 0.84rem;
     line-height: 1.45;
     color: var(--text);
-    background: var(--surface-raised);
+    background: var(--surface-page);
     resize: vertical;
     min-height: 60px;
   }
@@ -672,7 +672,7 @@
     font-family: var(--font);
     font-size: 0.84rem;
     color: var(--text);
-    background: var(--surface-raised);
+    background: var(--surface-page);
   }
   .pin-input:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
   .seed-actions {

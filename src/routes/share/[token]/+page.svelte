@@ -104,7 +104,7 @@
     padding: 0.5rem 0.75rem;
     font-size: 0.7rem;
     color: var(--text-3);
-    background: var(--surface-raised);
+    background: var(--surface-page);
     border-top: 1px solid var(--border-subtle);
   }
   .credit a { color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; }

@@ -787,7 +787,7 @@
     font-size: 0.86rem;
     line-height: 1.6;
     color: var(--text);
-    background: var(--surface-raised);
+    background: var(--surface-page);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 0.7rem 0.85rem;
@@ -863,7 +863,7 @@
     padding: 0.4rem 0.6rem;
     border: 1px solid var(--border);
     border-radius: 3px;
-    background: var(--surface-raised);
+    background: var(--surface-page);
     color: var(--text-2);
   }
   .share-enable, .share-copy, .share-disable {
@@ -1071,7 +1071,7 @@
     font-size: 0.86rem;
     line-height: 1.45;
     color: var(--text);
-    background: var(--surface-raised);
+    background: var(--surface-page);
     resize: none;
   }
   .chat-input textarea:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
