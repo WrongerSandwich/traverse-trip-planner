@@ -434,8 +434,13 @@
       {/if}
 
       <div class="brochure-zone">
-        <a class="btn btn-secondary btn-compact" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">View brochure</a>
-        <span class="archive-hint">A printable Field guide for this trip — Cmd-P from the brochure page to save as PDF.</span>
+        <div class="brochure-row">
+          <a class="btn btn-secondary btn-compact" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">View brochure</a>
+          <a class="btn btn-secondary btn-compact" href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Prepare brochure</a>
+        </div>
+        <span class="archive-hint">
+          The Field guide reads your notes and proposes a structured set of stops, lodging, and notes for the brochure. You review and toggle, then save.
+        </span>
       </div>
 
       <div class="danger-zone">
@@ -822,6 +827,11 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 0.4rem;
+  }
+  .brochure-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
   .archive-hint { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.45; }
 
