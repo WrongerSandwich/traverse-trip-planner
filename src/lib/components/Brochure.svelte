@@ -2,6 +2,7 @@
   import { marked } from 'marked';
   import Logo from '$lib/components/Logo.svelte';
   import PaperMap from '$lib/components/PaperMap.svelte';
+  import DestinationMap from '$lib/components/DestinationMap.svelte';
 
   let { data } = $props();
 
@@ -96,6 +97,16 @@
   // as atmosphere breaks between major sections.
   const atmosphere1 = $derived(photos[1] ?? null);
   const atmosphere2 = $derived(photos[2] ?? null);
+
+  // Destination map: only meaningful when the structured render is active
+  // and there are stops with geocoded coords. Pre-filtered here so the
+  // section header can hide if there's nothing to draw.
+  const stopsWithCoords = $derived(
+    isStructured && Array.isArray(brochure?.stops)
+      ? brochure.stops.filter(s => Array.isArray(s.coords) && s.coords.length === 2)
+      : [],
+  );
+  const hasDestinationMap = $derived(stopsWithCoords.length >= 1);
 </script>
 
 <svelte:head>
@@ -141,39 +152,28 @@
   </section>
 
   <section class="cover-belt">
-    {#if trip?.pitch}
-      <p class="pitch">{trip.pitch}</p>
-    {/if}
-    <p class="attribution">
-      Compiled by Field guide · {compiledLabel}
-    </p>
+    <div class="belt-inner">
+      <div class="belt-prose">
+        {#if trip?.pitch}<p class="pitch">{trip.pitch}</p>{/if}
+        <p class="attribution">
+          Compiled by Field guide · {compiledLabel}
+        </p>
+      </div>
+
+      {#if hasMap}
+        <aside class="route-inset" aria-label="Route from home">
+          <div class="route-inset-eyebrow">Route · {waypointRows.length} stops</div>
+          <PaperMap
+            {route}
+            waypoints={waypointCoords}
+            destination={trip?.destination || trip?.title || ''}
+            plateLabel="plate i"
+            compact
+          />
+        </aside>
+      {/if}
+    </div>
   </section>
-
-  <!-- Page 2 — Paper map + waypoints list -->
-  {#if hasMap}
-    <section class="map-page">
-      <div class="eyebrow">Route · {waypointRows.length} stops</div>
-      <PaperMap
-        {route}
-        waypoints={waypointCoords}
-        destination={trip?.destination || trip?.title || ''}
-        plateLabel="plate i"
-      />
-
-      <ol class="waypoints">
-        {#each waypointRows as row, i}
-          {@const isLast = i === waypointRows.length - 1}
-          <li>
-            <span class="wp-mark" class:wp-mark--end={isLast} aria-hidden="true">
-              {#if isLast}✕{:else}{i + 1}{/if}
-            </span>
-            <span class="wp-label">{row.label}</span>
-            <span class="wp-miles">{row.miles.toLocaleString()} mi</span>
-          </li>
-        {/each}
-      </ol>
-    </section>
-  {/if}
 
   {#if isStructured}
     <!-- Structured render from brochure.md -->
@@ -230,13 +230,22 @@
     {#if brochure.stops?.length}
       <section class="content-page" data-section="stops">
         <div class="eyebrow">Stops</div>
+
+        {#if hasDestinationMap}
+          <DestinationMap
+            stops={brochure.stops}
+            destination={trip?.destination || trip?.title || ''}
+            plateLabel="plate ii"
+          />
+        {/if}
+
         <ul class="stops-list">
-          {#each brochure.stops as stop}
+          {#each brochure.stops as stop, i}
             <li class="stop" class:stop--must-see={stop.must_see}>
               <div class="stop-head">
+                <span class="stop-n" class:stop-n--must-see={stop.must_see} aria-hidden="true">{i + 1}</span>
                 <span class="stop-name">{stop.name}</span>
                 {#if stop.category}<span class="stop-cat">{stop.category}</span>{/if}
-                {#if stop.must_see}<span class="stop-anchor" aria-label="Must see">●</span>{/if}
               </div>
               {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
               {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
@@ -450,6 +459,25 @@
     margin-top: 1.25rem;
     padding: 0 24px;
   }
+  .belt-inner {
+    display: grid;
+    grid-template-columns: 1fr minmax(0, 280px);
+    gap: 28px;
+    align-items: start;
+  }
+  .belt-prose { min-width: 0; }
+  .route-inset {
+    margin: 0;
+  }
+  .route-inset-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--bone-600);
+    margin-bottom: 6px;
+  }
   .pitch {
     font-family: var(--font-serif);
     font-size: 19px;
@@ -482,6 +510,9 @@
     /* Multi-column dense lists fall back to single column on phones. */
     .stops-list, .lodging-list, .gotchas { columns: 1; }
     .atmosphere { margin-left: 20px; margin-right: 20px; }
+    /* Cover-belt collapses: pitch above, route inset below. */
+    .belt-inner { grid-template-columns: 1fr; gap: 1.25rem; }
+    .route-inset { max-width: 320px; }
   }
 
   /* ── Page 2 — paper map + waypoints list ──────────────────────────── */
@@ -795,6 +826,26 @@
     gap: 10px;
     flex-wrap: wrap;
     margin-bottom: 0.25rem;
+  }
+  .stop-n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--forest-800);
+    color: var(--bone-200);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    flex: 0 0 auto;
+    align-self: center;
+  }
+  .stop-n--must-see {
+    background: var(--sunset-600);
+    color: var(--sunset-50);
   }
   .stop-name {
     font-family: var(--font-serif);
