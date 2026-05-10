@@ -124,7 +124,7 @@
   <div class="body">
     {#if isExploring && onpromote}
       <div class="promote-row">
-        <button class="promote-btn" onclick={onpromote}>Start Planning →</button>
+        <button class="btn btn-primary btn-compact" onclick={onpromote}>Start planning →</button>
         <p class="promote-hint">Move into Planning to start adding dates, lodging, and edits.</p>
       </div>
     {/if}
@@ -141,7 +141,7 @@
 
     {#if trip && onarchive}
       <div class="danger-zone">
-        <button class="archive-btn" onclick={onarchive}>Archive trip</button>
+        <button class="btn btn-danger btn-compact" onclick={onarchive}>Archive trip</button>
         <span class="archive-hint">Hides it from view but keeps the file so it won't be re-suggested.</span>
       </div>
     {/if}
@@ -332,22 +332,7 @@
     margin: 0 0 1.4rem;
     background: var(--planning-bg);
     border-left: 3px solid var(--planning-text);
-    border-radius: 3px;
   }
-  .promote-btn {
-    background: var(--planning-text);
-    color: oklch(97% 0.012 80);
-    border: none;
-    padding: 0.5rem 0.9rem;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background 0.12s, transform 0.1s;
-  }
-  .promote-btn:hover { background: oklch(28% 0.13 155); transform: translateY(-1px); }
   .promote-hint {
     font-size: 0.78rem;
     color: var(--planning-text);
@@ -382,20 +367,6 @@
     align-items: flex-start;
     gap: 0.4rem;
   }
-  .archive-btn {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-3);
-    font-family: var(--font);
-    font-size: 0.74rem;
-    font-weight: 600;
-    padding: 0.32rem 0.7rem;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: border-color 0.12s, color 0.12s, background 0.12s;
-  }
-  .archive-btn:hover  { border-color: oklch(58% 0.16 25); color: oklch(48% 0.18 25); background: oklch(96% 0.025 25); }
-  .archive-btn:active { transform: scale(0.97); }
   .archive-hint { font-size: 0.72rem; color: var(--text-3); line-height: 1.45; }
 
   /* ── Prose ── */

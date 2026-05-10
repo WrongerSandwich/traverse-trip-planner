@@ -71,7 +71,7 @@
 
   <div class="body">
     <div class="top-row">
-      {#if trip.vibe}<div class="vibe">{trip.vibe}</div>{/if}
+      {#if trip.vibe}<div class="eyebrow">{trip.vibe}</div>{/if}
       <button
         class="bookmark"
         class:active={starred}
@@ -95,7 +95,7 @@
 
     {#if isIdea}
       <button
-        class="research-btn"
+        class="btn btn-secondary btn-compact card-cta"
         onclick={ondeepen}
         disabled={!ondeepen}
         title={ondeepen ? 'Research this trip with web search' : 'Deepen unavailable — research model or search backend not configured'}
@@ -103,18 +103,17 @@
         Research →
       </button>
     {:else if isExploring && onpromote}
-      <button class="research-btn" onclick={onpromote} title="Move into Planning">
-        Start Planning →
+      <button class="btn btn-secondary btn-compact card-cta" onclick={onpromote} title="Move into Planning">
+        Start planning →
       </button>
     {/if}
 
     <div class="footer">
-      {#if driveLabel}
-        <span class="mode-chip drive">{driveLabel}</span>
-      {/if}
-      {#if trip.destination}
-        <span class="dest">{trip.destination}</span>
-      {/if}
+      <div class="meta">
+        {#if driveLabel}<span>{driveLabel}</span>{/if}
+        {#if driveLabel && trip.destination}<span class="sep">·</span>{/if}
+        {#if trip.destination}<span>{trip.destination}</span>{/if}
+      </div>
       {#if trip._cost}
         <span class="cost">{trip._cost}</span>
       {/if}
@@ -256,18 +255,14 @@
   .bookmark:active { color: var(--accent); transform: scale(0.92); }
   .bookmark.active { color: var(--accent); }
 
-  .vibe {
-    display: inline-flex;
+  .eyebrow {
     align-self: flex-start;
-    font-size: 0.58rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.09em;
-    color: var(--accent);
-    background: var(--accent-bg);
-    padding: 0.18rem 0.5rem;
-    border-radius: 2px;
-    margin-bottom: -0.05rem;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--bone-600);
+    margin-bottom: 2px;
   }
 
   h2 {
@@ -288,63 +283,36 @@
     margin: 0;
   }
 
-  /* ── Compact footer ── */
+  /* ── Mono meta footer — drive · dest, with cost right-aligned ── */
   .footer {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    justify-content: space-between;
+    gap: 0.5rem;
     flex-wrap: wrap;
-    padding-top: 0.45rem;
+    padding-top: 0.55rem;
     border-top: 1px solid var(--border-subtle);
     margin-top: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
+    color: var(--bone-600);
   }
-
-  /* Colored mode chip — the primary skim anchor */
-  .mode-chip {
-    display: inline-flex;
+  .footer .meta {
+    display: flex;
     align-items: center;
-    font-size: 0.62rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    padding: 0.2rem 0.55rem;
-    border-radius: 2px;
-    white-space: nowrap;
-    flex-shrink: 0;
+    gap: 0.4rem;
+    flex-wrap: wrap;
   }
-  .mode-chip.drive {
-    background: oklch(93.5% 0.048 155);
-    color: oklch(32% 0.12 155);
-  }
-
-  .footer .dest {
-    font-size: 0.72rem;
-    color: var(--text-2);
-    font-weight: 500;
-  }
-
-  .research-btn {
-    align-self: flex-start;
-    border: 1.5px solid var(--accent-border);
-    background: none;
-    color: var(--accent);
-    font-size: 0.7rem;
-    font-weight: 600;
-    font-family: var(--font);
-    padding: 0.22rem 0.6rem;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-  }
-  .research-btn:hover  { background: var(--accent); color: oklch(97% 0.012 80); }
-  .research-btn:active { background: var(--accent); color: oklch(97% 0.012 80); transform: scale(0.96); }
-
+  .footer .sep { color: var(--bone-400); }
   .footer .cost {
-    font-size: 0.72rem;
-    font-weight: 700;
     color: var(--text);
-    margin-left: auto;
+    font-weight: 500;
+    white-space: nowrap;
   }
+
+  /* Card-level secondary CTA — small inline action button on idea/exploring cards. */
+  .card-cta { align-self: flex-start; }
 
   @media (max-width: 768px) {
     /* Shorter thumbnail — saves ~50px per card */
@@ -353,6 +321,6 @@
     /* Bookmark stays visually small; ::before above provides the tap target.
        Push the hit-area further out on mobile so a thumb can land on it. */
     .bookmark::before { inset: -14px; }
-    .research-btn { min-height: var(--tap-min); display: flex; align-items: center; }
+    .card-cta { min-height: var(--tap-min); }
   }
 </style>

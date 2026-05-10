@@ -2,6 +2,7 @@
   import { marked } from 'marked';
   import { invalidateAll, goto } from '$app/navigation';
   import MiniMap from '$lib/components/MiniMap.svelte';
+  import Logo from '$lib/components/Logo.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
@@ -328,15 +329,15 @@
           Edit any section below. Use <em>Ask {data.assistantName}</em> to request changes — {data.assistantName} reads your current sections and writes updates back to the markdown.
           <div class="callout-actions">
             <button
-              class="lock-btn"
+              class="btn btn-primary"
               onclick={lockTrip}
               disabled={locking || !data.features?.lock}
               title={data.features?.lock ? '' : 'Default model not configured — see .env'}
             >
-              {locking ? 'Generating itinerary…' : '🔒 Lock trip & generate itinerary'}
+              {locking ? 'Generating itinerary…' : 'Lock trip & generate itinerary'}
             </button>
-            <button class="complete-btn" onclick={completeTrip} disabled={completing}>
-              {completing ? 'Completing…' : 'Mark as Completed'}
+            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
+              {completing ? 'Completing…' : 'Mark as completed'}
             </button>
           </div>
           {#if locking}
@@ -353,10 +354,10 @@
           <strong>Locked — read-only.</strong>
           Editing is frozen. The itinerary below was generated from your planning sections.
           <div class="callout-actions">
-            <button class="unlock-btn" onclick={unlockTrip}>Unlock to edit</button>
-            <button class="print-btn" onclick={() => window.print()}>Print / Save PDF</button>
-            <button class="complete-btn" onclick={completeTrip} disabled={completing}>
-              {completing ? 'Completing…' : 'Mark as Completed'}
+            <button class="btn btn-secondary" onclick={unlockTrip}>Unlock to edit</button>
+            <button class="btn btn-secondary" onclick={() => window.print()}>Print / save PDF</button>
+            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
+              {completing ? 'Completing…' : 'Mark as completed'}
             </button>
           </div>
         </div>
@@ -387,7 +388,7 @@
             <header class="section-header">
               <h2>{SECTION_LABELS[section] || section}</h2>
               {#if isPlanning && !isLocked && !editing[section]}
-                <button class="edit-btn" onclick={() => startEdit(section)}>Edit</button>
+                <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
               {/if}
             </header>
 
@@ -399,10 +400,10 @@
                 rows="14"
               ></textarea>
               <div class="editor-actions">
-                <button class="save-btn" onclick={() => saveEdit(section)} disabled={saving[section]}>
+                <button class="btn btn-primary btn-compact" onclick={() => saveEdit(section)} disabled={saving[section]}>
                   {saving[section] ? 'Saving…' : 'Save'}
                 </button>
-                <button class="cancel-btn" onclick={() => cancelEdit(section)} disabled={saving[section]}>
+                <button class="btn btn-tertiary btn-compact" onclick={() => cancelEdit(section)} disabled={saving[section]}>
                   Cancel
                 </button>
               </div>
@@ -432,7 +433,7 @@
       {/if}
 
       <div class="danger-zone">
-        <button class="archive-btn" onclick={archiveTrip}>Archive trip</button>
+        <button class="btn btn-danger btn-compact" onclick={archiveTrip}>Archive trip</button>
         <span class="archive-hint">Hides it from view but keeps the file so it won't be re-suggested.</span>
       </div>
     </main>
@@ -467,14 +468,20 @@
 
     <div class="chat-log">
       {#if chatMessages.length === 0}
-        <div class="chat-empty">
-          <p>Ask for changes in plain English — try things like:</p>
-          <ul>
-            <li>"Add a half-day in Leavenworth on the way."</li>
-            <li>"Trim the route down to one direct option."</li>
-            <li>"Suggest a vegetarian-friendly dinner spot in Atchison."</li>
-          </ul>
-          <p class="hint">{data.assistantName} can edit your section files directly. Updates apply on save.</p>
+        <div class="assistant-card chat-empty">
+          <div class="assistant-card__header">
+            <Logo variant="primary" size={22} />
+            <div class="assistant-card__label">{data.assistantName} says…</div>
+          </div>
+          <div class="assistant-card__body">
+            <p>Ask for changes in plain English. A few examples to start:</p>
+            <ul>
+              <li>"Add a half-day in Leavenworth on the way."</li>
+              <li>"Trim the route down to one direct option."</li>
+              <li>"Suggest a vegetarian-friendly dinner spot in Atchison."</li>
+            </ul>
+            <p class="hint">I can edit your section files directly — changes apply on save.</p>
+          </div>
         </div>
       {:else}
         {#each chatMessages as m}
@@ -633,7 +640,6 @@
     color: var(--accent);
     border-left: 3px solid var(--accent);
     padding: 0.7rem 0.95rem;
-    border-radius: 3px;
     font-size: 0.84rem;
     line-height: 1.55;
   }
@@ -653,20 +659,6 @@
     flex-wrap: wrap;
     margin-top: 0.65rem;
   }
-  .lock-btn {
-    background: oklch(25% 0.08 155);
-    color: oklch(93% 0.018 80);
-    border: none;
-    padding: 0.4rem 0.85rem;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s;
-  }
-  .lock-btn:hover:not(:disabled) { background: oklch(20% 0.06 155); }
-  .lock-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .lock-stream {
     margin-top: 0.85rem;
     padding-top: 0.85rem;
@@ -691,46 +683,6 @@
     white-space: pre-wrap;
     color: var(--text);
   }
-  .unlock-btn {
-    background: none;
-    border: 1.5px solid oklch(50% 0.12 55);
-    color: oklch(30% 0.10 55);
-    padding: 0.35rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.76rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-  }
-  .unlock-btn:hover { background: oklch(50% 0.12 55); color: oklch(97% 0 0); }
-  .print-btn {
-    background: none;
-    border: 1.5px solid oklch(60% 0.03 155);
-    color: oklch(40% 0.06 155);
-    padding: 0.35rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.76rem;
-    font-weight: 600;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s, border-color 0.12s;
-  }
-  .print-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .complete-btn {
-    background: none;
-    border: 1.5px solid oklch(55% 0.14 295);
-    color: oklch(40% 0.14 295);
-    padding: 0.35rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.76rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
-  }
-  .complete-btn:hover:not(:disabled) { background: oklch(40% 0.14 295); color: oklch(97% 0 0); }
-  .complete-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .callout.completed-callout {
     background: oklch(96% 0.03 295);
     color: oklch(35% 0.12 295);
@@ -767,20 +719,6 @@
     margin: 0;
   }
 
-  .edit-btn {
-    background: none;
-    border: 1.5px solid var(--accent-border);
-    color: var(--accent);
-    padding: 0.18rem 0.55rem;
-    border-radius: 3px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-  }
-  .edit-btn:hover { background: var(--accent); color: oklch(97% 0.012 80); }
-
   .editor {
     width: 100%;
     min-height: 260px;
@@ -801,30 +739,6 @@
     gap: 0.5rem;
     margin-top: 0.55rem;
   }
-  .save-btn {
-    background: var(--accent);
-    color: oklch(97% 0.012 80);
-    border: none;
-    padding: 0.4rem 0.9rem;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-  }
-  .save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-  .cancel-btn {
-    background: none;
-    border: 1.5px solid var(--border);
-    color: var(--text-2);
-    padding: 0.4rem 0.9rem;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-family: var(--font);
-    cursor: pointer;
-  }
-  .cancel-btn:hover:not(:disabled) { border-color: var(--accent-border); color: var(--accent); }
 
   .prose { font-size: 0.92rem; line-height: 1.75; color: var(--text-2); }
   .prose :global(h1), .prose :global(h2) {
@@ -902,20 +816,6 @@
     align-items: flex-start;
     gap: 0.4rem;
   }
-  .archive-btn {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-3);
-    font-family: var(--font);
-    font-size: 0.74rem;
-    font-weight: 600;
-    padding: 0.32rem 0.7rem;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: border-color 0.12s, color 0.12s, background 0.12s;
-  }
-  .archive-btn:hover  { border-color: oklch(58% 0.16 25); color: oklch(48% 0.18 25); background: oklch(96% 0.025 25); }
-  .archive-btn:active { transform: scale(0.97); }
   .archive-hint { font-size: 0.72rem; color: var(--text-3); line-height: 1.45; }
 
   /* ── AI chat ── */
@@ -1000,14 +900,14 @@
     gap: 0.65rem;
   }
 
-  .chat-empty {
-    color: var(--text-2);
-    font-size: 0.86rem;
-    line-height: 1.6;
+  .chat-empty .assistant-card__body p { margin: 0 0 0.5rem; }
+  .chat-empty .assistant-card__body ul { margin: 0.4rem 0 0.5rem 1.2rem; padding: 0; }
+  .chat-empty .assistant-card__body li { margin-bottom: 0.25rem; }
+  .chat-empty .assistant-card__body .hint {
+    color: var(--bone-600);
+    font-size: 0.78rem;
+    margin-top: 0.5rem;
   }
-  .chat-empty ul { margin: 0.5rem 0 0.6rem 1.2rem; }
-  .chat-empty li { margin-bottom: 0.25rem; }
-  .chat-empty .hint { color: var(--text-3); font-size: 0.78rem; }
 
   .msg {
     max-width: 88%;
@@ -1025,8 +925,8 @@
   }
   .msg.assistant {
     align-self: flex-start;
-    background: var(--accent-bg);
-    color: var(--text);
+    background: var(--surface-sunken);
+    color: var(--bark-800);
     border-bottom-left-radius: 2px;
   }
   .msg-updates {
@@ -1102,9 +1002,8 @@
     color: var(--text);
     margin: 0;
     padding: 0.7rem 1.1rem 0.6rem;
-    background: oklch(96% 0.03 55);
-    border-left: 3px solid oklch(50% 0.12 55);
-    border-radius: 4px;
+    background: var(--sunset-50);
+    border-left: 3px solid var(--sunset-800);
   }
   .itinerary-view :global(h3) {
     font-size: 0.64rem;

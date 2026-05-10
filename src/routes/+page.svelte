@@ -387,8 +387,8 @@
         }}
       ></textarea>
       <div class="seed-actions">
-        <button class="seed-cancel" onclick={() => { seedFormOpen = false; seedPrompt = ''; }}>Cancel</button>
-        <button class="seed-go" onclick={runSeed}>Generate 5 →</button>
+        <button class="btn btn-tertiary btn-compact" onclick={() => { seedFormOpen = false; seedPrompt = ''; }}>Cancel</button>
+        <button class="btn btn-primary btn-compact" onclick={runSeed}>Generate 5 →</button>
       </div>
     </div>
   {/if}
@@ -413,8 +413,8 @@
         }}
       />
       <div class="seed-actions">
-        <button class="seed-cancel" onclick={() => { pinFormOpen = false; pinDest = ''; }}>Cancel</button>
-        <button class="seed-go" onclick={runPin}>Add →</button>
+        <button class="btn btn-tertiary btn-compact" onclick={() => { pinFormOpen = false; pinDest = ''; }}>Cancel</button>
+        <button class="btn btn-primary btn-compact" onclick={runPin}>Add →</button>
       </div>
     </div>
   {/if}
@@ -535,7 +535,7 @@
             <div class="empty">
               <p>No trips match these filters.</p>
               {#if attrFilterCount > 0}
-                <button class="empty-clear" onclick={clearAttrs}>Clear filters</button>
+                <button class="btn btn-tertiary btn-compact" onclick={clearAttrs}>Clear filters</button>
               {/if}
             </div>
           {/each}
@@ -675,27 +675,6 @@
   .seed-actions {
     display: flex; gap: 0.5rem; justify-content: flex-end;
   }
-  .seed-cancel, .seed-go {
-    border-radius: 4px;
-    padding: 0.4rem 0.85rem;
-    font-family: var(--font);
-    font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .seed-cancel {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-2);
-  }
-  .seed-cancel:hover { border-color: var(--accent-border); color: var(--accent); }
-  .seed-go {
-    background: var(--accent);
-    border: 1px solid var(--accent);
-    color: oklch(97% 0.012 80);
-    font-weight: 700;
-  }
-  .seed-go:hover { background: oklch(28% 0.13 155); }
 
   header h1 {
     font-family: var(--font-serif);
@@ -925,20 +904,6 @@
     align-items: center;
     gap: 0.75rem;
   }
-  .empty-clear {
-    border: 1.5px solid var(--border);
-    background: none;
-    padding: 0.35rem 0.9rem;
-    border-radius: 3px;
-    font-size: 0.76rem;
-    font-weight: 500;
-    cursor: pointer;
-    color: var(--text-2);
-    font-family: var(--font);
-    transition: border-color 0.12s, color 0.12s;
-  }
-  .empty-clear:hover { border-color: var(--accent-border); color: var(--accent); }
-
   /* ── Mobile map toggle button — hidden on desktop ── */
   .map-toggle { display: none; }
 

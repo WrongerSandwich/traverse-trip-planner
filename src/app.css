@@ -133,6 +133,99 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Button utilities ────────────────────────────────────────────────── */
+/* Three variants per spec §7. Sans, weight 500, 4px radius. Sentence case
+   for button labels — never UPPERCASE — per the brand's quiet civic register. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1.5px solid transparent;
+  border-radius: 4px;
+  padding: 10px 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--forest-800);
+  color: var(--bone-200);
+  border-color: var(--forest-800);
+}
+.btn-primary:hover:not(:disabled)  { background: var(--forest-900); border-color: var(--forest-900); }
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--bark-600);
+  border: 0.5px solid var(--bark-600);
+}
+.btn-secondary:hover:not(:disabled)  { background: var(--bone-100); }
+.btn-secondary:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-tertiary {
+  background: transparent;
+  color: var(--bone-600);
+  border-color: transparent;
+  padding: 8px 12px;
+}
+.btn-tertiary:hover:not(:disabled) { color: var(--forest-800); }
+
+.btn-compact { padding: 8px 14px; font-size: 12px; }
+
+/* Danger — destructive confirmations. Reserved for embers (the spec's only
+   non-brand semantic color). */
+.btn-danger {
+  background: transparent;
+  color: var(--embers-600);
+  border: 0.5px solid var(--embers-600);
+}
+.btn-danger:hover:not(:disabled)  { background: var(--sunset-50); }
+.btn-danger:active:not(:disabled) { transform: scale(0.98); }
+
+/* ── AI assistant card ───────────────────────────────────────────────── */
+/* "Field guide says…" pattern from spec §7. Bone-200 surface with the badge
+   mark + italic Fraunces label, then a body paragraph in bark-800 and an
+   optional action row. Used wherever the assistant speaks to the user. */
+.assistant-card {
+  background: var(--surface-sunken);
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+.assistant-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.assistant-card__label {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-style: italic;
+  font-weight: 500;
+  color: var(--forest-800);
+}
+.assistant-card__body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--bark-800);
+}
+.assistant-card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 /* ── Type-scale utilities ────────────────────────────────────────────── */
 /* Two weights only — 400 regular and 500 medium. Avoid 600+ against the
    quiet civic register the brand calls for. */
