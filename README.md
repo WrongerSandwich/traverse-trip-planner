@@ -1,6 +1,6 @@
 # Traverse
 
-[![CI](https://github.com/WrongerSandwich/atlas-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/WrongerSandwich/atlas-trip-planner/actions/workflows/ci.yml)
+[![CI](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml/badge.svg)](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml)
 
 A personal road-trip filing cabinet — managed through a web UI and an LLM. Trips live as markdown files that progress through a lifecycle: **idea → exploring → planning → completed**.
 

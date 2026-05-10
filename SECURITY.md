@@ -4,7 +4,7 @@ Traverse is a self-hosted personal tool — there is no central server holding u
 
 ## Reporting a vulnerability
 
-For anything that could leak credentials, allow code execution, or otherwise cause harm to a self-hoster, please **do not file a public GitHub issue**. Instead, use [GitHub's private security advisories](https://github.com/WrongerSandwich/atlas-trip-planner/security/advisories/new) so the issue can be triaged before disclosure.
+For anything that could leak credentials, allow code execution, or otherwise cause harm to a self-hoster, please **do not file a public GitHub issue**. Instead, use [GitHub's private security advisories](https://github.com/WrongerSandwich/traverse/security/advisories/new) so the issue can be triaged before disclosure.
 
 For lower-severity concerns (suspicious dependency, stale recommendation, misleading docs), a regular GitHub issue is fine.
 
