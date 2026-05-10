@@ -43,26 +43,6 @@
 
   const renderMd = (md) => marked.parse(md || '', { mangle: false, headerIds: false });
 
-  // Distance-from-home running total for the waypoints list. We don't have
-  // intermediate distances cached, so approximate via haversine on the
-  // pre-geocoded waypoint pairs — these are decorative anyway.
-  function haversineMi([lat1, lon1], [lat2, lon2]) {
-    const R = 3959;
-    const toRad = d => d * Math.PI / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return Math.round(2 * R * Math.asin(Math.sqrt(a)));
-  }
-  const waypointRows = $derived.by(() => {
-    if (!waypointCoords.length) return [];
-    let cum = 0;
-    return waypointCoords.map((w, i) => {
-      if (i > 0) cum += haversineMi(waypointCoords[i - 1].coord, w.coord);
-      return { ...w, miles: cum };
-    });
-  });
-
   // Meta row: date · distance · drive time · stops. JetBrains Mono.
   function fmtDate(iso) {
     if (!iso) return null;
@@ -162,7 +142,7 @@
 
       {#if hasMap}
         <aside class="route-inset" aria-label="Route from home">
-          <div class="route-inset-eyebrow">Route · {waypointRows.length} stops</div>
+          <div class="route-inset-eyebrow">Route · {waypointCoords.length} stops</div>
           <PaperMap
             {route}
             waypoints={waypointCoords}
@@ -515,12 +495,7 @@
     .route-inset { max-width: 320px; }
   }
 
-  /* ── Page 2 — paper map + waypoints list ──────────────────────────── */
-
-  .map-page {
-    margin-top: 2rem;
-    padding: 0 24px;
-  }
+  /* Section eyebrow — small mono caption used above content sections. */
   .eyebrow {
     font-family: var(--font-mono);
     font-size: 11px;
@@ -529,51 +504,6 @@
     text-transform: uppercase;
     color: var(--bone-600);
     margin-bottom: 1rem;
-  }
-
-  .waypoints {
-    list-style: none;
-    margin: 1.5rem 0 0;
-    padding: 0;
-    border-top: 0.5px solid var(--bone-400);
-  }
-  .waypoints li {
-    display: grid;
-    grid-template-columns: 32px 1fr auto;
-    align-items: center;
-    column-gap: 14px;
-    padding: 12px 0;
-    border-bottom: 0.5px solid var(--bone-400);
-  }
-  .wp-mark {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--forest-800);
-    color: var(--bone-200);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 500;
-  }
-  .wp-mark--end {
-    background: var(--sunset-600);
-    color: var(--sunset-50);
-  }
-  .wp-label {
-    font-family: var(--font-serif);
-    font-size: 16px;
-    font-weight: 500;
-    color: var(--forest-800);
-    letter-spacing: 0.003em;
-  }
-  .wp-miles {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--bone-600);
-    letter-spacing: 0.08em;
   }
 
   /* ── Page 3+ — itinerary / planning sections ──────────────────────── */
@@ -865,11 +795,6 @@
     border: 0.5px solid var(--bone-400);
     border-radius: 2px;
   }
-  .stop-anchor {
-    color: var(--sunset-600);
-    font-size: 10px;
-    align-self: center;
-  }
   .stop--must-see .stop-name { color: var(--forest-900); }
   .stop-hours,
   .stop-addr {
@@ -1056,32 +981,24 @@
       margin: 0;
     }
 
-    /* Major section breaks: cover, map, and each content section
-       start on a fresh page. The back cover flows after the last
-       content section without forcing its own page; with 0.75" margins
-       and small footer height, it almost always lands cleanly. */
+    /* Major section breaks: cover and each content section start on a
+       fresh page. The back cover flows after the last content section
+       without forcing its own page; with 0.75" margins and small footer
+       height, it almost always lands cleanly. */
     .cover,
-    .map-page,
     .content-page {
       page-break-after: always;
       break-after: page;
     }
 
     /* The cover-belt is part of the cover spread visually — keep it
-       grouped with the cover on the same page. */
+       grouped with the cover on the same page. The route inset rides
+       along inside it. */
     .cover-belt {
       page-break-before: avoid;
       break-before: avoid;
       margin-top: 1.5rem;
       padding: 0 0.25in;
-    }
-
-    /* Same for the waypoints list — it belongs with the map page. */
-    .waypoints {
-      page-break-before: avoid;
-      break-before: avoid;
-      page-break-inside: avoid;
-      break-inside: avoid;
     }
 
     /* Eyebrows + section headings should never orphan from the body

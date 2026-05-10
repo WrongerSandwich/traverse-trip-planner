@@ -20,7 +20,7 @@
   //   compact     — boolean; smaller viewBox, simpler decoration
 
   import { buildProjection, pathFromCoords } from '$lib/utils/projection.js';
-  import { stateOutlinePaths } from '$lib/utils/terrain.js';
+  import { stateOutlinePaths, riverPaths } from '$lib/utils/terrain.js';
 
   let {
     route = [],
@@ -42,6 +42,9 @@
 
   const routePath = $derived(proj ? pathFromCoords(route, proj.project) : '');
   const statePaths = $derived(proj ? stateOutlinePaths(proj) : []);
+  // Rivers: cap zoom at 4 in compact mode so small streams don't clutter
+  // the inset; full mode gets the full curated set.
+  const rivers = $derived(proj ? riverPaths(proj, { maxZoom: compact ? 4 : 5 }) : []);
 
   const waypointPixels = $derived(
     proj
@@ -82,11 +85,20 @@
     </defs>
     <rect width={VB_W} height={VB_H} fill="url(#contour)" />
 
-    <!-- State outlines: thin forest-200 strokes for real terrain context -->
+    <!-- State outlines: thin forest-400 strokes for real terrain context -->
     {#if statePaths.length}
       <g class="terrain">
         {#each statePaths as path}
           <path d={path} fill="none" stroke="var(--forest-400)" stroke-width="0.75" opacity="0.45" vector-effect="non-scaling-stroke" />
+        {/each}
+      </g>
+    {/if}
+
+    <!-- Major rivers: sky-200 strokes thicker than state hairlines -->
+    {#if rivers.length}
+      <g class="rivers">
+        {#each rivers as r}
+          <path d={r.path} fill="none" stroke="var(--sky-200)" stroke-width={compact ? 2 : 2.5} stroke-linecap="round" stroke-linejoin="round" opacity="0.55" vector-effect="non-scaling-stroke" />
         {/each}
       </g>
     {/if}

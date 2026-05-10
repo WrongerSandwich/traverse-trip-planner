@@ -12,7 +12,7 @@
   //   plateLabel  — small mono caption ("plate ii", etc.)
 
   import { buildProjection } from '$lib/utils/projection.js';
-  import { stateOutlinePaths } from '$lib/utils/terrain.js';
+  import { stateOutlinePaths, riverPaths } from '$lib/utils/terrain.js';
 
   let {
     stops = [],
@@ -37,6 +37,9 @@
   );
 
   const statePaths = $derived(proj ? stateOutlinePaths(proj, { padDegrees: 1.0 }) : []);
+  // Destination maps are tightly zoomed — keep only the bigger rivers so we
+  // don't draw faint creeks across the whole stops cluster.
+  const rivers = $derived(proj ? riverPaths(proj, { padDegrees: 0.5, maxZoom: 5 }) : []);
 
   const pixels = $derived(
     proj ? located.map(s => ({ ...s, xy: proj.project(...s.coords) })) : [],
@@ -80,6 +83,15 @@
       <g class="terrain">
         {#each statePaths as path}
           <path d={path} fill="none" stroke="var(--forest-400)" stroke-width="0.75" opacity="0.45" vector-effect="non-scaling-stroke" />
+        {/each}
+      </g>
+    {/if}
+
+    <!-- Major rivers -->
+    {#if rivers.length}
+      <g class="rivers">
+        {#each rivers as r}
+          <path d={r.path} fill="none" stroke="var(--sky-200)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.55" vector-effect="non-scaling-stroke" />
         {/each}
       </g>
     {/if}

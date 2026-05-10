@@ -1,12 +1,16 @@
-// Project US state outlines into SVG path strings for a paper-map view.
+// Project geographic features into SVG path strings for paper-map views.
 //
-// usStates.json is a GeoJSON FeatureCollection of state polygons (50 +
-// DC + Puerto Rico) sourced from US Census Bureau public-domain
-// cartographic boundary files. We filter to states whose bbox overlaps
-// the projection's bbox (with a generous pad), then project each ring
-// into SVG path strings.
+// Two layers shipped:
+//   us-states.json — Polygon/MultiPolygon outlines (50 + DC + PR)
+//   na-rivers.json — LineString/MultiLineString centerlines for major
+//     North American rivers (Natural Earth 1:50m, NA bbox filter)
+//
+// Each helper filters features whose bbox overlaps the projection's
+// bbox (with a configurable pad), then projects each ring/line into
+// SVG path strings.
 
 import usStates from '../data/us-states.json';
+import naRivers from '../data/na-rivers.json';
 
 function ringPath(ring, project) {
   // GeoJSON rings are [[lon, lat], …]. The first/last point repeats.
@@ -32,18 +36,36 @@ function bboxIntersects(bbox, [minLon, minLat, maxLon, maxLat], pad) {
   );
 }
 
+function flattenCoords(geometry) {
+  // Returns a flat array of [lon, lat] pairs across any geometry type.
+  switch (geometry.type) {
+    case 'Polygon': return geometry.coordinates.flat(1);
+    case 'MultiPolygon': return geometry.coordinates.flat(2);
+    case 'LineString': return geometry.coordinates;
+    case 'MultiLineString': return geometry.coordinates.flat(1);
+    default: return [];
+  }
+}
+
 function featureBbox(feature) {
-  const coords = feature.geometry.type === 'MultiPolygon'
-    ? feature.geometry.coordinates.flat(2)
-    : feature.geometry.coordinates.flat(1);
   let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-  for (const [lon, lat] of coords) {
+  for (const [lon, lat] of flattenCoords(feature.geometry)) {
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
     if (lat < minLat) minLat = lat;
     if (lat > maxLat) maxLat = lat;
   }
   return [minLon, minLat, maxLon, maxLat];
+}
+
+function lineToPath(line, project) {
+  if (!line?.length) return '';
+  return line
+    .map(([lon, lat], i) => {
+      const [x, y] = project(lat, lon);
+      return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
 }
 
 /**
@@ -64,4 +86,37 @@ export function stateOutlinePaths(projection, { padDegrees = 1.5 } = {}) {
     }
   }
   return paths;
+}
+
+/**
+ * Return river path strings + metadata (name, min_zoom) for rivers that
+ * overlap the projection's bbox. `maxZoom` lets callers hide smaller
+ * streams on tighter maps where they'd clutter the picture.
+ */
+export function riverPaths(projection, { padDegrees = 0.8, maxZoom = 5 } = {}) {
+  if (!projection?.bbox) return [];
+  const rivers = [];
+  for (const feature of naRivers.features) {
+    const z = feature.properties?.min_zoom;
+    if (typeof z === 'number' && z > maxZoom) continue;
+    const fbbox = featureBbox(feature);
+    if (!bboxIntersects(projection.bbox, fbbox, padDegrees)) continue;
+    const g = feature.geometry;
+    if (g.type === 'LineString') {
+      rivers.push({
+        name: feature.properties?.name,
+        zoom: z,
+        path: lineToPath(g.coordinates, projection.project),
+      });
+    } else if (g.type === 'MultiLineString') {
+      for (const line of g.coordinates) {
+        rivers.push({
+          name: feature.properties?.name,
+          zoom: z,
+          path: lineToPath(line, projection.project),
+        });
+      }
+    }
+  }
+  return rivers;
 }
