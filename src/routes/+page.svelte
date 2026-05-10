@@ -3,6 +3,7 @@
   import TripCard from '$lib/components/TripCard.svelte';
   import DetailPanel from '$lib/components/DetailPanel.svelte';
   import ActionPanel from '$lib/components/ActionPanel.svelte';
+  import Logo from '$lib/components/Logo.svelte';
   import { streamAction } from '$lib/utils/action.js';
   import { goto, invalidateAll } from '$app/navigation';
   import { browser } from '$app/environment';
@@ -311,11 +312,7 @@
 
   <header bind:this={headerEl}>
     <div class="wordmark">
-      <svg class="logo" width="18" height="26" viewBox="0 0 9 13" aria-hidden="true">
-        <!-- Compass needle: solid north, muted south -->
-        <path d="M4.5 0L1 6.5h7L4.5 0z" fill="currentColor"/>
-        <path d="M4.5 13L8 6.5H1L4.5 13z" fill="currentColor" opacity="0.3"/>
-      </svg>
+      <Logo variant="inverse" size={28} />
       <h1>Traverse</h1>
     </div>
     <button
@@ -699,12 +696,6 @@
     font-weight: 700;
   }
   .seed-go:hover { background: oklch(28% 0.13 155); }
-
-  .logo {
-    flex-shrink: 0;
-    color: var(--header-text);
-    display: block;
-  }
 
   header h1 {
     font-family: var(--font-serif);
