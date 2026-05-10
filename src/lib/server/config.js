@@ -13,12 +13,12 @@ const FEATURE_SLOT = {
 
 const slots = {
   modelDefault: {
-    provider: env('ATLAS_MODEL_DEFAULT_PROVIDER', 'anthropic'),
-    model: env('ATLAS_MODEL_DEFAULT', 'claude-sonnet-4-6'),
+    provider: env('TRAVERSE_MODEL_DEFAULT_PROVIDER', 'anthropic'),
+    model: env('TRAVERSE_MODEL_DEFAULT', 'claude-sonnet-4-6'),
   },
   modelResearch: {
-    provider: env('ATLAS_MODEL_RESEARCH_PROVIDER', 'anthropic'),
-    model: env('ATLAS_MODEL_RESEARCH', 'claude-opus-4-7'),
+    provider: env('TRAVERSE_MODEL_RESEARCH_PROVIDER', 'anthropic'),
+    model: env('TRAVERSE_MODEL_RESEARCH', 'claude-opus-4-7'),
   },
 };
 
@@ -26,8 +26,8 @@ const features = {};
 for (const [feature, slotKey] of Object.entries(FEATURE_SLOT)) {
   const upper = feature.toUpperCase();
   features[feature] = {
-    provider: env(`ATLAS_MODEL_${upper}_PROVIDER`, slots[slotKey].provider),
-    model: env(`ATLAS_MODEL_${upper}`, slots[slotKey].model),
+    provider: env(`TRAVERSE_MODEL_${upper}_PROVIDER`, slots[slotKey].provider),
+    model: env(`TRAVERSE_MODEL_${upper}`, slots[slotKey].model),
   };
 }
 
@@ -35,10 +35,10 @@ export const config = {
   ...slots,
   features,
   search: {
-    provider: env('ATLAS_SEARCH_PROVIDER', 'anthropic-builtin'),
+    provider: env('TRAVERSE_SEARCH_PROVIDER', 'anthropic-builtin'),
   },
-  assistantName: env('ATLAS_ASSISTANT_NAME', 'Claude'),
-  shareSecret: env('ATLAS_SHARE_SECRET', ''),
+  assistantName: env('TRAVERSE_ASSISTANT_NAME', 'Field guide'),
+  shareSecret: env('TRAVERSE_SHARE_SECRET', ''),
 };
 
 const PROVIDER_KEYS = {

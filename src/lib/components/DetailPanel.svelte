@@ -69,9 +69,7 @@
         <h2>{trip?.title || trip?._slug || ''}</h2>
         <div class="hero-meta">
           {#if trip.destination}<span class="hero-dest">{trip.destination}</span>{/if}
-          {#if trip.fly_in === 'true'}
-            <span class="hero-mode fly">✈ fly</span>
-          {:else if driveLabel}
+          {#if driveLabel}
             <span class="hero-mode drive">{driveLabel}</span>
           {/if}
         </div>
@@ -126,16 +124,16 @@
   <div class="body">
     {#if isExploring && onpromote}
       <div class="promote-row">
-        <button class="promote-btn" onclick={onpromote}>Start Planning →</button>
+        <button class="btn btn-primary btn-compact" onclick={onpromote}>Start planning →</button>
         <p class="promote-hint">Move into Planning to start adding dates, lodging, and edits.</p>
       </div>
     {/if}
     {#if loading}
-      <div class="empty">Loading…</div>
+      <div class="empty">Reading the file…</div>
     {:else if !tripFiles || tabs.length === 0}
       <div class="empty">
-        <p>No detailed research yet.</p>
-        <p class="empty-hint">Run <code>/deepen {trip?._slug || ''}</code> to flesh this out.</p>
+        <p>Nothing researched yet.</p>
+        <p class="empty-hint">Use the <strong>Research</strong> button on the trip card to flesh this out.</p>
       </div>
     {:else}
       <div class="prose">{@html renderedContent}</div>
@@ -143,7 +141,7 @@
 
     {#if trip && onarchive}
       <div class="danger-zone">
-        <button class="archive-btn" onclick={onarchive}>Archive trip</button>
+        <button class="btn btn-danger btn-compact" onclick={onarchive}>Archive trip</button>
         <span class="archive-hint">Hides it from view but keeps the file so it won't be re-suggested.</span>
       </div>
     {/if}
@@ -154,7 +152,7 @@
 <style>
   .backdrop {
     position: fixed; inset: 0;
-    background: oklch(10% 0 0 / 0.45);
+    background: rgba(20, 20, 20, 0.45);
     z-index: 900;
     opacity: 0; pointer-events: none;
     transition: opacity 0.25s;
@@ -164,8 +162,8 @@
   .panel {
     position: fixed; top: 0; right: 0;
     width: 520px; max-width: 100vw; height: 100vh;
-    background: var(--surface);
-    box-shadow: -12px 0 60px oklch(0% 0 0 / 0.2), -2px 0 8px oklch(0% 0 0 / 0.08);
+    background: var(--surface-raised);
+    box-shadow: -12px 0 60px rgba(0, 0, 0, 0.2), -2px 0 8px rgba(0, 0, 0, 0.08);
     z-index: 901;
     display: flex; flex-direction: column;
     transform: translateX(100%);
@@ -179,7 +177,7 @@
     height: 240px;
     flex-shrink: 0;
     overflow: hidden;
-    background: var(--border);
+    background: var(--bone-400);
   }
   .hero img {
     width: 100%; height: 100%;
@@ -187,7 +185,7 @@
   }
   .hero-overlay {
     position: absolute; inset: 0;
-    background: linear-gradient(to top, oklch(12% 0.01 80 / 0.88) 0%, oklch(12% 0.01 80 / 0.1) 55%, transparent 100%);
+    background: linear-gradient(to top, rgba(31, 25, 14, 0.88) 0%, rgba(31, 25, 14, 0.1) 55%, transparent 100%);
     display: flex; flex-direction: column; justify-content: flex-end;
     padding: 1.25rem 1.4rem;
     gap: 0.3rem;
@@ -197,18 +195,19 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--accent-bg);
-    background: var(--accent);
+    color: var(--forest-50);
+    background: var(--forest-800);
     padding: 0.16rem 0.45rem;
     border-radius: 2px;
     align-self: flex-start;
   }
   .hero h2 {
-    font-size: 1.45rem;
-    font-weight: 800;
+    font-family: var(--font-serif);
+    font-size: 1.55rem;
+    font-weight: 500;
     line-height: 1.15;
-    color: oklch(97% 0.008 80);
-    letter-spacing: -0.025em;
+    color: var(--bone-50);
+    letter-spacing: 0.005em;
     margin: 0;
   }
   .hero-meta {
@@ -217,7 +216,7 @@
   }
   .hero-dest {
     font-size: 0.78rem;
-    color: oklch(80% 0.012 80);
+    color: var(--bone-400);
     font-weight: 400;
   }
   .hero-mode {
@@ -228,8 +227,7 @@
     padding: 0.15rem 0.45rem;
     border-radius: 2px;
   }
-  .hero-mode.drive { background: oklch(93.5% 0.048 155 / 0.9); color: oklch(30% 0.12 155); }
-  .hero-mode.fly   { background: oklch(93.5% 0.048 195 / 0.9); color: oklch(26% 0.12 195); }
+  .hero-mode.drive { background: var(--forest-100); color: var(--forest-800); }
 
   .hero-nps {
     position: absolute;
@@ -237,16 +235,16 @@
     display: flex; align-items: center; gap: 0.22rem;
     font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
     padding: 0.2rem 0.5rem; border-radius: 2px;
-    background: oklch(30% 0.07 52 / 0.9);
-    color: oklch(93% 0.022 68);
-    border: 1px solid oklch(62% 0.05 65 / 0.3);
+    background: var(--sunset-800);
+    color: var(--bone-100);
+    border: 1px solid rgba(201, 182, 149, 0.3);
   }
 
   /* Floating hero controls — translucent dark pill backdrop keeps them
      legible against any photo, including high-key/light ones where pure
      white-on-image disappears. */
   .panel-bookmark, .close.light {
-    background: oklch(0% 0 0 / 0.45);
+    background: rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     border-radius: 50%;
@@ -260,29 +258,29 @@
 
   .panel-bookmark {
     position: absolute; top: 0.7rem; right: 4.25rem;
-    color: oklch(96% 0.01 80);
+    color: var(--bone-50);
   }
-  .panel-bookmark:hover  { background: oklch(0% 0 0 / 0.65); color: oklch(99% 0 0); transform: scale(1.08); }
-  .panel-bookmark.active { background: oklch(0% 0 0 / 0.55); color: oklch(88% 0.12 85); }
+  .panel-bookmark:hover  { background: rgba(0, 0, 0, 0.65); color: var(--bone-50); transform: scale(1.08); }
+  .panel-bookmark.active { background: rgba(0, 0, 0, 0.55); color: var(--sunset-400); }
 
   .close {
     position: absolute; top: 0.7rem; right: 0.75rem;
     font-size: 1.3rem;
     font-weight: 600;
   }
-  .close.light       { color: oklch(98% 0 0); }
-  .close.light:hover { background: oklch(0% 0 0 / 0.65); color: oklch(99% 0 0); }
+  .close.light       { color: var(--bone-50); }
+  .close.light:hover { background: rgba(0, 0, 0, 0.65); color: var(--bone-50); }
   .close.dark {
     background: none; border: none; cursor: pointer; line-height: 1;
     padding: 0.3rem; border-radius: 3px;
     transition: background 0.12s, color 0.12s;
-    color: oklch(55% 0.02 155);
+    color: var(--bone-600);
   }
-  .close.dark:hover  { color: var(--header-text); background: oklch(100% 0 0 / 0.08); }
+  .close.dark:hover  { color: var(--text-inverse); background: rgba(255, 255, 255, 0.08); }
 
   /* ── Dark fallback header (no photo) ── */
   .header-dark {
-    background: var(--header-bg);
+    background: var(--surface-invert);
     padding: 1.4rem 1.4rem 1.3rem;
     display: flex; align-items: flex-start; gap: 0.75rem;
     flex-shrink: 0;
@@ -293,34 +291,35 @@
     display: inline-block;
     font-size: 0.6rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.1em;
-    color: oklch(62% 0.022 155);
+    color: var(--bone-600);
     margin-bottom: 0.35rem;
   }
   .header-dark h2 {
-    font-size: 1.3rem; font-weight: 800; line-height: 1.2;
-    color: var(--header-text); letter-spacing: -0.02em;
+    font-family: var(--font-serif);
+    font-size: 1.4rem; font-weight: 500; line-height: 1.2;
+    color: var(--text-inverse); letter-spacing: 0.005em;
     margin: 0;
   }
-  .dark-dest { font-size: 0.78rem; color: oklch(62% 0.022 155); margin-top: 0.3rem; }
+  .dark-dest { font-size: 0.78rem; color: var(--bone-600); margin-top: 0.3rem; }
 
   /* ── Map ── */
-  .panel-map { height: 140px; flex-shrink: 0; background: var(--border); }
+  .panel-map { height: 140px; flex-shrink: 0; background: var(--bone-400); }
 
   /* ── Tabs ── */
   .tabs {
-    display: flex; border-bottom: 1px solid var(--border-subtle);
+    display: flex; border-bottom: 1px solid var(--bone-200);
     flex-shrink: 0; overflow-x: auto;
-    background: var(--surface);
+    background: var(--surface-raised);
   }
   .tab {
     padding: 0.65rem 1.15rem; font-size: 0.78rem; font-weight: 500;
-    color: var(--text-3); cursor: pointer; border: none; background: none;
+    color: var(--text-tertiary); cursor: pointer; border: none; background: none;
     border-bottom: 2px solid transparent; white-space: nowrap;
     transition: color 0.12s;
-    font-family: var(--font);
+    font-family: var(--font-sans);
   }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab:hover { color: var(--text-primary); }
+  .tab.active { color: var(--forest-800); border-bottom-color: var(--forest-800); font-weight: 600; }
 
   /* ── Body ── */
   .body { flex: 1; overflow-y: auto; padding: 1.5rem 1.75rem 3rem; }
@@ -333,22 +332,7 @@
     margin: 0 0 1.4rem;
     background: var(--planning-bg);
     border-left: 3px solid var(--planning-text);
-    border-radius: 3px;
   }
-  .promote-btn {
-    background: var(--planning-text);
-    color: oklch(97% 0.012 80);
-    border: none;
-    padding: 0.5rem 0.9rem;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background 0.12s, transform 0.1s;
-  }
-  .promote-btn:hover { background: oklch(28% 0.13 155); transform: translateY(-1px); }
   .promote-hint {
     font-size: 0.78rem;
     color: var(--planning-text);
@@ -357,7 +341,7 @@
   }
 
   .empty {
-    color: var(--text-3);
+    color: var(--text-tertiary);
     font-size: 0.875rem;
     padding: 3rem 0;
     text-align: center;
@@ -366,8 +350,8 @@
   .empty-hint { margin-top: 0.5rem; font-size: 0.8rem; }
   .empty-hint code {
     font-family: monospace;
-    background: var(--accent-bg);
-    color: var(--accent);
+    background: var(--forest-50);
+    color: var(--forest-800);
     padding: 0.1em 0.35em;
     border-radius: 3px;
     font-size: 0.82em;
@@ -377,50 +361,36 @@
   .danger-zone {
     margin-top: 2.25rem;
     padding-top: 1.1rem;
-    border-top: 1px dashed var(--border);
+    border-top: 1px dashed var(--bone-400);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 0.4rem;
   }
-  .archive-btn {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-3);
-    font-family: var(--font);
-    font-size: 0.74rem;
-    font-weight: 600;
-    padding: 0.32rem 0.7rem;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: border-color 0.12s, color 0.12s, background 0.12s;
-  }
-  .archive-btn:hover  { border-color: oklch(58% 0.16 25); color: oklch(48% 0.18 25); background: oklch(96% 0.025 25); }
-  .archive-btn:active { transform: scale(0.97); }
-  .archive-hint { font-size: 0.72rem; color: var(--text-3); line-height: 1.45; }
+  .archive-hint { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.45; }
 
   /* ── Prose ── */
-  .prose { font-size: 0.9rem; line-height: 1.75; color: var(--text-2); }
+  .prose { font-size: 0.9rem; line-height: 1.75; color: var(--text-secondary); }
   .prose :global(h1), .prose :global(h2) {
     font-size: 1.05rem; font-weight: 700; margin: 1.6rem 0 0.55rem;
-    color: var(--text); letter-spacing: -0.015em;
+    color: var(--text-primary); letter-spacing: -0.015em;
   }
   .prose :global(h3) {
     font-size: 0.9rem; font-weight: 700; margin: 1.2rem 0 0.35rem;
-    color: var(--text);
+    color: var(--text-primary);
   }
   .prose :global(h1:first-child), .prose :global(h2:first-child), .prose :global(h3:first-child) { margin-top: 0; }
   .prose :global(p) { margin: 0 0 0.9rem; }
   .prose :global(ul), .prose :global(ol) { margin: 0 0 0.9rem 1.3rem; }
   .prose :global(li) { margin-bottom: 0.35rem; }
-  .prose :global(strong) { font-weight: 700; color: var(--text); }
-  .prose :global(a) { color: var(--accent-mid); text-decoration: none; }
+  .prose :global(strong) { font-weight: 700; color: var(--text-primary); }
+  .prose :global(a) { color: var(--forest-600); text-decoration: none; }
   .prose :global(a:hover) { text-decoration: underline; }
-  .prose :global(hr) { border: none; border-top: 1px solid var(--border-subtle); margin: 1.5rem 0; }
-  .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--accent-bg); color: var(--accent); padding: 0.1em 0.4em; border-radius: 3px; }
+  .prose :global(hr) { border: none; border-top: 1px solid var(--bone-200); margin: 1.5rem 0; }
+  .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--forest-50); color: var(--forest-800); padding: 0.1em 0.4em; border-radius: 3px; }
   .prose :global(table) { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin: 0 0 1.1rem; }
-  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.45rem 0.65rem; border-bottom: 2px solid var(--border); color: var(--text); }
-  .prose :global(td) { padding: 0.4rem 0.65rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.45rem 0.65rem; border-bottom: 2px solid var(--bone-400); color: var(--text-primary); }
+  .prose :global(td) { padding: 0.4rem 0.65rem; border-bottom: 1px solid var(--bone-200); vertical-align: top; }
   .prose :global(tr:last-child td) { border-bottom: none; }
 
   @media (max-width: 768px) {
@@ -431,8 +401,8 @@
 
     /* Smaller title + 2-line clamp so long names don't crowd the destination/mode chips */
     .hero h2 {
-      font-size: 1.2rem;
-      letter-spacing: -0.02em;
+      font-size: 1.25rem;
+      letter-spacing: 0.005em;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       line-clamp: 2;

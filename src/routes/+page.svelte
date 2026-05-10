@@ -3,6 +3,7 @@
   import TripCard from '$lib/components/TripCard.svelte';
   import DetailPanel from '$lib/components/DetailPanel.svelte';
   import ActionPanel from '$lib/components/ActionPanel.svelte';
+  import Logo from '$lib/components/Logo.svelte';
   import { streamAction } from '$lib/utils/action.js';
   import { goto, invalidateAll } from '$app/navigation';
   import { browser } from '$app/environment';
@@ -18,7 +19,6 @@
   let hoveredSlug  = $state(null);
   // Extended filters
   let filterOpen   = $state(false);
-  let activeMode   = $state('all');   // 'all' | 'drive' | 'fly'
   let activeDist   = $state('any');   // 'any' | 'u3' | '3-6' | '6plus'
   let activeCost   = $state('any');   // 'any' | 'budget' | 'mid' | 'splurge'
   let activeNPS      = $state(false);
@@ -43,11 +43,7 @@
     }
   }
 
-  // Reset distance when fly is selected
-  $effect(() => { if (activeMode === 'fly') activeDist = 'any'; });
-
   const attrFilterCount = $derived(
-    (activeMode !== 'all' ? 1 : 0) +
     (activeDist !== 'any' ? 1 : 0) +
     (activeCost !== 'any' ? 1 : 0) +
     (activeNPS ? 1 : 0) +
@@ -197,7 +193,7 @@
 
   async function runDeepen(trip) {
     if (actionRunning) return;
-    if (!confirm(`Research "${trip.title || trip._slug}"? This takes 30–60 seconds.`)) return;
+    if (!confirm(`Look into "${trip.title || trip._slug}" with web search? It usually takes about a minute.`)) return;
     actionVisible = true;
     actionRunning = true;
     actionDone    = false;
@@ -222,7 +218,7 @@
     e?.stopPropagation?.();
     if (!trip) return;
     const label = trip.title || trip._slug;
-    if (!confirm(`Archive "${label}"? It will be hidden from view but the file is kept so the seeder won't suggest it again.`)) return;
+    if (!confirm(`Archive "${label}"? It'll vanish from view but stay on disk, so the seeder won't suggest it again.`)) return;
     try {
       const res = await fetch(`/api/archive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (!res.ok) throw new Error(`Archive failed: ${res.status}`);
@@ -230,13 +226,13 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert('Could not archive — check the server log.');
+      alert("Couldn't archive that one. The server log may have more detail.");
     }
   }
 
   async function promoteToPlanning(trip, e) {
     e?.stopPropagation?.();
-    if (!confirm(`Move "${trip.title || trip._slug}" into Planning?`)) return;
+    if (!confirm(`Move "${trip.title || trip._slug}" into planning?`)) return;
     const slug = trip._slug;
     try {
       const res = await fetch(`/api/promote/${encodeURIComponent(slug)}`, { method: 'POST' });
@@ -246,7 +242,7 @@
       await goto(`/trips/${encodeURIComponent(slug)}`, { invalidateAll: true });
     } catch (err) {
       console.error(err);
-      alert('Could not move trip into Planning — check the server log.');
+      alert("Couldn't move that one into planning. The server log may have more detail.");
     }
   }
 
@@ -260,7 +256,6 @@
   }
 
   function clearAttrs() {
-    activeMode    = 'all';
     activeDist    = 'any';
     activeCost    = 'any';
     activeNPS     = false;
@@ -275,9 +270,7 @@
   const filtered = $derived(
     data.trips.filter(t => {
       if (activeFilter !== 'all' && t.status !== activeFilter && t._stage !== activeFilter) return false;
-      if (activeMode === 'drive' && t.fly_in === 'true') return false;
-      if (activeMode === 'fly'   && t.fly_in !== 'true') return false;
-      if (activeDist !== 'any' && t.fly_in !== 'true') {
+      if (activeDist !== 'any') {
         const h = t._drive_hours;
         if (activeDist === 'u3'    && !(h != null && h <= 3))          return false;
         if (activeDist === '3-6'   && !(h != null && h > 3 && h <= 6)) return false;
@@ -319,12 +312,8 @@
 
   <header bind:this={headerEl}>
     <div class="wordmark">
-      <svg class="logo" width="18" height="26" viewBox="0 0 9 13" aria-hidden="true">
-        <!-- Compass needle: solid north, muted south -->
-        <path d="M4.5 0L1 6.5h7L4.5 0z" fill="currentColor"/>
-        <path d="M4.5 13L8 6.5H1L4.5 13z" fill="currentColor" opacity="0.3"/>
-      </svg>
-      <h1>Atlas</h1>
+      <Logo variant="inverse" size={28} />
+      <h1>Traverse</h1>
     </div>
     <button
       class="map-toggle"
@@ -354,7 +343,7 @@
         class:open={seedFormOpen}
         onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
         disabled={actionRunning || !data.features?.seed}
-        title={data.features?.seed ? 'Add 5 new trip ideas' : 'Default model not configured — see .env'}
+        title={data.features?.seed ? 'Add 5 new trip ideas' : 'No default model configured — edit your .env to enable this'}
         aria-label="Add trips"
         aria-expanded={seedFormOpen}
       >
@@ -367,13 +356,13 @@
         class:open={pinFormOpen}
         onclick={() => { pinFormOpen = !pinFormOpen; seedFormOpen = false; }}
         disabled={actionRunning || !data.features?.add}
-        title={data.features?.add ? 'Add a specific destination' : 'Default model not configured — see .env'}
+        title={data.features?.add ? 'Add a specific destination' : 'No default model configured — edit your .env to enable this'}
         aria-label="Add destination"
         aria-expanded={pinFormOpen}
       >
         <svg width="12" height="15" viewBox="0 0 12 15" aria-hidden="true">
           <path d="M6 0C3.24 0 1 2.24 1 5c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5z" fill="currentColor" opacity="0.85"/>
-          <circle cx="6" cy="5" r="1.8" fill="var(--surface)"/>
+          <circle cx="6" cy="5" r="1.8" fill="var(--surface-raised)"/>
         </svg>
       </button>
     </div>
@@ -389,7 +378,7 @@
       <textarea
         id="seed-prompt"
         bind:value={seedPrompt}
-        placeholder="e.g. fall colors within 4 hours, or fly-in food trips on the East Coast"
+        placeholder="e.g. fall colors within 4 hours, or scenic byways with quirky small towns"
         rows="3"
         autofocus
         onkeydown={e => {
@@ -398,8 +387,8 @@
         }}
       ></textarea>
       <div class="seed-actions">
-        <button class="seed-cancel" onclick={() => { seedFormOpen = false; seedPrompt = ''; }}>Cancel</button>
-        <button class="seed-go" onclick={runSeed}>Generate 5 →</button>
+        <button class="btn btn-tertiary btn-compact" onclick={() => { seedFormOpen = false; seedPrompt = ''; }}>Cancel</button>
+        <button class="btn btn-primary btn-compact" onclick={runSeed}>Generate 5 →</button>
       </div>
     </div>
   {/if}
@@ -424,8 +413,8 @@
         }}
       />
       <div class="seed-actions">
-        <button class="seed-cancel" onclick={() => { pinFormOpen = false; pinDest = ''; }}>Cancel</button>
-        <button class="seed-go" onclick={runPin}>Add →</button>
+        <button class="btn btn-tertiary btn-compact" onclick={() => { pinFormOpen = false; pinDest = ''; }}>Cancel</button>
+        <button class="btn btn-primary btn-compact" onclick={runPin}>Add →</button>
       </div>
     </div>
   {/if}
@@ -491,24 +480,13 @@
           <div class="filter-groups">
 
             <div class="filter-group">
-              <div class="group-label">Mode</div>
+              <div class="group-label">Drive time</div>
               <div class="chips">
-                {#each [['all','All'],['drive','Drive'],['fly','Fly']] as [val, label]}
-                  <button class="chip" class:active={activeMode === val} onclick={() => activeMode = val}>{label}</button>
+                {#each [['any','Any'],['u3','≤3hr'],['3-6','3–6hr'],['6plus','6hr+']] as [val, label]}
+                  <button class="chip" class:active={activeDist === val} onclick={() => activeDist = val}>{label}</button>
                 {/each}
               </div>
             </div>
-
-            {#if activeMode !== 'fly'}
-              <div class="filter-group">
-                <div class="group-label">Drive time</div>
-                <div class="chips">
-                  {#each [['any','Any'],['u3','≤3hr'],['3-6','3–6hr'],['6plus','6hr+']] as [val, label]}
-                    <button class="chip" class:active={activeDist === val} onclick={() => activeDist = val}>{label}</button>
-                  {/each}
-                </div>
-              </div>
-            {/if}
 
             <div class="filter-group">
               <div class="group-label">Budget</div>
@@ -557,7 +535,7 @@
             <div class="empty">
               <p>No trips match these filters.</p>
               {#if attrFilterCount > 0}
-                <button class="empty-clear" onclick={clearAttrs}>Clear filters</button>
+                <button class="btn btn-tertiary btn-compact" onclick={clearAttrs}>Clear filters</button>
               {/if}
             </div>
           {/each}
@@ -587,8 +565,8 @@
   }
 
   header {
-    background: var(--header-bg);
-    color: var(--header-text);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
     padding: 1.1rem 1.75rem;
     display: flex;
     align-items: center;
@@ -611,37 +589,37 @@
 
   .seed-btn {
     background: none;
-    border: 1.5px solid oklch(36% 0.06 155);
+    border: 1.5px solid var(--forest-600);
     border-radius: 50%;
     width: 28px; height: 28px;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    color: oklch(62% 0.022 155);
+    color: var(--bone-600);
     transition: border-color 0.15s, color 0.15s, background 0.15s;
     flex-shrink: 0;
   }
   .seed-btn:hover:not(:disabled) {
-    border-color: oklch(62% 0.08 155);
-    color: oklch(82% 0.025 155);
-    background: oklch(28% 0.03 155);
+    border-color: var(--forest-400);
+    color: var(--bone-400);
+    background: var(--forest-800);
   }
   .seed-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .seed-btn.open {
-    background: oklch(28% 0.03 155);
-    border-color: oklch(62% 0.08 155);
-    color: oklch(82% 0.025 155);
+    background: var(--forest-800);
+    border-color: var(--forest-400);
+    color: var(--bone-400);
   }
   .seed-btn.open svg { transform: rotate(45deg); }
   .seed-btn svg { transition: transform 0.18s; }
   .pin-btn svg { transform: none !important; }
-  .pin-btn { color: oklch(58% 0.06 30); border-color: oklch(36% 0.06 30); }
-  .pin-btn:hover:not(:disabled) { border-color: oklch(62% 0.1 30); color: oklch(82% 0.06 30); background: oklch(28% 0.04 30); }
-  .pin-btn.open { background: oklch(28% 0.04 30); border-color: oklch(62% 0.1 30); color: oklch(82% 0.06 30); }
+  .pin-btn { color: var(--sunset-600); border-color: var(--sunset-800); }
+  .pin-btn:hover:not(:disabled) { border-color: var(--sunset-600); color: var(--sunset-200); background: var(--sunset-800); }
+  .pin-btn.open { background: var(--sunset-800); border-color: var(--sunset-600); color: var(--sunset-200); }
 
   /* ── Seed prompt popover ── */
   .seed-backdrop {
     position: fixed; inset: 0;
-    background: oklch(10% 0 0 / 0.25);
+    background: rgba(20, 20, 20, 0.25);
     z-index: 50;
   }
   .seed-popover {
@@ -650,10 +628,10 @@
     right: 1.25rem;
     width: 360px;
     max-width: calc(100vw - 1rem);
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: var(--surface-raised);
+    border: 1px solid var(--bone-400);
     border-radius: 8px;
-    box-shadow: 0 12px 32px oklch(0% 0 0 / 0.18), 0 2px 6px oklch(0% 0 0 / 0.08);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
     padding: 0.9rem 1rem 0.85rem;
     z-index: 51;
     display: flex; flex-direction: column; gap: 0.55rem;
@@ -661,75 +639,48 @@
   .seed-label {
     font-size: 0.78rem;
     font-weight: 700;
-    color: var(--text);
+    color: var(--text-primary);
     line-height: 1.3;
   }
   .seed-hint {
     font-weight: 400;
-    color: var(--text-3);
+    color: var(--text-tertiary);
     font-size: 0.74rem;
   }
   .seed-popover textarea {
     width: 100%;
-    border: 1px solid var(--border);
+    border: 1px solid var(--bone-400);
     border-radius: 4px;
     padding: 0.55rem 0.7rem;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     font-size: 0.84rem;
     line-height: 1.45;
-    color: var(--text);
-    background: var(--surface-raised);
+    color: var(--text-primary);
+    background: var(--surface-page);
     resize: vertical;
     min-height: 60px;
   }
-  .seed-popover textarea:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
+  .seed-popover textarea:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
   .pin-input {
     width: 100%;
-    border: 1px solid var(--border);
+    border: 1px solid var(--bone-400);
     border-radius: 4px;
     padding: 0.55rem 0.7rem;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     font-size: 0.84rem;
-    color: var(--text);
-    background: var(--surface-raised);
+    color: var(--text-primary);
+    background: var(--surface-page);
   }
-  .pin-input:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
+  .pin-input:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
   .seed-actions {
     display: flex; gap: 0.5rem; justify-content: flex-end;
   }
-  .seed-cancel, .seed-go {
-    border-radius: 4px;
-    padding: 0.4rem 0.85rem;
-    font-family: var(--font);
-    font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .seed-cancel {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-2);
-  }
-  .seed-cancel:hover { border-color: var(--accent-border); color: var(--accent); }
-  .seed-go {
-    background: var(--accent);
-    border: 1px solid var(--accent);
-    color: oklch(97% 0.012 80);
-    font-weight: 700;
-  }
-  .seed-go:hover { background: oklch(28% 0.13 155); }
-
-  .logo {
-    flex-shrink: 0;
-    color: var(--header-text);
-    display: block;
-  }
 
   header h1 {
+    font-family: var(--font-serif);
     font-size: 1.6rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.005em;
     line-height: 1;
   }
 
@@ -745,14 +696,14 @@
     font-weight: 800;
     line-height: 1;
     letter-spacing: -0.04em;
-    color: oklch(80% 0.03 155);
+    color: var(--bone-400);
   }
   .count-label {
     font-size: 0.58rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: oklch(54% 0.024 155);
+    color: var(--bone-600);
   }
 
   .layout {
@@ -767,15 +718,15 @@
   .cards-col {
     display: flex; flex-direction: column;
     height: 100%; overflow: hidden;
-    box-shadow: -6px 0 24px oklch(0% 0 0 / 0.07);
-    background: var(--bg);
+    box-shadow: -6px 0 24px rgba(0, 0, 0, 0.07);
+    background: var(--surface-page);
   }
 
   /* ── Controls wrap (tabs + filter panel) ── */
   .controls-wrap {
     flex-shrink: 0;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    background: var(--surface-raised);
+    border-bottom: 1px solid var(--bone-400);
     position: relative;
   }
 
@@ -792,17 +743,17 @@
     font-size: 0.76rem;
     font-weight: 500;
     cursor: pointer;
-    color: var(--text-3);
-    font-family: var(--font);
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
     border-bottom: 2px solid transparent;
     transition: color 0.12s, border-color 0.12s;
     white-space: nowrap;
   }
-  .tab:hover  { color: var(--text); }
-  .tab:active { color: var(--accent); background: var(--accent-bg); }
+  .tab:hover  { color: var(--text-primary); }
+  .tab:active { color: var(--forest-800); background: var(--forest-50); }
   .tab.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
+    color: var(--forest-800);
+    border-bottom-color: var(--forest-800);
     font-weight: 600;
   }
 
@@ -813,7 +764,7 @@
     align-items: center;
   }
 
-  .divider { width: 1px; background: var(--border); margin: 0.65rem 0.35rem; flex-shrink: 0; }
+  .divider { width: 1px; background: var(--bone-400); margin: 0.65rem 0.35rem; flex-shrink: 0; }
 
   .filter-toggle {
     border: none;
@@ -822,8 +773,8 @@
     font-size: 0.76rem;
     font-weight: 500;
     cursor: pointer;
-    color: var(--text-3);
-    font-family: var(--font);
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
     display: flex;
     align-items: center;
     gap: 0.3rem;
@@ -831,12 +782,12 @@
     white-space: nowrap;
     border-bottom: 2px solid transparent;
   }
-  .filter-toggle:hover { color: var(--text); }
+  .filter-toggle:hover { color: var(--text-primary); }
   .filter-toggle.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
+    color: var(--forest-800);
+    border-bottom-color: var(--forest-800);
   }
-  .filter-toggle.has-filters { color: var(--accent); font-weight: 600; }
+  .filter-toggle.has-filters { color: var(--forest-800); font-weight: 600; }
 
   .chevron {
     transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
@@ -847,14 +798,14 @@
   .sort-select {
     font-size: 0.73rem;
     font-weight: 500;
-    color: var(--text-3);
+    color: var(--text-tertiary);
     border: none;
     background: none;
     padding: 0.75rem 1.4rem 0.7rem 0.3rem;
     cursor: pointer;
     outline: none;
     appearance: none;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23999'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.2rem center;
@@ -872,7 +823,7 @@
 
   .filter-groups {
     padding: 0.7rem 1.5rem 0.8rem;
-    border-top: 1px solid var(--border-subtle);
+    border-top: 1px solid var(--bone-200);
     display: flex;
     align-items: flex-end;
     gap: 1.75rem;
@@ -890,30 +841,30 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.09em;
-    color: var(--text-3);
+    color: var(--text-tertiary);
   }
 
   .chips { display: flex; gap: 0.2rem; }
 
   .chip {
-    border: 1.5px solid var(--border);
+    border: 1.5px solid var(--bone-400);
     background: none;
     padding: 0.2rem 0.55rem;
     border-radius: 3px;
     font-size: 0.71rem;
     font-weight: 500;
     cursor: pointer;
-    color: var(--text-2);
-    font-family: var(--font);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
     transition: border-color 0.1s, background 0.1s, color 0.1s;
     white-space: nowrap;
   }
-  .chip:hover  { border-color: var(--accent-border); color: var(--accent); }
-  .chip:active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+  .chip:hover  { border-color: var(--forest-200); color: var(--forest-800); }
+  .chip:active { background: var(--forest-50); border-color: var(--forest-800); color: var(--forest-800); }
   .chip.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: oklch(97% 0.012 80);
+    background: var(--forest-800);
+    border-color: var(--forest-800);
+    color: var(--bone-50);
   }
 
   .clear-all {
@@ -921,9 +872,9 @@
     background: none;
     font-size: 0.71rem;
     font-weight: 500;
-    color: var(--text-3);
+    color: var(--text-tertiary);
     cursor: pointer;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     padding: 0.2rem 0;
     margin-left: auto;
     align-self: flex-end;
@@ -931,7 +882,7 @@
     text-underline-offset: 2px;
     transition: color 0.12s;
   }
-  .clear-all:hover { color: var(--text); }
+  .clear-all:hover { color: var(--text-primary); }
 
   /* ── Cards ── */
   .scroll-area { flex: 1; min-height: 0; overflow-y: auto; }
@@ -946,27 +897,13 @@
   .empty {
     text-align: center;
     padding: 4rem 2rem;
-    color: var(--text-3);
+    color: var(--text-tertiary);
     font-size: 0.875rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.75rem;
   }
-  .empty-clear {
-    border: 1.5px solid var(--border);
-    background: none;
-    padding: 0.35rem 0.9rem;
-    border-radius: 3px;
-    font-size: 0.76rem;
-    font-weight: 500;
-    cursor: pointer;
-    color: var(--text-2);
-    font-family: var(--font);
-    transition: border-color 0.12s, color 0.12s;
-  }
-  .empty-clear:hover { border-color: var(--accent-border); color: var(--accent); }
-
   /* ── Mobile map toggle button — hidden on desktop ── */
   .map-toggle { display: none; }
 
@@ -980,10 +917,10 @@
       align-items: center;
       gap: 0.35rem;
       background: none;
-      border: 1px solid oklch(36% 0.06 155);
+      border: 1px solid var(--forest-600);
       border-radius: 4px;
-      color: oklch(62% 0.022 155);
-      font-family: var(--font);
+      color: var(--bone-600);
+      font-family: var(--font-sans);
       font-size: 0.72rem;
       font-weight: 600;
       letter-spacing: 0.04em;
@@ -992,7 +929,7 @@
       min-height: var(--tap-min);
       transition: background 0.12s, color 0.12s;
     }
-    .map-toggle:hover { background: oklch(28% 0.03 155); color: oklch(82% 0.02 155); }
+    .map-toggle:hover { background: var(--forest-800); color: var(--bone-400); }
 
     /* Seed button larger tap target on mobile */
     .seed-btn { width: var(--tap-min); height: var(--tap-min); }
@@ -1046,7 +983,7 @@
       position: absolute;
       top: 0; right: 0;
       width: 28px; height: var(--tap-min);
-      background: linear-gradient(to right, oklch(99.2% 0.007 80 / 0), var(--surface));
+      background: linear-gradient(to right, rgba(252, 250, 245, 0), var(--surface-raised));
       pointer-events: none;
       z-index: 1;
     }
@@ -1069,9 +1006,9 @@
 
     /* ── Map toggle active state ── */
     .map-toggle.map-showing {
-      background: oklch(30% 0.035 155);
-      border-color: oklch(52% 0.08 155);
-      color: oklch(84% 0.025 155);
+      background: var(--forest-800);
+      border-color: var(--forest-400);
+      color: var(--bone-200);
     }
 
     /* Seed popover spans most of the viewport on phones */

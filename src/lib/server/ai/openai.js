@@ -8,7 +8,7 @@ function translateTools(tools) {
   if (!tools || tools.length === 0) return undefined;
   return tools.map(t => {
     if (t.kind === 'anthropic-native') {
-      throw new Error(`OpenAI adapter cannot use anthropic-native tool "${t.spec?.name}". Set ATLAS_SEARCH_PROVIDER to a portable backend (e.g. tavily).`);
+      throw new Error(`OpenAI adapter cannot use anthropic-native tool "${t.spec?.name}". Set TRAVERSE_SEARCH_PROVIDER to a portable backend (e.g. tavily).`);
     }
     return {
       type: 'function',

@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 const SIG_LEN = 16; // first 16 chars of base64url HMAC — ~96 bits, plenty for personal use
 
 function getSecret() {
-  return process.env.ATLAS_SHARE_SECRET || '';
+  return process.env.TRAVERSE_SHARE_SECRET || '';
 }
 
 export function shareEnabled() {
@@ -13,7 +13,7 @@ export function shareEnabled() {
 /**
  * Produce a share token: base64url(slug) + "." + first 16 chars of HMAC.
  * Token is deterministic — same slug + secret always yields the same token.
- * Returns null if ATLAS_SHARE_SECRET is unset.
+ * Returns null if TRAVERSE_SHARE_SECRET is unset.
  */
 export function makeShareToken(slug) {
   const secret = getSecret();

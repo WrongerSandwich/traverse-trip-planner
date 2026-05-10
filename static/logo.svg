@@ -1,0 +1,7 @@
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Traverse">
+  <circle cx="40" cy="40" r="36" fill="none" stroke="#1F4332" stroke-width="1.5"/>
+  <circle cx="40" cy="40" r="33" fill="none" stroke="#1F4332" stroke-width="0.5"/>
+  <circle cx="52" cy="36" r="7" fill="#D87B3F"/>
+  <path d="M 14,52 L 24,38 L 32,44 L 42,22 L 56,40 L 66,52 Z" fill="#1F4332"/>
+  <line x1="10" y1="52" x2="70" y2="52" stroke="#1F4332" stroke-width="0.5"/>
+</svg>

@@ -1,6 +1,6 @@
-# Atlas
+# Traverse
 
-A personal travel filing cabinet — road trips and fly-in destinations — managed via Claude Code. Trips live as markdown; status is encoded by both folder location and frontmatter so files are self-describing.
+A personal road-trip filing cabinet — managed via Claude Code. Trips live as markdown; status is encoded by both folder location and frontmatter so files are self-describing. Fly-in destinations are out of scope — every idea should be drivable from `home.md`'s `home_coords`.
 
 ## Personal context
 
@@ -11,7 +11,7 @@ When a user preference or constraint surfaces that isn't in `home.md`, flag it r
 ## Folder structure
 
 ```
-atlas-trip-planner/
+traverse/
 ├── CLAUDE.md          # this file — repo conventions
 ├── home.md            # user-specific preferences and constraints
 ├── PRODUCT.md         # design context for the frontend
@@ -34,9 +34,9 @@ atlas-trip-planner/
 
 Trips progress through four stages. Earlier-stage fields are never removed — structure accrues as a trip matures.
 
-1. **idea** — single `.md` file in `ideas/`. Fields: `title`, `status`, `destination`, `pitch`, `created`, `vibe`. For fly-in trips, also add `fly_in: true` and `vehicle: rental`. Target: <30 seconds to create.
+1. **idea** — single `.md` file in `ideas/`. Fields: `title`, `status`, `destination`, `pitch`, `created`, `vibe`. Target: <30 seconds to create.
 2. **exploring** — promoted to a folder. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out.
-3. **planning** — concrete dates, lodging, reservations. The frontend's planning page enables in-place editing of any section + an "Ask Claude" chat that writes section updates back to disk.
+3. **planning** — concrete dates, lodging, reservations. The frontend's planning page enables in-place editing of any section + an "Ask Field guide" chat that writes section updates back to disk.
 4. **completed** — moved to `completed/` with a `notes.md` retrospective.
 
 **Archive (orthogonal to lifecycle):** any trip can be archived via the detail view. Archived trips move to `archived/<source-stage>/<slug>/` with the original status frontmatter intact. The frontend never displays them, but the seed action still scans them so previously-rejected destinations don't get re-suggested.
@@ -47,7 +47,6 @@ Trips progress through four stages. Earlier-stage fields are never removed — s
 ```
 title, status, destination, pitch, created, vibe
 ```
-For fly-in trips also add: `fly_in: true`, `vehicle: rental`
 
 **Added at exploring:**
 ```
@@ -67,12 +66,11 @@ Optional planning flag: `locked: true` (trip is frozen; itinerary has been gener
 ### Field notes
 
 - `vibe` — short phrase describing the trip character (e.g. `"quirky mountain town"`, `"coastal scenic drive"`). Required at idea stage.
-- `fly_in: true` — marks a trip that requires flying. Add `vehicle: rental` alongside it.
-- `waypoints` — key cities along the driving route as an inline array: `[Overland Park KS, Leavenworth KS, Atchison KS]`. Used by the frontend to fetch an OSRM road-following route line. For fly-in trips, use the driving segment from arrival airport to destination. Required for the solid route line to appear on the map.
+- `waypoints` — key cities along the driving route as an inline array: `[Overland Park KS, Leavenworth KS, Atchison KS]`. Used by the frontend to fetch an OSRM road-following route line. Required for the solid route line to appear on the map.
 - `national_park: true` — add to any trip where the primary draw is an NPS unit (national park, preserve, scenic riverway). Surfaces a badge on the trip card.
 - `starred: true` — bookmarked trip. Toggled by the frontend; write it here if pre-seeding a bookmark.
-- `locked: true` — trip is frozen. Editing and Ask Claude are disabled. An AI-generated `itinerary.md` exists in the same folder. Unlock to resume editing; re-lock to regenerate the itinerary.
-- `cost_tier` — `budget` | `mid` | `splurge`. Calibrated to the trip type (fly-in "mid" is different from drive "mid").
+- `locked: true` — trip is frozen. Editing and Ask Field guide are disabled. An AI-generated `itinerary.md` exists in the same folder. Unlock to resume editing; re-lock to regenerate the itinerary.
+- `cost_tier` — `budget` | `mid` | `splurge`.
 
 Omit fields rather than guess at creation. Dates are ISO 8601. Distances default to miles.
 
@@ -80,7 +78,7 @@ Omit fields rather than guess at creation. Dates are ISO 8601. Distances default
 
 All lifecycle operations live in the SvelteKit app — the browser is the canonical interface.
 
-- **Seed** (`+` button on the home page) — generates 5 new idea files using `home.md` preferences. Optional steering prompt to focus the batch (e.g. "fly-in national parks", "within 3 hours"). Streams progress over SSE.
+- **Seed** (`+` button on the home page) — generates 5 new idea files using `home.md` preferences. Optional steering prompt to focus the batch (e.g. "fall colors within 4 hours", "scenic byways with quirky small towns"). Streams progress over SSE.
 - **Add destination** (pin button on the home page) — generates a single idea file for a specific destination you name. Includes a semantic duplicate check against existing trips.
 - **Research →** (button on idea cards) — promotes an idea into an exploring-stage folder with web-searched details: hours, prices, lodging, route highlights, logistics. Adds `waypoints` so the OSRM route line draws on the map. Cancellable mid-run (the cancel button aborts the in-flight model call, not just the listener).
 - **Start Planning** (exploring trips) — promotes `exploring/<slug>/` → `planning/<slug>/` and rewrites the status frontmatter.
@@ -88,7 +86,7 @@ All lifecycle operations live in the SvelteKit app — the browser is the canoni
 - **Lock trip** (planning detail view) — synthesizes a day-by-day `itinerary.md` from the existing sections (streamed in real time), then sets `locked: true`. Editing and the assistant chat are hidden while locked.
 - **Unlock to edit** (locked detail view) — clears `locked: true`. The `itinerary.md` is kept but editing is restored. Re-lock to regenerate the itinerary.
 - **Print / Save PDF** (locked detail view) — opens the browser print dialog with print CSS that hides all chrome so only the itinerary renders.
-- **Share** (any detail view, when `ATLAS_SHARE_SECRET` is set) — generates a public read-only `/share/<token>` URL backed by an HMAC of the slug. Disabling revokes access immediately.
+- **Share** (any detail view, when `TRAVERSE_SHARE_SECRET` is set) — generates a public read-only `/share/<token>` URL backed by an HMAC of the slug. Disabling revokes access immediately.
 - **Archive** (detail view, gated by confirm) — moves the trip to `archived/<stage>/<slug>/`. The trip vanishes from the UI but stays in the seed-avoidance list.
 
 ### Ad-hoc research via Claude Code
@@ -100,7 +98,7 @@ All lifecycle operations live in the SvelteKit app — the browser is the canoni
 The SvelteKit app in `src/` is the primary interface. Two ways to run it:
 
 - **Dev:** `npm run dev -- --port 3456` (hot reload)
-- **Prod:** `npm run build && pm2 restart atlas` (or `node build/index.js`) — what runs on the home server
+- **Prod:** `npm run build && pm2 restart traverse` (or `node build/index.js`) — what runs on the home server
 
 The frontend reads trip data from the markdown files on each page load. All three external lookups are disk-backed and persist across restarts:
 
@@ -122,6 +120,6 @@ After adding or renaming trips, the next page load picks them up automatically; 
 - Research subagents write to their own files (`route.md`, `stops.md`, etc.) and summarize in `overview.md`; no silent edits to user-written prose
 - Distance, radius, and vehicle-specific logic read from `home.md` frontmatter; don't hardcode user-specific numbers in commands or subagents
 - All model calls go through `chat()` in `src/lib/server/ai.js`; all web search goes through `search()` / `searchToolDefinition()` in `src/lib/server/search.js`. Don't `import Anthropic` (or any other SDK) in route handlers — add a new adapter under `src/lib/server/{ai,search}/` instead. Pass a `label` to `chat()` so token-usage logs are grouped by feature.
-- Page data on every route includes `data.features` (from `getFeatureAvailability()`) and `data.assistantName` (from `ATLAS_ASSISTANT_NAME`). Use them to gate UI affordances and render assistant-name strings rather than hardcoding.
+- Page data on every route includes `data.features` (from `getFeatureAvailability()`) and `data.assistantName` (from `TRAVERSE_ASSISTANT_NAME`). Use them to gate UI affordances and render assistant-name strings rather than hardcoding.
 - `npm run smoke` does a 1-token round-trip per configured provider plus a tool-loop probe when search backend is non-builtin. Run it before deploys and after env changes.
-- After a meaningful unit of work, commit and push — the repo is on GitHub at `WrongerSandwich/atlas-trip-planner`
+- After a meaningful unit of work, commit and push — the repo is on GitHub at `WrongerSandwich/traverse`

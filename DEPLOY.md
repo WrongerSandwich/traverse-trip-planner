@@ -1,4 +1,4 @@
-# Deploying Atlas to a Home Server
+# Deploying Traverse to a Home Server
 
 ## Prerequisites (on the Linux server)
 
@@ -15,8 +15,8 @@ sudo npm install -g pm2
 
 ```bash
 # 1. Clone the repo
-git clone <your-repo-url> atlas
-cd atlas
+git clone <your-repo-url> traverse
+cd traverse
 
 # 2. Configure your preferences
 cp home.example.md home.md
@@ -38,7 +38,7 @@ pm2 save                        # persist across reboots
 pm2 startup                     # enable auto-start (follow the printed command)
 ```
 
-Atlas is now accessible on your LAN at `http://<server-ip>:3456`.
+Traverse is now accessible on your LAN at `http://<server-ip>:3456`.
 
 ## Finding the server IP
 
@@ -52,16 +52,28 @@ ip addr show | grep "inet " | grep -v 127.0.0.1
 git pull
 npm install          # if dependencies changed
 npm run build
-pm2 restart atlas
+pm2 restart traverse
+```
+
+## Migrating from the old `atlas` process name
+
+If you deployed before the brand rename, the pm2 app was called `atlas` and the env vars were `ATLAS_*`. One-time migration on the server:
+
+```bash
+pm2 delete atlas                # drop the old process
+sed -i 's/^ATLAS_/TRAVERSE_/' .env  # rename env vars in place
+git pull && npm install && npm run build
+pm2 start ecosystem.config.cjs  # registers the new `traverse` process
+pm2 save
 ```
 
 ## Useful PM2 commands
 
 ```bash
 pm2 status           # check if running
-pm2 logs atlas       # tail logs (includes provider banner + per-call token usage)
-pm2 restart atlas    # restart after code changes
-pm2 stop atlas       # stop
+pm2 logs traverse    # tail logs (includes provider banner + per-call token usage)
+pm2 restart traverse    # restart after code changes
+pm2 stop traverse    # stop
 ```
 
 The startup banner lists which providers are wired and which features are available. Each AI call also emits a one-line `[ai] <label> <provider>/<model> — N in / N out (T turns, ms)` log so you can grep for total spend per feature. Transient API failures (network blips, 429 rate limits, 5xx) are retried with exponential backoff (3 attempts, 1s/2s/4s) and logged as `[retry] <label> attempt N/3 …`. Non-retriable errors (4xx other than 429, malformed responses) fail immediately.
@@ -76,7 +88,7 @@ The startup banner lists which providers are wired and which features are availa
 
 ## Provider configuration (BYOK)
 
-Atlas talks to model and search providers through a thin adapter layer. The defaults preserve the original Anthropic-only behavior, so existing deployments keep working without env changes. To switch providers, set the `ATLAS_*` variables in `.env`.
+Traverse talks to model and search providers through a thin adapter layer. The defaults preserve the original Anthropic-only behavior, so existing deployments keep working without env changes. To switch providers, set the `TRAVERSE_*` variables in `.env`.
 
 ### What each feature needs
 
@@ -84,7 +96,7 @@ Atlas talks to model and search providers through a thin adapter layer. The defa
 | -------------------------- | ------------------------------------------------------- |
 | Seed / Add (`+`, pin)      | `modelDefault` provider with valid key                  |
 | Lock & generate itinerary  | `modelDefault` provider with valid key                  |
-| Ask Claude (planning chat) | `modelDefault` provider with valid key                  |
+| Ask Field guide (planning chat) | `modelDefault` provider with valid key             |
 | Research → (deepen)        | `modelResearch` provider with key **+** search backend  |
 
 If a feature's backing provider isn't configured, its button is disabled in the UI with a tooltip pointing at `.env`. The startup banner (printed to the server log) lists which features are wired.
@@ -93,28 +105,28 @@ If a feature's backing provider isn't configured, its button is disabled in the 
 
 | Slot           | Variable                            | Values                              |
 | -------------- | ----------------------------------- | ----------------------------------- |
-| Default model  | `ATLAS_MODEL_DEFAULT_PROVIDER`      | `anthropic` (default) · `openai`    |
-| Default model  | `ATLAS_MODEL_DEFAULT`               | model id (e.g. `claude-sonnet-4-6`, `gpt-4o-mini`) |
-| Research model | `ATLAS_MODEL_RESEARCH_PROVIDER`     | `anthropic` (default) · `openai`    |
-| Research model | `ATLAS_MODEL_RESEARCH`              | tool-use-capable model id           |
-| Search backend | `ATLAS_SEARCH_PROVIDER`             | `anthropic-builtin` (default) · `tavily` |
-| Assistant name | `ATLAS_ASSISTANT_NAME`              | display name in UI (default `Claude`)    |
-| Per-feature    | `ATLAS_MODEL_<FEATURE>(_PROVIDER)?` | optional override; `<FEATURE>` ∈ `SEED`, `ADD`, `LOCK`, `CHAT`, `DEEPEN` |
+| Default model  | `TRAVERSE_MODEL_DEFAULT_PROVIDER`      | `anthropic` (default) · `openai`    |
+| Default model  | `TRAVERSE_MODEL_DEFAULT`               | model id (e.g. `claude-sonnet-4-6`, `gpt-4o-mini`) |
+| Research model | `TRAVERSE_MODEL_RESEARCH_PROVIDER`     | `anthropic` (default) · `openai`    |
+| Research model | `TRAVERSE_MODEL_RESEARCH`              | tool-use-capable model id           |
+| Search backend | `TRAVERSE_SEARCH_PROVIDER`             | `anthropic-builtin` (default) · `tavily` |
+| Assistant name | `TRAVERSE_ASSISTANT_NAME`              | display name in UI (default `Field guide`)    |
+| Per-feature    | `TRAVERSE_MODEL_<FEATURE>(_PROVIDER)?` | optional override; `<FEATURE>` ∈ `SEED`, `ADD`, `LOCK`, `CHAT`, `DEEPEN` |
 
 `anthropic-builtin` runs Anthropic's server-side `web_search` tool — only valid when the research model is also Anthropic. `tavily` is portable across any model provider but requires a `TAVILY_API_KEY`.
 
-`ATLAS_ASSISTANT_NAME` only affects user-facing UI strings ("Ask Claude…", SSE progress messages). Set it to whatever fits the model you've configured.
+`TRAVERSE_ASSISTANT_NAME` only affects user-facing UI strings ("Ask Field guide…", SSE progress messages). Set it to whatever fits the model you've configured.
 
-**Public share links** are off by default. Set `ATLAS_SHARE_SECRET` (e.g. `openssl rand -base64 32`) to enable a "Generate share link" button on the trip detail view. The link is `/share/<token>` where the token is `HMAC-SHA256(slug, secret)`; tokens are deterministic but tied per-trip via a `shared: true` frontmatter flag, so disabling share on a trip revokes access immediately even if someone has the URL. Rotating `ATLAS_SHARE_SECRET` invalidates every existing share link.
+**Public share links** are off by default. Set `TRAVERSE_SHARE_SECRET` (e.g. `openssl rand -base64 32`) to enable a "Generate share link" button on the trip detail view. The link is `/share/<token>` where the token is `HMAC-SHA256(slug, secret)`; tokens are deterministic but tied per-trip via a `shared: true` frontmatter flag, so disabling share on a trip revokes access immediately even if someone has the URL. Rotating `TRAVERSE_SHARE_SECRET` invalidates every existing share link.
 
 **Per-feature overrides** let you route specific actions to a different model than the slot default — e.g. use Haiku for the deterministic itinerary-generation call (`lock`) while keeping Sonnet for everything else:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
-ATLAS_MODEL_LOCK=claude-haiku-4-5
+TRAVERSE_MODEL_LOCK=claude-haiku-4-5
 ```
 
-Both `ATLAS_MODEL_<FEATURE>` (model id) and `ATLAS_MODEL_<FEATURE>_PROVIDER` (provider) are independent overrides; either or both can be set. An override that points to a provider with no key configured disables only that feature, leaving the rest working — the startup banner shows per-feature provider/model and marks overrides explicitly.
+Both `TRAVERSE_MODEL_<FEATURE>` (model id) and `TRAVERSE_MODEL_<FEATURE>_PROVIDER` (provider) are independent overrides; either or both can be set. An override that points to a provider with no key configured disables only that feature, leaving the rest working — the startup banner shows per-feature provider/model and marks overrides explicitly.
 
 ### Sample configurations
 
@@ -130,11 +142,11 @@ OPENAI_API_KEY=sk-proj-...
 TAVILY_API_KEY=tvly-...
 PEXELS_API_KEY=...
 
-ATLAS_MODEL_DEFAULT_PROVIDER=openai
-ATLAS_MODEL_DEFAULT=gpt-4o-mini
-ATLAS_MODEL_RESEARCH_PROVIDER=openai
-ATLAS_MODEL_RESEARCH=gpt-4o
-ATLAS_SEARCH_PROVIDER=tavily
+TRAVERSE_MODEL_DEFAULT_PROVIDER=openai
+TRAVERSE_MODEL_DEFAULT=gpt-4o-mini
+TRAVERSE_MODEL_RESEARCH_PROVIDER=openai
+TRAVERSE_MODEL_RESEARCH=gpt-4o
+TRAVERSE_SEARCH_PROVIDER=tavily
 ```
 
 **Mixed (cheap default, smart research, portable search):**
@@ -144,9 +156,9 @@ OPENAI_API_KEY=sk-proj-...
 TAVILY_API_KEY=tvly-...
 PEXELS_API_KEY=...
 
-ATLAS_MODEL_DEFAULT_PROVIDER=openai
-ATLAS_MODEL_DEFAULT=gpt-4o-mini
-ATLAS_MODEL_RESEARCH_PROVIDER=anthropic
-ATLAS_MODEL_RESEARCH=claude-opus-4-7
-ATLAS_SEARCH_PROVIDER=tavily
+TRAVERSE_MODEL_DEFAULT_PROVIDER=openai
+TRAVERSE_MODEL_DEFAULT=gpt-4o-mini
+TRAVERSE_MODEL_RESEARCH_PROVIDER=anthropic
+TRAVERSE_MODEL_RESEARCH=claude-opus-4-7
+TRAVERSE_SEARCH_PROVIDER=tavily
 ```

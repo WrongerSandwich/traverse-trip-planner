@@ -1,8 +1,8 @@
-# Atlas
+# Traverse
 
-[![CI](https://github.com/WrongerSandwich/atlas-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/WrongerSandwich/atlas-trip-planner/actions/workflows/ci.yml)
+[![CI](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml/badge.svg)](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml)
 
-A personal travel filing cabinet — road trips and fly-in destinations — managed through a web UI and an LLM. Trips live as markdown files that progress through a lifecycle: **idea → exploring → planning → completed**.
+A personal road-trip filing cabinet — managed through a web UI and an LLM. Trips live as markdown files that progress through a lifecycle: **idea → exploring → planning → completed**.
 
 ## What it does
 
@@ -10,14 +10,14 @@ A personal travel filing cabinet — road trips and fly-in destinations — mana
 - **Research** — flesh out an idea with live web-searched details: hours, prices, lodging, routes (uses an LLM + web search)
 - **Plan** — edit trip sections in-browser, chat with the assistant to refine them, then lock the trip to generate a day-by-day itinerary
 - **Map** — all trips rendered on an interactive map with drive-time routing
-- **Filter** — by stage, drive time, cost tier, fly vs. drive, NPS units, bookmarks
+- **Filter** — by stage, drive time, cost tier, NPS units, bookmarks
 - **Calendar** — subscribe to `/api/cal.ics` from Google/Apple/Outlook to see planned trips on your calendar; per-trip feed at `/api/cal/<slug>.ics`
 
 All trip data is plain markdown on disk — readable, portable, and easy to edit directly.
 
 ## Self-hosting
 
-Atlas is designed to be self-hosted. You bring your own API keys; nothing is shared.
+Traverse is designed to be self-hosted. You bring your own API keys; nothing is shared.
 
 **Requirements:**
 - Node.js 20+
@@ -30,7 +30,7 @@ See **[DEPLOY.md](DEPLOY.md)** for full setup instructions, including provider s
 ## Quick start
 
 ```bash
-git clone <repo-url> atlas && cd atlas
+git clone <repo-url> traverse && cd traverse
 cp home.example.md home.md   # edit with your home city, vehicles, taste
 cp .env.example .env         # edit with your API keys
 npm install

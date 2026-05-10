@@ -20,23 +20,23 @@ export async function POST({ request }) {
 
   return sseStream(async (send) => {
     if (!destination) {
-      send('Error: No destination provided.', true);
+      send('No destination given. Add a place name and try again.', true);
       return;
     }
 
-    send(`Checking existing trips for ${destination}...`);
+    send(`Checking the cabinet for ${destination}…`);
     const existing = collectExistingDestinations();
     const destLower = destination.toLowerCase();
     const duplicate = existing.find(d => d.toLowerCase() === destLower);
     if (duplicate) {
-      send(`Error: "${duplicate}" is already in your trips.`, true);
+      send(`"${duplicate}" is already on the list. Skipping.`, true);
       return;
     }
 
     const homeMd = readHomeMd();
     const today = new Date().toISOString().slice(0, 10);
 
-    send(`Asking ${NAME} to create an idea for ${destination}...`);
+    send(`Sketching an idea for ${destination}…`);
 
     const system = `You are a travel planning assistant. Here is the traveler's full personal context:
 ${homeMd}
@@ -50,10 +50,11 @@ If it IS a near-duplicate, respond with ONLY this tag (no other text):
 <duplicate>the matching existing destination</duplicate>
 
 If it is NOT a near-duplicate, create exactly one trip idea. Rules:
+- Traverse is road-trip only. If the requested destination cannot realistically be reached by driving from the traveler's home base, respond with ONLY this tag (no other text):
+  <not-drivable>brief reason</not-drivable>
 - Use the traveler's taste profile to write a concrete, specific pitch — name the actual draw, not generic adjectives.
 - Do not invent facts about the destination. If you are unsure whether a specific detail is true (a venue still operating, an event still running, a route still open), keep the pitch at a higher level and let /deepen verify the specifics later.
 - Do NOT second-guess or filter the destination; the user already decided to go.
-- For fly-in trips add: fly_in: true and vehicle: rental
 - For trips involving an NPS unit add: national_park: true
 
 Output the trip as a single file block in this exact format, with nothing outside the tags:
@@ -80,7 +81,13 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
 
     const dupMatch = text.match(/<duplicate>([\s\S]*?)<\/duplicate>/);
     if (dupMatch) {
-      send(`Error: Too close to an existing trip — "${dupMatch[1].trim()}" is already in your list.`, true);
+      send(`Too close to "${dupMatch[1].trim()}", which is already on the list.`, true);
+      return;
+    }
+
+    const flyMatch = text.match(/<not-drivable>([\s\S]*?)<\/not-drivable>/);
+    if (flyMatch) {
+      send(`Not a road trip — ${flyMatch[1].trim()}`, true);
       return;
     }
 
@@ -100,6 +107,6 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
     send(`  ✓ ${title}`);
     invalidateEnrichCache();
     send(formatUsage(usage));
-    send('Done — new trip added. Reload to see it.', true);
+    send('Done — added to the list. Reload to see it.', true);
   });
 }

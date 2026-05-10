@@ -1,12 +1,12 @@
-# Contributing to Atlas
+# Contributing to Traverse
 
-Atlas is a personal travel filing cabinet that's also designed to be self-hosted by anyone who wants to manage their own road trips and fly-in destinations through markdown + an LLM. Contributions are welcome.
+Traverse is a personal road-trip filing cabinet that's also designed to be self-hosted by anyone who wants to manage their own trips through markdown + an LLM. Contributions are welcome.
 
 ## Quick start for development
 
 ```bash
 git clone <your-fork>
-cd atlas-trip-planner
+cd traverse
 cp home.example.md home.md       # edit with your home city, vehicles, taste
 cp .env.example .env             # add at minimum ANTHROPIC_API_KEY (or OPENAI_API_KEY) + PEXELS_API_KEY
 npm install

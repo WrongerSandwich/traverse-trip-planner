@@ -65,7 +65,7 @@ export async function geocode(destination) {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'atlas-trip-planner/1.0 (personal)' } });
+      const res = await fetch(url, { headers: { 'User-Agent': 'traverse/1.0 (personal)' } });
       if (res.status === 429) {
         if (attempt === 0) { await sleep(2000); continue; }
         console.warn('geocode rate-limited (429) for', destination);
@@ -192,12 +192,9 @@ function haversine([lat1, lon1], [lat2, lon2]) {
 function fmt(n) { return '$' + (Math.round(n / 50) * 50).toLocaleString('en-US'); }
 
 function estimateCost(trip, homeCoords) {
-  const flyIn = trip.fly_in === 'true';
   if (trip.cost_tier) {
-    if (flyIn) return { budget: '$1,200–$1,800', mid: '$1,800–$3,000', splurge: '$3,000+' }[trip.cost_tier] || null;
     return { budget: '$300–$600', mid: '$700–$1,400', splurge: '$1,500+' }[trip.cost_tier] || null;
   }
-  if (flyIn) return '$1,500–$3,000';
   if (!homeCoords || !Array.isArray(trip._coords)) return null;
 
   const dist = haversine(homeCoords, trip._coords);
@@ -359,7 +356,7 @@ export async function enrichTrips() {
 
     // Cost + drive time
     trip._cost = estimateCost(trip, homeCoords);
-    if (trip.fly_in !== 'true' && homeCoords && Array.isArray(trip._coords)) {
+    if (homeCoords && Array.isArray(trip._coords)) {
       const dist = haversine(homeCoords, trip._coords);
       trip._drive_hours = Math.round((dist * 1.2 / 65) * 2) / 2;
     } else {

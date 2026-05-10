@@ -5,13 +5,13 @@ describe('share token', () => {
   let originalSecret;
 
   beforeEach(() => {
-    originalSecret = process.env.ATLAS_SHARE_SECRET;
-    process.env.ATLAS_SHARE_SECRET = 'test-secret-please-change';
+    originalSecret = process.env.TRAVERSE_SHARE_SECRET;
+    process.env.TRAVERSE_SHARE_SECRET = 'test-secret-please-change';
   });
 
   afterEach(() => {
-    if (originalSecret === undefined) delete process.env.ATLAS_SHARE_SECRET;
-    else process.env.ATLAS_SHARE_SECRET = originalSecret;
+    if (originalSecret === undefined) delete process.env.TRAVERSE_SHARE_SECRET;
+    else process.env.TRAVERSE_SHARE_SECRET = originalSecret;
   });
 
   it('shareEnabled is true when secret is set', () => {
@@ -19,7 +19,7 @@ describe('share token', () => {
   });
 
   it('makeShareToken returns null when secret is unset', () => {
-    delete process.env.ATLAS_SHARE_SECRET;
+    delete process.env.TRAVERSE_SHARE_SECRET;
     expect(makeShareToken('marfa-tx')).toBe(null);
   });
 
@@ -39,7 +39,7 @@ describe('share token', () => {
 
   it('rotates tokens when the secret changes', () => {
     const t1 = makeShareToken('marfa');
-    process.env.ATLAS_SHARE_SECRET = 'different-secret';
+    process.env.TRAVERSE_SHARE_SECRET = 'different-secret';
     const t2 = makeShareToken('marfa');
     expect(t1).not.toBe(t2);
     expect(verifyShareToken(t1)).toBe(null); // old token no longer valid
@@ -73,7 +73,7 @@ describe('share token', () => {
 
   it('returns null from verifyShareToken when secret is unset', () => {
     const token = makeShareToken('marfa');
-    delete process.env.ATLAS_SHARE_SECRET;
+    delete process.env.TRAVERSE_SHARE_SECRET;
     expect(verifyShareToken(token)).toBe(null);
   });
 });

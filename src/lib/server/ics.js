@@ -1,4 +1,4 @@
-// Tiny ICS generator for Atlas planning-stage trips.
+// Tiny ICS generator for Traverse planning-stage trips.
 //
 // Emits an all-day VEVENT per trip with a target_date. Multi-day trips
 // (duration_days > 1) get DTEND set to start + N (DTEND is exclusive in ICS).
@@ -53,7 +53,7 @@ export function tripToVEvent(trip, now = new Date()) {
 
   const lines = [
     'BEGIN:VEVENT',
-    `UID:${trip._slug}@atlas-trip-planner`,
+    `UID:${trip._slug}@traverse`,
     `DTSTAMP:${nowToICalStamp(now)}`,
     `DTSTART;VALUE=DATE:${dateToICalDate(start)}`,
     `DTEND;VALUE=DATE:${dateToICalDate(end)}`,
@@ -70,7 +70,7 @@ export function tripsToIcs(trips, now = new Date()) {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Atlas//Trip Planner//EN',
+    'PRODID:-//Traverse//Trip Planner//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     ...events,

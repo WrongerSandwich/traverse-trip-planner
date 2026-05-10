@@ -12,7 +12,7 @@ function printConfigBanner() {
   const fmt = (slot) => `${slot.provider}/${slot.model} ${slot.ok ? '✓' : '✗'}`;
 
   console.log('────────────────────────────────────────────');
-  console.log('Atlas — provider configuration');
+  console.log('Traverse — provider configuration');
   console.log(`  default model  : ${fmt(d.modelDefault)}`);
   console.log(`  research model : ${fmt(d.modelResearch)}`);
   console.log(`  search backend : ${d.search.provider} ${d.search.ok ? '✓' : '✗'}`);

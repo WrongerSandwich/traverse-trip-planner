@@ -1,10 +1,10 @@
 # Security policy
 
-Atlas is a self-hosted personal tool — there is no central server holding user data, and most deployments are single-user behind a home network. That said, the codebase touches API keys and parses LLM-generated content, both of which are worth treating carefully.
+Traverse is a self-hosted personal tool — there is no central server holding user data, and most deployments are single-user behind a home network. That said, the codebase touches API keys and parses LLM-generated content, both of which are worth treating carefully.
 
 ## Reporting a vulnerability
 
-For anything that could leak credentials, allow code execution, or otherwise cause harm to a self-hoster, please **do not file a public GitHub issue**. Instead, use [GitHub's private security advisories](https://github.com/WrongerSandwich/atlas-trip-planner/security/advisories/new) so the issue can be triaged before disclosure.
+For anything that could leak credentials, allow code execution, or otherwise cause harm to a self-hoster, please **do not file a public GitHub issue**. Instead, use [GitHub's private security advisories](https://github.com/WrongerSandwich/traverse/security/advisories/new) so the issue can be triaged before disclosure.
 
 For lower-severity concerns (suspicious dependency, stale recommendation, misleading docs), a regular GitHub issue is fine.
 
@@ -24,5 +24,5 @@ For lower-severity concerns (suspicious dependency, stale recommendation, mislea
 ## Secret hygiene reminders
 
 - `.env` and `home.md` are gitignored. If you publish a fork, double-check `git ls-files | grep -E "\.env|home\.md"` returns nothing.
-- Never paste the contents of `.env` into GitHub issues, screenshots, or chat threads when reporting bugs. The only key Atlas needs from you to reproduce most issues is the *provider* and *model*, not the API key itself.
-- The startup banner (`Atlas — provider configuration`) prints to logs and is safe to share — it shows providers/models but never key material.
+- Never paste the contents of `.env` into GitHub issues, screenshots, or chat threads when reporting bugs. The only key Traverse needs from you to reproduce most issues is the *provider* and *model*, not the API key itself.
+- The startup banner (`Traverse — provider configuration`) prints to logs and is safe to share — it shows providers/models but never key material.

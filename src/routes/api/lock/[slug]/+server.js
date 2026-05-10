@@ -18,7 +18,7 @@ export function POST({ params, request }) {
     .join('\n\n');
 
   return sseStream(async (send) => {
-    send('Generating itinerary…');
+    send('Plotting the itinerary…');
 
     let itinerary = '';
     let usage;
@@ -32,7 +32,7 @@ export function POST({ params, request }) {
           itinerary += chunk;
           send(`itinerary:${chunk}`);
         },
-        system: `You are Atlas, a travel itinerary formatter. Given the planning sections for a road trip, synthesize them into a clean day-by-day itinerary in markdown.
+        system: `You are Traverse, a travel itinerary formatter. Given the planning sections for a road trip, synthesize them into a clean day-by-day itinerary in markdown.
 
 Format rules:
 - Use ## for each day heading: "## Day 1 — [Day of Week], [Month Day, Year]" (derive the date from the overview if a specific date is mentioned; otherwise use just the day name or omit the date)
@@ -69,7 +69,7 @@ Format rules:
     if (!lockResult) throw new Error('Failed to update frontmatter');
 
     if (usage) send(formatUsage(usage));
-    send('Done — trip locked. Reload to see the itinerary.', true);
+    send('Done — itinerary is set. Reload to see it.', true);
   });
 }
 

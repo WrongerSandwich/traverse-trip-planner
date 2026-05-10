@@ -25,7 +25,7 @@
 </script>
 
 <svelte:head>
-  <title>{trip?.title || 'Atlas trip'} — shared</title>
+  <title>{trip?.title || 'Traverse trip'} — shared</title>
 </svelte:head>
 
 <div class="page">
@@ -33,9 +33,6 @@
     <h1>{trip?.title || trip?._slug}</h1>
     <div class="meta">
       {#if trip?.destination}<span>{trip.destination}</span>{/if}
-      {#if trip?.fly_in === 'true'}
-        <span class="mode">✈ fly</span>
-      {/if}
       {#if trip?.target_date}<span class="date">{trip.target_date}</span>{/if}
     </div>
   </header>
@@ -68,61 +65,64 @@
   </main>
 
   <footer>
-    <p>Shared via <strong>Atlas</strong> — read-only.</p>
+    <p>Shared via <strong>Traverse</strong> — read-only.</p>
   </footer>
 </div>
 
 <style>
-  :global(body) { background: var(--bg); color: var(--text); }
+  :global(body) { background: var(--surface-page); color: var(--text-primary); }
 
   .page {
     max-width: 760px;
     margin: 0 auto;
     padding: 2rem 1.25rem 4rem;
-    font-family: var(--font);
+    font-family: var(--font-sans);
   }
   header { margin-bottom: 1.5rem; }
   h1 {
     margin: 0 0 0.4rem;
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--text);
+    font-family: var(--font-serif);
+    font-size: 2.25rem;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+    line-height: 1.1;
+    color: var(--text-primary);
   }
   .meta {
     display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem;
     font-size: 0.85rem;
-    color: var(--text-2);
+    color: var(--text-secondary);
   }
-  .meta .date { color: var(--accent); font-weight: 600; }
+  .meta .date { color: var(--forest-800); font-weight: 600; }
 
   .hero {
     margin: 1rem 0 1.5rem;
     border-radius: 8px;
     overflow: hidden;
-    background: var(--surface);
-    border: 1px solid var(--border-subtle);
+    background: var(--surface-raised);
+    border: 1px solid var(--bone-200);
   }
   .hero img { width: 100%; height: auto; display: block; }
   .credit {
     padding: 0.5rem 0.75rem;
     font-size: 0.7rem;
-    color: var(--text-3);
-    background: var(--surface-raised);
-    border-top: 1px solid var(--border-subtle);
+    color: var(--text-tertiary);
+    background: var(--surface-page);
+    border-top: 1px solid var(--bone-200);
   }
-  .credit a { color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; }
+  .credit a { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; }
 
   .pitch {
     font-size: 1.05rem;
     line-height: 1.55;
-    color: var(--text);
+    color: var(--text-primary);
     margin: 0 0 1.5rem;
   }
 
   main { display: flex; flex-direction: column; gap: 2rem; }
   section {
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: var(--surface-raised);
+    border: 1px solid var(--bone-400);
     border-radius: 8px;
     padding: 1.25rem 1.4rem;
   }
@@ -132,13 +132,13 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--text-2);
+    color: var(--text-secondary);
   }
   .md :global(h2),
   .md :global(h3) {
     margin: 1.25rem 0 0.5rem;
     font-size: 1.05rem;
-    color: var(--text);
+    color: var(--text-primary);
   }
   .md :global(h2:first-child),
   .md :global(h3:first-child) { margin-top: 0; }
@@ -147,13 +147,13 @@
   .md :global(li) { margin: 0.2rem 0; line-height: 1.5; }
   .md :global(table) { border-collapse: collapse; width: 100%; font-size: 0.9rem; margin: 0.75rem 0; }
   .md :global(th), .md :global(td) {
-    border: 1px solid var(--border-subtle);
+    border: 1px solid var(--bone-200);
     padding: 0.4rem 0.6rem; text-align: left;
   }
-  .md :global(a) { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  .md :global(a) { color: var(--forest-800); text-decoration: underline; text-underline-offset: 2px; }
 
   .empty {
-    color: var(--text-3);
+    color: var(--text-tertiary);
     font-style: italic;
     padding: 2rem 0;
     text-align: center;
@@ -162,10 +162,10 @@
   footer {
     margin-top: 3rem;
     padding-top: 1.5rem;
-    border-top: 1px solid var(--border-subtle);
+    border-top: 1px solid var(--bone-200);
     text-align: center;
-    color: var(--text-3);
+    color: var(--text-tertiary);
     font-size: 0.78rem;
   }
-  footer strong { color: var(--text-2); }
+  footer strong { color: var(--text-secondary); }
 </style>

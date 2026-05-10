@@ -1,73 +1,241 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Surface */
-  --bg:            oklch(96.5% 0.016 80);
-  --surface:       oklch(99.2% 0.007 80);
-  --surface-raised: oklch(99.8% 0.004 80);
-  --border:        oklch(88% 0.014 80);
-  --border-subtle: oklch(92% 0.010 80);
+  /* ── Brand palette ───────────────────────────────────────────────────── */
 
-  /* Text */
-  --text:          oklch(19% 0.015 80);
-  --text-2:        oklch(44% 0.013 80);
-  --text-3:        oklch(64% 0.010 80);
+  /* Forest — primary */
+  --forest-50:  #E6EFE9;
+  --forest-100: #C8DCD0;
+  --forest-200: #95B8A2;
+  --forest-400: #4D8067;
+  --forest-600: #2D5840;
+  --forest-800: #1F4332;
+  --forest-900: #112619;
 
-  /* Accent — deep forest green */
-  --accent:        oklch(36% 0.12 155);
-  --accent-mid:    oklch(52% 0.14 155);
-  --accent-bg:     oklch(94.5% 0.04 155);
-  --accent-border: oklch(82% 0.07 155);
+  /* Bone — surface/neutral */
+  --bone-50:  #FCFAF5;
+  --bone-100: #F6F1E5;
+  --bone-200: #EBE0C9;
+  --bone-400: #C9B695;
+  --bone-600: #9A8A6F;
+  --bone-800: #5F5341;
+  --bone-900: #3D3527;
 
-  /* Header */
-  --header-bg:     oklch(22% 0.028 155);
-  --header-text:   oklch(94% 0.018 80);
+  /* Sunset — accent */
+  --sunset-50:  #FCEEE2;
+  --sunset-100: #F7D2B0;
+  --sunset-200: #F0B080;
+  --sunset-400: #E0884F;
+  --sunset-600: #D87B3F;
+  --sunset-800: #8D4C24;
+  --sunset-900: #5C2F14;
 
-  /* Status */
-  --idea-bg:       oklch(93% 0.024 250);
-  --idea-text:     oklch(38% 0.13 255);
-  --exploring-bg:  oklch(93% 0.040 70);
-  --exploring-text: oklch(42% 0.14 55);
-  --planning-bg:   oklch(93% 0.040 155);
-  --planning-text: oklch(34% 0.12 155);
-  --completed-bg:  oklch(93% 0.024 300);
-  --completed-text: oklch(40% 0.12 300);
+  /* Sky — info/navy */
+  --sky-50:  #E8EEF2;
+  --sky-100: #C5D2DC;
+  --sky-200: #95ABBA;
+  --sky-400: #5B7E92;
+  --sky-600: #3D5A6E;
+  --sky-800: #25394A;
+  --sky-900: #16252F;
 
-  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Bark — deep accent */
+  --bark-50:  #F4EDE7;
+  --bark-100: #DCC9B8;
+  --bark-200: #B7977C;
+  --bark-400: #876248;
+  --bark-600: #5C4031;
+  --bark-800: #3C2922;
+  --bark-900: #211611;
 
+  /* Embers — semantic-only (danger) */
+  --embers-600: #A82F1F;
+
+  /* ── Semantic tokens (preferred by new code) ─────────────────────────── */
+
+  --text-primary:   var(--forest-900);
+  --text-secondary: var(--forest-600);
+  --text-tertiary:  var(--bone-600);
+  --text-inverse:   var(--bone-200);
+
+  --surface-page:   var(--bone-50);
+  --surface-raised: var(--bone-100);
+  --surface-sunken: var(--bone-200);
+  --surface-invert: var(--forest-800);
+
+  --state-success: var(--forest-600);
+  --state-danger:  var(--embers-600);
+  --state-info:    var(--sky-600);
+  --state-warning: var(--sunset-400);
+
+  /* ── Status pills ────────────────────────────────────────────────────── */
+  /* Stage-specific composite tokens used by lifecycle badges. Agreed mapping:
+       idea       → sky
+       exploring  → sunset
+       planning   → forest
+       completed  → bark
+   */
+  --idea-bg:        var(--sky-100);
+  --idea-text:      var(--sky-600);
+  --exploring-bg:   var(--sunset-100);
+  --exploring-text: var(--sunset-800);
+  --planning-bg:    var(--forest-100);
+  --planning-text:  var(--forest-600);
+  --completed-bg:   var(--bark-100);
+  --completed-text: var(--bark-600);
+
+  /* ── Typography ──────────────────────────────────────────────────────── */
+  --font-serif: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:  'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ── Layout constants ────────────────────────────────────────────────── */
   --thumb-h: 220px;
   --map-h-mobile: 28vh;
   --tap-min: 44px;
 }
 
 body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--text);
+  font-family: var(--font-sans);
+  background: var(--surface-page);
+  color: var(--text-primary);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Button utilities ────────────────────────────────────────────────── */
+/* Three variants per spec §7. Sans, weight 500, 4px radius. Sentence case
+   for button labels — never UPPERCASE — per the brand's quiet civic register. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1.5px solid transparent;
+  border-radius: 4px;
+  padding: 10px 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--forest-800);
+  color: var(--bone-200);
+  border-color: var(--forest-800);
+}
+.btn-primary:hover:not(:disabled)  { background: var(--forest-900); border-color: var(--forest-900); }
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--bark-600);
+  border: 0.5px solid var(--bark-600);
+}
+.btn-secondary:hover:not(:disabled)  { background: var(--bone-100); }
+.btn-secondary:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-tertiary {
+  background: transparent;
+  color: var(--bone-600);
+  border-color: transparent;
+  padding: 8px 12px;
+}
+.btn-tertiary:hover:not(:disabled) { color: var(--forest-800); }
+
+.btn-compact { padding: 8px 14px; font-size: 12px; }
+
+/* Danger — destructive confirmations. Reserved for embers (the spec's only
+   non-brand semantic color). */
+.btn-danger {
+  background: transparent;
+  color: var(--embers-600);
+  border: 0.5px solid var(--embers-600);
+}
+.btn-danger:hover:not(:disabled)  { background: var(--sunset-50); }
+.btn-danger:active:not(:disabled) { transform: scale(0.98); }
+
+/* ── AI assistant card ───────────────────────────────────────────────── */
+/* "Field guide says…" pattern from spec §7. Bone-200 surface with the badge
+   mark + italic Fraunces label, then a body paragraph in bark-800 and an
+   optional action row. Used wherever the assistant speaks to the user. */
+.assistant-card {
+  background: var(--surface-sunken);
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+.assistant-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.assistant-card__label {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-style: italic;
+  font-weight: 500;
+  color: var(--forest-800);
+}
+.assistant-card__body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--bark-800);
+}
+.assistant-card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ── Type-scale utilities ────────────────────────────────────────────── */
+/* Two weights only — 400 regular and 500 medium. Avoid 600+ against the
+   quiet civic register the brand calls for. */
+.text-display { font-family: var(--font-serif); font-size: 56px; line-height: 56px; font-weight: 500; letter-spacing: 0.005em; }
+.text-h1      { font-family: var(--font-serif); font-size: 40px; line-height: 44px; font-weight: 500; letter-spacing: 0.005em; }
+.text-h2      { font-family: var(--font-serif); font-size: 26px; line-height: 32px; font-weight: 500; }
+.text-h3      { font-family: var(--font-sans);  font-size: 18px; line-height: 24px; font-weight: 500; }
+.text-body    { font-family: var(--font-sans);  font-size: 15px; line-height: 24px; font-weight: 400; }
+.text-small   { font-family: var(--font-sans);  font-size: 13px; line-height: 20px; font-weight: 400; }
+.text-caption { font-family: var(--font-sans);  font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.18em; }
+.text-mono    { font-family: var(--font-mono);  font-size: 13px; line-height: 20px; font-weight: 400; }
+
 /* Leaflet popup */
 .leaflet-popup-content-wrapper {
   border-radius: 8px;
-  box-shadow: 0 4px 20px oklch(0% 0 0 / 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   padding: 0;
 }
-.leaflet-popup-content { margin: 0; font-family: var(--font); }
+.leaflet-popup-content { margin: 0; font-family: var(--font-sans); }
 .map-popup { padding: 0.65rem 0.9rem; min-width: 140px; }
-.map-popup strong { display: block; font-size: 0.82rem; line-height: 1.3; color: var(--text); font-weight: 600; }
-.map-popup small  { display: block; color: var(--text-3); font-size: 0.72rem; margin-top: 0.1rem; }
+.map-popup strong {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text-primary);
+  letter-spacing: 0.005em;
+}
+.map-popup small { display: block; color: var(--text-tertiary); font-size: 0.72rem; margin-top: 0.15rem; font-family: var(--font-mono); }
 .map-popup-open {
   display: block;
   margin-top: 0.55rem;
   padding: 0.35rem 0.6rem;
-  font-family: var(--font);
+  font-family: var(--font-sans);
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 1px solid var(--accent-border);
+  color: var(--forest-800);
+  background: var(--forest-50);
+  border: 1px solid var(--forest-200);
   border-radius: 3px;
   cursor: pointer;
   width: 100%;
@@ -75,6 +243,6 @@ body {
   transition: background 0.12s, color 0.12s;
 }
 .map-popup-open:hover, .map-popup-open:active {
-  background: var(--accent);
-  color: oklch(97% 0.012 80);
+  background: var(--forest-800);
+  color: var(--text-inverse);
 }

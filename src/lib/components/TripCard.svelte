@@ -1,5 +1,6 @@
 <script>
   import MiniMap from './MiniMap.svelte';
+  import Logo from './Logo.svelte';
   import { tripColor } from '$lib/utils/colors.js';
 
   let { trip, starred = false, onclick, onhover, onleave, onbookmark, ondeepen, onpromote } = $props();
@@ -15,8 +16,6 @@
       ? `${trip._drive_hours % 1 === 0 ? trip._drive_hours : trip._drive_hours.toFixed(1)} hr`
       : null
   );
-
-  const isFly = $derived(trip.fly_in === 'true');
 
   function handleKey(e) {
     if (e.key === 'Enter') return onclick?.();
@@ -65,7 +64,7 @@
     </div>
   {:else}
     <div class="thumb placeholder">
-      🗺️
+      <Logo variant="mono-dark" size={48} class="placeholder-mark" />
       <span class="badge">{status}{trip.locked === 'true' ? ' · locked' : ''}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
     </div>
@@ -73,7 +72,7 @@
 
   <div class="body">
     <div class="top-row">
-      {#if trip.vibe}<div class="vibe">{trip.vibe}</div>{/if}
+      {#if trip.vibe}<div class="eyebrow">{trip.vibe}</div>{/if}
       <button
         class="bookmark"
         class:active={starred}
@@ -97,28 +96,25 @@
 
     {#if isIdea}
       <button
-        class="research-btn"
+        class="btn btn-secondary btn-compact card-cta"
         onclick={ondeepen}
         disabled={!ondeepen}
-        title={ondeepen ? 'Research this trip with web search' : 'Deepen unavailable — research model or search backend not configured'}
+        title={ondeepen ? 'Look into this trip with web search' : 'Research is offline — research model or search backend not configured'}
       >
         Research →
       </button>
     {:else if isExploring && onpromote}
-      <button class="research-btn" onclick={onpromote} title="Move into Planning">
-        Start Planning →
+      <button class="btn btn-secondary btn-compact card-cta" onclick={onpromote} title="Move into Planning">
+        Start planning →
       </button>
     {/if}
 
     <div class="footer">
-      {#if isFly}
-        <span class="mode-chip fly">✈ fly</span>
-      {:else if driveLabel}
-        <span class="mode-chip drive">{driveLabel}</span>
-      {/if}
-      {#if trip.destination}
-        <span class="dest">{trip.destination}</span>
-      {/if}
+      <div class="meta">
+        {#if driveLabel}<span>{driveLabel}</span>{/if}
+        {#if driveLabel && trip.destination}<span class="sep">·</span>{/if}
+        {#if trip.destination}<span>{trip.destination}</span>{/if}
+      </div>
       {#if trip._cost}
         <span class="cost">{trip._cost}</span>
       {/if}
@@ -128,11 +124,11 @@
 
 <style>
   .card {
-    background: var(--surface);
+    background: var(--surface-raised);
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid var(--border-subtle);
-    box-shadow: 0 1px 2px oklch(0% 0 0 / 0.04), 0 3px 10px oklch(0% 0 0 / 0.05);
+    border: 1px solid var(--bone-200);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 3px 10px rgba(0, 0, 0, 0.05);
     display: flex;
     flex-direction: column;
     cursor: pointer;
@@ -144,21 +140,21 @@
   }
   .card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 8px 24px oklch(0% 0 0 / 0.1), 0 1px 3px oklch(0% 0 0 / 0.05);
-    border-color: var(--accent-border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05);
+    border-color: var(--forest-200);
   }
   .card:active {
     transform: scale(0.985);
-    border-color: var(--accent);
+    border-color: var(--forest-800);
     transition-duration: 0.05s;
   }
-  .card:global(.highlight) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card:global(.highlight) { outline: 2px solid var(--forest-800); outline-offset: 2px; }
 
   /* ── Thumbnail ── */
   .thumb {
     height: var(--thumb-h, 220px);
     flex-shrink: 0;
-    background: var(--border);
+    background: var(--bone-400);
     overflow: hidden;
     position: relative;
   }
@@ -169,8 +165,9 @@
   .card:hover .thumb.photo img { transform: scale(1.05); }
   .thumb.placeholder {
     display: flex; align-items: center; justify-content: center;
-    color: var(--text-3); font-size: 1.5rem;
+    background: var(--surface-sunken);
   }
+  .thumb.placeholder :global(.placeholder-mark) { opacity: 0.22; }
 
   /* Badge as photo overlay — bottom-left */
   .badge {
@@ -183,8 +180,8 @@
     text-transform: uppercase;
     padding: 0.18rem 0.5rem;
     border-radius: 2px;
-    background: oklch(12% 0.01 80 / 0.72);
-    color: oklch(93% 0.008 80);
+    background: rgba(31, 25, 14, 0.72);
+    color: var(--bone-100);
     backdrop-filter: blur(4px);
   }
 
@@ -202,15 +199,15 @@
     text-transform: uppercase;
     padding: 0.25rem 0.6rem;
     border-radius: 2px;
-    background: oklch(30% 0.07 52 / 0.93);
-    color: oklch(93% 0.022 68);
-    border: 1px solid oklch(62% 0.05 65 / 0.35);
+    background: var(--sunset-800);
+    color: var(--bone-100);
+    border: 1px solid rgba(201, 182, 149, 0.35);
   }
 
   .credit {
     position: absolute; bottom: 0; right: 0;
-    background: oklch(10% 0 0 / 0.45);
-    color: oklch(90% 0 0 / 0.7);
+    background: rgba(20, 20, 20, 0.45);
+    color: rgba(230, 230, 230, 0.7);
     font-size: 0.56rem; padding: 0.14rem 0.45rem; border-radius: 3px 0 0 0;
   }
   .credit a { color: inherit; text-decoration: none; }
@@ -225,7 +222,7 @@
     flex: 1;
     transition: background 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .card:hover .body { background: var(--accent-bg); }
+  .card:hover .body { background: var(--forest-50); }
 
   .top-row {
     display: flex;
@@ -243,7 +240,7 @@
     border: none;
     padding: 0.15rem 0.1rem;
     cursor: pointer;
-    color: var(--text-3);
+    color: var(--text-tertiary);
     line-height: 1;
     transition: color 0.12s, transform 0.12s;
     display: flex;
@@ -256,102 +253,68 @@
     position: absolute;
     inset: -10px;
   }
-  .bookmark:hover  { color: var(--accent); transform: scale(1.1); }
-  .bookmark:active { color: var(--accent); transform: scale(0.92); }
-  .bookmark.active { color: var(--accent); }
+  .bookmark:hover  { color: var(--forest-800); transform: scale(1.1); }
+  .bookmark:active { color: var(--forest-800); transform: scale(0.92); }
+  .bookmark.active { color: var(--forest-800); }
 
-  .vibe {
-    display: inline-flex;
+  .eyebrow {
     align-self: flex-start;
-    font-size: 0.58rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.09em;
-    color: var(--accent);
-    background: var(--accent-bg);
-    padding: 0.18rem 0.5rem;
-    border-radius: 2px;
-    margin-bottom: -0.05rem;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--bone-600);
+    margin-bottom: 2px;
   }
 
   h2 {
-    font-size: 1.15rem;
-    font-weight: 700;
-    line-height: 1.22;
-    color: var(--text);
-    letter-spacing: -0.025em;
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--text-primary);
+    letter-spacing: 0.005em;
     margin: 0;
   }
 
   .pitch {
     font-size: 0.825rem;
     line-height: 1.65;
-    color: var(--text-2);
+    color: var(--text-secondary);
     flex: 1;
     margin: 0;
   }
 
-  /* ── Compact footer ── */
+  /* ── Mono meta footer — drive · dest, with cost right-aligned ── */
   .footer {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    justify-content: space-between;
+    gap: 0.5rem;
     flex-wrap: wrap;
-    padding-top: 0.45rem;
-    border-top: 1px solid var(--border-subtle);
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--bone-200);
     margin-top: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
+    color: var(--bone-600);
   }
-
-  /* Colored mode chip — the primary skim anchor */
-  .mode-chip {
-    display: inline-flex;
+  .footer .meta {
+    display: flex;
     align-items: center;
-    font-size: 0.62rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    padding: 0.2rem 0.55rem;
-    border-radius: 2px;
-    white-space: nowrap;
-    flex-shrink: 0;
+    gap: 0.4rem;
+    flex-wrap: wrap;
   }
-  .mode-chip.drive {
-    background: oklch(93.5% 0.048 155);
-    color: oklch(32% 0.12 155);
-  }
-  .mode-chip.fly {
-    background: oklch(93.5% 0.048 195);
-    color: oklch(28% 0.12 195);
-  }
-
-  .footer .dest {
-    font-size: 0.72rem;
-    color: var(--text-2);
-    font-weight: 500;
-  }
-
-  .research-btn {
-    align-self: flex-start;
-    border: 1.5px solid var(--accent-border);
-    background: none;
-    color: var(--accent);
-    font-size: 0.7rem;
-    font-weight: 600;
-    font-family: var(--font);
-    padding: 0.22rem 0.6rem;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-  }
-  .research-btn:hover  { background: var(--accent); color: oklch(97% 0.012 80); }
-  .research-btn:active { background: var(--accent); color: oklch(97% 0.012 80); transform: scale(0.96); }
-
+  .footer .sep { color: var(--bone-400); }
   .footer .cost {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--text);
-    margin-left: auto;
+    color: var(--text-primary);
+    font-weight: 500;
+    white-space: nowrap;
   }
+
+  /* Card-level secondary CTA — small inline action button on idea/exploring cards. */
+  .card-cta { align-self: flex-start; }
 
   @media (max-width: 768px) {
     /* Shorter thumbnail — saves ~50px per card */
@@ -360,6 +323,6 @@
     /* Bookmark stays visually small; ::before above provides the tap target.
        Push the hit-area further out on mobile so a thumb can land on it. */
     .bookmark::before { inset: -14px; }
-    .research-btn { min-height: var(--tap-min); display: flex; align-items: center; }
+    .card-cta { min-height: var(--tap-min); }
   }
 </style>

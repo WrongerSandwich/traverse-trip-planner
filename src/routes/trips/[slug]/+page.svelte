@@ -2,6 +2,7 @@
   import { marked } from 'marked';
   import { invalidateAll, goto } from '$app/navigation';
   import MiniMap from '$lib/components/MiniMap.svelte';
+  import Logo from '$lib/components/Logo.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
@@ -76,7 +77,7 @@
       editing[section] = false;
       delete drafts[section];
     } catch (err) {
-      alert(`Could not save: ${err.message}`);
+      alert(`Couldn't save those edits — ${err.message}`);
     } finally {
       saving[section] = false;
     }
@@ -88,7 +89,7 @@
   let chatInput = $state('');
   let chatBusy = $state(false);
 
-  const chatStorageKey = $derived(trip?._slug ? `atlas-chat-${trip._slug}` : null);
+  const chatStorageKey = $derived(trip?._slug ? `traverse-chat-${trip._slug}` : null);
 
   // Load chat history when slug changes (new trip = new history).
   $effect(() => {
@@ -174,7 +175,7 @@
     if (!trip || locking) return;
     locking = true;
     lockStreamingText = '';
-    lockStatus = 'Generating itinerary…';
+    lockStatus = 'Plotting the itinerary…';
     try {
       await streamAction(`/api/lock/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
         if (msg.startsWith('itinerary:')) {
@@ -186,7 +187,7 @@
       });
     } catch (err) {
       console.error(err);
-      alert('Could not lock the trip — check the server log.');
+      alert("Couldn't lock the trip. The server log may have more detail.");
     } finally {
       locking = false;
       // Keep the streamed text visible until invalidateAll has refreshed the page;
@@ -202,7 +203,7 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert('Could not unlock the trip — check the server log.');
+      alert("Couldn't unlock the trip. The server log may have more detail.");
     }
   }
 
@@ -210,7 +211,7 @@
   async function completeTrip() {
     if (!trip || completing) return;
     const label = trip.title || trip._slug;
-    if (!confirm(`Mark "${label}" as completed? It will move out of Planning.`)) return;
+    if (!confirm(`Mark "${label}" as completed? It'll move out of planning.`)) return;
     completing = true;
     try {
       const res = await fetch(`/api/complete/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
@@ -218,7 +219,7 @@
       await goto('/', { invalidateAll: true });
     } catch (err) {
       console.error(err);
-      alert('Could not mark trip as completed — check the server log.');
+      alert("Couldn't mark the trip as completed. The server log may have more detail.");
     } finally {
       completing = false;
     }
@@ -247,7 +248,7 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert('Could not enable sharing — check the server log.');
+      alert("Couldn't enable sharing. The server log may have more detail.");
     } finally {
       shareBusy = false;
     }
@@ -264,7 +265,7 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert('Could not disable sharing — check the server log.');
+      alert("Couldn't disable sharing. The server log may have more detail.");
     } finally {
       shareBusy = false;
     }
@@ -281,14 +282,14 @@
   async function archiveTrip() {
     if (!trip) return;
     const label = trip.title || trip._slug;
-    if (!confirm(`Archive "${label}"? It will be hidden from view but the file is kept so the seeder won't suggest it again.`)) return;
+    if (!confirm(`Archive "${label}"? It'll vanish from view but stay on disk, so the seeder won't suggest it again.`)) return;
     try {
       const res = await fetch(`/api/archive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (!res.ok) throw new Error(`Archive failed: ${res.status}`);
       await goto('/', { invalidateAll: true });
     } catch (err) {
       console.error(err);
-      alert('Could not archive — check the server log.');
+      alert("Couldn't archive that one. The server log may have more detail.");
     }
   }
 
@@ -296,7 +297,7 @@
 </script>
 
 <svelte:head>
-  <title>{trip?.title || trip?._slug} — Atlas</title>
+  <title>{trip?.title || trip?._slug} — Traverse</title>
 </svelte:head>
 
 <div class="page">
@@ -306,9 +307,7 @@
     <h1>{trip?.title || trip?._slug}</h1>
     <div class="meta">
       {#if trip?.destination}<span>{trip.destination}</span>{/if}
-      {#if trip?.fly_in === 'true'}
-        <span class="mode fly">✈ fly</span>
-      {:else if driveLabel}
+      {#if driveLabel}
         <span class="mode drive">{driveLabel}</span>
       {/if}
       {#if trip?._cost}<span class="cost">{trip._cost}</span>{/if}
@@ -327,18 +326,18 @@
       {#if isPlanning && !isLocked}
         <div class="callout">
           <strong>Planning mode.</strong>
-          Edit any section below. Use <em>Ask {data.assistantName}</em> to request changes — {data.assistantName} reads your current sections and writes updates back to the markdown.
+          Edit any section below, or tap <em>Ask {data.assistantName}</em> to describe a change in plain English — updates are written straight to the markdown.
           <div class="callout-actions">
             <button
-              class="lock-btn"
+              class="btn btn-primary"
               onclick={lockTrip}
               disabled={locking || !data.features?.lock}
-              title={data.features?.lock ? '' : 'Default model not configured — see .env'}
+              title={data.features?.lock ? '' : 'No default model configured — edit your .env to enable this'}
             >
-              {locking ? 'Generating itinerary…' : '🔒 Lock trip & generate itinerary'}
+              {locking ? 'Plotting the itinerary…' : 'Lock trip & generate itinerary'}
             </button>
-            <button class="complete-btn" onclick={completeTrip} disabled={completing}>
-              {completing ? 'Completing…' : 'Mark as Completed'}
+            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
+              {completing ? 'Completing…' : 'Mark as completed'}
             </button>
           </div>
           {#if locking}
@@ -355,10 +354,10 @@
           <strong>Locked — read-only.</strong>
           Editing is frozen. The itinerary below was generated from your planning sections.
           <div class="callout-actions">
-            <button class="unlock-btn" onclick={unlockTrip}>Unlock to edit</button>
-            <button class="print-btn" onclick={() => window.print()}>Print / Save PDF</button>
-            <button class="complete-btn" onclick={completeTrip} disabled={completing}>
-              {completing ? 'Completing…' : 'Mark as Completed'}
+            <button class="btn btn-secondary" onclick={unlockTrip}>Unlock to edit</button>
+            <button class="btn btn-secondary" onclick={() => window.print()}>Print / save PDF</button>
+            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
+              {completing ? 'Completing…' : 'Mark as completed'}
             </button>
           </div>
         </div>
@@ -389,7 +388,7 @@
             <header class="section-header">
               <h2>{SECTION_LABELS[section] || section}</h2>
               {#if isPlanning && !isLocked && !editing[section]}
-                <button class="edit-btn" onclick={() => startEdit(section)}>Edit</button>
+                <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
               {/if}
             </header>
 
@@ -401,10 +400,10 @@
                 rows="14"
               ></textarea>
               <div class="editor-actions">
-                <button class="save-btn" onclick={() => saveEdit(section)} disabled={saving[section]}>
+                <button class="btn btn-primary btn-compact" onclick={() => saveEdit(section)} disabled={saving[section]}>
                   {saving[section] ? 'Saving…' : 'Save'}
                 </button>
-                <button class="cancel-btn" onclick={() => cancelEdit(section)} disabled={saving[section]}>
+                <button class="btn btn-tertiary btn-compact" onclick={() => cancelEdit(section)} disabled={saving[section]}>
                   Cancel
                 </button>
               </div>
@@ -428,13 +427,13 @@
             <button class="share-enable" onclick={enableShare} disabled={shareBusy}>
               {shareBusy ? 'Generating…' : 'Generate share link'}
             </button>
-            <span class="share-hint">Creates a public read-only URL anyone can view (no Atlas account needed).</span>
+            <span class="share-hint">Creates a public read-only URL anyone can view (no Traverse account needed).</span>
           {/if}
         </div>
       {/if}
 
       <div class="danger-zone">
-        <button class="archive-btn" onclick={archiveTrip}>Archive trip</button>
+        <button class="btn btn-danger btn-compact" onclick={archiveTrip}>Archive trip</button>
         <span class="archive-hint">Hides it from view but keeps the file so it won't be re-suggested.</span>
       </div>
     </main>
@@ -469,14 +468,20 @@
 
     <div class="chat-log">
       {#if chatMessages.length === 0}
-        <div class="chat-empty">
-          <p>Ask for changes in plain English — try things like:</p>
-          <ul>
-            <li>"Add a half-day in Leavenworth on the way."</li>
-            <li>"Trim the route down to one direct option."</li>
-            <li>"Suggest a vegetarian-friendly dinner spot in Atchison."</li>
-          </ul>
-          <p class="hint">{data.assistantName} can edit your section files directly. Updates apply on save.</p>
+        <div class="assistant-card chat-empty">
+          <div class="assistant-card__header">
+            <Logo variant="primary" size={22} />
+            <div class="assistant-card__label">{data.assistantName} says…</div>
+          </div>
+          <div class="assistant-card__body">
+            <p>Ask for changes in plain English. A few examples to start:</p>
+            <ul>
+              <li>"Add a half-day in Leavenworth on the way."</li>
+              <li>"Trim the route down to one direct option."</li>
+              <li>"Suggest a vegetarian-friendly dinner spot in Atchison."</li>
+            </ul>
+            <p class="hint">I can edit your section files directly — changes apply on save.</p>
+          </div>
         </div>
       {:else}
         {#each chatMessages as m}
@@ -517,16 +522,16 @@
 
   .page {
     min-height: 100vh;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font);
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
     display: flex;
     flex-direction: column;
   }
 
   .page > header {
-    background: var(--header-bg);
-    color: var(--header-text);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
     padding: 1.1rem 1.75rem;
     display: flex;
     align-items: center;
@@ -536,20 +541,20 @@
 
   .back {
     background: none;
-    border: 1.5px solid oklch(36% 0.06 155);
-    color: oklch(80% 0.025 155);
+    border: 1.5px solid var(--forest-600);
+    color: var(--bone-400);
     padding: 0.35rem 0.75rem;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.78rem;
     font-weight: 600;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
   .back:hover {
-    background: oklch(28% 0.03 155);
-    border-color: oklch(52% 0.08 155);
-    color: oklch(94% 0.018 80);
+    background: var(--forest-800);
+    border-color: var(--forest-400);
+    color: var(--bone-100);
   }
 
   .stage-pill {
@@ -563,15 +568,16 @@
     color: var(--planning-text);
   }
   .stage-pill.locked-pill {
-    background: oklch(94% 0.045 55);
-    color: oklch(35% 0.12 55);
+    background: var(--sunset-50);
+    color: var(--sunset-800);
   }
 
   .page > header h1 {
+    font-family: var(--font-serif);
     font-size: 1.4rem;
-    font-weight: 800;
-    line-height: 1;
-    letter-spacing: -0.02em;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: 0.005em;
     margin: 0;
   }
 
@@ -581,7 +587,7 @@
     align-items: center;
     gap: 0.55rem;
     font-size: 0.78rem;
-    color: oklch(80% 0.012 80);
+    color: var(--bone-400);
   }
   .meta .mode {
     font-size: 0.62rem;
@@ -591,15 +597,14 @@
     padding: 0.14rem 0.45rem;
     border-radius: 2px;
   }
-  .meta .mode.drive { background: oklch(93.5% 0.048 155 / 0.9); color: oklch(30% 0.12 155); }
-  .meta .mode.fly   { background: oklch(93.5% 0.048 195 / 0.9); color: oklch(26% 0.12 195); }
-  .meta .cost { font-weight: 700; color: oklch(94% 0.018 80); }
+  .meta .mode.drive { background: var(--forest-100); color: var(--forest-800); }
+  .meta .cost { font-weight: 700; color: var(--bone-100); }
 
   .hero {
     position: relative;
     height: 280px;
     overflow: hidden;
-    background: var(--border);
+    background: var(--bone-400);
   }
   .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .hero .vibe {
@@ -609,8 +614,8 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--accent-bg);
-    background: var(--accent);
+    color: var(--forest-50);
+    background: var(--forest-800);
     padding: 0.2rem 0.55rem;
     border-radius: 2px;
   }
@@ -631,23 +636,22 @@
   }
 
   .callout {
-    background: var(--accent-bg);
-    color: var(--accent);
-    border-left: 3px solid var(--accent);
+    background: var(--forest-50);
+    color: var(--forest-800);
+    border-left: 3px solid var(--forest-800);
     padding: 0.7rem 0.95rem;
-    border-radius: 3px;
     font-size: 0.84rem;
     line-height: 1.55;
   }
   .callout.warn {
-    background: oklch(94% 0.04 70);
-    color: oklch(36% 0.14 55);
-    border-left-color: oklch(48% 0.14 55);
+    background: var(--sunset-50);
+    color: var(--sunset-800);
+    border-left-color: var(--sunset-600);
   }
   .callout.locked-callout {
-    background: oklch(96% 0.03 55);
-    color: oklch(30% 0.10 55);
-    border-left-color: oklch(50% 0.12 55);
+    background: var(--sunset-50);
+    color: var(--sunset-800);
+    border-left-color: var(--sunset-600);
   }
   .callout-actions {
     display: flex;
@@ -655,100 +659,46 @@
     flex-wrap: wrap;
     margin-top: 0.65rem;
   }
-  .lock-btn {
-    background: oklch(25% 0.08 155);
-    color: oklch(93% 0.018 80);
-    border: none;
-    padding: 0.4rem 0.85rem;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s;
-  }
-  .lock-btn:hover:not(:disabled) { background: oklch(20% 0.06 155); }
-  .lock-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .lock-stream {
     margin-top: 0.85rem;
     padding-top: 0.85rem;
-    border-top: 1px dashed oklch(82% 0.025 155 / 0.6);
+    border-top: 1px dashed rgba(201, 182, 149, 0.6);
   }
   .lock-status {
     font-size: 0.78rem;
-    color: var(--text-2);
+    color: var(--text-secondary);
     margin-bottom: 0.5rem;
   }
   .lock-preview {
     margin: 0;
     max-height: 280px;
     overflow-y: auto;
-    background: oklch(99% 0.005 80);
-    border: 1px solid var(--border-subtle);
+    background: var(--bone-50);
+    border: 1px solid var(--bone-200);
     border-radius: 4px;
     padding: 0.75rem 0.9rem;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     font-size: 0.78rem;
     line-height: 1.55;
     white-space: pre-wrap;
-    color: var(--text);
+    color: var(--text-primary);
   }
-  .unlock-btn {
-    background: none;
-    border: 1.5px solid oklch(50% 0.12 55);
-    color: oklch(30% 0.10 55);
-    padding: 0.35rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.76rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-  }
-  .unlock-btn:hover { background: oklch(50% 0.12 55); color: oklch(97% 0 0); }
-  .print-btn {
-    background: none;
-    border: 1.5px solid oklch(60% 0.03 155);
-    color: oklch(40% 0.06 155);
-    padding: 0.35rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.76rem;
-    font-weight: 600;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s, border-color 0.12s;
-  }
-  .print-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .complete-btn {
-    background: none;
-    border: 1.5px solid oklch(55% 0.14 295);
-    color: oklch(40% 0.14 295);
-    padding: 0.35rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.76rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
-  }
-  .complete-btn:hover:not(:disabled) { background: oklch(40% 0.14 295); color: oklch(97% 0 0); }
-  .complete-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .callout.completed-callout {
-    background: oklch(96% 0.03 295);
-    color: oklch(35% 0.12 295);
-    border-left-color: oklch(50% 0.14 295);
+    background: var(--bark-50);
+    color: var(--bark-600);
+    border-left-color: var(--bark-400);
   }
 
   .map-strip {
     height: 220px;
     border-radius: 6px;
     overflow: hidden;
-    background: var(--border);
+    background: var(--bone-400);
   }
 
   .section {
-    background: var(--surface);
-    border: 1px solid var(--border-subtle);
+    background: var(--surface-raised);
+    border: 1px solid var(--bone-200);
     border-radius: 6px;
     padding: 1.25rem 1.4rem 1.5rem;
   }
@@ -758,101 +708,63 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--bone-200);
     padding-bottom: 0.55rem;
   }
   .section-header h2 {
     font-size: 1.05rem;
     font-weight: 700;
     letter-spacing: -0.015em;
-    color: var(--text);
+    color: var(--text-primary);
     margin: 0;
   }
-
-  .edit-btn {
-    background: none;
-    border: 1.5px solid var(--accent-border);
-    color: var(--accent);
-    padding: 0.18rem 0.55rem;
-    border-radius: 3px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-  }
-  .edit-btn:hover { background: var(--accent); color: oklch(97% 0.012 80); }
 
   .editor {
     width: 100%;
     min-height: 260px;
-    font-family: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--font-mono);
     font-size: 0.86rem;
     line-height: 1.6;
-    color: var(--text);
-    background: var(--surface-raised);
-    border: 1px solid var(--border);
+    color: var(--text-primary);
+    background: var(--surface-page);
+    border: 1px solid var(--bone-400);
     border-radius: 4px;
     padding: 0.7rem 0.85rem;
     resize: vertical;
   }
-  .editor:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
+  .editor:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
 
   .editor-actions {
     display: flex;
     gap: 0.5rem;
     margin-top: 0.55rem;
   }
-  .save-btn {
-    background: var(--accent);
-    color: oklch(97% 0.012 80);
-    border: none;
-    padding: 0.4rem 0.9rem;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    font-family: var(--font);
-    cursor: pointer;
-  }
-  .save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-  .cancel-btn {
-    background: none;
-    border: 1.5px solid var(--border);
-    color: var(--text-2);
-    padding: 0.4rem 0.9rem;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-family: var(--font);
-    cursor: pointer;
-  }
-  .cancel-btn:hover:not(:disabled) { border-color: var(--accent-border); color: var(--accent); }
 
-  .prose { font-size: 0.92rem; line-height: 1.75; color: var(--text-2); }
+  .prose { font-size: 0.92rem; line-height: 1.75; color: var(--text-secondary); }
   .prose :global(h1), .prose :global(h2) {
     font-size: 1rem; font-weight: 700; margin: 1.4rem 0 0.5rem;
-    color: var(--text); letter-spacing: -0.015em;
+    color: var(--text-primary); letter-spacing: -0.015em;
   }
-  .prose :global(h3) { font-size: 0.92rem; font-weight: 700; margin: 1.1rem 0 0.35rem; color: var(--text); }
+  .prose :global(h3) { font-size: 0.92rem; font-weight: 700; margin: 1.1rem 0 0.35rem; color: var(--text-primary); }
   .prose :global(h1:first-child),
   .prose :global(h2:first-child),
   .prose :global(h3:first-child) { margin-top: 0; }
   .prose :global(p) { margin: 0 0 0.85rem; }
   .prose :global(ul), .prose :global(ol) { margin: 0 0 0.85rem 1.3rem; }
   .prose :global(li) { margin-bottom: 0.3rem; }
-  .prose :global(strong) { font-weight: 700; color: var(--text); }
-  .prose :global(a) { color: var(--accent-mid); text-decoration: none; }
+  .prose :global(strong) { font-weight: 700; color: var(--text-primary); }
+  .prose :global(a) { color: var(--forest-600); text-decoration: none; }
   .prose :global(a:hover) { text-decoration: underline; }
   .prose :global(table) { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin: 0 0 1rem; }
-  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.4rem 0.6rem; border-bottom: 2px solid var(--border); color: var(--text); }
-  .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
-  .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--accent-bg); color: var(--accent); padding: 0.1em 0.4em; border-radius: 3px; }
+  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.4rem 0.6rem; border-bottom: 2px solid var(--bone-400); color: var(--text-primary); }
+  .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--bone-200); vertical-align: top; }
+  .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--forest-50); color: var(--forest-800); padding: 0.1em 0.4em; border-radius: 3px; }
 
   /* ── Danger zone (archive) ── */
   .share-zone {
     margin-top: 1.25rem;
     padding: 1rem 0 0;
-    border-top: 1px dashed var(--border);
+    border-top: 1px dashed var(--bone-400);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -861,19 +773,19 @@
   .share-active { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; width: 100%; }
   .share-url {
     flex: 1; min-width: 220px;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     font-size: 0.78rem;
     padding: 0.4rem 0.6rem;
-    border: 1px solid var(--border);
+    border: 1px solid var(--bone-400);
     border-radius: 3px;
-    background: var(--surface-raised);
-    color: var(--text-2);
+    background: var(--surface-page);
+    color: var(--text-secondary);
   }
   .share-enable, .share-copy, .share-disable {
     background: none;
-    border: 1px solid var(--border);
-    color: var(--text-2);
-    font-family: var(--font);
+    border: 1px solid var(--bone-400);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
     font-size: 0.74rem;
     font-weight: 600;
     padding: 0.32rem 0.7rem;
@@ -883,71 +795,57 @@
   }
   .share-enable:hover:not(:disabled),
   .share-copy:hover:not(:disabled) {
-    border-color: var(--accent-border);
-    color: var(--accent);
-    background: var(--accent-bg);
+    border-color: var(--forest-200);
+    color: var(--forest-800);
+    background: var(--forest-50);
   }
   .share-disable:hover:not(:disabled) {
-    border-color: oklch(58% 0.16 25);
-    color: oklch(48% 0.18 25);
-    background: oklch(96% 0.025 25);
+    border-color: var(--embers-600);
+    color: var(--embers-600);
+    background: var(--sunset-50);
   }
   .share-enable:disabled, .share-copy:disabled, .share-disable:disabled { opacity: 0.5; cursor: not-allowed; }
-  .share-hint { font-size: 0.72rem; color: var(--text-3); line-height: 1.45; }
+  .share-hint { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.45; }
 
   .danger-zone {
     margin-top: 1rem;
     padding: 1.1rem 0 0;
-    border-top: 1px dashed var(--border);
+    border-top: 1px dashed var(--bone-400);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 0.4rem;
   }
-  .archive-btn {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-3);
-    font-family: var(--font);
-    font-size: 0.74rem;
-    font-weight: 600;
-    padding: 0.32rem 0.7rem;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: border-color 0.12s, color 0.12s, background 0.12s;
-  }
-  .archive-btn:hover  { border-color: oklch(58% 0.16 25); color: oklch(48% 0.18 25); background: oklch(96% 0.025 25); }
-  .archive-btn:active { transform: scale(0.97); }
-  .archive-hint { font-size: 0.72rem; color: var(--text-3); line-height: 1.45; }
+  .archive-hint { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.45; }
 
   /* ── AI chat ── */
   .chat-fab {
     position: fixed;
     bottom: 1.5rem;
     right: 1.5rem;
-    background: var(--accent);
-    color: oklch(97% 0.012 80);
+    background: var(--forest-800);
+    color: var(--bone-50);
     border: none;
     padding: 0.85rem 1.2rem;
     border-radius: 999px;
     font-size: 0.86rem;
     font-weight: 700;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     cursor: pointer;
-    box-shadow: 0 6px 18px oklch(0% 0 0 / 0.18);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
     z-index: 902;
     transition: transform 0.12s, box-shadow 0.12s;
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
   }
-  .chat-fab:hover { transform: translateY(-1px); box-shadow: 0 9px 22px oklch(0% 0 0 / 0.22); }
-  .chat-fab.open { background: oklch(28% 0.13 155); }
+  .chat-fab:hover { transform: translateY(-1px); box-shadow: 0 9px 22px rgba(0, 0, 0, 0.22); }
+  .chat-fab.open { background: var(--forest-900); }
   .fab-icon { display: block; }
 
   .chat-backdrop {
     position: fixed; inset: 0;
-    background: oklch(10% 0 0 / 0.4);
+    background: rgba(20, 20, 20, 0.4);
     z-index: 902;
     opacity: 0; pointer-events: none;
     transition: opacity 0.25s;
@@ -958,8 +856,8 @@
     position: fixed;
     top: 0; right: 0;
     width: 420px; max-width: 100vw; height: 100vh;
-    background: var(--surface);
-    box-shadow: -10px 0 30px oklch(0% 0 0 / 0.15);
+    background: var(--surface-raised);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.15);
     z-index: 903;
     display: flex;
     flex-direction: column;
@@ -969,8 +867,8 @@
   .chat.open { transform: translateX(0); }
 
   .chat-header {
-    background: var(--header-bg);
-    color: var(--header-text);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
     padding: 0.85rem 1.1rem;
     display: flex;
     align-items: center;
@@ -980,17 +878,17 @@
   }
   .chat-header-actions { display: flex; align-items: center; gap: 0.4rem; }
   .chat-close {
-    background: none; border: none; color: oklch(70% 0.02 155);
+    background: none; border: none; color: var(--bone-400);
     cursor: pointer; font-size: 1rem; line-height: 1;
     padding: 0.2rem 0.35rem; border-radius: 3px;
   }
-  .chat-close:hover { color: var(--header-text); background: oklch(100% 0 0 / 0.08); }
+  .chat-close:hover { color: var(--text-inverse); background: rgba(255, 255, 255, 0.08); }
   .chat-clear {
-    background: none; border: 1px solid oklch(100% 0 0 / 0.18); color: oklch(80% 0.02 155);
+    background: none; border: 1px solid rgba(255, 255, 255, 0.18); color: var(--bone-400);
     cursor: pointer; font-size: 0.7rem; font-weight: 500; line-height: 1;
     padding: 0.3rem 0.55rem; border-radius: 3px; letter-spacing: 0.04em; text-transform: uppercase;
   }
-  .chat-clear:hover:not(:disabled) { color: var(--header-text); background: oklch(100% 0 0 / 0.08); }
+  .chat-clear:hover:not(:disabled) { color: var(--text-inverse); background: rgba(255, 255, 255, 0.08); }
   .chat-clear:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .chat-log {
@@ -1002,14 +900,14 @@
     gap: 0.65rem;
   }
 
-  .chat-empty {
-    color: var(--text-2);
-    font-size: 0.86rem;
-    line-height: 1.6;
+  .chat-empty .assistant-card__body p { margin: 0 0 0.5rem; }
+  .chat-empty .assistant-card__body ul { margin: 0.4rem 0 0.5rem 1.2rem; padding: 0; }
+  .chat-empty .assistant-card__body li { margin-bottom: 0.25rem; }
+  .chat-empty .assistant-card__body .hint {
+    color: var(--bone-600);
+    font-size: 0.78rem;
+    margin-top: 0.5rem;
   }
-  .chat-empty ul { margin: 0.5rem 0 0.6rem 1.2rem; }
-  .chat-empty li { margin-bottom: 0.25rem; }
-  .chat-empty .hint { color: var(--text-3); font-size: 0.78rem; }
 
   .msg {
     max-width: 88%;
@@ -1021,14 +919,14 @@
   }
   .msg.user {
     align-self: flex-end;
-    background: var(--accent);
-    color: oklch(97% 0.012 80);
+    background: var(--forest-800);
+    color: var(--bone-50);
     border-bottom-right-radius: 2px;
   }
   .msg.assistant {
     align-self: flex-start;
-    background: var(--accent-bg);
-    color: var(--text);
+    background: var(--surface-sunken);
+    color: var(--bark-800);
     border-bottom-left-radius: 2px;
   }
   .msg-updates {
@@ -1042,14 +940,14 @@
   .msg-usage {
     margin-top: 0.35rem;
     font-size: 0.7rem;
-    color: var(--text-3);
+    color: var(--text-tertiary);
     font-variant-numeric: tabular-nums;
   }
 
   .typing { display: inline-flex; gap: 4px; }
   .typing span {
     width: 6px; height: 6px;
-    background: var(--text-3);
+    background: var(--text-tertiary);
     border-radius: 50%;
     animation: bounce 1s infinite ease-in-out;
   }
@@ -1058,35 +956,35 @@
   @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
 
   .chat-input {
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--bone-400);
     padding: 0.75rem 0.9rem;
     display: flex;
     gap: 0.5rem;
     align-items: flex-end;
-    background: var(--surface);
+    background: var(--surface-raised);
   }
   .chat-input textarea {
     flex: 1;
-    border: 1px solid var(--border);
+    border: 1px solid var(--bone-400);
     border-radius: 4px;
     padding: 0.5rem 0.65rem;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     font-size: 0.86rem;
     line-height: 1.45;
-    color: var(--text);
-    background: var(--surface-raised);
+    color: var(--text-primary);
+    background: var(--surface-page);
     resize: none;
   }
-  .chat-input textarea:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; }
+  .chat-input textarea:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
   .chat-input button {
-    background: var(--accent);
-    color: oklch(97% 0.012 80);
+    background: var(--forest-800);
+    color: var(--bone-50);
     border: none;
     padding: 0.5rem 0.95rem;
     border-radius: 4px;
     font-size: 0.82rem;
     font-weight: 700;
-    font-family: var(--font);
+    font-family: var(--font-sans);
     cursor: pointer;
   }
   .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1101,26 +999,25 @@
     font-size: 1rem;
     font-weight: 800;
     letter-spacing: -0.01em;
-    color: var(--text);
+    color: var(--text-primary);
     margin: 0;
     padding: 0.7rem 1.1rem 0.6rem;
-    background: oklch(96% 0.03 55);
-    border-left: 3px solid oklch(50% 0.12 55);
-    border-radius: 4px;
+    background: var(--sunset-50);
+    border-left: 3px solid var(--sunset-800);
   }
   .itinerary-view :global(h3) {
     font-size: 0.64rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--text-3);
+    color: var(--text-tertiary);
     margin: 1rem 0 0.3rem;
   }
   .itinerary-view :global(h3:first-of-type) { margin-top: 0.55rem; }
   .itinerary-view :global(p) {
     font-size: 0.9rem;
     line-height: 1.6;
-    color: var(--text-2);
+    color: var(--text-secondary);
     margin: 0 0 0.4rem;
     font-weight: 700;
   }
@@ -1128,12 +1025,12 @@
   .itinerary-view :global(li) {
     font-size: 0.88rem;
     line-height: 1.55;
-    color: var(--text-2);
+    color: var(--text-secondary);
     padding: 0.22rem 0;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--bone-200);
   }
   .itinerary-view :global(li:last-child) { border-bottom: none; }
-  .itinerary-view :global(strong) { font-weight: 700; color: var(--text); }
+  .itinerary-view :global(strong) { font-weight: 700; color: var(--text-primary); }
 
   /* ── Print styles ── */
   @media print {

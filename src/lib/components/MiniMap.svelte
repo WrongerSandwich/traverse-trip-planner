@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
 
-  let { coords, color = '#1e40af', zoom = 8, interactive = false } = $props();
+  let { coords, color = '#1F4332', zoom = 8, interactive = false } = $props();
 
   let mapEl;
 

@@ -71,11 +71,11 @@ ev_friendly:
 tags:
 vibe:
 cost_tier:
-waypoints: [key cities along the driving route, e.g. Home City ST, Midpoint City ST, Destination City ST. For fly-in: driving segment from arrival airport to destination.]
+waypoints: [key cities along the driving route, e.g. Home City ST, Midpoint City ST, Destination City ST.]
 </frontmatter>
 
 <route_md>
-Full markdown for route.md. ## headers per segment. Specific road numbers, mileage, timing. For fly-in: both flight overview and driving within destination.
+Full markdown for route.md. ## headers per segment. Specific road numbers, mileage, timing.
 </route_md>
 
 <stops_md>
