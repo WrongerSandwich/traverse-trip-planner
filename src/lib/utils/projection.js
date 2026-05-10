@@ -5,7 +5,14 @@
 //
 // Pass coords as [[lat, lon], …]; project() returns [x, y] in viewBox units.
 
-export function buildProjection({ coords, viewBoxW, viewBoxH, padding = 0.08 }) {
+// Minimum span the data bbox must occupy. When the coords are clustered
+// tighter than this (e.g., stops in a single town), the bbox is expanded
+// outward so the map shows surrounding geographic context — nearby
+// towns, rivers, state borders — instead of a building-block view.
+// Specified in degrees of *latitude* (≈ 69 mi/deg).
+//
+// Passing `minSpanDeg: null` disables the floor and uses the raw bbox.
+export function buildProjection({ coords, viewBoxW, viewBoxH, padding = 0.08, minSpanDeg = null }) {
   if (!coords || coords.length < 1) return null;
 
   let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
@@ -19,6 +26,22 @@ export function buildProjection({ coords, viewBoxW, viewBoxH, padding = 0.08 }) 
   // Single-point input: synthesize a small bbox so projection still works.
   if (minLat === maxLat) { minLat -= 0.25; maxLat += 0.25; }
   if (minLon === maxLon) { minLon -= 0.25; maxLon += 0.25; }
+
+  // Apply minimum-span floor — expands tight clusters out to a usable scale.
+  if (minSpanDeg) {
+    const centerLatPre = (minLat + maxLat) / 2;
+    const cosCenter = Math.cos(centerLatPre * Math.PI / 180);
+    const latSpan = maxLat - minLat;
+    const lonSpan = (maxLon - minLon) * cosCenter;
+    if (latSpan < minSpanDeg) {
+      const pad = (minSpanDeg - latSpan) / 2;
+      minLat -= pad; maxLat += pad;
+    }
+    if (lonSpan < minSpanDeg) {
+      const padDeg = (minSpanDeg - lonSpan) / 2 / cosCenter;
+      minLon -= padDeg; maxLon += padDeg;
+    }
+  }
 
   const centerLat = (minLat + maxLat) / 2;
   const cosLat = Math.cos(centerLat * Math.PI / 180);

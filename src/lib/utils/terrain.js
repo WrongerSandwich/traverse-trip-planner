@@ -11,6 +11,7 @@
 
 import usStates from '../data/us-states.json';
 import naRivers from '../data/na-rivers.json';
+import naPlaces from '../data/na-places.json';
 
 function ringPath(ring, project) {
   // GeoJSON rings are [[lon, lat], …]. The first/last point repeats.
@@ -86,6 +87,32 @@ export function stateOutlinePaths(projection, { padDegrees = 1.5 } = {}) {
     }
   }
   return paths;
+}
+
+/**
+ * Return populated places that fall inside the projection's bbox.
+ * Each entry is { name, scalerank, xy: [x, y] } projected into viewBox units.
+ *
+ * `maxScalerank` lets callers tier the map by importance — at a
+ * regional-route scale, show major cities only (≤4); at a destination
+ * cluster scale, drop to the small-town threshold (≤10).
+ */
+export function placesInBbox(projection, { maxScalerank = 7 } = {}) {
+  if (!projection?.bbox) return [];
+  const { minLat, maxLat, minLon, maxLon } = projection.bbox;
+  const places = [];
+  for (const feature of naPlaces.features) {
+    const rank = feature.properties?.scalerank;
+    if (typeof rank === 'number' && rank > maxScalerank) continue;
+    const [lon, lat] = feature.geometry.coordinates;
+    if (lon < minLon || lon > maxLon || lat < minLat || lat > maxLat) continue;
+    places.push({
+      name: feature.properties?.name,
+      scalerank: rank,
+      xy: projection.project(lat, lon),
+    });
+  }
+  return places;
 }
 
 /**

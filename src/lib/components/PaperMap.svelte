@@ -20,7 +20,7 @@
   //   compact     — boolean; smaller viewBox, simpler decoration
 
   import { buildProjection, pathFromCoords } from '$lib/utils/projection.js';
-  import { stateOutlinePaths, riverPaths } from '$lib/utils/terrain.js';
+  import { stateOutlinePaths, riverPaths, placesInBbox } from '$lib/utils/terrain.js';
 
   let {
     route = [],
@@ -45,6 +45,9 @@
   // Rivers: cap zoom at 4 in compact mode so small streams don't clutter
   // the inset; full mode gets the full curated set.
   const rivers = $derived(proj ? riverPaths(proj, { maxZoom: compact ? 4 : 5 }) : []);
+  // Places: regional-route scale wants major cities only (≤4 or 5).
+  // Compact (cover-inset) skips labels entirely to avoid clutter.
+  const places = $derived(proj && !compact ? placesInBbox(proj, { maxScalerank: 5 }) : []);
 
   const waypointPixels = $derived(
     proj
@@ -99,6 +102,18 @@
       <g class="rivers">
         {#each rivers as r}
           <path d={r.path} fill="none" stroke="var(--sky-200)" stroke-width={compact ? 2 : 2.5} stroke-linecap="round" stroke-linejoin="round" opacity="0.55" vector-effect="non-scaling-stroke" />
+        {/each}
+      </g>
+    {/if}
+
+    <!-- Major cities along the route (full mode only) -->
+    {#if places.length}
+      <g class="places">
+        {#each places as p}
+          <circle cx={p.xy[0]} cy={p.xy[1]} r="2.5" fill="var(--bark-600)" opacity="0.7" />
+          {#if p.name}
+            <text x={p.xy[0] + 5} y={p.xy[1] + 3} font-family="var(--font-serif)" font-size="10" font-style="italic" fill="var(--bark-600)" opacity="0.8">{p.name}</text>
+          {/if}
         {/each}
       </g>
     {/if}

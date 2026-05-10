@@ -12,7 +12,7 @@
   //   plateLabel  — small mono caption ("plate ii", etc.)
 
   import { buildProjection } from '$lib/utils/projection.js';
-  import { stateOutlinePaths, riverPaths } from '$lib/utils/terrain.js';
+  import { stateOutlinePaths, riverPaths, placesInBbox } from '$lib/utils/terrain.js';
 
   let {
     stops = [],
@@ -30,16 +30,31 @@
       .filter(s => Array.isArray(s.coords) && s.coords.length === 2),
   );
 
+  // Enforce a minimum bbox span (~150 miles / 2.2° lat) so even when the
+  // stops cluster is small or pulled wide by a single outlier, the map
+  // shows generous regional context — major cities around the destination,
+  // the river network, and state borders. The cluster reads as a small
+  // knot of pins in the middle; nearby population centers anchor the
+  // reader's sense of place.
   const proj = $derived(
     located.length >= 1
-      ? buildProjection({ coords: located.map(s => s.coords), viewBoxW: VB_W, viewBoxH: VB_H, padding: PAD })
+      ? buildProjection({
+          coords: located.map(s => s.coords),
+          viewBoxW: VB_W,
+          viewBoxH: VB_H,
+          padding: PAD,
+          minSpanDeg: 2.2,
+        })
       : null,
   );
 
   const statePaths = $derived(proj ? stateOutlinePaths(proj, { padDegrees: 1.0 }) : []);
-  // Destination maps are tightly zoomed — keep only the bigger rivers so we
-  // don't draw faint creeks across the whole stops cluster.
   const rivers = $derived(proj ? riverPaths(proj, { padDegrees: 0.5, maxZoom: 5 }) : []);
+  // Places at this regional zoom: scalerank ≤ 8 surfaces small-to-mid cities
+  // in the area without flooding the map. Smaller towns aren't in Natural
+  // Earth's curated set at any scale; if surfacing every hamlet matters
+  // later, ship a US Census Gazetteer-derived layer.
+  const places = $derived(proj ? placesInBbox(proj, { maxScalerank: 8 }) : []);
 
   const pixels = $derived(
     proj ? located.map(s => ({ ...s, xy: proj.project(...s.coords) })) : [],
@@ -92,6 +107,26 @@
       <g class="rivers">
         {#each rivers as r}
           <path d={r.path} fill="none" stroke="var(--sky-200)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.55" vector-effect="non-scaling-stroke" />
+        {/each}
+      </g>
+    {/if}
+
+    <!-- Populated places: small dots + italic serif labels -->
+    {#if places.length}
+      <g class="places">
+        {#each places as p}
+          <circle cx={p.xy[0]} cy={p.xy[1]} r={p.scalerank <= 4 ? 2.5 : 1.75} fill="var(--bark-600)" opacity="0.7" />
+          {#if p.name}
+            <text
+              x={p.xy[0] + (p.scalerank <= 4 ? 5 : 4)}
+              y={p.xy[1] + 3}
+              font-family="var(--font-serif)"
+              font-size={p.scalerank <= 4 ? 10 : 8.5}
+              font-style="italic"
+              fill="var(--bark-600)"
+              opacity="0.85"
+            >{p.name}</text>
+          {/if}
         {/each}
       </g>
     {/if}
