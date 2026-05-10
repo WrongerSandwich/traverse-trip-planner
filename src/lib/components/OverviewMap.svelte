@@ -112,7 +112,7 @@
         L.marker([lat, lon], {
           icon: L.divIcon({
             className: '',
-            html: `<div style="width:14px;height:14px;background:#2c2c2c;border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.5)"></div>`,
+            html: `<div style="width:14px;height:14px;background:#1F4332;border:2.5px solid #FCFAF5;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>`,
             iconSize: [14, 14], iconAnchor: [7, 7],
           }),
           zIndexOffset: 1000,
@@ -229,10 +229,14 @@
     if (currCoords && currCoords.length >= 2) {
       // Hide this trip's spoke so it doesn't show through the route line.
       if (currEntry.line) currEntry.line.setStyle({ opacity: 0 });
+      // Active route is always sunset-600 per spec §7 — a single accent
+      // signaling "this is the route under inspection", regardless of stage.
       routeLine = L.polyline(currCoords, {
-        color: markerColor(currEntry.trip),
-        weight: 2.5,
+        color: '#D87B3F',
+        weight: 3,
         opacity: 0,
+        lineCap: 'round',
+        lineJoin: 'round',
         className: 'route-line',
       }).addTo(map);
       // Delay 50ms then listen for moveend. The delay lets any
