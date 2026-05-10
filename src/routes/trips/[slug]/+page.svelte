@@ -336,6 +336,7 @@
             >
               {locking ? 'Plotting the itinerary…' : 'Lock trip & generate itinerary'}
             </button>
+            <a class="btn btn-secondary" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">Preview brochure</a>
             <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
               {completing ? 'Completing…' : 'Mark as completed'}
             </button>
@@ -355,7 +356,7 @@
           Editing is frozen. The itinerary below was generated from your planning sections.
           <div class="callout-actions">
             <button class="btn btn-secondary" onclick={unlockTrip}>Unlock to edit</button>
-            <button class="btn btn-secondary" onclick={() => window.print()}>Print / save PDF</button>
+            <a class="btn btn-secondary" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">View brochure</a>
             <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
               {completing ? 'Completing…' : 'Mark as completed'}
             </button>
@@ -431,6 +432,11 @@
           {/if}
         </div>
       {/if}
+
+      <div class="brochure-zone">
+        <a class="btn btn-secondary btn-compact" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">View brochure</a>
+        <span class="archive-hint">A printable Field guide for this trip — Cmd-P from the brochure page to save as PDF.</span>
+      </div>
 
       <div class="danger-zone">
         <button class="btn btn-danger btn-compact" onclick={archiveTrip}>Archive trip</button>
@@ -807,6 +813,7 @@
   .share-enable:disabled, .share-copy:disabled, .share-disable:disabled { opacity: 0.5; cursor: not-allowed; }
   .share-hint { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.45; }
 
+  .brochure-zone,
   .danger-zone {
     margin-top: 1rem;
     padding: 1.1rem 0 0;

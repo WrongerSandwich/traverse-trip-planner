@@ -65,6 +65,9 @@
   </main>
 
   <footer>
+    <a class="brochure-link" href="brochure" target="_blank" rel="noopener">
+      Download as printable brochure →
+    </a>
     <p>Shared via <strong>Traverse</strong> — read-only.</p>
   </footer>
 </div>
@@ -166,6 +169,24 @@
     text-align: center;
     color: var(--text-tertiary);
     font-size: 0.78rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
   }
   footer strong { color: var(--text-secondary); }
+  .brochure-link {
+    display: inline-block;
+    padding: 10px 18px;
+    background: var(--forest-800);
+    color: var(--bone-200);
+    border-radius: 4px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    transition: background 0.15s ease;
+  }
+  .brochure-link:hover { background: var(--forest-900); }
 </style>

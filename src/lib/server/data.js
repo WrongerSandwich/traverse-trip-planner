@@ -121,9 +121,17 @@ export async function fetchImage(query) {
     const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=3&orientation=landscape`;
     const res = await fetch(url, { headers: { Authorization: key } });
     const data = await res.json();
-    const photo = data.photos?.[0];
-    const result = photo
-      ? { medium: photo.src.medium, large: photo.src.large, photographer: photo.photographer, photographer_url: photo.photographer_url }
+    const photos = (data.photos ?? []).slice(0, 3).map(p => ({
+      medium: p.src.medium,
+      large: p.src.large,
+      photographer: p.photographer,
+      photographer_url: p.photographer_url,
+    }));
+    // Legacy-compat shape: keep top-level primary fields so anything reading
+    // trip._image.medium / .large keeps working. Extra photos live on .photos
+    // so brochure-style consumers can use them as atmosphere images.
+    const result = photos.length > 0
+      ? { ...photos[0], photos }
       : null;
     writeImageCacheEntry(imageCache, query, result);
     imageDirty = true;
