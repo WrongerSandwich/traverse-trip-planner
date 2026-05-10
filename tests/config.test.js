@@ -38,7 +38,7 @@ describe('config defaults', () => {
     expect(config.modelDefault).toEqual({ provider: 'anthropic', model: 'claude-sonnet-4-6' });
     expect(config.modelResearch).toEqual({ provider: 'anthropic', model: 'claude-opus-4-7' });
     expect(config.search.provider).toBe('anthropic-builtin');
-    expect(config.assistantName).toBe('Claude');
+    expect(config.assistantName).toBe('Field guide');
   });
 
   it('honors env overrides', async () => {

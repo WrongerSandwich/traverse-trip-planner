@@ -96,7 +96,7 @@ Traverse talks to model and search providers through a thin adapter layer. The d
 | -------------------------- | ------------------------------------------------------- |
 | Seed / Add (`+`, pin)      | `modelDefault` provider with valid key                  |
 | Lock & generate itinerary  | `modelDefault` provider with valid key                  |
-| Ask Claude (planning chat) | `modelDefault` provider with valid key                  |
+| Ask Field guide (planning chat) | `modelDefault` provider with valid key             |
 | Research → (deepen)        | `modelResearch` provider with key **+** search backend  |
 
 If a feature's backing provider isn't configured, its button is disabled in the UI with a tooltip pointing at `.env`. The startup banner (printed to the server log) lists which features are wired.
@@ -110,12 +110,12 @@ If a feature's backing provider isn't configured, its button is disabled in the 
 | Research model | `TRAVERSE_MODEL_RESEARCH_PROVIDER`     | `anthropic` (default) · `openai`    |
 | Research model | `TRAVERSE_MODEL_RESEARCH`              | tool-use-capable model id           |
 | Search backend | `TRAVERSE_SEARCH_PROVIDER`             | `anthropic-builtin` (default) · `tavily` |
-| Assistant name | `TRAVERSE_ASSISTANT_NAME`              | display name in UI (default `Claude`)    |
+| Assistant name | `TRAVERSE_ASSISTANT_NAME`              | display name in UI (default `Field guide`)    |
 | Per-feature    | `TRAVERSE_MODEL_<FEATURE>(_PROVIDER)?` | optional override; `<FEATURE>` ∈ `SEED`, `ADD`, `LOCK`, `CHAT`, `DEEPEN` |
 
 `anthropic-builtin` runs Anthropic's server-side `web_search` tool — only valid when the research model is also Anthropic. `tavily` is portable across any model provider but requires a `TAVILY_API_KEY`.
 
-`TRAVERSE_ASSISTANT_NAME` only affects user-facing UI strings ("Ask Claude…", SSE progress messages). Set it to whatever fits the model you've configured.
+`TRAVERSE_ASSISTANT_NAME` only affects user-facing UI strings ("Ask Field guide…", SSE progress messages). Set it to whatever fits the model you've configured.
 
 **Public share links** are off by default. Set `TRAVERSE_SHARE_SECRET` (e.g. `openssl rand -base64 32`) to enable a "Generate share link" button on the trip detail view. The link is `/share/<token>` where the token is `HMAC-SHA256(slug, secret)`; tokens are deterministic but tied per-trip via a `shared: true` frontmatter flag, so disabling share on a trip revokes access immediately even if someone has the URL. Rotating `TRAVERSE_SHARE_SECRET` invalidates every existing share link.
 

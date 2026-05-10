@@ -129,11 +129,11 @@
       </div>
     {/if}
     {#if loading}
-      <div class="empty">Loading…</div>
+      <div class="empty">Reading the file…</div>
     {:else if !tripFiles || tabs.length === 0}
       <div class="empty">
-        <p>No detailed research yet.</p>
-        <p class="empty-hint">Run <code>/deepen {trip?._slug || ''}</code> to flesh this out.</p>
+        <p>Nothing researched yet.</p>
+        <p class="empty-hint">Use the <strong>Research</strong> button on the trip card to flesh this out.</p>
       </div>
     {:else}
       <div class="prose">{@html renderedContent}</div>

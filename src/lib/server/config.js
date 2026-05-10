@@ -37,7 +37,7 @@ export const config = {
   search: {
     provider: env('TRAVERSE_SEARCH_PROVIDER', 'anthropic-builtin'),
   },
-  assistantName: env('TRAVERSE_ASSISTANT_NAME', 'Claude'),
+  assistantName: env('TRAVERSE_ASSISTANT_NAME', 'Field guide'),
   shareSecret: env('TRAVERSE_SHARE_SECRET', ''),
 };
 

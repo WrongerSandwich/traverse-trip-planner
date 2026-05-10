@@ -77,7 +77,7 @@
       editing[section] = false;
       delete drafts[section];
     } catch (err) {
-      alert(`Could not save: ${err.message}`);
+      alert(`Couldn't save those edits — ${err.message}`);
     } finally {
       saving[section] = false;
     }
@@ -175,7 +175,7 @@
     if (!trip || locking) return;
     locking = true;
     lockStreamingText = '';
-    lockStatus = 'Generating itinerary…';
+    lockStatus = 'Plotting the itinerary…';
     try {
       await streamAction(`/api/lock/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
         if (msg.startsWith('itinerary:')) {
@@ -187,7 +187,7 @@
       });
     } catch (err) {
       console.error(err);
-      alert('Could not lock the trip — check the server log.');
+      alert("Couldn't lock the trip. The server log may have more detail.");
     } finally {
       locking = false;
       // Keep the streamed text visible until invalidateAll has refreshed the page;
@@ -203,7 +203,7 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert('Could not unlock the trip — check the server log.');
+      alert("Couldn't unlock the trip. The server log may have more detail.");
     }
   }
 
@@ -211,7 +211,7 @@
   async function completeTrip() {
     if (!trip || completing) return;
     const label = trip.title || trip._slug;
-    if (!confirm(`Mark "${label}" as completed? It will move out of Planning.`)) return;
+    if (!confirm(`Mark "${label}" as completed? It'll move out of planning.`)) return;
     completing = true;
     try {
       const res = await fetch(`/api/complete/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
@@ -219,7 +219,7 @@
       await goto('/', { invalidateAll: true });
     } catch (err) {
       console.error(err);
-      alert('Could not mark trip as completed — check the server log.');
+      alert("Couldn't mark the trip as completed. The server log may have more detail.");
     } finally {
       completing = false;
     }
@@ -248,7 +248,7 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert('Could not enable sharing — check the server log.');
+      alert("Couldn't enable sharing. The server log may have more detail.");
     } finally {
       shareBusy = false;
     }
@@ -265,7 +265,7 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert('Could not disable sharing — check the server log.');
+      alert("Couldn't disable sharing. The server log may have more detail.");
     } finally {
       shareBusy = false;
     }
@@ -282,14 +282,14 @@
   async function archiveTrip() {
     if (!trip) return;
     const label = trip.title || trip._slug;
-    if (!confirm(`Archive "${label}"? It will be hidden from view but the file is kept so the seeder won't suggest it again.`)) return;
+    if (!confirm(`Archive "${label}"? It'll vanish from view but stay on disk, so the seeder won't suggest it again.`)) return;
     try {
       const res = await fetch(`/api/archive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (!res.ok) throw new Error(`Archive failed: ${res.status}`);
       await goto('/', { invalidateAll: true });
     } catch (err) {
       console.error(err);
-      alert('Could not archive — check the server log.');
+      alert("Couldn't archive that one. The server log may have more detail.");
     }
   }
 
@@ -326,15 +326,15 @@
       {#if isPlanning && !isLocked}
         <div class="callout">
           <strong>Planning mode.</strong>
-          Edit any section below. Use <em>Ask {data.assistantName}</em> to request changes — {data.assistantName} reads your current sections and writes updates back to the markdown.
+          Edit any section below, or tap <em>Ask {data.assistantName}</em> to describe a change in plain English — updates are written straight to the markdown.
           <div class="callout-actions">
             <button
               class="btn btn-primary"
               onclick={lockTrip}
               disabled={locking || !data.features?.lock}
-              title={data.features?.lock ? '' : 'Default model not configured — see .env'}
+              title={data.features?.lock ? '' : 'No default model configured — edit your .env to enable this'}
             >
-              {locking ? 'Generating itinerary…' : 'Lock trip & generate itinerary'}
+              {locking ? 'Plotting the itinerary…' : 'Lock trip & generate itinerary'}
             </button>
             <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
               {completing ? 'Completing…' : 'Mark as completed'}

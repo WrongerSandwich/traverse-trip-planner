@@ -17,15 +17,15 @@ export async function POST({ request }) {
   } catch { /* no body, no prompt — fine */ }
 
   return sseStream(async (send) => {
-    send('Reading home.md and existing trips...');
+    send('Looking over home.md and what\'s already on the list…');
     const homeMd = readHomeMd();
     const existing = collectExistingDestinations();
     const today = new Date().toISOString().slice(0, 10);
 
     send(
       userPrompt
-        ? `Asking ${NAME} for 5 ideas matching "${userPrompt}" (avoiding ${existing.length} existing)...`
-        : `Asking ${NAME} for 5 new ideas (avoiding ${existing.length} existing destinations)...`
+        ? `Sketching five ideas around "${userPrompt}" (steering clear of ${existing.length} you've already seen)…`
+        : `Sketching five new ideas (steering clear of ${existing.length} you've already seen)…`
     );
 
     const system = `You are a travel planning assistant. Here is the traveler's full personal context:
@@ -75,7 +75,7 @@ national_park: true`;
 
     if (files.length === 0) throw new Error(`${NAME} returned no file blocks — try again.`);
 
-    send(`Writing ${files.length} idea files...`);
+    send(`Saving ${files.length} idea${files.length === 1 ? '' : 's'} to disk…`);
     for (const file of files) {
       const path = join(ROOT, file.name);
       writeFileSync(path, file.content + '\n');
@@ -85,6 +85,6 @@ national_park: true`;
 
     invalidateEnrichCache();
     send(formatUsage(usage));
-    send(`Done — ${files.length} new trips added. Reload to see them.`, true);
+    send(`Done — ${files.length} new trip${files.length === 1 ? '' : 's'} on the list. Reload to see ${files.length === 1 ? 'it' : 'them'}.`, true);
   });
 }

@@ -20,23 +20,23 @@ export async function POST({ request }) {
 
   return sseStream(async (send) => {
     if (!destination) {
-      send('Error: No destination provided.', true);
+      send('No destination given. Add a place name and try again.', true);
       return;
     }
 
-    send(`Checking existing trips for ${destination}...`);
+    send(`Checking the cabinet for ${destination}…`);
     const existing = collectExistingDestinations();
     const destLower = destination.toLowerCase();
     const duplicate = existing.find(d => d.toLowerCase() === destLower);
     if (duplicate) {
-      send(`Error: "${duplicate}" is already in your trips.`, true);
+      send(`"${duplicate}" is already on the list. Skipping.`, true);
       return;
     }
 
     const homeMd = readHomeMd();
     const today = new Date().toISOString().slice(0, 10);
 
-    send(`Asking ${NAME} to create an idea for ${destination}...`);
+    send(`Sketching an idea for ${destination}…`);
 
     const system = `You are a travel planning assistant. Here is the traveler's full personal context:
 ${homeMd}
@@ -81,13 +81,13 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
 
     const dupMatch = text.match(/<duplicate>([\s\S]*?)<\/duplicate>/);
     if (dupMatch) {
-      send(`Error: Too close to an existing trip — "${dupMatch[1].trim()}" is already in your list.`, true);
+      send(`Too close to "${dupMatch[1].trim()}", which is already on the list.`, true);
       return;
     }
 
     const flyMatch = text.match(/<not-drivable>([\s\S]*?)<\/not-drivable>/);
     if (flyMatch) {
-      send(`Error: Not a road trip — ${flyMatch[1].trim()}`, true);
+      send(`Not a road trip — ${flyMatch[1].trim()}`, true);
       return;
     }
 
@@ -107,6 +107,6 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
     send(`  ✓ ${title}`);
     invalidateEnrichCache();
     send(formatUsage(usage));
-    send('Done — new trip added. Reload to see it.', true);
+    send('Done — added to the list. Reload to see it.', true);
   });
 }

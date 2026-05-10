@@ -36,7 +36,7 @@ Trips progress through four stages. Earlier-stage fields are never removed — s
 
 1. **idea** — single `.md` file in `ideas/`. Fields: `title`, `status`, `destination`, `pitch`, `created`, `vibe`. Target: <30 seconds to create.
 2. **exploring** — promoted to a folder. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out.
-3. **planning** — concrete dates, lodging, reservations. The frontend's planning page enables in-place editing of any section + an "Ask Claude" chat that writes section updates back to disk.
+3. **planning** — concrete dates, lodging, reservations. The frontend's planning page enables in-place editing of any section + an "Ask Field guide" chat that writes section updates back to disk.
 4. **completed** — moved to `completed/` with a `notes.md` retrospective.
 
 **Archive (orthogonal to lifecycle):** any trip can be archived via the detail view. Archived trips move to `archived/<source-stage>/<slug>/` with the original status frontmatter intact. The frontend never displays them, but the seed action still scans them so previously-rejected destinations don't get re-suggested.
@@ -69,7 +69,7 @@ Optional planning flag: `locked: true` (trip is frozen; itinerary has been gener
 - `waypoints` — key cities along the driving route as an inline array: `[Overland Park KS, Leavenworth KS, Atchison KS]`. Used by the frontend to fetch an OSRM road-following route line. Required for the solid route line to appear on the map.
 - `national_park: true` — add to any trip where the primary draw is an NPS unit (national park, preserve, scenic riverway). Surfaces a badge on the trip card.
 - `starred: true` — bookmarked trip. Toggled by the frontend; write it here if pre-seeding a bookmark.
-- `locked: true` — trip is frozen. Editing and Ask Claude are disabled. An AI-generated `itinerary.md` exists in the same folder. Unlock to resume editing; re-lock to regenerate the itinerary.
+- `locked: true` — trip is frozen. Editing and Ask Field guide are disabled. An AI-generated `itinerary.md` exists in the same folder. Unlock to resume editing; re-lock to regenerate the itinerary.
 - `cost_tier` — `budget` | `mid` | `splurge`.
 
 Omit fields rather than guess at creation. Dates are ISO 8601. Distances default to miles.

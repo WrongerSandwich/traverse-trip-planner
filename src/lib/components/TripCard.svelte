@@ -1,5 +1,6 @@
 <script>
   import MiniMap from './MiniMap.svelte';
+  import Logo from './Logo.svelte';
   import { tripColor } from '$lib/utils/colors.js';
 
   let { trip, starred = false, onclick, onhover, onleave, onbookmark, ondeepen, onpromote } = $props();
@@ -63,7 +64,7 @@
     </div>
   {:else}
     <div class="thumb placeholder">
-      🗺️
+      <Logo variant="mono-dark" size={48} class="placeholder-mark" />
       <span class="badge">{status}{trip.locked === 'true' ? ' · locked' : ''}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
     </div>
@@ -98,7 +99,7 @@
         class="btn btn-secondary btn-compact card-cta"
         onclick={ondeepen}
         disabled={!ondeepen}
-        title={ondeepen ? 'Research this trip with web search' : 'Deepen unavailable — research model or search backend not configured'}
+        title={ondeepen ? 'Look into this trip with web search' : 'Research is offline — research model or search backend not configured'}
       >
         Research →
       </button>
@@ -164,8 +165,9 @@
   .card:hover .thumb.photo img { transform: scale(1.05); }
   .thumb.placeholder {
     display: flex; align-items: center; justify-content: center;
-    color: var(--text-3); font-size: 1.5rem;
+    background: var(--surface-sunken);
   }
+  .thumb.placeholder :global(.placeholder-mark) { opacity: 0.22; }
 
   /* Badge as photo overlay — bottom-left */
   .badge {

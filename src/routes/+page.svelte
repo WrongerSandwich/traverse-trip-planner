@@ -193,7 +193,7 @@
 
   async function runDeepen(trip) {
     if (actionRunning) return;
-    if (!confirm(`Research "${trip.title || trip._slug}"? This takes 30–60 seconds.`)) return;
+    if (!confirm(`Look into "${trip.title || trip._slug}" with web search? It usually takes about a minute.`)) return;
     actionVisible = true;
     actionRunning = true;
     actionDone    = false;
@@ -218,7 +218,7 @@
     e?.stopPropagation?.();
     if (!trip) return;
     const label = trip.title || trip._slug;
-    if (!confirm(`Archive "${label}"? It will be hidden from view but the file is kept so the seeder won't suggest it again.`)) return;
+    if (!confirm(`Archive "${label}"? It'll vanish from view but stay on disk, so the seeder won't suggest it again.`)) return;
     try {
       const res = await fetch(`/api/archive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (!res.ok) throw new Error(`Archive failed: ${res.status}`);
@@ -226,13 +226,13 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert('Could not archive — check the server log.');
+      alert("Couldn't archive that one. The server log may have more detail.");
     }
   }
 
   async function promoteToPlanning(trip, e) {
     e?.stopPropagation?.();
-    if (!confirm(`Move "${trip.title || trip._slug}" into Planning?`)) return;
+    if (!confirm(`Move "${trip.title || trip._slug}" into planning?`)) return;
     const slug = trip._slug;
     try {
       const res = await fetch(`/api/promote/${encodeURIComponent(slug)}`, { method: 'POST' });
@@ -242,7 +242,7 @@
       await goto(`/trips/${encodeURIComponent(slug)}`, { invalidateAll: true });
     } catch (err) {
       console.error(err);
-      alert('Could not move trip into Planning — check the server log.');
+      alert("Couldn't move that one into planning. The server log may have more detail.");
     }
   }
 
@@ -343,7 +343,7 @@
         class:open={seedFormOpen}
         onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
         disabled={actionRunning || !data.features?.seed}
-        title={data.features?.seed ? 'Add 5 new trip ideas' : 'Default model not configured — see .env'}
+        title={data.features?.seed ? 'Add 5 new trip ideas' : 'No default model configured — edit your .env to enable this'}
         aria-label="Add trips"
         aria-expanded={seedFormOpen}
       >
@@ -356,7 +356,7 @@
         class:open={pinFormOpen}
         onclick={() => { pinFormOpen = !pinFormOpen; seedFormOpen = false; }}
         disabled={actionRunning || !data.features?.add}
-        title={data.features?.add ? 'Add a specific destination' : 'Default model not configured — see .env'}
+        title={data.features?.add ? 'Add a specific destination' : 'No default model configured — edit your .env to enable this'}
         aria-label="Add destination"
         aria-expanded={pinFormOpen}
       >

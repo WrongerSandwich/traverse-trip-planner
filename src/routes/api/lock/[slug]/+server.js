@@ -18,7 +18,7 @@ export function POST({ params, request }) {
     .join('\n\n');
 
   return sseStream(async (send) => {
-    send('Generating itinerary…');
+    send('Plotting the itinerary…');
 
     let itinerary = '';
     let usage;
@@ -69,7 +69,7 @@ Format rules:
     if (!lockResult) throw new Error('Failed to update frontmatter');
 
     if (usage) send(formatUsage(usage));
-    send('Done — trip locked. Reload to see the itinerary.', true);
+    send('Done — itinerary is set. Reload to see it.', true);
   });
 }
 
