@@ -65,7 +65,7 @@ export async function geocode(destination) {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'atlas-trip-planner/1.0 (personal)' } });
+      const res = await fetch(url, { headers: { 'User-Agent': 'traverse/1.0 (personal)' } });
       if (res.status === 429) {
         if (attempt === 0) { await sleep(2000); continue; }
         console.warn('geocode rate-limited (429) for', destination);

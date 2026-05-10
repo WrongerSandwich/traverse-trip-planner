@@ -1,6 +1,6 @@
 # Security policy
 
-Atlas is a self-hosted personal tool — there is no central server holding user data, and most deployments are single-user behind a home network. That said, the codebase touches API keys and parses LLM-generated content, both of which are worth treating carefully.
+Traverse is a self-hosted personal tool — there is no central server holding user data, and most deployments are single-user behind a home network. That said, the codebase touches API keys and parses LLM-generated content, both of which are worth treating carefully.
 
 ## Reporting a vulnerability
 
@@ -24,5 +24,5 @@ For lower-severity concerns (suspicious dependency, stale recommendation, mislea
 ## Secret hygiene reminders
 
 - `.env` and `home.md` are gitignored. If you publish a fork, double-check `git ls-files | grep -E "\.env|home\.md"` returns nothing.
-- Never paste the contents of `.env` into GitHub issues, screenshots, or chat threads when reporting bugs. The only key Atlas needs from you to reproduce most issues is the *provider* and *model*, not the API key itself.
-- The startup banner (`Atlas — provider configuration`) prints to logs and is safe to share — it shows providers/models but never key material.
+- Never paste the contents of `.env` into GitHub issues, screenshots, or chat threads when reporting bugs. The only key Traverse needs from you to reproduce most issues is the *provider* and *model*, not the API key itself.
+- The startup banner (`Traverse — provider configuration`) prints to logs and is safe to share — it shows providers/models but never key material.

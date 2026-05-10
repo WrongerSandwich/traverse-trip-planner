@@ -32,7 +32,7 @@ export async function POST({ request }) {
 ${homeMd}
 
 Generate exactly 5 new road trip ideas. Rules:
-- Atlas is road-trip only. Every idea must be drivable from the traveler's home base — do not propose destinations that would require flying.
+- Traverse is road-trip only. Every idea must be drivable from the traveler's home base — do not propose destinations that would require flying.
 - Diverse across region, vibe, and distance. Do not cluster.
 - Each must pass a "would they actually go?" test against the taste profile above.
 - Do NOT propose any of these existing destinations: ${existing.join(', ')}.

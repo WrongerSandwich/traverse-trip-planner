@@ -19,7 +19,7 @@ describe('tripToVEvent', () => {
     }, FIXED_NOW);
     expect(out).toContain('BEGIN:VEVENT');
     expect(out).toContain('END:VEVENT');
-    expect(out).toContain('UID:marfa@atlas-trip-planner');
+    expect(out).toContain('UID:marfa@traverse');
     expect(out).toContain('DTSTART;VALUE=DATE:20260615');
     expect(out).toContain('DTEND;VALUE=DATE:20260616'); // exclusive
     expect(out).toContain('SUMMARY:Marfa');
@@ -73,9 +73,9 @@ describe('tripsToIcs', () => {
     ], FIXED_NOW);
     expect(ics.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
     expect(ics).toContain('VERSION:2.0');
-    expect(ics).toContain('PRODID:-//Atlas//Trip Planner//EN');
+    expect(ics).toContain('PRODID:-//Traverse//Trip Planner//EN');
     expect(ics.endsWith('END:VCALENDAR\r\n')).toBe(true);
-    expect(ics).toContain('UID:a@atlas-trip-planner');
+    expect(ics).toContain('UID:a@traverse');
   });
 
   it('uses CRLF line endings (RFC 5545)', () => {
@@ -94,7 +94,7 @@ describe('tripsToIcs', () => {
     ], FIXED_NOW);
     const events = ics.match(/BEGIN:VEVENT/g) || [];
     expect(events).toHaveLength(1);
-    expect(ics).toContain('UID:a@atlas-trip-planner');
+    expect(ics).toContain('UID:a@traverse');
     expect(ics).not.toContain('UID:b@');
     expect(ics).not.toContain('UID:c@');
   });

@@ -32,7 +32,7 @@ export function POST({ params, request }) {
           itinerary += chunk;
           send(`itinerary:${chunk}`);
         },
-        system: `You are Atlas, a travel itinerary formatter. Given the planning sections for a road trip, synthesize them into a clean day-by-day itinerary in markdown.
+        system: `You are Traverse, a travel itinerary formatter. Given the planning sections for a road trip, synthesize them into a clean day-by-day itinerary in markdown.
 
 Format rules:
 - Use ## for each day heading: "## Day 1 — [Day of Week], [Month Day, Year]" (derive the date from the overview if a specific date is mentioned; otherwise use just the day name or omit the date)

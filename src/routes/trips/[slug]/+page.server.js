@@ -10,7 +10,7 @@ export async function load({ params }) {
   if (!trip) throw error(404, `Trip "${slug}" not found`);
 
   // If sharing is enabled and the trip is opted in, compute the public share URL
-  // for the UI to display. Token is deterministic from slug + ATLAS_SHARE_SECRET.
+  // for the UI to display. Token is deterministic from slug + TRAVERSE_SHARE_SECRET.
   if (trip.shared === 'true') {
     const token = makeShareToken(slug);
     if (token) trip._shareUrl = `/share/${token}`;

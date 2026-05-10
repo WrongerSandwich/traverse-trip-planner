@@ -88,7 +88,7 @@
   let chatInput = $state('');
   let chatBusy = $state(false);
 
-  const chatStorageKey = $derived(trip?._slug ? `atlas-chat-${trip._slug}` : null);
+  const chatStorageKey = $derived(trip?._slug ? `traverse-chat-${trip._slug}` : null);
 
   // Load chat history when slug changes (new trip = new history).
   $effect(() => {
@@ -296,7 +296,7 @@
 </script>
 
 <svelte:head>
-  <title>{trip?.title || trip?._slug} — Atlas</title>
+  <title>{trip?.title || trip?._slug} — Traverse</title>
 </svelte:head>
 
 <div class="page">
@@ -426,7 +426,7 @@
             <button class="share-enable" onclick={enableShare} disabled={shareBusy}>
               {shareBusy ? 'Generating…' : 'Generate share link'}
             </button>
-            <span class="share-hint">Creates a public read-only URL anyone can view (no Atlas account needed).</span>
+            <span class="share-hint">Creates a public read-only URL anyone can view (no Traverse account needed).</span>
           {/if}
         </div>
       {/if}

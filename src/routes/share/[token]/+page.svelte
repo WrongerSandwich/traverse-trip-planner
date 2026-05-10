@@ -25,7 +25,7 @@
 </script>
 
 <svelte:head>
-  <title>{trip?.title || 'Atlas trip'} — shared</title>
+  <title>{trip?.title || 'Traverse trip'} — shared</title>
 </svelte:head>
 
 <div class="page">
@@ -65,7 +65,7 @@
   </main>
 
   <footer>
-    <p>Shared via <strong>Atlas</strong> — read-only.</p>
+    <p>Shared via <strong>Traverse</strong> — read-only.</p>
   </footer>
 </div>
 

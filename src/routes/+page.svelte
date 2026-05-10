@@ -316,7 +316,7 @@
         <path d="M4.5 0L1 6.5h7L4.5 0z" fill="currentColor"/>
         <path d="M4.5 13L8 6.5H1L4.5 13z" fill="currentColor" opacity="0.3"/>
       </svg>
-      <h1>Atlas</h1>
+      <h1>Traverse</h1>
     </div>
     <button
       class="map-toggle"

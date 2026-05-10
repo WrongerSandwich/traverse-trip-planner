@@ -1,4 +1,4 @@
-# Atlas
+# Traverse
 
 A personal road-trip filing cabinet — managed via Claude Code. Trips live as markdown; status is encoded by both folder location and frontmatter so files are self-describing. Fly-in destinations are out of scope — every idea should be drivable from `home.md`'s `home_coords`.
 
@@ -11,7 +11,7 @@ When a user preference or constraint surfaces that isn't in `home.md`, flag it r
 ## Folder structure
 
 ```
-atlas-trip-planner/
+traverse/
 ├── CLAUDE.md          # this file — repo conventions
 ├── home.md            # user-specific preferences and constraints
 ├── PRODUCT.md         # design context for the frontend
@@ -86,7 +86,7 @@ All lifecycle operations live in the SvelteKit app — the browser is the canoni
 - **Lock trip** (planning detail view) — synthesizes a day-by-day `itinerary.md` from the existing sections (streamed in real time), then sets `locked: true`. Editing and the assistant chat are hidden while locked.
 - **Unlock to edit** (locked detail view) — clears `locked: true`. The `itinerary.md` is kept but editing is restored. Re-lock to regenerate the itinerary.
 - **Print / Save PDF** (locked detail view) — opens the browser print dialog with print CSS that hides all chrome so only the itinerary renders.
-- **Share** (any detail view, when `ATLAS_SHARE_SECRET` is set) — generates a public read-only `/share/<token>` URL backed by an HMAC of the slug. Disabling revokes access immediately.
+- **Share** (any detail view, when `TRAVERSE_SHARE_SECRET` is set) — generates a public read-only `/share/<token>` URL backed by an HMAC of the slug. Disabling revokes access immediately.
 - **Archive** (detail view, gated by confirm) — moves the trip to `archived/<stage>/<slug>/`. The trip vanishes from the UI but stays in the seed-avoidance list.
 
 ### Ad-hoc research via Claude Code
@@ -98,7 +98,7 @@ All lifecycle operations live in the SvelteKit app — the browser is the canoni
 The SvelteKit app in `src/` is the primary interface. Two ways to run it:
 
 - **Dev:** `npm run dev -- --port 3456` (hot reload)
-- **Prod:** `npm run build && pm2 restart atlas` (or `node build/index.js`) — what runs on the home server
+- **Prod:** `npm run build && pm2 restart traverse` (or `node build/index.js`) — what runs on the home server
 
 The frontend reads trip data from the markdown files on each page load. All three external lookups are disk-backed and persist across restarts:
 
@@ -120,6 +120,6 @@ After adding or renaming trips, the next page load picks them up automatically; 
 - Research subagents write to their own files (`route.md`, `stops.md`, etc.) and summarize in `overview.md`; no silent edits to user-written prose
 - Distance, radius, and vehicle-specific logic read from `home.md` frontmatter; don't hardcode user-specific numbers in commands or subagents
 - All model calls go through `chat()` in `src/lib/server/ai.js`; all web search goes through `search()` / `searchToolDefinition()` in `src/lib/server/search.js`. Don't `import Anthropic` (or any other SDK) in route handlers — add a new adapter under `src/lib/server/{ai,search}/` instead. Pass a `label` to `chat()` so token-usage logs are grouped by feature.
-- Page data on every route includes `data.features` (from `getFeatureAvailability()`) and `data.assistantName` (from `ATLAS_ASSISTANT_NAME`). Use them to gate UI affordances and render assistant-name strings rather than hardcoding.
+- Page data on every route includes `data.features` (from `getFeatureAvailability()`) and `data.assistantName` (from `TRAVERSE_ASSISTANT_NAME`). Use them to gate UI affordances and render assistant-name strings rather than hardcoding.
 - `npm run smoke` does a 1-token round-trip per configured provider plus a tool-loop probe when search backend is non-builtin. Run it before deploys and after env changes.
 - After a meaningful unit of work, commit and push — the repo is on GitHub at `WrongerSandwich/atlas-trip-planner`

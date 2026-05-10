@@ -1,6 +1,6 @@
 module.exports = {
   apps: [{
-    name: 'atlas',
+    name: 'traverse',
     script: 'build/index.js',
     watch: false,
     autorestart: true,

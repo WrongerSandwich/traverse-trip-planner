@@ -7,7 +7,7 @@
 <div class="panel" class:done class:is-error={isError}>
   <div class="panel-header">
     <span class="panel-title">
-      {#if done && !isError}Atlas{:else if isError}Error{:else}Working…{/if}
+      {#if done && !isError}Traverse{:else if isError}Error{:else}Working…{/if}
     </span>
     {#if done}
       <button class="close-btn" onclick={onclose} aria-label="Close">✕</button>

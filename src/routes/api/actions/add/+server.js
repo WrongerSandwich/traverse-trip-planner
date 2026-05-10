@@ -50,7 +50,7 @@ If it IS a near-duplicate, respond with ONLY this tag (no other text):
 <duplicate>the matching existing destination</duplicate>
 
 If it is NOT a near-duplicate, create exactly one trip idea. Rules:
-- Atlas is road-trip only. If the requested destination cannot realistically be reached by driving from the traveler's home base, respond with ONLY this tag (no other text):
+- Traverse is road-trip only. If the requested destination cannot realistically be reached by driving from the traveler's home base, respond with ONLY this tag (no other text):
   <not-drivable>brief reason</not-drivable>
 - Use the traveler's taste profile to write a concrete, specific pitch — name the actual draw, not generic adjectives.
 - Do not invent facts about the destination. If you are unsure whether a specific detail is true (a venue still operating, an event still running, a route still open), keep the pitch at a higher level and let /deepen verify the specifics later.

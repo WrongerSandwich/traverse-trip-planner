@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Atlas provider smoke test.
+// Traverse provider smoke test.
 //   node scripts/smoke.js
 // Verifies that each configured model and search backend is reachable
 // with the current .env. Costs a few cents in tokens.
@@ -10,7 +10,7 @@ import { search, searchToolDefinition } from '../src/lib/server/search.js';
 import { config, describeConfig } from '../src/lib/server/config.js';
 
 const d = describeConfig();
-console.log('Atlas smoke test');
+console.log('Traverse smoke test');
 console.log('────────────────────────────────────────────');
 console.log(`  default model  : ${d.modelDefault.provider}/${d.modelDefault.model}${d.modelDefault.ok ? '' : '  ✗ no key'}`);
 console.log(`  research model : ${d.modelResearch.provider}/${d.modelResearch.model}${d.modelResearch.ok ? '' : '  ✗ no key'}`);
