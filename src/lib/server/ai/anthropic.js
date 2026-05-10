@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AdapterError, formatSummary, logAdapterError } from '../errors.js';
+import { findTool } from './utils.js';
 
 const MAX_TOOL_TURNS = 20;
 
@@ -19,9 +20,6 @@ function isNativeTool(tool) {
   return tool.kind === 'anthropic-native';
 }
 
-function findTool(tools, name) {
-  return tools?.find(t => (t.kind === 'anthropic-native' ? t.spec.name : t.name) === name);
-}
 
 function extractText(content) {
   return content.filter(b => b.type === 'text').map(b => b.text).join('\n');

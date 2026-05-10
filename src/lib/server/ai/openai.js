@@ -1,5 +1,6 @@
 import { withRetry } from '../retry.js';
 import { adapterErrorFromResponse, logAdapterError } from '../errors.js';
+import { findTool } from './utils.js';
 
 const MAX_TOOL_TURNS = 20;
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
@@ -21,9 +22,6 @@ function translateTools(tools) {
   });
 }
 
-function findTool(tools, name) {
-  return tools?.find(t => (t.kind === 'anthropic-native' ? t.spec.name : t.name) === name);
-}
 
 async function callApi({ apiKey, model, maxTokens, tools, messages, signal }) {
   return withRetry(async () => {
