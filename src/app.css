@@ -111,9 +111,13 @@
   --completed-text: var(--bark-600);
 
   /* ── Typography ──────────────────────────────────────────────────────── */
-  /* Phase 3 introduces --font-serif and --font-mono and swaps DM Sans for
-     Inter. For Phase 2 we keep the existing sans stack to minimize change. */
-  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:  'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Legacy alias — most component CSS still uses var(--font). Resolves to
+     the sans stack so existing surfaces keep their body register. */
+  --font: var(--font-sans);
 
   /* ── Layout constants ────────────────────────────────────────────────── */
   --thumb-h: 220px;
@@ -122,12 +126,24 @@
 }
 
 body {
-  font-family: var(--font);
+  font-family: var(--font-sans);
   background: var(--surface-page);
   color: var(--text-primary);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ── Type-scale utilities ────────────────────────────────────────────── */
+/* Two weights only — 400 regular and 500 medium. Avoid 600+ against the
+   quiet civic register the brand calls for. */
+.text-display { font-family: var(--font-serif); font-size: 56px; line-height: 56px; font-weight: 500; letter-spacing: 0.005em; }
+.text-h1      { font-family: var(--font-serif); font-size: 40px; line-height: 44px; font-weight: 500; letter-spacing: 0.005em; }
+.text-h2      { font-family: var(--font-serif); font-size: 26px; line-height: 32px; font-weight: 500; }
+.text-h3      { font-family: var(--font-sans);  font-size: 18px; line-height: 24px; font-weight: 500; }
+.text-body    { font-family: var(--font-sans);  font-size: 15px; line-height: 24px; font-weight: 400; }
+.text-small   { font-family: var(--font-sans);  font-size: 13px; line-height: 20px; font-weight: 400; }
+.text-caption { font-family: var(--font-sans);  font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.18em; }
+.text-mono    { font-family: var(--font-mono);  font-size: 13px; line-height: 20px; font-weight: 400; }
 
 /* Leaflet popup */
 .leaflet-popup-content-wrapper {

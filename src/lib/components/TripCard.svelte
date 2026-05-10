@@ -271,11 +271,12 @@
   }
 
   h2 {
-    font-size: 1.15rem;
-    font-weight: 700;
-    line-height: 1.22;
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 500;
+    line-height: 1.2;
     color: var(--text);
-    letter-spacing: -0.025em;
+    letter-spacing: 0.005em;
     margin: 0;
   }
 

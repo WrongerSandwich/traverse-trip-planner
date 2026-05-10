@@ -566,10 +566,11 @@
   }
 
   .page > header h1 {
+    font-family: var(--font-serif);
     font-size: 1.4rem;
-    font-weight: 800;
-    line-height: 1;
-    letter-spacing: -0.02em;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: 0.005em;
     margin: 0;
   }
 
@@ -783,7 +784,7 @@
   .editor {
     width: 100%;
     min-height: 260px;
-    font-family: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--font-mono);
     font-size: 0.86rem;
     line-height: 1.6;
     color: var(--text);

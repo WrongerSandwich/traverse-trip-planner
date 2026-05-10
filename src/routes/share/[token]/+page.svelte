@@ -81,8 +81,11 @@
   header { margin-bottom: 1.5rem; }
   h1 {
     margin: 0 0 0.4rem;
-    font-size: 2rem;
-    font-weight: 700;
+    font-family: var(--font-serif);
+    font-size: 2.25rem;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+    line-height: 1.1;
     color: var(--text);
   }
   .meta {

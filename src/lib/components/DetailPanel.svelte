@@ -202,11 +202,12 @@
     align-self: flex-start;
   }
   .hero h2 {
-    font-size: 1.45rem;
-    font-weight: 800;
+    font-family: var(--font-serif);
+    font-size: 1.55rem;
+    font-weight: 500;
     line-height: 1.15;
     color: oklch(97% 0.008 80);
-    letter-spacing: -0.025em;
+    letter-spacing: 0.005em;
     margin: 0;
   }
   .hero-meta {
@@ -294,8 +295,9 @@
     margin-bottom: 0.35rem;
   }
   .header-dark h2 {
-    font-size: 1.3rem; font-weight: 800; line-height: 1.2;
-    color: var(--header-text); letter-spacing: -0.02em;
+    font-family: var(--font-serif);
+    font-size: 1.4rem; font-weight: 500; line-height: 1.2;
+    color: var(--header-text); letter-spacing: 0.005em;
     margin: 0;
   }
   .dark-dest { font-size: 0.78rem; color: oklch(62% 0.022 155); margin-top: 0.3rem; }
@@ -428,8 +430,8 @@
 
     /* Smaller title + 2-line clamp so long names don't crowd the destination/mode chips */
     .hero h2 {
-      font-size: 1.2rem;
-      letter-spacing: -0.02em;
+      font-size: 1.25rem;
+      letter-spacing: 0.005em;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       line-clamp: 2;

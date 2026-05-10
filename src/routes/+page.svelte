@@ -707,10 +707,10 @@
   }
 
   header h1 {
+    font-family: var(--font-serif);
     font-size: 1.6rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.005em;
     line-height: 1;
   }
 
