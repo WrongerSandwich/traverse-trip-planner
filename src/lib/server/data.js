@@ -450,6 +450,17 @@ export function writePlanningSection(dir, section, frontmatter, content) {
   invalidateEnrichCache();
 }
 
+// ── Frontmatter field mutation ──
+// Sets or inserts a single frontmatter field in markdown content.
+// Returns the updated string; throws if no closing --- fence is found.
+export function setFrontmatterField(content, field, value) {
+  const line = `${field}: ${value}`;
+  if (new RegExp(`^${field}:`, 'm').test(content)) {
+    return content.replace(new RegExp(`^${field}:.*$`, 'm'), line);
+  }
+  return content.replace(/(\n---\n)/, `\n${line}$1`);
+}
+
 // ── Lock toggle ──
 export function setLocked(slug, locked) {
   const filePath = join(ROOT, 'planning', slug, 'overview.md');
@@ -458,14 +469,7 @@ export function setLocked(slug, locked) {
   const content = readFileSync(filePath, 'utf8');
   if (!parseFrontmatter(content)) return null;
 
-  let updated;
-  if (/^locked:/m.test(content)) {
-    updated = content.replace(/^locked:.*$/m, `locked: ${locked}`);
-  } else {
-    updated = content.replace(/(\n---\n)/, `\nlocked: ${locked}$1`);
-  }
-
-  writeFileSync(filePath, updated);
+  writeFileSync(filePath, setFrontmatterField(content, 'locked', locked));
   invalidateEnrichCache();
   return { locked };
 }
@@ -503,15 +507,7 @@ export function toggleStarred(slug) {
   const wasStarred = fm.starred === 'true' || fm.starred === true;
   const nowStarred = !wasStarred;
 
-  let updated;
-  if (/^starred:/m.test(content)) {
-    updated = content.replace(/^starred:.*$/m, `starred: ${nowStarred}`);
-  } else {
-    // Insert before closing ---
-    updated = content.replace(/(\n---\n)/, `\nstarred: ${nowStarred}$1`);
-  }
-
-  writeFileSync(filePath, updated);
+  writeFileSync(filePath, setFrontmatterField(content, 'starred', nowStarred));
   invalidateEnrichCache();
   return { starred: nowStarred };
 }
@@ -524,14 +520,7 @@ export function setShared(slug, shared) {
   const content = readFileSync(filePath, 'utf8');
   if (!parseFrontmatter(content)) return null;
 
-  let updated;
-  if (/^shared:/m.test(content)) {
-    updated = content.replace(/^shared:.*$/m, `shared: ${shared}`);
-  } else {
-    updated = content.replace(/(\n---\n)/, `\nshared: ${shared}$1`);
-  }
-
-  writeFileSync(filePath, updated);
+  writeFileSync(filePath, setFrontmatterField(content, 'shared', shared));
   invalidateEnrichCache();
   return { shared };
 }
