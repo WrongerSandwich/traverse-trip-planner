@@ -106,15 +106,33 @@ If a feature's backing provider isn't configured, its button is disabled in the 
 
 | Slot           | Variable                            | Values                              |
 | -------------- | ----------------------------------- | ----------------------------------- |
-| Default model  | `TRAVERSE_MODEL_DEFAULT_PROVIDER`      | `anthropic` (default) · `openai`    |
+| Default model  | `TRAVERSE_MODEL_DEFAULT_PROVIDER`      | `anthropic` (default) · `openai` · `openrouter` |
 | Default model  | `TRAVERSE_MODEL_DEFAULT`               | model id (e.g. `claude-sonnet-4-6`, `gpt-4o-mini`) |
-| Research model | `TRAVERSE_MODEL_RESEARCH_PROVIDER`     | `anthropic` (default) · `openai`    |
+| Research model | `TRAVERSE_MODEL_RESEARCH_PROVIDER`     | `anthropic` (default) · `openai` · `openrouter` |
 | Research model | `TRAVERSE_MODEL_RESEARCH`              | tool-use-capable model id           |
 | Search backend | `TRAVERSE_SEARCH_PROVIDER`             | `anthropic-builtin` (default) · `tavily` |
 | Assistant name | `TRAVERSE_ASSISTANT_NAME`              | display name in UI (default `Field guide`)    |
 | Per-feature    | `TRAVERSE_MODEL_<FEATURE>(_PROVIDER)?` | optional override; `<FEATURE>` ∈ `SEED`, `ADD`, `LOCK`, `CHAT`, `DEEPEN` |
 
 `anthropic-builtin` runs Anthropic's server-side `web_search` tool — only valid when the research model is also Anthropic. `tavily` is portable across any model provider but requires a `TAVILY_API_KEY`.
+
+#### OpenRouter
+
+[OpenRouter](https://openrouter.ai) is a multi-provider gateway that exposes hundreds of models (Claude, GPT, Gemini, Llama, Mistral, DeepSeek, and more) behind a single OpenAI-compatible API and a single API key. Benefits: one key for all providers, often cheaper than provider-direct, access to non-Anthropic/non-OpenAI models without per-provider adapters.
+
+**Setup:** sign up at [openrouter.ai](https://openrouter.ai), create an API key, and set it in `.env`:
+
+```
+OPENROUTER_API_KEY=sk-or-...
+```
+
+**Model slugs** use the `provider/model` format, e.g.:
+- `anthropic/claude-3.5-sonnet` — Claude via OpenRouter
+- `openai/gpt-4o-mini` — GPT-4o Mini via OpenRouter
+- `meta-llama/llama-3.1-70b-instruct` — Llama 3.1 via OpenRouter
+- `google/gemini-pro` — Gemini Pro via OpenRouter
+
+**Important constraint:** OpenRouter requires `TRAVERSE_SEARCH_PROVIDER=tavily` for Research → (Deepen). The `anthropic-builtin` search backend dispatches Anthropic's server-side tool directly — it cannot route through OpenRouter even if the underlying model is Claude. Traverse will surface a config error if this combination is detected.
 
 `TRAVERSE_ASSISTANT_NAME` only affects user-facing UI strings ("Ask Field guide…", SSE progress messages). Set it to whatever fits the model you've configured.
 
@@ -161,5 +179,18 @@ TRAVERSE_MODEL_DEFAULT_PROVIDER=openai
 TRAVERSE_MODEL_DEFAULT=gpt-4o-mini
 TRAVERSE_MODEL_RESEARCH_PROVIDER=anthropic
 TRAVERSE_MODEL_RESEARCH=claude-opus-4-7
+TRAVERSE_SEARCH_PROVIDER=tavily
+```
+
+**OpenRouter (one key, any model):**
+```
+OPENROUTER_API_KEY=sk-or-...
+TAVILY_API_KEY=tvly-...    # required for Research → when using OpenRouter
+PEXELS_API_KEY=...
+
+TRAVERSE_MODEL_DEFAULT_PROVIDER=openrouter
+TRAVERSE_MODEL_DEFAULT=anthropic/claude-3.5-sonnet
+TRAVERSE_MODEL_RESEARCH_PROVIDER=openrouter
+TRAVERSE_MODEL_RESEARCH=anthropic/claude-opus-4-7
 TRAVERSE_SEARCH_PROVIDER=tavily
 ```

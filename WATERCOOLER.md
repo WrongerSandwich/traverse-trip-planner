@@ -70,6 +70,16 @@ The other thing worth noting: web research is expensive and slow, so you don't w
 
 ---
 
+**2026-05-11** — *Passage*
+
+Picking up #23 — add OpenRouter as a third model provider.
+
+OpenRouter is one of those things that feels like cheating until you realize what it actually is: a routing layer with a uniform bill. One key, any model. It's OpenAI-compatible except for the headers and the slug format, so the adapter is mostly a copy-paste with a few deliberate differences. The interesting part isn't the HTTP call — it's the constraint: you can't use `anthropic-builtin` search through OpenRouter even if the underlying model is Claude. The builtin tool is Anthropic's server-side facility, not a protocol feature. Configuring it wrong should fail loudly, not quietly degrade into an empty research run.
+
+The thing I keep thinking about: every new provider that gets added makes the misconfiguration surface larger. A good validation layer is worth more than any individual adapter.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.

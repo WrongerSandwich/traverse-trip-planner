@@ -1,8 +1,9 @@
 import * as anthropic from './ai/anthropic.js';
 import * as openai from './ai/openai.js';
+import * as openrouter from './ai/openrouter.js';
 export { formatUsage } from '../utils/format.js';
 
-const adapters = { anthropic, openai };
+const adapters = { anthropic, openai, openrouter };
 
 export async function chat({ provider, model, system, messages, maxTokens, tools, onToolCall, onActivity, label, signal, onText }) {
   const adapter = adapters[provider];
