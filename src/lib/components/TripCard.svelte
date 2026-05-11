@@ -101,9 +101,9 @@
 
     {#if isIdea}
       {#if trip.researching === true || trip.researching === 'true'}
-        <span class="btn btn-secondary btn-compact card-cta researching-label" aria-label="Research in progress">
+        <button class="btn btn-secondary btn-compact card-cta researching-label" disabled aria-busy="true">
           Researching…
-        </span>
+        </button>
       {:else}
         <button
           class="btn btn-secondary btn-compact card-cta"
@@ -347,12 +347,8 @@
   /* Card-level secondary CTA — small inline action button on idea/exploring cards. */
   .card-cta { position: relative; z-index: 2; align-self: flex-start; }
 
-  /* Non-interactive in-progress indicator replaces Research → while running. */
-  .researching-label {
-    opacity: 0.65;
-    cursor: default;
-    pointer-events: none;
-  }
+  /* Disabled in-progress indicator replaces Research → while running. */
+  .researching-label { opacity: 0.65; }
 
   @media (max-width: 768px) {
     /* Shorter thumbnail — saves ~50px per card */

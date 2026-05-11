@@ -200,7 +200,6 @@
   }
 
   async function runDeepen(trip) {
-    if (actionRunning) return;
     if (!confirm(`Research "${trip.title || trip._slug}" with web search? It runs in the background — you can navigate away.`)) return;
     try {
       const res = await fetch(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, { method: 'POST' });

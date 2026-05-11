@@ -142,6 +142,8 @@ export async function POST({ params }) {
   const content = readFileSync(ideaPath, 'utf8');
   const fm = parseFrontmatter(content);
 
+  // Best-effort concurrent-click guard. Two POSTs arriving before either
+  // writes the flag can both pass — acceptable for a single-user app.
   if (fm?.researching === 'true' || fm?.researching === true) {
     return new Response(JSON.stringify({ error: 'Already researching' }), {
       status: 409,
