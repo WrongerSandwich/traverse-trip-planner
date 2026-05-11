@@ -78,6 +78,41 @@
     proj ? located.map(s => ({ ...s, xy: proj.project(...s.coords) })) : [],
   );
 
+  // Split pins into those inside the visible map and those that fall outside
+  // its viewBox at the current zoom. Off-map pins get rendered as small
+  // numbered badges clamped to the viewport edge with a chevron pointing
+  // toward where the stop actually is — same disambiguation pattern as
+  // Google Maps' off-screen markers.
+  const inViewport = (xy) => xy[0] >= 0 && xy[0] <= VB_W && xy[1] >= 0 && xy[1] <= VB_H;
+  const inViewportPins = $derived(pixels.filter(p => inViewport(p.xy)));
+  const edgeIndicators = $derived.by(() => {
+    const cx = VB_W / 2;
+    const cy = VB_H / 2;
+    const inset = 22; // pull the marker this many px inside the boundary
+    return pixels
+      .filter(p => !inViewport(p.xy))
+      .map(p => {
+        const dx = p.xy[0] - cx;
+        const dy = p.xy[1] - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist === 0) return null;
+        // Smallest positive t such that (cx + t·dx, cy + t·dy) lies on a boundary.
+        const ts = [];
+        if (dx < 0) ts.push(-cx / dx);
+        if (dx > 0) ts.push((VB_W - cx) / dx);
+        if (dy < 0) ts.push(-cy / dy);
+        if (dy > 0) ts.push((VB_H - cy) / dy);
+        const tEdge = Math.min(...ts);
+        const tInset = Math.max(0, tEdge - inset / dist);
+        return {
+          ...p,
+          edgeXY: [cx + dx * tInset, cy + dy * tInset],
+          angleDeg: Math.atan2(dy, dx) * 180 / Math.PI,
+        };
+      })
+      .filter(Boolean);
+  });
+
   // Scale bar tuned for a tighter zoom — destination clusters are typically
   // measured in single-digit to tens of miles, not hundreds.
   const scaleBar = $derived.by(() => {
@@ -153,8 +188,8 @@
       </g>
     {/if}
 
-    <!-- Numbered stop pins -->
-    {#each pixels as pin}
+    <!-- Numbered stop pins (in-viewport) -->
+    {#each inViewportPins as pin}
       <g transform="translate({pin.xy[0]} {pin.xy[1]})">
         {#if pin.must_see}
           <circle r="12" fill="var(--sunset-600)" stroke="var(--bone-50)" stroke-width="1.5" />
@@ -164,6 +199,35 @@
         {:else}
           <circle r="10" fill="var(--forest-800)" stroke="var(--bone-50)" stroke-width="1.5" />
           <text y="3" text-anchor="middle" font-family="var(--font-mono)" font-size="9" font-weight="500" fill="var(--bone-200)">
+            {pin.n}
+          </text>
+        {/if}
+      </g>
+    {/each}
+
+    <!-- Edge indicators for off-viewport pins: smaller numbered badge clamped
+         to the boundary, with a chevron pointing outward toward the actual
+         off-map location. -->
+    {#each edgeIndicators as pin}
+      <g transform="translate({pin.edgeXY[0]} {pin.edgeXY[1]})">
+        <g transform="rotate({pin.angleDeg})">
+          <path
+            d="M 9 0 L 15 -4 M 9 0 L 15 4"
+            fill="none"
+            stroke={pin.must_see ? 'var(--sunset-600)' : 'var(--forest-800)'}
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </g>
+        {#if pin.must_see}
+          <circle r="9" fill="var(--sunset-600)" stroke="var(--bone-50)" stroke-width="1.5" />
+          <text y="3" text-anchor="middle" font-family="var(--font-mono)" font-size="8" font-weight="500" fill="var(--sunset-50)">
+            {pin.n}
+          </text>
+        {:else}
+          <circle r="8" fill="var(--forest-800)" stroke="var(--bone-50)" stroke-width="1.5" />
+          <text y="2.5" text-anchor="middle" font-family="var(--font-mono)" font-size="8" font-weight="500" fill="var(--bone-200)">
             {pin.n}
           </text>
         {/if}
