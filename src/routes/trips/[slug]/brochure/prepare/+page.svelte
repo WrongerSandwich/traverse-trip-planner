@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
   import { streamAction } from '$lib/utils/action.js';
+  import { parseCoordInput } from '$lib/utils/coords.js';
 
   let { data } = $props();
 
@@ -109,6 +110,50 @@
   const keepLodgingCount = $derived(keepLodging.filter(Boolean).length);
   const keepNotesCount = $derived(keepNotes.filter(Boolean).length);
   const keepGotchasCount = $derived(keepGotchas.filter(Boolean).length);
+
+  // ── Manual coord entry ──────────────────────────────────────────────────
+  // Input text and error messages indexed as 's{i}' (stop) or 'l{i}' (lodge).
+  // editingCoord tracks which already-mapped rows have their input open.
+  let coordInputs = $state({});
+  let coordErrors = $state({});
+  let editingCoord = $state({});
+
+  // Reset coord state whenever the server-side brochure data is reloaded
+  // (after generate or regeocode), so stale inputs don't linger.
+  $effect(() => {
+    data.brochureData; // track the reload trigger
+    coordInputs = {};
+    coordErrors = {};
+    editingCoord = {};
+  });
+
+  function handleCoordInput(prefix, i, value) {
+    const key = `${prefix}${i}`;
+    coordInputs[key] = value;
+    if (!value.trim()) {
+      coordErrors[key] = '';
+      return;
+    }
+    const parsed = parseCoordInput(value);
+    if (parsed) {
+      coordErrors[key] = '';
+      if (prefix === 's') {
+        proposal.stops[i].coords = parsed;
+      } else {
+        proposal.lodging[i].coords = parsed;
+      }
+    } else {
+      coordErrors[key] = 'Enter a lat, lon pair or Google Maps URL';
+    }
+  }
+
+  function startEditCoord(prefix, i) {
+    const key = `${prefix}${i}`;
+    const item = prefix === 's' ? proposal.stops[i] : proposal.lodging[i];
+    coordInputs[key] = item.coords ? `${item.coords[0]}, ${item.coords[1]}` : '';
+    coordErrors[key] = '';
+    editingCoord[key] = true;
+  }
 </script>
 
 <svelte:head>
@@ -195,10 +240,25 @@
                     <span class="item-name">{stop.name}</span>
                     {#if stop.category}<span class="item-tag">{stop.category}</span>{/if}
                     {#if stop.must_see}<span class="item-anchor">must see</span>{/if}
+                    {#if !stop.coords}<span class="item-tag item-unmapped">unmapped</span>{/if}
                   </div>
                   {#if stop.notes}<p class="item-notes">{stop.notes}</p>{/if}
                 </div>
               </label>
+              <div class="coord-row">
+                {#if !stop.coords || editingCoord[`s${i}`]}
+                  <input
+                    class="coord-input"
+                    type="text"
+                    placeholder="39.0686, −92.9457 or Google Maps URL"
+                    value={coordInputs[`s${i}`] ?? ''}
+                    oninput={e => handleCoordInput('s', i, e.currentTarget.value)}
+                  />
+                  {#if coordErrors[`s${i}`]}<span class="coord-error">{coordErrors[`s${i}`]}</span>{/if}
+                {:else}
+                  <button class="edit-coord-btn" onclick={() => startEditCoord('s', i)}>Edit location</button>
+                {/if}
+              </div>
             </li>
           {/each}
         </ul>
@@ -217,10 +277,25 @@
                   <div class="item-head">
                     <span class="item-name">{lodge.name}</span>
                     {#if lodge.nights}<span class="item-tag">{lodge.nights} night{lodge.nights === 1 ? '' : 's'}</span>{/if}
+                    {#if !lodge.coords}<span class="item-tag item-unmapped">unmapped</span>{/if}
                   </div>
                   {#if lodge.address}<p class="item-notes">{lodge.address}</p>{/if}
                 </div>
               </label>
+              <div class="coord-row">
+                {#if !lodge.coords || editingCoord[`l${i}`]}
+                  <input
+                    class="coord-input"
+                    type="text"
+                    placeholder="39.0686, −92.9457 or Google Maps URL"
+                    value={coordInputs[`l${i}`] ?? ''}
+                    oninput={e => handleCoordInput('l', i, e.currentTarget.value)}
+                  />
+                  {#if coordErrors[`l${i}`]}<span class="coord-error">{coordErrors[`l${i}`]}</span>{/if}
+                {:else}
+                  <button class="edit-coord-btn" onclick={() => startEditCoord('l', i)}>Edit location</button>
+                {/if}
+              </div>
             </li>
           {/each}
         </ul>
@@ -514,6 +589,59 @@
     color: var(--bark-800);
     font-style: italic;
     margin: 0;
+  }
+
+  .item-unmapped {
+    color: var(--bone-600);
+    border-color: var(--bone-400);
+    opacity: 0.8;
+  }
+
+  .coord-row {
+    padding-left: 34px; /* 22px checkbox + 12px gap */
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .coord-input {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 8px;
+    border: 0.5px solid var(--bone-400);
+    border-radius: 3px;
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    min-width: 260px;
+    flex: 1;
+  }
+  .coord-input:focus {
+    outline: none;
+    border-color: var(--forest-800);
+  }
+  .coord-error {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--embers-600);
+    flex-basis: 100%;
+    padding-left: 2px;
+  }
+  .edit-coord-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--bone-600);
+    background: none;
+    border: 0.5px solid var(--bone-400);
+    border-radius: 3px;
+    padding: 2px 8px;
+    cursor: pointer;
+  }
+  .edit-coord-btn:hover {
+    color: var(--forest-800);
+    border-color: var(--forest-800);
   }
 
   .actions {

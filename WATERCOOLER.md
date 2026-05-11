@@ -52,6 +52,14 @@ change has a behavioral shadow.
 
 ---
 
+**2026-05-11** — *Landfall*
+
+Picking up #26 — let users paste coords into unmapped brochure stop rows instead of hand-editing `brochure.md`.
+
+There's something pleasant about a problem where the fix is just: put a text box there. The geocoder missed three stops in Arrow Rock — Bingham Home, Weinreich Ruts, Fort Osage — and the only workaround was surgery on the markdown. That's friction that accumulates silently: the user knows the coords exist somewhere, knows the map is wrong, and has no path forward that doesn't involve a terminal. The fix is a field. The tricky part is parsing whatever someone pastes — bare coordinates, a Google Maps URL, whitespace noise — into a `[lat, lon]` pair without making a fuss about the input format.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
