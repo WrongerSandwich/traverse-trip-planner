@@ -9,6 +9,7 @@ const TRAVERSE_KEYS = [
   'TRAVERSE_ASSISTANT_NAME',
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
+  'OPENROUTER_API_KEY',
   'TAVILY_API_KEY',
   // Per-feature overrides
   'TRAVERSE_MODEL_SEED_PROVIDER', 'TRAVERSE_MODEL_SEED',
@@ -172,6 +173,46 @@ describe('describeConfig', () => {
     expect(d.features.lock.overridden).toBe(true);
     expect(d.features.lock.model).toBe('claude-haiku-4-5');
     expect(d.features.seed.overridden).toBe(false);
+  });
+});
+
+describe('OpenRouter provider', () => {
+  it('recognizes openrouter as a valid provider', async () => {
+    const { validateConfig } = await loadConfig({
+      TRAVERSE_MODEL_DEFAULT_PROVIDER: 'openrouter',
+      OPENROUTER_API_KEY: 'sk-or-test',
+    });
+    const issues = validateConfig();
+    expect(issues.some(i => i.includes('Unknown model provider'))).toBe(false);
+  });
+
+  it('flags missing OPENROUTER_API_KEY', async () => {
+    const { validateConfig } = await loadConfig({
+      TRAVERSE_MODEL_DEFAULT_PROVIDER: 'openrouter',
+    });
+    const issues = validateConfig();
+    expect(issues.some(i => i.includes('OPENROUTER_API_KEY'))).toBe(true);
+  });
+
+  it('flags anthropic-builtin search with openrouter research provider', async () => {
+    const { validateConfig } = await loadConfig({
+      TRAVERSE_MODEL_RESEARCH_PROVIDER: 'openrouter',
+      OPENROUTER_API_KEY: 'sk-or-test',
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+    });
+    const issues = validateConfig();
+    expect(issues.some(i => i.includes('anthropic-builtin'))).toBe(true);
+  });
+
+  it('enables deepen when openrouter + tavily are both configured', async () => {
+    const { getFeatureAvailability } = await loadConfig({
+      TRAVERSE_MODEL_RESEARCH_PROVIDER: 'openrouter',
+      OPENROUTER_API_KEY: 'sk-or-test',
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      TRAVERSE_SEARCH_PROVIDER: 'tavily',
+      TAVILY_API_KEY: 'tvly-test',
+    });
+    expect(getFeatureAvailability().deepen).toBe(true);
   });
 });
 

@@ -44,6 +44,7 @@ export const config = {
 const PROVIDER_KEYS = {
   anthropic: 'ANTHROPIC_API_KEY',
   openai: 'OPENAI_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
 };
 
 const SEARCH_KEYS = {
