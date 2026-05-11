@@ -144,6 +144,6 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
 
     invalidateEnrichCache();
     send(formatUsage(usage));
-    send(`Done — ${fm.title || slug} is now in exploring. Reload to see it.`, true);
+    send(`Done — ${fm.title || slug} is now in exploring.`, true);
   });
 }

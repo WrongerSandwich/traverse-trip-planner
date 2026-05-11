@@ -107,6 +107,6 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
     send(`  ✓ ${title}`);
     invalidateEnrichCache();
     send(formatUsage(usage));
-    send('Done — added to the list. Reload to see it.', true);
+    send('Done — added to the list.', true);
   });
 }

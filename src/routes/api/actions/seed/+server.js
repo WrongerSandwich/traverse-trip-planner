@@ -85,6 +85,6 @@ national_park: true`;
 
     invalidateEnrichCache();
     send(formatUsage(usage));
-    send(`Done — ${files.length} new trip${files.length === 1 ? '' : 's'} on the list. Reload to see ${files.length === 1 ? 'it' : 'them'}.`, true);
+    send(`Done — ${files.length} new trip${files.length === 1 ? '' : 's'} on the list.`, true);
   });
 }

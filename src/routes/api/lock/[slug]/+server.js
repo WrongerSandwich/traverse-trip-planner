@@ -69,7 +69,7 @@ Format rules:
     if (!lockResult) throw new Error('Failed to update frontmatter');
 
     if (usage) send(formatUsage(usage));
-    send('Done — itinerary is set. Reload to see it.', true);
+    send('Done — itinerary is set.', true);
   });
 }
 
