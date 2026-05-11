@@ -131,3 +131,48 @@ describe('POST /api/settings — merge behavior', () => {
     expect(written.slots?.default).toBeUndefined();
   });
 });
+
+// ── keysToClear ───────────────────────────────────────────────────────────────
+
+describe('POST /api/settings — keysToClear', () => {
+  it('returns 400 for non-array keysToClear', async () => {
+    const res = await POST(makeRequest({ keysToClear: 'anthropic' }));
+    expect(res._status).toBe(400);
+    expect(res._body.error).toMatch(/keystoclear must be an array/i);
+  });
+
+  it('returns 400 for unknown provider in keysToClear', async () => {
+    const res = await POST(makeRequest({ keysToClear: ['fakeProvider'] }));
+    expect(res._status).toBe(400);
+    expect(res._body.error).toMatch(/unknown provider in keystoclear/i);
+  });
+
+  it('clears a stored key', async () => {
+    readFileSync.mockReturnValue(JSON.stringify({ keys: { anthropic: 'sk-ant-existing' } }));
+    const res = await POST(makeRequest({ keysToClear: ['anthropic'] }));
+    expect(res._status).toBe(200);
+    const [, writtenContent] = writeFileSync.mock.calls[0];
+    const written = JSON.parse(writtenContent);
+    expect(written.keys?.anthropic).toBeUndefined();
+    expect(res._body.settingsView.keys.anthropic.isSet).toBe(false);
+  });
+
+  it('clearing a key that is not set is a no-op (no error)', async () => {
+    readFileSync.mockReturnValue(JSON.stringify({ keys: {} }));
+    const res = await POST(makeRequest({ keysToClear: ['anthropic'] }));
+    expect(res._status).toBe(200);
+    expect(res._body.settingsView.keys.anthropic.isSet).toBe(false);
+  });
+
+  it('clearing one key does not touch others', async () => {
+    readFileSync.mockReturnValue(JSON.stringify({
+      keys: { anthropic: 'sk-ant-existing', openai: 'sk-openai-existing' },
+    }));
+    const res = await POST(makeRequest({ keysToClear: ['anthropic'] }));
+    expect(res._status).toBe(200);
+    const [, writtenContent] = writeFileSync.mock.calls[0];
+    const written = JSON.parse(writtenContent);
+    expect(written.keys?.anthropic).toBeUndefined();
+    expect(written.keys?.openai).toBe('sk-openai-existing');
+  });
+});

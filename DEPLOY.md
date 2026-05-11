@@ -106,7 +106,7 @@ The Settings page (`/settings`) lets you manage API keys and model-slot configur
 
 `settings.json` is gitignored; it never appears in version control. See `settings.example.json` for the expected shape.
 
-To revert to `.env`-only behavior, delete `settings.json` or clear the relevant fields in the Settings UI.
+To revert to `.env`-only behavior, delete `settings.json` or use the **Remove** button next to a stored key on the Settings page. Removing a key deletes only that key's entry from `settings.json`; other stored settings are untouched. Once removed, the corresponding `.env` value (e.g. `ANTHROPIC_API_KEY`) resumes as the active key. If no `.env` fallback exists, the next AI call using that provider will fail with a missing-key error.
 
 > **Note:** The startup banner (printed to the PM2 log on boot) reflects only `.env` state — it reads config before `settings.json` can be overlaid. The Settings page (`/settings`) shows what is actually effective for incoming requests.
 

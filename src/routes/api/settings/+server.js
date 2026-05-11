@@ -22,6 +22,7 @@ export async function POST({ request }) {
 
   const incomingKeys = body.keys ?? {};
   const incomingSlots = body.slots ?? {};
+  const keysToClear = body.keysToClear ?? [];
 
   for (const k of Object.keys(incomingKeys)) {
     if (!SUPPORTED_PROVIDERS.includes(k)) {
@@ -29,6 +30,15 @@ export async function POST({ request }) {
     }
     if (typeof incomingKeys[k] !== 'string') {
       return json({ error: `Key for "${k}" must be a string.` }, { status: 400 });
+    }
+  }
+
+  if (!Array.isArray(keysToClear)) {
+    return json({ error: 'keysToClear must be an array.' }, { status: 400 });
+  }
+  for (const k of keysToClear) {
+    if (!SUPPORTED_PROVIDERS.includes(k)) {
+      return json({ error: `Unknown provider in keysToClear: "${k}".` }, { status: 400 });
     }
   }
 
@@ -60,11 +70,15 @@ export async function POST({ request }) {
   }
 
   // Remove blank keys so they don't shadow env values with empty strings.
-  // API contract: submitting an empty string for a key clears it from settings.json,
-  // restoring the .env fallback. The UI filters blanks pre-send so the form can't
-  // accidentally trigger this — but API consumers can use it intentionally.
+  // Backwards-compatible: submitting '' for a key clears it from settings.json.
+  // New callers should use keysToClear instead.
   for (const k of Object.keys(mergedKeys)) {
     if (!mergedKeys[k] || !mergedKeys[k].trim()) delete mergedKeys[k];
+  }
+
+  // Explicitly clear keys requested via keysToClear.
+  for (const k of keysToClear) {
+    delete mergedKeys[k];
   }
 
   const updated = { keys: mergedKeys, slots: mergedSlots };

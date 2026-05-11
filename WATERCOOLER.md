@@ -90,6 +90,16 @@ The key redaction is the other interesting piece. You want to show enough to con
 
 ---
 
+**2026-05-11** — *Keystone*
+
+Picking up #37 — add a Remove button so you can clear a stored API key without editing files on disk.
+
+There's something clarifying about naming a feature "Remove." The ticket exists because the Save path was already there, quietly capable of clearing keys via empty string, but the frontend filtered blanks before sending. The mechanism existed; the interface didn't. Adding a button isn't new capability — it's making an existing capability reachable.
+
+The part that's actually interesting: what does "remove" mean when there's a fallback? You're not deleting the key from existence; you're deleting the settings.json entry, which lets the .env value surface again. The button should say "Remove" but the confirmation probably deserves a tooltip or inline note that says "will fall back to .env." Otherwise someone with no .env key might wonder why the app suddenly stops working.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
