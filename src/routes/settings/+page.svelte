@@ -34,6 +34,37 @@
   let savedOk = $state(false);
   let saveError = $state('');
 
+  // Per-provider remove confirmation state.
+  let removingKey = $state({ anthropic: false, openai: false, openrouter: false });
+
+  async function removeKey(provider) {
+    if (busy) return;
+    busy = true;
+    savedOk = false;
+    saveError = '';
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keysToClear: [provider] }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        saveError = body.error ?? `Server error ${res.status}`;
+      } else {
+        removingKey[provider] = false;
+        const updated = await res.json();
+        if (updated.settingsView) {
+          data = { ...data, settingsView: updated.settingsView };
+        }
+      }
+    } catch (e) {
+      saveError = e.message;
+    } finally {
+      busy = false;
+    }
+  }
+
   async function save() {
     if (busy) return;
     busy = true;
@@ -112,6 +143,15 @@
               {PROVIDER_LABELS[provider]}
               {#if current?.isSet}
                 <span class="badge badge-set">set — {current.preview}</span>
+                {#if removingKey[provider]}
+                  <span class="remove-confirm">
+                    Remove key?
+                    <button class="btn-confirm-yes" onclick={() => removeKey(provider)} disabled={busy}>Yes, remove</button>
+                    <button class="btn-confirm-cancel" onclick={() => removingKey[provider] = false}>Cancel</button>
+                  </span>
+                {:else}
+                  <button class="btn-remove" onclick={() => removingKey[provider] = true} title="Remove stored key — .env value resumes">Remove</button>
+                {/if}
               {:else}
                 <span class="badge badge-unset">not set</span>
               {/if}
@@ -356,4 +396,62 @@
 
   .feedback-ok  { color: var(--state-success); }
   .feedback-err { color: var(--sunset-800); }
+
+  .btn-remove {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--bone-400);
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    line-height: 1.6;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-remove:hover {
+    border-color: var(--sunset-600);
+    color: var(--sunset-700);
+  }
+
+  .remove-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+  }
+
+  .btn-confirm-yes,
+  .btn-confirm-cancel {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 1px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    line-height: 1.6;
+    border: 1px solid transparent;
+  }
+  .btn-confirm-yes {
+    background: var(--sunset-100);
+    border-color: var(--sunset-400);
+    color: var(--sunset-800);
+  }
+  .btn-confirm-yes:hover:not(:disabled) {
+    background: var(--sunset-200);
+  }
+  .btn-confirm-yes:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-confirm-cancel {
+    background: transparent;
+    border-color: var(--bone-400);
+    color: var(--text-tertiary);
+  }
+  .btn-confirm-cancel:hover {
+    border-color: var(--bone-600);
+    color: var(--text-secondary);
+  }
 </style>
