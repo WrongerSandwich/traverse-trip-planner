@@ -17,8 +17,15 @@
     stops: 'Stops',
     logistics: 'Logistics',
     itinerary: 'Itinerary',
+    notes: 'Notes',
   };
-  const SECTION_ORDER = ['overview', 'route', 'stops', 'logistics', 'itinerary'];
+
+  // Canonical section sets per stage (itinerary handled separately above the list)
+  const STAGE_SECTIONS = {
+    exploring: ['overview', 'route', 'stops', 'logistics'],
+    planning:  ['overview', 'route', 'stops', 'logistics'],
+    completed: ['overview', 'route', 'stops', 'logistics', 'notes'],
+  };
 
   const trip = $derived(data.trip);
   const stage = $derived(data.stage);
@@ -50,9 +57,7 @@
       : null
   );
 
-  const availableSections = $derived(
-    SECTION_ORDER.filter(s => sections[s] !== undefined)
-  );
+  const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.exploring);
 
   function startEdit(section) {
     drafts[section] = sections[section] ?? '';
@@ -382,41 +387,43 @@
         </div>
       {/if}
 
-      {#if isLocked && sections.itinerary}
+      {#if (isLocked || isCompleted) && sections.itinerary}
         <div class="itinerary-view">
           {@html marked.parse(sections.itinerary || '')}
         </div>
-      {:else}
-        {#each availableSections.filter(s => s !== 'itinerary') as section}
-          <section class="section">
-            <header class="section-header">
-              <h2>{SECTION_LABELS[section] || section}</h2>
-              {#if isPlanning && !isLocked && !editing[section]}
-                <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
-              {/if}
-            </header>
-
-            {#if editing[section]}
-              <textarea
-                class="editor"
-                bind:value={drafts[section]}
-                spellcheck="true"
-                rows="14"
-              ></textarea>
-              <div class="editor-actions">
-                <button class="btn btn-primary btn-compact" onclick={() => saveEdit(section)} disabled={saving[section]}>
-                  {saving[section] ? 'Saving…' : 'Save'}
-                </button>
-                <button class="btn btn-tertiary btn-compact" onclick={() => cancelEdit(section)} disabled={saving[section]}>
-                  Cancel
-                </button>
-              </div>
-            {:else}
-              <div class="prose">{@html marked.parse(sections[section] || '')}</div>
-            {/if}
-          </section>
-        {/each}
       {/if}
+
+      {#each canonicalSections as section}
+        <section class="section">
+          <header class="section-header">
+            <h2>{SECTION_LABELS[section] || section}</h2>
+            {#if isPlanning && !isLocked && sections[section] !== undefined && !editing[section]}
+              <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
+            {/if}
+          </header>
+
+          {#if sections[section] === undefined}
+            <p class="section-empty">Not yet researched — extend with a follow-up Research pass.</p>
+          {:else if editing[section]}
+            <textarea
+              class="editor"
+              bind:value={drafts[section]}
+              spellcheck="true"
+              rows="14"
+            ></textarea>
+            <div class="editor-actions">
+              <button class="btn btn-primary btn-compact" onclick={() => saveEdit(section)} disabled={saving[section]}>
+                {saving[section] ? 'Saving…' : 'Save'}
+              </button>
+              <button class="btn btn-tertiary btn-compact" onclick={() => cancelEdit(section)} disabled={saving[section]}>
+                Cancel
+              </button>
+            </div>
+          {:else}
+            <div class="prose">{@html marked.parse(sections[section] || '')}</div>
+          {/if}
+        </section>
+      {/each}
 
       {#if data.features?.share}
         <div class="share-zone">
@@ -752,6 +759,13 @@
     display: flex;
     gap: 0.5rem;
     margin-top: 0.55rem;
+  }
+
+  .section-empty {
+    font-size: 0.86rem;
+    color: var(--text-tertiary);
+    font-style: italic;
+    margin: 0;
   }
 
   .prose { font-size: 0.92rem; line-height: 1.75; color: var(--text-secondary); }

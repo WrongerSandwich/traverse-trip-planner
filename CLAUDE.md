@@ -39,6 +39,11 @@ Trips progress through four stages. Earlier-stage fields are never removed — s
 3. **planning** — concrete dates, lodging, reservations. The frontend's planning page enables in-place editing of any section + an "Ask Field guide" chat that writes section updates back to disk.
 4. **completed** — moved to `completed/` with a `notes.md` retrospective.
 
+**Canonical section sets per stage:** The detail view always renders a fixed tab set regardless of which files actually exist on disk. Missing files show an empty-state placeholder — producers (deepen, chat) are not required to write every section. The canonical sets are:
+- exploring / planning: `overview`, `route`, `stops`, `logistics`
+- locked planning: same as above, plus `itinerary` (shown above the others)
+- completed: `overview`, `route`, `stops`, `logistics`, `notes` (plus `itinerary` if present)
+
 **Archive (orthogonal to lifecycle):** any trip can be archived via the detail view. Archived trips move to `archived/<source-stage>/<slug>/` with the original status frontmatter intact. The frontend never displays them, but the seed action still scans them so previously-rejected destinations don't get re-suggested.
 
 ## Frontmatter schema

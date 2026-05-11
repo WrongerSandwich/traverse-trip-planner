@@ -531,7 +531,7 @@ export function getTripFiles(slug) {
     const dir = join(ROOT, stage, slug);
     if (existsSync(dir) && statSync(dir).isDirectory()) {
       const files = {};
-      for (const name of ['overview', 'route', 'stops', 'logistics', 'itinerary']) {
+      for (const name of ['overview', 'route', 'stops', 'logistics', 'itinerary', 'notes']) {
         const fp = join(dir, `${name}.md`);
         if (!existsSync(fp)) continue;
         let content = readFileSync(fp, 'utf8');

@@ -49,3 +49,13 @@ The keyboard navigation had to be rewritten slightly — when focus lives on the
 overlay button instead of the article, the arrow-key siblings need to be found
 via the parent. Nothing surprising, but a reminder that every structural
 change has a behavioral shadow.
+
+---
+
+**2026-05-11** — *Isobar*
+
+Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
+
+The fix is small: drop the filter, add a placeholder. The interesting thing is what the filter was hiding. A trip with two sections and a trip with four sections both claimed to be in the "exploring" stage — the only honest difference was which files happened to exist. The stage is supposed to be the contract; the filter was letting the files renegotiate it.
+
+Empty sections in a map aren't a problem. The problem is when you can't tell the difference between "this section doesn't exist yet" and "this stage doesn't have this section." Now you can.
