@@ -337,6 +337,12 @@
     </button>
 
     <div class="header-right">
+      <a href="/settings" class="settings-link" title="Settings" aria-label="Settings">
+        <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="7.5" cy="7.5" r="2"/>
+          <path d="M7.5 1v1.5M7.5 12.5V14M1 7.5h1.5M12.5 7.5H14M2.9 2.9l1.1 1.1M11 11l1.1 1.1M11 4l-1.1 1.1M4 11l-1.1 1.1"/>
+        </svg>
+      </a>
       <div class="header-count">
         {#if attrFilterCount > 0 || activeFilter !== 'all'}
           <span class="count-num">{trips.length}</span>
@@ -593,6 +599,22 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
+  }
+
+  .settings-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    color: var(--bone-600);
+    text-decoration: none;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
+  }
+  .settings-link:hover {
+    color: var(--bone-400);
+    background: var(--forest-800);
   }
 
   .seed-btn {

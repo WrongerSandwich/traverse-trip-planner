@@ -4,7 +4,7 @@ import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
-import { config } from '$lib/server/config.js';
+import { config, getEffectiveConfig } from '$lib/server/config.js';
 
 const NAME = config.assistantName;
 
@@ -71,7 +71,7 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
 </file>`;
 
     const { text, usage } = await chat({
-      ...config.features.add,
+      ...getEffectiveConfig().features.add,
       label: 'add',
       system,
       maxTokens: 600,
