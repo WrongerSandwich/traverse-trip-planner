@@ -49,7 +49,7 @@ function buildDestinationBaseMap(brochureData) {
   // (≈17-mi viewport) on the loose end, zoom 13 (≈4-mi viewport) when
   // anchors are tightly clustered. Zoom 14+ reads as village-roof scale
   // and loses the orientation context the brochure should provide.
-  const zoom = Math.max(11, Math.min(13, fitZoom));
+  const zoom = Math.max(11, Math.min(14, fitZoom));
 
   const url = stadiaStaticMapUrl({
     centerLat,

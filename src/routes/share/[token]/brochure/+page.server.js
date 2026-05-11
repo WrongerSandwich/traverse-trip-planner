@@ -33,7 +33,7 @@ function buildDestinationBaseMap(brochureData) {
     viewBoxH: 480,
     padding: 0.12,
   });
-  const zoom = Math.max(11, Math.min(13, fitZoom));
+  const zoom = Math.max(11, Math.min(14, fitZoom));
   const url = stadiaStaticMapUrl({
     centerLat, centerLon, zoom, width: 720, height: 480, style: 'outdoors',
   });

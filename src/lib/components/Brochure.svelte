@@ -209,7 +209,12 @@
 
     {#if brochure.stops?.length}
       <section class="content-page" data-section="stops">
-        <div class="eyebrow">Stops</div>
+        <div class="eyebrow">
+          Stops
+          {#if hasDestinationMap}
+            <span class="eyebrow-detail">· {stopsWithCoords.length} of {brochure.stops.length} pinned on map</span>
+          {/if}
+        </div>
 
         {#if hasDestinationMap}
           <DestinationMap
@@ -225,11 +230,13 @@
 
         <ul class="stops-list">
           {#each brochure.stops as stop, i}
-            <li class="stop" class:stop--must-see={stop.must_see}>
+            {@const hasCoords = Array.isArray(stop.coords) && stop.coords.length === 2}
+            <li class="stop" class:stop--must-see={stop.must_see} class:stop--unpinned={!hasCoords}>
               <div class="stop-head">
-                <span class="stop-n" class:stop-n--must-see={stop.must_see} aria-hidden="true">{i + 1}</span>
+                <span class="stop-n" class:stop-n--must-see={stop.must_see} class:stop-n--unpinned={!hasCoords} aria-hidden="true">{i + 1}</span>
                 <span class="stop-name">{stop.name}</span>
                 {#if stop.category}<span class="stop-cat">{stop.category}</span>{/if}
+                {#if !hasCoords}<span class="stop-unpinned-tag">no location</span>{/if}
               </div>
               {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
               {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
@@ -519,6 +526,14 @@
     color: var(--bone-600);
     margin-bottom: 1rem;
   }
+  /* Inline secondary text inside an eyebrow — drops the all-caps treatment
+     so counts like "9 of 12 pinned on map" read naturally. */
+  .eyebrow-detail {
+    text-transform: none;
+    letter-spacing: 0.04em;
+    font-weight: 400;
+    color: var(--bone-600);
+  }
 
   /* ── Page 3+ — itinerary / planning sections ──────────────────────── */
 
@@ -790,6 +805,21 @@
   .stop-n--must-see {
     background: var(--sunset-600);
     color: var(--sunset-50);
+  }
+  .stop-n--unpinned {
+    background: transparent;
+    color: var(--bone-600);
+    border: 1.5px solid var(--bone-400);
+    /* Slightly smaller text since the border adds visual weight. */
+    font-size: 10px;
+  }
+  .stop-unpinned-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--bone-600);
   }
   .stop-name {
     font-family: var(--font-serif);
