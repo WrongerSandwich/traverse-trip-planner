@@ -4,7 +4,7 @@ import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
-import { config } from '$lib/server/config.js';
+import { config, getEffectiveConfig } from '$lib/server/config.js';
 
 const NAME = config.assistantName;
 
@@ -59,7 +59,7 @@ national_park: true`;
       : 'Generate 5 new trip ideas.';
 
     const { text, usage } = await chat({
-      ...config.features.seed,
+      ...getEffectiveConfig().features.seed,
       label: 'seed',
       system,
       maxTokens: 3000,

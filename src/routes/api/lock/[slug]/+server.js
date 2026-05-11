@@ -3,7 +3,7 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { setLocked, readPlanningTrip, PLANNING_SECTIONS } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
-import { config } from '$lib/server/config.js';
+import { getEffectiveConfig } from '$lib/server/config.js';
 import { sseStream } from '$lib/server/sse.js';
 
 export function POST({ params, request }) {
@@ -24,7 +24,7 @@ export function POST({ params, request }) {
     let usage;
     try {
       const result = await chat({
-        ...config.features.lock,
+        ...getEffectiveConfig().features.lock,
         label: 'lock',
         maxTokens: 4000,
         signal,

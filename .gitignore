@@ -6,6 +6,9 @@ build/
 # API keys — never commit
 .env
 
+# Runtime-editable settings (may contain API keys — never commit)
+settings.json
+
 # Personal preferences — copy home.example.md to home.md and edit it
 home.md
 

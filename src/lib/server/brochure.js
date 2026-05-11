@@ -17,7 +17,7 @@ import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { findTripLocation, geocode, getTripFiles, readHomeMd, parseFrontmatter, flushCaches } from './data.js';
 import { chat } from './ai.js';
-import { config } from './config.js';
+import { getEffectiveConfig } from './config.js';
 
 const BROCHURE_FILENAME = 'brochure.md';
 
@@ -201,7 +201,7 @@ export async function prepareBrochure(slug, { signal, onActivity } = {}) {
   onActivity?.({ type: 'progress', message: 'Extracting stops, days, and notes…' });
 
   const { text, usage } = await chat({
-    ...config.features.lock,           // reuse the lock slot — same scale of call
+    ...getEffectiveConfig().features.lock,  // reuse the lock slot — same scale of call
     label: 'brochure-prepare',
     system,
     messages: [{ role: 'user', content: userInput }],

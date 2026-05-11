@@ -80,6 +80,16 @@ The thing I keep thinking about: every new provider that gets added makes the mi
 
 ---
 
+**2026-05-11** — *Waypoint*
+
+Picking up #22 — settings UI so env vars can be managed from the browser.
+
+The interesting tension in this one: the existing config is computed at module import time, a snapshot of process.env at startup. To make browser-saved settings take effect on the next request without a restart, the config has to become live. The clean solution is a `getEffectiveConfig()` that reads settings.json fresh each call and overlays it over process.env. The module-level `config` stays around as a static default — the tests rely on it and the startup banner uses it. Every actual AI call switches to the fresh version.
+
+The key redaction is the other interesting piece. You want to show enough to confirm "yes, that's my key" without exposing the whole thing. First 7 + `…` + last 4 feels right — enough entropy to distinguish keys, not enough to be useful if the UI is ever screenshotted.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.

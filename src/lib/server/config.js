@@ -1,5 +1,7 @@
-function env(name, fallback) {
-  const v = process.env[name];
+import { readSettings, settingsToEnv } from './settings.js';
+
+function env(envObj, name, fallback) {
+  const v = envObj[name];
   return v && v.length > 0 ? v : fallback;
 }
 
@@ -9,36 +11,6 @@ const FEATURE_SLOT = {
   lock: 'modelDefault',
   chat: 'modelDefault',
   deepen: 'modelResearch',
-};
-
-const slots = {
-  modelDefault: {
-    provider: env('TRAVERSE_MODEL_DEFAULT_PROVIDER', 'anthropic'),
-    model: env('TRAVERSE_MODEL_DEFAULT', 'claude-sonnet-4-6'),
-  },
-  modelResearch: {
-    provider: env('TRAVERSE_MODEL_RESEARCH_PROVIDER', 'anthropic'),
-    model: env('TRAVERSE_MODEL_RESEARCH', 'claude-opus-4-7'),
-  },
-};
-
-const features = {};
-for (const [feature, slotKey] of Object.entries(FEATURE_SLOT)) {
-  const upper = feature.toUpperCase();
-  features[feature] = {
-    provider: env(`TRAVERSE_MODEL_${upper}_PROVIDER`, slots[slotKey].provider),
-    model: env(`TRAVERSE_MODEL_${upper}`, slots[slotKey].model),
-  };
-}
-
-export const config = {
-  ...slots,
-  features,
-  search: {
-    provider: env('TRAVERSE_SEARCH_PROVIDER', 'anthropic-builtin'),
-  },
-  assistantName: env('TRAVERSE_ASSISTANT_NAME', 'Field guide'),
-  shareSecret: env('TRAVERSE_SHARE_SECRET', ''),
 };
 
 const PROVIDER_KEYS = {
@@ -52,46 +24,95 @@ const SEARCH_KEYS = {
   tavily: 'TAVILY_API_KEY',
 };
 
-function providerKeyOk(provider) {
+function buildConfig(envObj) {
+  const slots = {
+    modelDefault: {
+      provider: env(envObj, 'TRAVERSE_MODEL_DEFAULT_PROVIDER', 'anthropic'),
+      model: env(envObj, 'TRAVERSE_MODEL_DEFAULT', 'claude-sonnet-4-6'),
+    },
+    modelResearch: {
+      provider: env(envObj, 'TRAVERSE_MODEL_RESEARCH_PROVIDER', 'anthropic'),
+      model: env(envObj, 'TRAVERSE_MODEL_RESEARCH', 'claude-opus-4-7'),
+    },
+  };
+
+  const features = {};
+  for (const [feature, slotKey] of Object.entries(FEATURE_SLOT)) {
+    const upper = feature.toUpperCase();
+    features[feature] = {
+      provider: env(envObj, `TRAVERSE_MODEL_${upper}_PROVIDER`, slots[slotKey].provider),
+      model: env(envObj, `TRAVERSE_MODEL_${upper}`, slots[slotKey].model),
+    };
+  }
+
+  return {
+    ...slots,
+    features,
+    search: {
+      provider: env(envObj, 'TRAVERSE_SEARCH_PROVIDER', 'anthropic-builtin'),
+    },
+    assistantName: env(envObj, 'TRAVERSE_ASSISTANT_NAME', 'Field guide'),
+    shareSecret: env(envObj, 'TRAVERSE_SHARE_SECRET', ''),
+  };
+}
+
+// Static config built once at import time — used by the startup banner,
+// backwards-compat callers, and module-level constants (e.g. assistantName).
+export const config = buildConfig(process.env);
+
+/**
+ * Re-read settings.json and build a fresh config that overlays stored settings
+ * on top of process.env. Call this inside request handlers (not at module level)
+ * so changes made via the Settings UI take effect on the next request.
+ */
+export function getEffectiveConfig() {
+  const overlay = settingsToEnv(readSettings());
+  return buildConfig({ ...process.env, ...overlay });
+}
+
+function providerKeyOkIn(envObj, provider) {
   const keyName = PROVIDER_KEYS[provider];
   if (keyName === undefined) return false;
   if (keyName === null) return true;
-  return Boolean(process.env[keyName]);
+  return Boolean(envObj[keyName]);
 }
 
-function searchOk() {
-  const sp = config.search.provider;
+function searchOkIn(cfg, envObj) {
+  const sp = cfg.search.provider;
   if (!(sp in SEARCH_KEYS)) return false;
-  if (sp === 'anthropic-builtin' && config.features.deepen.provider !== 'anthropic') return false;
+  if (sp === 'anthropic-builtin' && cfg.features.deepen.provider !== 'anthropic') return false;
   const keyName = SEARCH_KEYS[sp];
   if (keyName === null) return true;
-  return Boolean(process.env[keyName]);
+  return Boolean(envObj[keyName]);
 }
 
 export function getFeatureAvailability() {
-  const search = searchOk();
+  const overlay = settingsToEnv(readSettings());
+  const effectiveEnv = { ...process.env, ...overlay };
+  const cfg = buildConfig(effectiveEnv);
+  const search = searchOkIn(cfg, effectiveEnv);
   const result = {};
   for (const feature of Object.keys(FEATURE_SLOT)) {
-    const ok = providerKeyOk(config.features[feature].provider);
+    const ok = providerKeyOkIn(effectiveEnv, cfg.features[feature].provider);
     result[feature] = feature === 'deepen' ? (ok && search) : ok;
   }
-  result.share = Boolean(config.shareSecret);
+  result.share = Boolean(cfg.shareSecret);
   return result;
 }
 
 export function describeConfig() {
   const featureDetails = {};
-  const slotForFeature = (f) => slots[FEATURE_SLOT[f]];
+  const slotForFeature = (f) => config[FEATURE_SLOT[f]];
   for (const [feature, info] of Object.entries(config.features)) {
     const slot = slotForFeature(feature);
     const overridden = info.provider !== slot.provider || info.model !== slot.model;
-    const ok = providerKeyOk(info.provider) && (feature === 'deepen' ? searchOk() : true);
+    const ok = providerKeyOkIn(process.env, info.provider) && (feature === 'deepen' ? searchOkIn(config, process.env) : true);
     featureDetails[feature] = { ...info, ok, overridden };
   }
   return {
-    modelDefault: { ...config.modelDefault, ok: providerKeyOk(config.modelDefault.provider) },
-    modelResearch: { ...config.modelResearch, ok: providerKeyOk(config.modelResearch.provider) },
-    search: { provider: config.search.provider, ok: searchOk() },
+    modelDefault: { ...config.modelDefault, ok: providerKeyOkIn(process.env, config.modelDefault.provider) },
+    modelResearch: { ...config.modelResearch, ok: providerKeyOkIn(process.env, config.modelResearch.provider) },
+    search: { provider: config.search.provider, ok: searchOkIn(config, process.env) },
     features: featureDetails,
     issues: validateConfig(),
   };
@@ -112,7 +133,6 @@ export function validateConfig() {
     }
   }
 
-  // Per-feature overrides may introduce providers not used by either slot.
   for (const [feature, info] of Object.entries(config.features)) {
     if (seenProviders.has(info.provider)) continue;
     seenProviders.add(info.provider);

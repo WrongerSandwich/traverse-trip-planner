@@ -1,0 +1,17 @@
+{
+  "keys": {
+    "anthropic": "",
+    "openai": "",
+    "openrouter": ""
+  },
+  "slots": {
+    "default": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6"
+    },
+    "research": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-7"
+    }
+  }
+}

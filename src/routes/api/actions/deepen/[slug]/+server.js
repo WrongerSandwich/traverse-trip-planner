@@ -4,7 +4,7 @@ import { ROOT, readHomeMd, parseFrontmatter, parseFrontmatterFields, invalidateE
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
-import { config } from '$lib/server/config.js';
+import { getEffectiveConfig } from '$lib/server/config.js';
 
 function findIdeaFile(slug) {
   const p = join(ROOT, 'ideas', `${slug}.md`);
@@ -87,7 +87,7 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
 </logistics_md>`;
 
     const { text, usage } = await chat({
-      ...config.features.deepen,
+      ...getEffectiveConfig().features.deepen,
       label: 'deepen',
       maxTokens: 8000,
       system,

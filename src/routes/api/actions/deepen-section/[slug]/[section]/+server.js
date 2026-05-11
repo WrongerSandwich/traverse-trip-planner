@@ -4,7 +4,7 @@ import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache } from '$lib/
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
-import { config } from '$lib/server/config.js';
+import { getEffectiveConfig } from '$lib/server/config.js';
 
 const VALID_SECTIONS = ['route', 'stops', 'logistics'];
 
@@ -82,7 +82,7 @@ ${guidance}
 </${tag}>`;
 
     const { text, usage } = await chat({
-      ...config.features.deepen,
+      ...getEffectiveConfig().features.deepen,
       label: 'deepen-section',
       maxTokens: 4000,
       system,

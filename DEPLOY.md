@@ -87,6 +87,31 @@ The startup banner lists which providers are wired and which features are availa
 - The `PEXELS_API_KEY` enables trip card photos. Without it, cards show a map thumbnail instead.
 - The `STADIA_API_KEY` (optional) replaces the brochure's destination-area illustrative paper map with a real Stadia "Outdoors" tile render (streets, parks, terrain shading visible). Without it, the destination map falls back to the state-outlines + rivers + place-labels illustration. Free tier: 200K static-map requests/month for non-commercial use. Sign up at [stadiamaps.com](https://stadiamaps.com) → Property → API key.
 
+## Settings overlay (settings.json)
+
+The Settings page (`/settings`) lets you manage API keys and model-slot configuration from the browser without editing files or restarting the server. Values are stored in `settings.json` at the repo root.
+
+**Precedence (highest to lowest):**
+1. `settings.json` — set via the UI; takes effect on the next request, no restart needed
+2. `.env` — the traditional deployment path; still the recommended approach for production servers where the UI is not accessible or key rotation is managed externally
+3. Compiled defaults (e.g. `anthropic` / `claude-sonnet-4-6`)
+
+**What settings.json stores:**
+- Provider API keys (`keys.anthropic`, `keys.openai`, `keys.openrouter`)
+- Slot configuration (`slots.default` and `slots.research`, each with `provider` + `model`)
+
+**What settings.json does NOT store (deferred to later):**
+- Search backend selection or Tavily key
+- Assistant name, share secret, or feature flags
+
+`settings.json` is gitignored; it never appears in version control. See `settings.example.json` for the expected shape.
+
+To revert to `.env`-only behavior, delete `settings.json` or clear the relevant fields in the Settings UI.
+
+> **Note:** The startup banner (printed to the PM2 log on boot) reflects only `.env` state — it reads config before `settings.json` can be overlaid. The Settings page (`/settings`) shows what is actually effective for incoming requests.
+
+**`TRAVERSE_DISABLE_SETTINGS_UI`** — set to any non-empty value to disable the `/settings` page and `POST /api/settings` entirely (both return 403). Recommended for production deployments where the server is reachable over an untrusted network and you prefer `.env`-only key management.
+
 ## Provider configuration (BYOK)
 
 Traverse talks to model and search providers through a thin adapter layer. The defaults preserve the original Anthropic-only behavior, so existing deployments keep working without env changes. To switch providers, set the `TRAVERSE_*` variables in `.env`.

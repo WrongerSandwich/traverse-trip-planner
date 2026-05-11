@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
-import { config } from '$lib/server/config.js';
+import { getEffectiveConfig } from '$lib/server/config.js';
 
 function parseUpdates(text) {
   const updates = {};
@@ -73,7 +73,7 @@ Your output format:
   }));
 
   const { text, usage } = await chat({
-    ...config.features.chat,
+    ...getEffectiveConfig().features.chat,
     label: 'chat',
     maxTokens: 6000,
     system,
