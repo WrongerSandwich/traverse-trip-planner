@@ -139,8 +139,8 @@
         {#each PROVIDERS as provider}
           {@const current = data.settingsView.keys[provider]}
           <div class="field">
-            <label for="key-{provider}" class="field-label">
-              {PROVIDER_LABELS[provider]}
+            <div class="field-label-row">
+              <label for="key-{provider}" class="field-label">{PROVIDER_LABELS[provider]}</label>
               {#if current?.isSet}
                 <span class="badge badge-set">set — {current.preview}</span>
                 {#if removingKey[provider]}
@@ -155,7 +155,7 @@
               {:else}
                 <span class="badge badge-unset">not set</span>
               {/if}
-            </label>
+            </div>
             <input
               id="key-{provider}"
               type="password"
@@ -310,13 +310,16 @@
     gap: 5px;
   }
 
+  .field-label-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .field-label {
     font-size: 12px;
     font-weight: 500;
     color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
 
   .badge {

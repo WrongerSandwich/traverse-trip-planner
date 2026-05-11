@@ -70,6 +70,8 @@ export async function POST({ request }) {
   }
 
   // Remove blank keys so they don't shadow env values with empty strings.
+  // Backwards-compatible: submitting '' for a key clears it from settings.json.
+  // New callers should use keysToClear instead.
   for (const k of Object.keys(mergedKeys)) {
     if (!mergedKeys[k] || !mergedKeys[k].trim()) delete mergedKeys[k];
   }
