@@ -2,6 +2,40 @@ import { error } from '@sveltejs/kit';
 import { enrichTrips, getTripFiles, getTripRoute, geocode } from '$lib/server/data.js';
 import { verifyShareToken, shareEnabled } from '$lib/server/share.js';
 import { readBrochure } from '$lib/server/brochure.js';
+import { stadiaStaticMapUrl } from '$lib/server/stadia.js';
+import { chooseZoomForBbox } from '$lib/utils/projection.js';
+
+function buildDestinationBaseMap(brochureData) {
+  if (!brochureData?.stops) return null;
+  const located = brochureData.stops.filter(
+    s => Array.isArray(s.coords) && s.coords.length === 2,
+  );
+  if (located.length === 0) return null;
+
+  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+  for (const { coords: [lat, lon] } of located) {
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+  }
+  if (minLat === maxLat) { minLat -= 0.01; maxLat += 0.01; }
+  if (minLon === maxLon) { minLon -= 0.01; maxLon += 0.01; }
+
+  const fitZoom = chooseZoomForBbox({
+    bbox: { minLat, maxLat, minLon, maxLon },
+    viewBoxW: 720,
+    viewBoxH: 480,
+    padding: 0.12,
+  });
+  const zoom = Math.max(9, Math.min(13, fitZoom));
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLon = (minLon + maxLon) / 2;
+  const url = stadiaStaticMapUrl({
+    centerLat, centerLon, zoom, width: 720, height: 480, style: 'outdoors',
+  });
+  return url ? { url, centerLat, centerLon, zoom } : null;
+}
 
 export async function load({ params }) {
   if (!shareEnabled()) throw error(404, 'Sharing not configured');
@@ -39,6 +73,8 @@ export async function load({ params }) {
     console.warn(`brochure.md present but unreadable for ${slug}:`, err.message);
   }
 
+  const destinationBaseMap = buildDestinationBaseMap(brochureData);
+
   return {
     trip,
     files: files?.files || {},
@@ -46,5 +82,6 @@ export async function load({ params }) {
     route,
     waypointCoords,
     brochureData,
+    destinationBaseMap,
   };
 }

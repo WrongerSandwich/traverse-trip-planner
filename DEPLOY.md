@@ -85,6 +85,7 @@ The startup banner lists which providers are wired and which features are availa
 - **`.env` is gitignored** — never committed. Use `.env.example` as your template.
 - **`home.md` is gitignored** — your personal preferences stay local. Use `home.example.md` as your template.
 - The `PEXELS_API_KEY` enables trip card photos. Without it, cards show a map thumbnail instead.
+- The `STADIA_API_KEY` (optional) replaces the brochure's destination-area illustrative paper map with a real Stadia "Outdoors" tile render (streets, parks, terrain shading visible). Without it, the destination map falls back to the state-outlines + rivers + place-labels illustration. Free tier: 200K static-map requests/month for non-commercial use. Sign up at [stadiamaps.com](https://stadiamaps.com) → Property → API key.
 
 ## Provider configuration (BYOK)
 

@@ -216,6 +216,10 @@
             stops={brochure.stops}
             destination={trip?.destination || trip?.title || ''}
             plateLabel="plate ii"
+            baseMapUrl={data.destinationBaseMap?.url ?? null}
+            baseMapCenterLat={data.destinationBaseMap?.centerLat ?? null}
+            baseMapCenterLon={data.destinationBaseMap?.centerLon ?? null}
+            baseMapZoom={data.destinationBaseMap?.zoom ?? null}
           />
         {/if}
 

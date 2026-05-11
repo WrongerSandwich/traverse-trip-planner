@@ -88,3 +88,84 @@ export function pathFromCoords(coords, project) {
     })
     .join(' ');
 }
+
+// ── Web Mercator (for static-tile overlays) ───────────────────────────
+//
+// Stadia (and Mapbox, MapLibre, Google, OSM, ...) all serve raster tiles
+// in Web Mercator. To draw pins/route/etc. *on top* of a Stadia static
+// map and have them land precisely on roads and landmarks, our SVG
+// coordinate space has to match the same projection at the same zoom.
+//
+// Equirectangular (what `buildProjection` uses) is fine for standalone
+// brochure-illustration maps, but drifts visibly when overlaid on
+// Mercator tiles. Use `buildMercatorProjection` whenever a real tile
+// base layer is involved.
+
+const TILE_SIZE = 256;
+
+function lonToMercX(lon, zoom) {
+  return (lon + 180) / 360 * TILE_SIZE * (2 ** zoom);
+}
+function latToMercY(lat, zoom) {
+  const radLat = lat * Math.PI / 180;
+  return (1 - Math.log(Math.tan(radLat) + 1 / Math.cos(radLat)) / Math.PI) / 2 * TILE_SIZE * (2 ** zoom);
+}
+function mercXToLon(x, zoom) {
+  return (x / (TILE_SIZE * 2 ** zoom)) * 360 - 180;
+}
+function mercYToLat(y, zoom) {
+  const n = Math.PI - 2 * Math.PI * (y / (TILE_SIZE * 2 ** zoom));
+  return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
+
+/**
+ * Pick the largest integer zoom level whose Mercator projection of the
+ * given bbox fits inside a viewBox (with padding margin). Used to size
+ * a tile-based base map to the trip's stops cluster.
+ */
+export function chooseZoomForBbox({ bbox, viewBoxW, viewBoxH, padding = 0.08 }) {
+  const innerW = viewBoxW * (1 - 2 * padding);
+  const innerH = viewBoxH * (1 - 2 * padding);
+  const xSpan0 = lonToMercX(bbox.maxLon, 0) - lonToMercX(bbox.minLon, 0);
+  const ySpan0 = latToMercY(bbox.minLat, 0) - latToMercY(bbox.maxLat, 0);
+  if (xSpan0 <= 0 || ySpan0 <= 0) return 10;
+  const zoomX = Math.log2(innerW / xSpan0);
+  const zoomY = Math.log2(innerH / ySpan0);
+  const z = Math.floor(Math.min(zoomX, zoomY));
+  return Math.max(1, Math.min(18, z));
+}
+
+/**
+ * Web-Mercator projection centered on (centerLat, centerLon) at integer
+ * zoom, returning pixel coords in the viewBox. Exposes the matching
+ * inverse bbox so terrain helpers (state outlines etc.) can still filter
+ * by geographic bbox if rendered alongside.
+ */
+export function buildMercatorProjection({ centerLat, centerLon, zoom, viewBoxW, viewBoxH }) {
+  const centerX = lonToMercX(centerLon, zoom);
+  const centerY = latToMercY(centerLat, zoom);
+
+  function project(lat, lon) {
+    return [
+      lonToMercX(lon, zoom) - centerX + viewBoxW / 2,
+      latToMercY(lat, zoom) - centerY + viewBoxH / 2,
+    ];
+  }
+
+  const halfW = viewBoxW / 2;
+  const halfH = viewBoxH / 2;
+  const bbox = {
+    minLon: mercXToLon(centerX - halfW, zoom),
+    maxLon: mercXToLon(centerX + halfW, zoom),
+    maxLat: mercYToLat(centerY - halfH, zoom),
+    minLat: mercYToLat(centerY + halfH, zoom),
+  };
+
+  // Match equirectangular's `scale` shape — viewBox units per
+  // cos-lat-compensated degree of longitude — so callers using
+  // `69 / scale` get correct miles-per-unit at centerLat.
+  const cosLat = Math.cos(centerLat * Math.PI / 180);
+  const scale = (TILE_SIZE * (2 ** zoom) / 360) / Math.max(cosLat, 0.0001);
+
+  return { project, zoom, bbox, scale, cosLat };
+}

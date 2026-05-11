@@ -11,18 +11,29 @@
   //   destination — string for the title plate (italic Fraunces)
   //   plateLabel  — small mono caption ("plate ii", etc.)
 
-  import { buildProjection } from '$lib/utils/projection.js';
+  import { buildProjection, buildMercatorProjection } from '$lib/utils/projection.js';
   import { stateOutlinePaths, riverPaths, placesInBbox } from '$lib/utils/terrain.js';
 
   let {
     stops = [],
     destination = '',
     plateLabel = 'plate ii',
+    // When a Stadia (or any Web Mercator) static map is supplied, the
+    // component switches to a Mercator projection matching the tile
+    // center+zoom so pin overlays land precisely on landmarks. The
+    // server is responsible for computing the same center+zoom it
+    // requested from the static-map provider.
+    baseMapUrl = null,
+    baseMapCenterLat = null,
+    baseMapCenterLon = null,
+    baseMapZoom = null,
   } = $props();
 
   const VB_W = 720;
   const VB_H = 480;
   const PAD = 0.12; // slightly more pad than PaperMap; stops sit nearer the edges otherwise
+
+  const hasBaseMap = $derived(Boolean(baseMapUrl && baseMapCenterLat != null && baseMapZoom != null));
 
   const located = $derived(
     (stops || [])
@@ -30,31 +41,38 @@
       .filter(s => Array.isArray(s.coords) && s.coords.length === 2),
   );
 
-  // Enforce a minimum bbox span (~150 miles / 2.2° lat) so even when the
-  // stops cluster is small or pulled wide by a single outlier, the map
-  // shows generous regional context — major cities around the destination,
-  // the river network, and state borders. The cluster reads as a small
-  // knot of pins in the middle; nearby population centers anchor the
-  // reader's sense of place.
+  // Two projection paths:
+  //  · With a Stadia base map: Mercator matching the tile center+zoom
+  //    (pixel-perfect overlay alignment). Native terrain/rivers/places
+  //    layers stay off because the base map already provides them with
+  //    real density.
+  //  · Without: equirectangular illustrative paper map with our own
+  //    state outlines, rivers, and curated place labels on bone-100.
+  //    Min-span floor expands tight clusters to ~150 mi for context.
   const proj = $derived(
-    located.length >= 1
-      ? buildProjection({
-          coords: located.map(s => s.coords),
+    hasBaseMap
+      ? buildMercatorProjection({
+          centerLat: baseMapCenterLat,
+          centerLon: baseMapCenterLon,
+          zoom: baseMapZoom,
           viewBoxW: VB_W,
           viewBoxH: VB_H,
-          padding: PAD,
-          minSpanDeg: 2.2,
         })
-      : null,
+      : located.length >= 1
+        ? buildProjection({
+            coords: located.map(s => s.coords),
+            viewBoxW: VB_W,
+            viewBoxH: VB_H,
+            padding: PAD,
+            minSpanDeg: 2.2,
+          })
+        : null,
   );
 
-  const statePaths = $derived(proj ? stateOutlinePaths(proj, { padDegrees: 1.0 }) : []);
-  const rivers = $derived(proj ? riverPaths(proj, { padDegrees: 0.5, maxZoom: 5 }) : []);
-  // Places at this regional zoom: scalerank ≤ 8 surfaces small-to-mid cities
-  // in the area without flooding the map. Smaller towns aren't in Natural
-  // Earth's curated set at any scale; if surfacing every hamlet matters
-  // later, ship a US Census Gazetteer-derived layer.
-  const places = $derived(proj ? placesInBbox(proj, { maxScalerank: 8 }) : []);
+  // Native terrain layers — only used when there's no base map.
+  const statePaths = $derived(!hasBaseMap && proj ? stateOutlinePaths(proj, { padDegrees: 1.0 }) : []);
+  const rivers = $derived(!hasBaseMap && proj ? riverPaths(proj, { padDegrees: 0.5, maxZoom: 5 }) : []);
+  const places = $derived(!hasBaseMap && proj ? placesInBbox(proj, { maxScalerank: 8 }) : []);
 
   const pixels = $derived(
     proj ? located.map(s => ({ ...s, xy: proj.project(...s.coords) })) : [],
@@ -82,16 +100,20 @@
     role="img"
     aria-label="Stops around {destination}"
   >
-    <!-- Paper background -->
-    <rect width={VB_W} height={VB_H} fill="var(--bone-100)" />
-
-    <!-- Contour hatching -->
-    <defs>
-      <pattern id="dest-contour" patternUnits="userSpaceOnUse" width="42" height="42" patternTransform="rotate(35)">
-        <line x1="0" y1="0" x2="0" y2="42" stroke="var(--forest-200)" stroke-width="0.5" opacity="0.3" />
-      </pattern>
-    </defs>
-    <rect width={VB_W} height={VB_H} fill="url(#dest-contour)" />
+    {#if hasBaseMap}
+      <!-- Stadia static map serves as the base layer. SVG's <image>
+           fetches lazily on render; PDF print embeds the bytes. -->
+      <image href={baseMapUrl} x="0" y="0" width={VB_W} height={VB_H} preserveAspectRatio="xMidYMid slice" />
+    {:else}
+      <!-- Illustrative paper background -->
+      <rect width={VB_W} height={VB_H} fill="var(--bone-100)" />
+      <defs>
+        <pattern id="dest-contour" patternUnits="userSpaceOnUse" width="42" height="42" patternTransform="rotate(35)">
+          <line x1="0" y1="0" x2="0" y2="42" stroke="var(--forest-200)" stroke-width="0.5" opacity="0.3" />
+        </pattern>
+      </defs>
+      <rect width={VB_W} height={VB_H} fill="url(#dest-contour)" />
+    {/if}
 
     <!-- State outlines for context -->
     {#if statePaths.length}
