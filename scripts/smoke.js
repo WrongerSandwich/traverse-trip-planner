@@ -102,7 +102,7 @@ if (d.search.provider !== 'anthropic-builtin' && d.modelResearch.ok && d.search.
 
 // OpenRouter probe: independent of the main provider slots; runs when OPENROUTER_API_KEY is set.
 if (openrouterKey) {
-  const orModel = process.env.OPENROUTER_SMOKE_MODEL || 'anthropic/claude-3.5-haiku';
+  const orModel = 'anthropic/claude-3.5-haiku';
   await probe(`chat() openrouter — ${orModel}`, async () => {
     const { text } = await chat({ provider: 'openrouter', model: orModel, system: 'Be terse.', messages: tinyMessages, maxTokens: 10, label: 'smoke-openrouter' });
     if (!text.trim()) throw new Error('empty response');
