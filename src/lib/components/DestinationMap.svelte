@@ -13,6 +13,7 @@
 
   import { buildProjection, buildMercatorProjection } from '$lib/utils/projection.js';
   import { stateOutlinePaths, riverPaths, placesInBbox } from '$lib/utils/terrain.js';
+  import { computeEdgeIndicators, isInViewport } from '$lib/utils/edge-indicators.js';
 
   let {
     stops = [],
@@ -83,42 +84,16 @@
   // numbered badges clamped to the viewport edge with a chevron pointing
   // toward where the stop actually is — same disambiguation pattern as
   // Google Maps' off-screen markers.
-  const inViewport = (xy) => xy[0] >= 0 && xy[0] <= VB_W && xy[1] >= 0 && xy[1] <= VB_H;
+
   // Render regulars first, then must-see, so the larger sunset-colored
   // anchors always paint on top when stops cluster within a city block.
   // Tradeoff: one or two regular pins under a must-see may end up
   // partially covered, but must-see stops are the ones a reader scans for
   // first when finding their way around the map.
   const inViewportPins = $derived(
-    pixels.filter(p => inViewport(p.xy)).sort((a, b) => Number(!!a.must_see) - Number(!!b.must_see)),
+    pixels.filter(p => isInViewport(p.xy, VB_W, VB_H)).sort((a, b) => Number(!!a.must_see) - Number(!!b.must_see)),
   );
-  const edgeIndicators = $derived.by(() => {
-    const cx = VB_W / 2;
-    const cy = VB_H / 2;
-    const inset = 22; // pull the marker this many px inside the boundary
-    return pixels
-      .filter(p => !inViewport(p.xy))
-      .map(p => {
-        const dx = p.xy[0] - cx;
-        const dy = p.xy[1] - cy;
-        const dist = Math.hypot(dx, dy);
-        if (dist === 0) return null;
-        // Smallest positive t such that (cx + t·dx, cy + t·dy) lies on a boundary.
-        const ts = [];
-        if (dx < 0) ts.push(-cx / dx);
-        if (dx > 0) ts.push((VB_W - cx) / dx);
-        if (dy < 0) ts.push(-cy / dy);
-        if (dy > 0) ts.push((VB_H - cy) / dy);
-        const tEdge = Math.min(...ts);
-        const tInset = Math.max(0, tEdge - inset / dist);
-        return {
-          ...p,
-          edgeXY: [cx + dx * tInset, cy + dy * tInset],
-          angleDeg: Math.atan2(dy, dx) * 180 / Math.PI,
-        };
-      })
-      .filter(Boolean);
-  });
+  const edgeIndicators = $derived(computeEdgeIndicators(pixels, VB_W, VB_H));
 
   // Scale bar tuned for a tighter zoom — destination clusters are typically
   // measured in single-digit to tens of miles, not hundreds.
