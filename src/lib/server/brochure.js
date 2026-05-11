@@ -133,13 +133,33 @@ function extractBrochureBlock(text) {
   return match ? match[1].trim() : null;
 }
 
-async function geocodeStops(stops = []) {
+/**
+ * Try a sequence of geocode queries from most to least specific. The
+ * first that returns coords wins. Without fallbacks, named landmarks
+ * with no street address ("Bingham Home", "Sappington Museum") never
+ * resolve, even though Nominatim knows them as places.
+ *
+ * Order:
+ *   1. Stop's address (most precise; small-town addresses often fail)
+ *   2. Name, destination (e.g. "J. Huston Tavern, Arrow Rock, MO")
+ *   3. Name alone
+ */
+async function geocodeStops(stops = [], { destinationContext = '' } = {}) {
   for (const stop of stops) {
-    if (!stop.address || stop.coords) continue;
-    try {
-      const coord = await geocode(stop.address);
-      if (coord) stop.coords = coord;
-    } catch { /* leave coords unset; brochure render handles missing */ }
+    if (stop.coords) continue;
+    if (!stop.name && !stop.address) continue;
+
+    const queries = [];
+    if (stop.address) queries.push(stop.address);
+    if (stop.name && destinationContext) queries.push(`${stop.name}, ${destinationContext}`);
+    if (stop.name) queries.push(stop.name);
+
+    for (const q of queries) {
+      try {
+        const coord = await geocode(q);
+        if (coord) { stop.coords = coord; break; }
+      } catch { /* try the next fallback */ }
+    }
   }
   return stops;
 }
@@ -207,8 +227,9 @@ export async function prepareBrochure(slug, { signal, onActivity } = {}) {
 
   // Geocode stops + lodging in place — uses the cache, almost always free
   onActivity?.({ type: 'progress', message: 'Geocoding stop addresses…' });
-  await geocodeStops(data.stops);
-  await geocodeStops(data.lodging);
+  const destContext = tripFm.destination || '';
+  await geocodeStops(data.stops, { destinationContext: destContext });
+  await geocodeStops(data.lodging, { destinationContext: destContext });
   flushCaches();
 
   // Write brochure.md
@@ -216,4 +237,42 @@ export async function prepareBrochure(slug, { signal, onActivity } = {}) {
   onActivity?.({ type: 'progress', message: 'Brochure ready.' });
 
   return { data, usage };
+}
+
+/**
+ * Re-geocode any stops/lodging in an existing brochure.md that don't
+ * yet have coords. Doesn't call the AI; just runs the (improved)
+ * geocode fallback chain against entries that need it.
+ *
+ * Returns counts so the UI can show how many pins got filled in.
+ */
+export async function regeocodeBrochureStops(slug, { onActivity } = {}) {
+  const existing = readBrochure(slug);
+  if (!existing) throw new Error(`No brochure.md found for "${slug}".`);
+  const { data, prose } = existing;
+
+  const loc = findTripLocation(slug);
+  const tripFm = loc?.kind === 'dir'
+    ? (parseFrontmatter(readFileSync(join(loc.path, 'overview.md'), 'utf8')) || {})
+    : {};
+  const destContext = tripFm.destination || '';
+
+  const beforeStops = (data.stops ?? []).filter(s => Array.isArray(s.coords)).length;
+  const beforeLodging = (data.lodging ?? []).filter(s => Array.isArray(s.coords)).length;
+
+  onActivity?.({ type: 'progress', message: 'Trying fallback queries for missing pins…' });
+  if (data.stops) await geocodeStops(data.stops, { destinationContext: destContext });
+  if (data.lodging) await geocodeStops(data.lodging, { destinationContext: destContext });
+  flushCaches();
+
+  const afterStops = (data.stops ?? []).filter(s => Array.isArray(s.coords)).length;
+  const afterLodging = (data.lodging ?? []).filter(s => Array.isArray(s.coords)).length;
+
+  writeBrochure(slug, { data, prose });
+  return {
+    stopsAdded: afterStops - beforeStops,
+    lodgingAdded: afterLodging - beforeLodging,
+    stopsTotal: data.stops?.length ?? 0,
+    stopsLocated: afterStops,
+  };
 }

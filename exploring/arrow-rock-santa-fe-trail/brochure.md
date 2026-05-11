@@ -51,6 +51,9 @@ stops:
     address: 39521 Visitor Center Dr, Arrow Rock, MO
     notes: Start every visit here — the orientation film and 9,000 sq ft of exhibits frame the entire village walk that follows.
     must_see: true
+    coords:
+      - 39.0685967
+      - -92.9457066
   - name: J. Huston Tavern
     category: food
     address: 305 N Main St, Arrow Rock, MO
@@ -83,9 +86,15 @@ stops:
   - name: Dr. John Sappington Museum
     category: historic
     notes: Honors the local physician whose quinine pills are credited with saving countless Santa Fe Trail travelers from malaria.
+    coords:
+      - 39.0711502
+      - -92.9438006
   - name: Black History Museum (Brown Lodge)
     category: historic
     notes: Interprets the African American experience in Boone's Lick country, a dimension of Arrow Rock's story often underrepresented.
+    coords:
+      - 39.0711597
+      - -92.9482123
   - name: Weinreich Ruts
     category: outdoors
     notes: Remarkably well-preserved Santa Fe Trail wagon ruts north of Marshall, most legible in late fall when the grass is low — a brief but visceral connection to the trail.
@@ -103,6 +112,9 @@ stops:
     category: lodging
     address: 501 East High Street, Boonville, MO
     notes: 1905 boutique hotel with 30 rooms, a restaurant, and live music in the Brick Room on weekends — the best backup base if Arrow Rock B&Bs are full.
+    coords:
+      - 38.9779653
+      - -92.7440989
   - name: Iron Horse Hotel
     category: lodging
     address: 101 Main St, Blackwater, MO

@@ -52,6 +52,30 @@
     }
   }
 
+  async function regeocode() {
+    if (busy) return;
+    busy = true;
+    error = null;
+    statusLog = [];
+    try {
+      await streamAction(`/api/brochure/regeocode/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
+        statusLog = [...statusLog, msg];
+        if (done && !msg.toLowerCase().startsWith('error')) {
+          invalidateAll();
+        }
+      });
+    } catch (e) {
+      error = e.message;
+    } finally {
+      busy = false;
+    }
+  }
+
+  // Count stops missing coords so the button can say something useful.
+  const missingCoordsCount = $derived(
+    (proposal?.stops ?? []).filter(s => !Array.isArray(s.coords)).length,
+  );
+
   async function save() {
     if (busy || !proposal) return;
     busy = true;
@@ -240,6 +264,11 @@
       <button class="btn btn-primary" disabled={busy} onclick={save}>
         {busy ? 'Saving…' : 'Save brochure'}
       </button>
+      {#if missingCoordsCount > 0}
+        <button class="btn btn-secondary" disabled={busy} onclick={regeocode} title="Try fallback geocode queries for stops without coords. No AI call.">
+          Fill in {missingCoordsCount} missing pin{missingCoordsCount === 1 ? '' : 's'}
+        </button>
+      {/if}
       <button class="btn btn-secondary" disabled={busy} onclick={generate} title="Re-run the AI extraction — overwrites any edits in brochure.md">
         Re-generate from notes
       </button>
