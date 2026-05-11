@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFrontmatter, parseFrontmatterFields, setFrontmatterField } from '../src/lib/server/data.js';
+import { parseFrontmatter, parseFrontmatterFields, setFrontmatterField, removeFrontmatterField } from '../src/lib/server/data.js';
 
 describe('parseFrontmatter', () => {
   it('parses a standard idea-stage frontmatter', () => {
@@ -164,5 +164,35 @@ describe('setFrontmatterField', () => {
     const result = setFrontmatterField(md, 'starred', true);
     expect(result).toContain('starred: true');
     expect(result).toContain('star_rating: 4');
+  });
+});
+
+describe('removeFrontmatterField', () => {
+  const base = `---\ntitle: Marfa Texas\nresearching: true\nstatus: idea\n---\n\nBody prose.`;
+
+  it('removes an existing field and its line', () => {
+    const result = removeFrontmatterField(base, 'researching');
+    expect(result).not.toContain('researching');
+    expect(parseFrontmatter(result)?.researching).toBeUndefined();
+  });
+
+  it('leaves other fields and body intact', () => {
+    const result = removeFrontmatterField(base, 'researching');
+    expect(parseFrontmatter(result)?.title).toBe('Marfa Texas');
+    expect(parseFrontmatter(result)?.status).toBe('idea');
+    expect(result).toContain('Body prose.');
+  });
+
+  it('is a no-op when the field is absent', () => {
+    const result = removeFrontmatterField(base, 'nonexistent');
+    expect(result).toBe(base);
+  });
+
+  it('round-trips with setFrontmatterField: set then remove yields no field', () => {
+    const md = `---\ntitle: Test\nstatus: idea\n---\n`;
+    const withFlag = setFrontmatterField(md, 'researching', 'true');
+    const withoutFlag = removeFrontmatterField(withFlag, 'researching');
+    expect(parseFrontmatter(withoutFlag)?.researching).toBeUndefined();
+    expect(parseFrontmatter(withoutFlag)?.title).toBe('Test');
   });
 });

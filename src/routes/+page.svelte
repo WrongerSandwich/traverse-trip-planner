@@ -201,26 +201,34 @@
 
   async function runDeepen(trip) {
     if (actionRunning) return;
-    if (!confirm(`Look into "${trip.title || trip._slug}" with web search? It usually takes about a minute.`)) return;
-    actionVisible = true;
-    actionRunning = true;
-    actionDone    = false;
-    actionMessages = [];
-    actionAborter = new AbortController();
+    if (!confirm(`Research "${trip.title || trip._slug}" with web search? It runs in the background — you can navigate away.`)) return;
     try {
-      await streamAction(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
-        actionPush(msg, done);
-        if (done) invalidateAll();
-      }, null, actionAborter.signal);
-      // If the loop returned without a `done: true` (i.e. aborted mid-stream),
-      // make sure the panel reflects the cancelled state.
-      if (!actionDone) actionPush('Cancelled.', true);
+      const res = await fetch(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      if (res.status === 409) {
+        alert(`"${trip.title || trip._slug}" is already being researched.`);
+        return;
+      }
+      if (!res.ok) {
+        alert(`Couldn't start research (${res.status}). Check the server log.`);
+        return;
+      }
+      // 202 accepted — update the page so the card flips to "Researching…" immediately.
+      await invalidateAll();
     } catch (e) {
-      actionPush(`Error: ${e.message}`, true);
-    } finally {
-      actionAborter = null;
+      alert(`Couldn't start research: ${e.message}`);
     }
   }
+
+  // Poll while any idea is in the researching state. The interval stops as soon
+  // as no researching trips remain so there's no steady-state cost.
+  const hasResearching = $derived(
+    data.trips.some(t => t.researching === true || t.researching === 'true'),
+  );
+  $effect(() => {
+    if (!hasResearching) return;
+    const id = setInterval(() => invalidateAll(), 4000);
+    return () => clearInterval(id);
+  });
 
   async function archiveTrip(trip, e) {
     e?.stopPropagation?.();

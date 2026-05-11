@@ -1,6 +1,9 @@
 // Load .env for production (Vite handles this automatically in dev)
 import 'dotenv/config';
+import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { describeConfig } from '$lib/server/config.js';
+import { ROOT, parseFrontmatter, removeFrontmatterField } from '$lib/server/data.js';
 
 let banneredOnce = false;
 
@@ -31,3 +34,23 @@ function printConfigBanner() {
 }
 
 printConfigBanner();
+
+// On startup, clear any `researching: true` flags left behind by a prior
+// crashed process. The associated idea stays in ideas/ — only the flag is
+// removed so the card's "Research →" button becomes clickable again.
+(function clearStaleResearchingFlags() {
+  const ideasDir = join(ROOT, 'ideas');
+  if (!existsSync(ideasDir)) return;
+  let cleared = 0;
+  for (const entry of readdirSync(ideasDir)) {
+    if (!entry.endsWith('.md')) continue;
+    const fp = join(ideasDir, entry);
+    const content = readFileSync(fp, 'utf8');
+    const fm = parseFrontmatter(content);
+    if (fm?.researching === 'true' || fm?.researching === true) {
+      writeFileSync(fp, removeFrontmatterField(content, 'researching'));
+      cleared++;
+    }
+  }
+  if (cleared > 0) console.log(`[startup] Cleared ${cleared} stale researching flag(s).`);
+})();
