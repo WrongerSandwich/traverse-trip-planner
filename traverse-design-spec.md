@@ -723,7 +723,7 @@ For terminal/destination items (the last stop), swap the numbered circle for a s
         <span className="text-bone-400">·</span>
         <span>~4 hr drive</span>
         <span className="text-bone-400">·</span>
-        <span>4 stops</span>
+        <span>2 days</span>
       </div>
     </div>
     <button className="bg-forest-800 text-bone-200 px-[18px] py-[10px] rounded-[4px] text-[13px] font-medium tracking-[0.02em] whitespace-nowrap">
