@@ -18,31 +18,32 @@
   );
 
   function handleKey(e) {
-    if (e.key === 'Enter') return onclick?.();
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-      const next = e.currentTarget.nextElementSibling;
-      if (next?.classList?.contains('card')) {
+      const nextCard = e.currentTarget.closest('.card')?.nextElementSibling;
+      if (nextCard?.classList?.contains('card')) {
         e.preventDefault();
-        next.focus();
+        nextCard.querySelector('.card-overlay')?.focus();
       }
     } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-      const prev = e.currentTarget.previousElementSibling;
-      if (prev?.classList?.contains('card')) {
+      const prevCard = e.currentTarget.closest('.card')?.previousElementSibling;
+      if (prevCard?.classList?.contains('card')) {
         e.preventDefault();
-        prev.focus();
+        prevCard.querySelector('.card-overlay')?.focus();
       }
     }
   }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role —
-     card-as-button pattern; nested bookmark/CTA buttons and credit link
-     mean we can't wrap in a real <button>. Refactoring to a stretched-link
-     pattern is tracked separately. -->
-<article class="card" onclick={onclick} id="card-{trip._slug}" role="button" tabindex="0"
-  onkeydown={handleKey}
+<article class="card" id="card-{trip._slug}"
   onmouseenter={onhover}
   onmouseleave={onleave}>
+
+  <button
+    class="card-overlay"
+    onclick={onclick}
+    onkeydown={handleKey}
+    aria-label="Open {trip.title || trip._slug}"
+  ></button>
 
   <!-- Thumbnail with status badge overlay -->
   {#if trip._image}
@@ -128,6 +129,7 @@
 
 <style>
   .card {
+    position: relative;
     background: var(--surface-raised);
     border-radius: 8px;
     overflow: hidden;
@@ -141,6 +143,23 @@
                 border-color 0.18s;
     text-align: left;
     width: 100%;
+  }
+
+  /* Invisible full-card overlay button — handles the "open detail" click.
+     z-index: 1 keeps it above normal flow content; interactive children
+     use z-index: 2 to sit above it so their clicks are not intercepted. */
+  .card-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .card-overlay:focus-visible {
+    outline: 2px solid var(--forest-800);
+    outline-offset: 2px;
   }
   .card:hover {
     transform: translateY(-3px);
@@ -210,6 +229,7 @@
 
   .credit {
     position: absolute; bottom: 0; right: 0;
+    z-index: 2;
     background: rgba(20, 20, 20, 0.45);
     color: rgba(230, 230, 230, 0.7);
     font-size: 0.56rem; padding: 0.14rem 0.45rem; border-radius: 3px 0 0 0;
@@ -240,6 +260,7 @@
     flex-shrink: 0;
     align-self: flex-start;
     position: relative;
+    z-index: 2;
     background: none;
     border: none;
     padding: 0.15rem 0.1rem;
@@ -318,7 +339,7 @@
   }
 
   /* Card-level secondary CTA — small inline action button on idea/exploring cards. */
-  .card-cta { align-self: flex-start; }
+  .card-cta { position: relative; z-index: 2; align-self: flex-start; }
 
   @media (max-width: 768px) {
     /* Shorter thumbnail — saves ~50px per card */
