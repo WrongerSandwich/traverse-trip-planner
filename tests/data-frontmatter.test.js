@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFrontmatter, parseFrontmatterFields } from '../src/lib/server/data.js';
+import { parseFrontmatter, parseFrontmatterFields, setFrontmatterField } from '../src/lib/server/data.js';
 
 describe('parseFrontmatter', () => {
   it('parses a standard idea-stage frontmatter', () => {
@@ -129,5 +129,40 @@ also not`;
 tags: [a, b]
 ---`;
     expect(parseFrontmatter(md).tags).toEqual(parseFrontmatterFields('tags: [a, b]').tags);
+  });
+});
+
+describe('setFrontmatterField', () => {
+  const base = `---\ntitle: Marfa Texas\nstatus: idea\n---\n\nBody prose.`;
+
+  it('updates an existing field in place', () => {
+    const result = setFrontmatterField(base, 'status', 'exploring');
+    expect(result).toContain('status: exploring');
+    expect(result).not.toContain('status: idea');
+  });
+
+  it('inserts a new field before the closing fence', () => {
+    const result = setFrontmatterField(base, 'locked', true);
+    expect(result).toContain('locked: true');
+    expect(parseFrontmatter(result)?.locked).toBe('true');
+  });
+
+  it('does not duplicate an existing field when updating', () => {
+    const result = setFrontmatterField(base, 'title', 'New Title');
+    const matches = result.match(/^title:/gm);
+    expect(matches).toHaveLength(1);
+  });
+
+  it('preserves body prose after mutation', () => {
+    const result = setFrontmatterField(base, 'starred', true);
+    expect(result).toContain('Body prose.');
+  });
+
+  it('handles a field whose name is a prefix of another field', () => {
+    // 'star' must not accidentally match 'starred'
+    const md = `---\nstarred: false\nstar_rating: 4\n---\n`;
+    const result = setFrontmatterField(md, 'starred', true);
+    expect(result).toContain('starred: true');
+    expect(result).toContain('star_rating: 4');
   });
 });
