@@ -84,9 +84,7 @@
     }
   }
 
-  function clearKey(provider) {
-    keys[provider] = '';
-  }
+
 </script>
 
 <svelte:head>

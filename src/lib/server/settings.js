@@ -5,7 +5,7 @@
 //
 // Public API:
 //   readSettings()          → parsed settings.json or {}
-//   writeSettings(data)     → atomically write settings.json
+//   writeSettings(data)     → write settings.json (not crash-safe; single-user app)
 //   redactKey(key)          → "sk-ant-…XY4Z" safe for sending to the browser
 //   settingsToEnv(settings) → flat env-var override map for merging with process.env
 

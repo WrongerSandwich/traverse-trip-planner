@@ -4,6 +4,10 @@ import { readSettings, writeSettings, redactSettings, SUPPORTED_PROVIDERS } from
 const SUPPORTED_SLOTS = ['default', 'research'];
 
 export async function POST({ request }) {
+  if (process.env.TRAVERSE_DISABLE_SETTINGS_UI) {
+    return json({ error: 'Settings UI is disabled on this server.' }, { status: 403 });
+  }
+
   let body;
   try {
     body = await request.json();
@@ -31,6 +35,10 @@ export async function POST({ request }) {
   for (const slot of Object.keys(incomingSlots)) {
     if (!SUPPORTED_SLOTS.includes(slot)) {
       return json({ error: `Unknown slot: "${slot}". Supported: ${SUPPORTED_SLOTS.join(', ')}.` }, { status: 400 });
+    }
+    const provider = incomingSlots[slot]?.provider;
+    if (provider && !SUPPORTED_PROVIDERS.includes(provider)) {
+      return json({ error: `Unknown provider for slot "${slot}": "${provider}". Supported: ${SUPPORTED_PROVIDERS.join(', ')}.` }, { status: 400 });
     }
   }
 

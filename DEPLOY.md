@@ -108,6 +108,10 @@ The Settings page (`/settings`) lets you manage API keys and model-slot configur
 
 To revert to `.env`-only behavior, delete `settings.json` or clear the relevant fields in the Settings UI.
 
+> **Note:** The startup banner (printed to the PM2 log on boot) reflects only `.env` state — it reads config before `settings.json` can be overlaid. The Settings page (`/settings`) shows what is actually effective for incoming requests.
+
+**`TRAVERSE_DISABLE_SETTINGS_UI`** — set to any non-empty value to disable the `/settings` page and `POST /api/settings` entirely (both return 403). Recommended for production deployments where the server is reachable over an untrusted network and you prefer `.env`-only key management.
+
 ## Provider configuration (BYOK)
 
 Traverse talks to model and search providers through a thin adapter layer. The defaults preserve the original Anthropic-only behavior, so existing deployments keep working without env changes. To switch providers, set the `TRAVERSE_*` variables in `.env`.
