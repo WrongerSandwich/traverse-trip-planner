@@ -43,7 +43,10 @@
 
   const renderMd = (md) => marked.parse(md || '', { mangle: false, headerIds: false });
 
-  // Meta row: date · distance · drive time · stops. JetBrains Mono.
+  // Meta row: date · distance · drive time · duration. JetBrains Mono.
+  // Earlier this row included "N stops" pulled from waypoints, but waypoints
+  // are routing helpers (cities the road threads through), not destinations
+  // the trip stops at — listing them as "stops" misrepresented the trip.
   function fmtDate(iso) {
     if (!iso) return null;
     const d = new Date(`${iso}T00:00:00`);
@@ -58,12 +61,18 @@
     if (mi == null) return null;
     return `${Number(mi).toLocaleString()} mi`;
   }
+  function fmtDuration(days) {
+    if (days == null) return null;
+    const n = Number(days);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return `${n % 1 === 0 ? n : n.toFixed(1)} day${n === 1 ? '' : 's'}`;
+  }
 
   const meta = $derived([
     fmtDate(trip?.target_date),
     fmtDistance(trip?.home_distance_mi),
     fmtDrive(trip?._drive_hours),
-    Array.isArray(trip?.waypoints) ? `${trip.waypoints.length} stops` : null,
+    fmtDuration(trip?.duration_days),
   ].filter(Boolean));
 
   // Compiled date for the attribution line — always today in en-US.
@@ -142,7 +151,7 @@
 
       {#if hasMap}
         <aside class="route-inset" aria-label="Route from home">
-          <div class="route-inset-eyebrow">Route · {waypointCoords.length} stops</div>
+          <div class="route-inset-eyebrow">Route from home</div>
           <PaperMap
             {route}
             waypoints={waypointCoords}
