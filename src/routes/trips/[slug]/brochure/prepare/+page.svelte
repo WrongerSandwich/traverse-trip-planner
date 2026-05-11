@@ -1,13 +1,16 @@
 <script>
+  import { untrack } from 'svelte';
   import { goto, invalidateAll } from '$app/navigation';
   import { streamAction } from '$lib/utils/action.js';
 
   let { data } = $props();
 
   const trip = $derived(data.trip);
-  // Snapshot of brochure data we'll mutate locally before save. Re-syncs
-  // when the underlying load changes (e.g., after a regenerate).
-  let proposal = $state(structuredClone(data.brochureData));
+  // Snapshot of brochure data we'll mutate locally before save. The
+  // initializer reads `data` but isn't meant to track it — the $effect
+  // below handles re-sync on regenerate. untrack() makes that explicit
+  // and silences the "captures initial value" lint.
+  let proposal = $state(untrack(() => structuredClone(data.brochureData)));
   $effect(() => { proposal = structuredClone(data.brochureData); });
 
   // Photo options come from the trip's enriched _image.photos (when fresh

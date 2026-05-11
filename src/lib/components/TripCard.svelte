@@ -35,6 +35,10 @@
   }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role —
+     card-as-button pattern; nested bookmark/CTA buttons and credit link
+     mean we can't wrap in a real <button>. Refactoring to a stretched-link
+     pattern is tracked separately. -->
 <article class="card" onclick={onclick} id="card-{trip._slug}" role="button" tabindex="0"
   onkeydown={handleKey}
   onmouseenter={onhover}

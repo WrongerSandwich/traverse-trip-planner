@@ -10,6 +10,14 @@
 
   let { data } = $props();
 
+  // Focuses the popover input on mount. Used via `use:focusOnMount` instead
+  // of the HTML autofocus attribute — autofocus's a11y warning applies to
+  // page-load focus, but here the element only mounts when the user has
+  // explicitly opened a popover, so immediate keyboard input is expected.
+  function focusOnMount(node) {
+    node.focus();
+  }
+
   // Stage filter
   let activeFilter = $state('all');
   // Sort
@@ -380,7 +388,7 @@
         bind:value={seedPrompt}
         placeholder="e.g. fall colors within 4 hours, or scenic byways with quirky small towns"
         rows="3"
-        autofocus
+        use:focusOnMount
         onkeydown={e => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); runSeed(); }
           if (e.key === 'Escape') { seedFormOpen = false; }
@@ -406,7 +414,7 @@
         class="pin-input"
         bind:value={pinDest}
         placeholder="e.g. Marfa, TX or Boundary Waters, MN"
-        autofocus
+        use:focusOnMount
         onkeydown={e => {
           if (e.key === 'Enter') { e.preventDefault(); runPin(); }
           if (e.key === 'Escape') { pinFormOpen = false; }

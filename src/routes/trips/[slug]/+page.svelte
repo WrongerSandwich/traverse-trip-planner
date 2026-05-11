@@ -1,5 +1,6 @@
 <script>
   import { marked } from 'marked';
+  import { untrack } from 'svelte';
   import { invalidateAll, goto } from '$app/navigation';
   import MiniMap from '$lib/components/MiniMap.svelte';
   import Logo from '$lib/components/Logo.svelte';
@@ -25,8 +26,10 @@
   const isCompleted = $derived(stage === 'completed');
   const isLocked = $derived(trip?.locked === 'true');
 
-  // Local section content state, seeded from server load. Edits live here until saved.
-  let sections = $state({ ...data.files });
+  // Local section content state, seeded from server load. Edits live here
+  // until saved — intentionally initial-only (don't re-sync on every load),
+  // so untrack() to silence the "captures initial value" lint.
+  let sections = $state(untrack(() => ({ ...data.files })));
   // Per-section UI state
   let editing = $state({});      // { route: true, ... }
   let drafts  = $state({});      // staging textareas while editing

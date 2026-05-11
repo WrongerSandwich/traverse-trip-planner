@@ -348,14 +348,6 @@
     line-height: 1.7;
   }
   .empty-hint { margin-top: 0.5rem; font-size: 0.8rem; }
-  .empty-hint code {
-    font-family: monospace;
-    background: var(--forest-50);
-    color: var(--forest-800);
-    padding: 0.1em 0.35em;
-    border-radius: 3px;
-    font-size: 0.82em;
-  }
 
   /* ── Danger zone (archive) ── */
   .danger-zone {

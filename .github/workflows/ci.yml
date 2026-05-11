@@ -19,8 +19,5 @@ jobs:
 
       - run: npm ci
 
-      - name: Run unit tests
-        run: npm test
-
-      - name: Build
-        run: npm run build
+      - name: Verify (svelte-check + tests + build)
+        run: npm run verify
