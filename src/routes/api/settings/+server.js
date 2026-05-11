@@ -60,6 +60,9 @@ export async function POST({ request }) {
   }
 
   // Remove blank keys so they don't shadow env values with empty strings.
+  // API contract: submitting an empty string for a key clears it from settings.json,
+  // restoring the .env fallback. The UI filters blanks pre-send so the form can't
+  // accidentally trigger this — but API consumers can use it intentionally.
   for (const k of Object.keys(mergedKeys)) {
     if (!mergedKeys[k] || !mergedKeys[k].trim()) delete mergedKeys[k];
   }
