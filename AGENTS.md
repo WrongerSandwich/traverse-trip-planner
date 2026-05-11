@@ -84,6 +84,13 @@ These are load-bearing. Violations should fail review.
   the functions a component calls. If the function isn't extractable,
   the component probably has logic that should live in `lib/utils/`.
 
+## Tickets to skip
+
+Issues labeled **`design`** are not safe for autonomous pickup — they are
+design explorations meant for collaborative work with a human in the loop.
+Their deliverable is typically a written design document, not code. Skip
+them unless explicitly invoked.
+
 ## Definition of done
 
 For a feature/fix ticket, "done" means:
