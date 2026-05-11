@@ -18,31 +18,35 @@
   );
 
   function handleKey(e) {
-    if (e.key === 'Enter') return onclick?.();
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-      const next = e.currentTarget.nextElementSibling;
+      const next = e.currentTarget.closest('.card')?.nextElementSibling;
       if (next?.classList?.contains('card')) {
         e.preventDefault();
-        next.focus();
+        next.querySelector('.card-overlay')?.focus();
       }
     } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-      const prev = e.currentTarget.previousElementSibling;
+      const prev = e.currentTarget.closest('.card')?.previousElementSibling;
       if (prev?.classList?.contains('card')) {
         e.preventDefault();
-        prev.focus();
+        prev.querySelector('.card-overlay')?.focus();
       }
     }
   }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role —
-     card-as-button pattern; nested bookmark/CTA buttons and credit link
-     mean we can't wrap in a real <button>. Refactoring to a stretched-link
-     pattern is tracked separately. -->
-<article class="card" onclick={onclick} id="card-{trip._slug}" role="button" tabindex="0"
-  onkeydown={handleKey}
+<article class="card" id="card-{trip._slug}"
   onmouseenter={onhover}
   onmouseleave={onleave}>
+
+  <!-- Stretched-button overlay: covers the full card surface and handles the
+       "open detail" click. Nested interactive elements (bookmark, CTA, credit
+       link) sit above it via pointer-events so they receive their own clicks. -->
+  <button
+    class="card-overlay"
+    aria-label="Open {trip.title || trip._slug}"
+    onclick={onclick}
+    onkeydown={handleKey}
+  ></button>
 
   <!-- Thumbnail with status badge overlay -->
   {#if trip._image}
@@ -128,6 +132,7 @@
 
 <style>
   .card {
+    position: relative;
     background: var(--surface-raised);
     border-radius: 8px;
     overflow: hidden;
@@ -153,6 +158,32 @@
     transition-duration: 0.05s;
   }
   .card:global(.highlight) { outline: 2px solid var(--forest-800); outline-offset: 2px; }
+  .card:has(.card-overlay:focus-visible) { outline: 2px solid var(--forest-800); outline-offset: 2px; }
+
+  /* ── Stretched-button overlay ── */
+  .card-overlay {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    /* Sits below nested interactive elements via z-index */
+    z-index: 0;
+    /* No visible focus ring here — .card:has(:focus-visible) handles it */
+    outline: none;
+  }
+
+  /* Thumb and body pass pointer events through to the overlay; interactive
+     children re-enable them so bookmark / CTA / credit link still work. */
+  .thumb, .body {
+    pointer-events: none;
+    /* Lift above the overlay so visual content renders correctly */
+    position: relative;
+    z-index: 1;
+  }
+  .credit a, .bookmark, .card-cta {
+    pointer-events: auto;
+  }
 
   /* ── Thumbnail ── */
   .thumb {
@@ -160,7 +191,6 @@
     flex-shrink: 0;
     background: var(--bone-400);
     overflow: hidden;
-    position: relative;
   }
   .thumb.photo img {
     width: 100%; height: 100%; object-fit: cover; display: block;
