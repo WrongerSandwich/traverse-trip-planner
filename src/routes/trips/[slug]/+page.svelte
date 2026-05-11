@@ -4,6 +4,7 @@
   import { invalidateAll, goto } from '$app/navigation';
   import MiniMap from '$lib/components/MiniMap.svelte';
   import Logo from '$lib/components/Logo.svelte';
+  import ActionPanel from '$lib/components/ActionPanel.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
@@ -46,6 +47,14 @@
   let lockStreamingText = $state('');
   let lockStatus = $state('');
 
+  // ── Section research (deepen-section) ──
+  let srMessages  = $state([]);
+  let srRunning   = $state(false);
+  let srDone      = $state(false);
+  let srVisible   = $state(false);
+  let srAborter   = $state(null);  // AbortController, non-null while cancellable
+  let srSection   = $state(null);  // which section is currently being researched
+
   // Refresh sections when nav causes a new load (rarely, but safe).
   $effect(() => { sections = { ...data.files }; });
 
@@ -58,6 +67,56 @@
   );
 
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.exploring);
+
+  // Show the "Research this section →" button only when the feature is enabled,
+  // the trip is not locked/completed, and the section is a researchable type.
+  const RESEARCHABLE = new Set(['route', 'stops', 'logistics']);
+  const canResearchSection = $derived(
+    (stage === 'exploring' || (stage === 'planning' && !isLocked)) &&
+    Boolean(data.features?.deepen)
+  );
+
+  function srPush(msg, done = false) {
+    srMessages = [...srMessages, msg];
+    if (done) { srDone = true; srRunning = false; }
+  }
+
+  function cancelSectionResearch() {
+    if (srAborter) {
+      srAborter.abort();
+      srPush('Cancelled by user.', true);
+    }
+  }
+
+  async function researchSection(section) {
+    if (srRunning) return;
+    srMessages  = [];
+    srRunning   = true;
+    srDone      = false;
+    srVisible   = true;
+    srSection   = section;
+    srAborter   = new AbortController();
+    try {
+      await streamAction(
+        `/api/actions/deepen-section/${encodeURIComponent(trip._slug)}/${encodeURIComponent(section)}`,
+        ({ msg, done }) => {
+          srPush(msg, done);
+          if (done && !msg.toLowerCase().startsWith('error')) {
+            // Pull the new section content into the page without a full reload.
+            invalidateAll();
+          }
+        },
+        null,
+        srAborter.signal,
+      );
+      if (!srDone) srPush('Cancelled.', true);
+    } catch (e) {
+      srPush(`Error: ${e.message}`, true);
+    } finally {
+      srAborter  = null;
+      srSection  = null;
+    }
+  }
 
   function startEdit(section) {
     drafts[section] = sections[section] ?? '';
@@ -403,7 +462,18 @@
           </header>
 
           {#if sections[section] === undefined}
-            <p class="section-empty">Not yet researched — extend with a follow-up Research pass.</p>
+            <div class="section-empty-block">
+              <p class="section-empty">Not yet researched.</p>
+              {#if canResearchSection && RESEARCHABLE.has(section)}
+                <button
+                  class="btn btn-secondary btn-compact"
+                  onclick={() => researchSection(section)}
+                  disabled={srRunning}
+                >
+                  {srRunning && srSection === section ? 'Researching…' : 'Research this section →'}
+                </button>
+              {/if}
+            </div>
           {:else if editing[section]}
             <textarea
               class="editor"
@@ -471,6 +541,16 @@
         Ask {data.assistantName}
       {/if}
     </button>
+  {/if}
+
+  {#if srVisible}
+    <ActionPanel
+      messages={srMessages}
+      running={srRunning}
+      done={srDone}
+      onclose={() => srVisible = false}
+      oncancel={srAborter ? cancelSectionResearch : null}
+    />
   {/if}
 
   <div class="chat-backdrop" class:open={chatOpen} onclick={() => chatOpen = false} role="presentation"></div>
@@ -759,6 +839,13 @@
     display: flex;
     gap: 0.5rem;
     margin-top: 0.55rem;
+  }
+
+  .section-empty-block {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
   }
 
   .section-empty {

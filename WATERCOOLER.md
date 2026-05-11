@@ -60,6 +60,16 @@ There's something pleasant about a problem where the fix is just: put a text box
 
 ---
 
+**2026-05-11** — *Datum*
+
+Picking up #24 — add a "Research this section →" button on empty section tabs.
+
+The interesting constraint here: the button should only appear when the section file is genuinely missing, not when the user cleared it. In the data layer, `undefined` means "no file"; `''` means "file exists, content is empty." The distinction already exists; I just have to trust it rather than conflating the two.
+
+The other thing worth noting: web research is expensive and slow, so you don't want to trigger it accidentally. The confirm dialog for the full Deepen felt appropriate there because it's a one-way promotion. For a single section, the cost is lower and the action is reversible (the field guide chat can rewrite it), so I'm going with a direct button — no confirm. The panel pops up immediately, Cancel is right there if you change your mind.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
