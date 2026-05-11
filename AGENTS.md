@@ -26,6 +26,45 @@ changes to `src/lib/server/ai/*`, `src/lib/server/search/*`, or the
 provider adapters in `src/lib/server/{ai,search}.js` — but only when
 your environment has the relevant keys configured.
 
+**Run verify often, not just at the end.** The cycle is ~10 seconds
+end-to-end (svelte-check + tests + build). Treat it like a save button —
+run after each substantive change. Batching multiple changes into one
+verify run means debugging multiple problems at once instead of catching
+each as it surfaces.
+
+## Non-obvious things
+
+A short list of patterns and constraints that aren't visible from grepping
+the source. Knowing these up front saves debugging time.
+
+- **Disk-backed caches at repo root.** `.geocode-cache.json`,
+  `.image-cache.json`, `.route-cache.json` persist across restarts. If
+  your tests exercise code that reads or writes them, clean up after
+  yourself or stub at the boundary.
+- **`chat()` requires a `label`.** Token-usage logs group costs by it.
+  Forgetting the label means your feature's costs become invisible.
+- **`enrichTrips()` runs on every page load** and includes a GC pass over
+  stale cache entries. It's guarded against the empty-list case (won't
+  wipe everything if trips temporarily fail to load), but simulating it
+  in tests needs the caches populated first.
+- **`home.md` is the source of taste and constraints** — home coords,
+  vehicle, travelers, preferences. Never hardcode these in commands or
+  subagents; always read from `home.md` frontmatter.
+- **`DestinationMap` switches projections** based on whether `baseMapUrl`
+  is set: Mercator with a base map, equirectangular without. The native
+  terrain/rivers/places code paths run only on the equirectangular branch.
+- **Production mode is `pm2 + a built bundle`.** Source changes don't
+  take effect until `npm run build && pm2 restart traverse`. Easy to be
+  misled by stale code when testing in production mode — the inspector
+  shows the right source, but the running server doesn't.
+- **The smoke test is gated by env vars.** It silently no-ops for
+  providers whose keys are missing — a "passing" smoke run doesn't mean
+  what you think if the relevant key isn't set.
+- **Synthetic frontmatter fields are prefixed with `_`** (e.g.
+  `_drive_hours`, `_coords`, `_slug`). These are added during enrichment
+  at read time, not stored. Don't write `_`-prefixed fields back to
+  markdown files — that's a convention violation.
+
 ## Repo shape
 
 - `src/lib/server/` — server-only modules (AI adapters, file I/O,
@@ -83,6 +122,30 @@ These are load-bearing. Violations should fail review.
 - Don't write tests against UI rendering output — write them against
   the functions a component calls. If the function isn't extractable,
   the component probably has logic that should live in `lib/utils/`.
+
+## Canonical examples to copy
+
+When implementing a common pattern, start from the reference file rather
+than reinventing. These are battle-tested and small variations have
+well-understood reasons.
+
+- **New SSE action endpoint** → `src/routes/api/actions/seed/+server.js`
+  (existence check → `chat()` with streaming → SSE `send` helper → file
+  writes → `invalidateEnrichCache()`).
+- **New POST endpoint with progress** →
+  `src/routes/api/brochure/regeocode/[slug]/+server.js` — lightweight SSE
+  wrapper without a `chat()` call.
+- **New AI provider adapter** → `src/lib/server/ai/openai.js` —
+  normalized request/response shape that `chat()` expects.
+- **AI adapter test** → `tests/ai-anthropic.test.js` — `vi.hoisted` +
+  class-as-constructor mock for the SDK; covers tool loops and error
+  paths.
+- **Pure-function test** → `tests/share.test.js` or
+  `tests/format-usage.test.js` — no mocks, deterministic input/output.
+- **Frontmatter parsing test** → `tests/data-frontmatter.test.js` —
+  hand-written YAML samples + assertions on parsed shape.
+- **Disk-backed cache** → the cache helpers in `src/lib/server/data.js`
+  define the read/write/GC semantics any new cache should follow.
 
 ## Tickets to skip
 
