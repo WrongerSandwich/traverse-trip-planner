@@ -226,6 +226,29 @@
             baseMapCenterLon={data.destinationBaseMap?.centerLon ?? null}
             baseMapZoom={data.destinationBaseMap?.zoom ?? null}
           />
+          <ul class="map-legend" aria-label="Map legend">
+            <li class="legend-item">
+              <span class="legend-swatch legend-swatch--must-see" aria-hidden="true"></span>
+              <span>must-see</span>
+            </li>
+            <li class="legend-item">
+              <span class="legend-swatch legend-swatch--stop" aria-hidden="true"></span>
+              <span>stop</span>
+            </li>
+            <li class="legend-item">
+              <span class="legend-swatch legend-swatch--edge" aria-hidden="true">
+                <svg viewBox="0 0 26 12" width="26" height="12">
+                  <circle cx="7" cy="6" r="4.5" fill="var(--forest-800)" />
+                  <path d="M 19 6 L 14 3 M 19 6 L 14 9" fill="none" stroke="var(--forest-800)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <span>off-map direction</span>
+            </li>
+            <li class="legend-item">
+              <span class="legend-swatch legend-swatch--unmapped" aria-hidden="true"></span>
+              <span>unmapped (no pin geocoded)</span>
+            </li>
+          </ul>
         {/if}
 
         <ul class="stops-list">
@@ -236,7 +259,7 @@
                 <span class="stop-n" class:stop-n--must-see={stop.must_see} class:stop-n--unpinned={!hasCoords} aria-hidden="true">{i + 1}</span>
                 <span class="stop-name">{stop.name}</span>
                 {#if stop.category}<span class="stop-cat">{stop.category}</span>{/if}
-                {#if !hasCoords}<span class="stop-unpinned-tag">no location</span>{/if}
+                {#if !hasCoords}<span class="stop-unpinned-tag">unmapped</span>{/if}
               </div>
               {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
               {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
@@ -534,6 +557,56 @@
     font-weight: 400;
     color: var(--bone-600);
   }
+
+  /* Legend for the destination map: tiny swatches matching the four pin
+     states (must-see / stop / off-map direction / unmapped). Sits between
+     the map and the stops list. */
+  .map-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.4rem;
+    list-style: none;
+    padding: 0.7rem 0 0;
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--bone-600);
+  }
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .legend-swatch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  .legend-swatch--must-see {
+    background: var(--sunset-600);
+    border: 1px solid var(--bone-50);
+  }
+  .legend-swatch--stop {
+    background: var(--forest-800);
+    border: 1px solid var(--bone-50);
+  }
+  .legend-swatch--unmapped {
+    background: transparent;
+    border: 1.5px solid var(--bone-400);
+  }
+  .legend-swatch--edge {
+    width: 26px;
+    height: 12px;
+    border-radius: 0;
+    background: none;
+  }
+  .legend-swatch--edge svg { display: block; }
 
   /* ── Page 3+ — itinerary / planning sections ──────────────────────── */
 

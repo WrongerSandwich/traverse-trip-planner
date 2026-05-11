@@ -97,7 +97,7 @@ days:
 
 stops:
   - name: "{Stop name — actual proper noun where possible}"
-    category: "{One of: historic | food | lodging | outdoors | view | misc}"
+    category: "{One of: historic | food | lodging | outdoors | view | entertainment | misc}"
     address: "{Full address if known, else omit}"
     hours: "{e.g. \\"Wed–Sun, 9 AM–4 PM\\", else omit}"
     notes: "{One sentence on why it's worth the stop}"

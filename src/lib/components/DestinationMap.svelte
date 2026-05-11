@@ -84,7 +84,14 @@
   // toward where the stop actually is — same disambiguation pattern as
   // Google Maps' off-screen markers.
   const inViewport = (xy) => xy[0] >= 0 && xy[0] <= VB_W && xy[1] >= 0 && xy[1] <= VB_H;
-  const inViewportPins = $derived(pixels.filter(p => inViewport(p.xy)));
+  // Render regulars first, then must-see, so the larger sunset-colored
+  // anchors always paint on top when stops cluster within a city block.
+  // Tradeoff: one or two regular pins under a must-see may end up
+  // partially covered, but must-see stops are the ones a reader scans for
+  // first when finding their way around the map.
+  const inViewportPins = $derived(
+    pixels.filter(p => inViewport(p.xy)).sort((a, b) => Number(!!a.must_see) - Number(!!b.must_see)),
+  );
   const edgeIndicators = $derived.by(() => {
     const cx = VB_W / 2;
     const cy = VB_H / 2;

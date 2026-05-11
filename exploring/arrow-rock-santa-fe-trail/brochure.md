@@ -64,7 +64,7 @@ stops:
       - 39.0697269
       - -92.9471816
   - name: Lyceum Theatre
-    category: misc
+    category: entertainment
     address: 114 High Street, Arrow Rock, MO
     hours: Box office Mon–Fri 10 AM–4 PM; performances Jun–Oct plus Dec
     notes: Broadway-caliber productions in a 416-seat house; the 2026 season includes Annie (Jun 5–14), 1776 (Jun 26–Jul 5), and Into the Woods (Jul 17–26) — book direct at LyceumTheatre.org only.
