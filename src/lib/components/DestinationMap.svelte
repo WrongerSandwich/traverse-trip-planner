@@ -246,7 +246,7 @@
       <g transform="translate({pin.edgeXY[0]} {pin.edgeXY[1]})">
         <g transform="rotate({pin.angleDeg})">
           <path
-            d="M 10 0 L 17 -5 M 10 0 L 17 5"
+            d="M 17 0 L 11 -5 M 17 0 L 11 5"
             fill="none"
             stroke={pin.must_see ? 'var(--sunset-600)' : 'var(--forest-800)'}
             stroke-width="2"
