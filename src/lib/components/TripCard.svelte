@@ -100,14 +100,20 @@
     {#if trip.pitch}<p class="pitch">{trip.pitch}</p>{/if}
 
     {#if isIdea}
-      <button
-        class="btn btn-secondary btn-compact card-cta"
-        onclick={ondeepen}
-        disabled={!ondeepen}
-        title={ondeepen ? 'Look into this trip with web search' : 'Research is offline — research model or search backend not configured'}
-      >
-        Research →
-      </button>
+      {#if trip.researching === true || trip.researching === 'true'}
+        <button class="btn btn-secondary btn-compact card-cta researching-label" disabled aria-busy="true">
+          Researching…
+        </button>
+      {:else}
+        <button
+          class="btn btn-secondary btn-compact card-cta"
+          onclick={ondeepen}
+          disabled={!ondeepen}
+          title={ondeepen ? 'Look into this trip with web search' : 'Research is offline — research model or search backend not configured'}
+        >
+          Research →
+        </button>
+      {/if}
     {:else if isExploring && onpromote}
       <button class="btn btn-secondary btn-compact card-cta" onclick={onpromote} title="Move into Planning">
         Start planning →
@@ -340,6 +346,9 @@
 
   /* Card-level secondary CTA — small inline action button on idea/exploring cards. */
   .card-cta { position: relative; z-index: 2; align-self: flex-start; }
+
+  /* Disabled in-progress indicator replaces Research → while running. */
+  .researching-label { opacity: 0.65; }
 
   @media (max-width: 768px) {
     /* Shorter thumbnail — saves ~50px per card */

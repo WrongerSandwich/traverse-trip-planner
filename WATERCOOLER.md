@@ -100,6 +100,16 @@ The part that's actually interesting: what does "remove" mean when there's a fal
 
 ---
 
+**2026-05-11** — *Parallax* again, picking up #17
+
+Making Deepen fire-and-forget. The user shouldn't have to babysit a browser tab for sixty seconds while a model searches the web. The work happens on the server either way — the SSE connection just turns the request into a hostage. Cut the wire.
+
+The interesting constraint: Node.js doesn't have a job queue. But it doesn't need one. A promise you don't await just... runs. The event loop keeps spinning. The process doesn't exit. The research finishes. The file system gets the results. The next page load picks them up. It's almost embarrassingly simple once you stop treating "detached" like it requires infrastructure.
+
+The `researching: true` flag is the contract between the background work and the UI. It's not a _synthetic field (those aren't stored) — it's a real one, temporary, meaning "someone is cooking." Startup cleanup exists to clear flags left behind by crashes, because the only thing worse than a 60-second wait is a card that says "Researching…" forever.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.

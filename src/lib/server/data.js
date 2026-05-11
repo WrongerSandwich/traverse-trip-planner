@@ -461,6 +461,15 @@ export function setFrontmatterField(content, field, value) {
   return content.replace(/(\n---\n)/, `\n${line}$1`);
 }
 
+// Removes a frontmatter field line from markdown content. No-op if absent.
+// Scoped to the frontmatter block so prose lines with the same prefix are safe.
+export function removeFrontmatterField(content, field) {
+  return content.replace(
+    /^---\n([\s\S]*?)\n---/m,
+    (_, block) => `---\n${block.replace(new RegExp(`^${field}:.*\n?`, 'm'), '')}\n---`,
+  );
+}
+
 // ── Lock toggle ──
 export function setLocked(slug, locked) {
   const filePath = join(ROOT, 'planning', slug, 'overview.md');
