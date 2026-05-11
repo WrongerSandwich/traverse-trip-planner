@@ -17,13 +17,23 @@ npm run dev                      # http://localhost:3456
 ## Before opening a PR
 
 ```bash
-npm test          # unit tests (~500ms, no API keys needed)
-npm run build     # full SvelteKit build
+npm run verify    # svelte-check (--fail-on-warnings) + tests + build
 ```
 
-CI runs both on every PR. Both must pass before merge.
+CI runs the same command on every PR. It must pass before merge.
 
-If you've changed AI/search abstraction code (`src/lib/server/{ai,search}/`), also run `npm run smoke` against your env to confirm a real round-trip still works.
+The verify pipeline is zero-tolerance on Svelte-side warnings (a11y, unused CSS, runes misuse). If your change adds a warning, fix it or suppress it explicitly with a rationale comment — don't ship noise that future readers can't distinguish from their own.
+
+If you've changed AI/search abstraction code (`src/lib/server/{ai,search}/` or any `chat()` call site), also run `npm run smoke` against your env to confirm a real round-trip still works.
+
+## Working from a GitHub issue
+
+If you're picking up an existing issue — particularly as an async agent in a cloud session — read **[AGENTS.md](AGENTS.md)** first. It covers the verification command, repo shape, conventions, definition-of-done, and which tickets to skip.
+
+Two conventions worth knowing up front:
+
+- **Issue template.** New tickets use `.github/ISSUE_TEMPLATE/feature.md` and have sections for goal, deliverables, files likely touched, success criteria, verification, and out-of-scope. If you're filing an issue, fleshing those out makes the ticket pickup-ready.
+- **`design` label.** Issues tagged `design` are exploration tickets meant for collaborative work with a human in the loop — not safe for autonomous implementation. The deliverable is usually a written design doc and a set of follow-up tickets.
 
 ## Code conventions
 
