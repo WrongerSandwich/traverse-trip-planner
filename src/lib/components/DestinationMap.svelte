@@ -205,35 +205,6 @@
       </g>
     {/each}
 
-    <!-- Edge indicators for off-viewport pins: smaller numbered badge clamped
-         to the boundary, with a chevron pointing outward toward the actual
-         off-map location. -->
-    {#each edgeIndicators as pin}
-      <g transform="translate({pin.edgeXY[0]} {pin.edgeXY[1]})">
-        <g transform="rotate({pin.angleDeg})">
-          <path
-            d="M 9 0 L 15 -4 M 9 0 L 15 4"
-            fill="none"
-            stroke={pin.must_see ? 'var(--sunset-600)' : 'var(--forest-800)'}
-            stroke-width="1.75"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </g>
-        {#if pin.must_see}
-          <circle r="9" fill="var(--sunset-600)" stroke="var(--bone-50)" stroke-width="1.5" />
-          <text y="3" text-anchor="middle" font-family="var(--font-mono)" font-size="8" font-weight="500" fill="var(--sunset-50)">
-            {pin.n}
-          </text>
-        {:else}
-          <circle r="8" fill="var(--forest-800)" stroke="var(--bone-50)" stroke-width="1.5" />
-          <text y="2.5" text-anchor="middle" font-family="var(--font-mono)" font-size="8" font-weight="500" fill="var(--bone-200)">
-            {pin.n}
-          </text>
-        {/if}
-      </g>
-    {/each}
-
     <!-- Compass rose, top-right -->
     <g transform="translate({VB_W - 38} 40)">
       <circle r="16" fill="var(--bone-100)" stroke="var(--bark-600)" stroke-width="0.75" />
@@ -266,6 +237,36 @@
         </text>
       </g>
     {/if}
+
+    <!-- Edge indicators for off-viewport pins: rendered last so they paint
+         over the compass / scale bar / title plate when they land near
+         corners. Slightly smaller numbered badge clamped to the boundary,
+         with a chevron pointing outward toward the actual off-map location. -->
+    {#each edgeIndicators as pin}
+      <g transform="translate({pin.edgeXY[0]} {pin.edgeXY[1]})">
+        <g transform="rotate({pin.angleDeg})">
+          <path
+            d="M 10 0 L 17 -5 M 10 0 L 17 5"
+            fill="none"
+            stroke={pin.must_see ? 'var(--sunset-600)' : 'var(--forest-800)'}
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </g>
+        {#if pin.must_see}
+          <circle r="10" fill="var(--sunset-600)" stroke="var(--bone-50)" stroke-width="1.5" />
+          <text y="3.5" text-anchor="middle" font-family="var(--font-mono)" font-size="9" font-weight="500" fill="var(--sunset-50)">
+            {pin.n}
+          </text>
+        {:else}
+          <circle r="9" fill="var(--forest-800)" stroke="var(--bone-50)" stroke-width="1.5" />
+          <text y="3" text-anchor="middle" font-family="var(--font-mono)" font-size="9" font-weight="500" fill="var(--bone-200)">
+            {pin.n}
+          </text>
+        {/if}
+      </g>
+    {/each}
   </svg>
 {/if}
 
