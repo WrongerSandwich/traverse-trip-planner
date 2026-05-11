@@ -12,8 +12,13 @@ function buildDestinationBaseMap(brochureData) {
   );
   if (located.length === 0) return null;
 
+  const anchors = located.filter(s => s.must_see);
+  const anchorSet = anchors.length > 0 ? anchors : located;
+  const centerLat = anchorSet.reduce((s, p) => s + p.coords[0], 0) / anchorSet.length;
+  const centerLon = anchorSet.reduce((s, p) => s + p.coords[1], 0) / anchorSet.length;
+
   let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-  for (const { coords: [lat, lon] } of located) {
+  for (const { coords: [lat, lon] } of anchorSet) {
     if (lat < minLat) minLat = lat;
     if (lat > maxLat) maxLat = lat;
     if (lon < minLon) minLon = lon;
@@ -28,9 +33,7 @@ function buildDestinationBaseMap(brochureData) {
     viewBoxH: 480,
     padding: 0.12,
   });
-  const zoom = Math.max(9, Math.min(13, fitZoom));
-  const centerLat = (minLat + maxLat) / 2;
-  const centerLon = (minLon + maxLon) / 2;
+  const zoom = Math.max(11, Math.min(13, fitZoom));
   const url = stadiaStaticMapUrl({
     centerLat, centerLon, zoom, width: 720, height: 480, style: 'outdoors',
   });

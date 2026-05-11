@@ -334,6 +334,16 @@
           via Pexels
         </div>
       {/if}
+      {#if data.destinationBaseMap}
+        <div>
+          Destination map tiles by
+          <a href="https://stadiamaps.com" target="_blank" rel="noopener">Stadia Maps</a> ·
+          style by
+          <a href="https://stamen.com" target="_blank" rel="noopener">Stamen Design</a> ·
+          data ©
+          <a href="https://openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
+        </div>
+      {/if}
       <div class="back-mono">traverse · open source · self-hosted</div>
     </div>
   </footer>

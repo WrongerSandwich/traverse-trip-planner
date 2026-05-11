@@ -8,6 +8,11 @@ import { chooseZoomForBbox } from '$lib/utils/projection.js';
 // Returns null when there are no geocoded stops or STADIA_API_KEY is unset
 // (the DestinationMap component then falls back to its illustrative
 // paper render).
+//
+// Center is the centroid of must_see stops when any exist (so the map
+// focuses on the destination's anchors), falling back to the centroid
+// of all geocoded stops. Outlying stops may fall outside the visible
+// map; they're still listed in the Stops section so nothing is lost.
 function buildDestinationBaseMap(brochureData) {
   if (!brochureData?.stops) return null;
   const located = brochureData.stops.filter(
@@ -15,32 +20,36 @@ function buildDestinationBaseMap(brochureData) {
   );
   if (located.length === 0) return null;
 
+  // Anchor centroid: must_see stops first, otherwise all located stops.
+  const anchors = located.filter(s => s.must_see);
+  const anchorSet = anchors.length > 0 ? anchors : located;
+  const centerLat = anchorSet.reduce((s, p) => s + p.coords[0], 0) / anchorSet.length;
+  const centerLon = anchorSet.reduce((s, p) => s + p.coords[1], 0) / anchorSet.length;
+
+  // Bbox from anchor set, not all located stops — so a single Lexington
+  // outlier doesn't drag the zoom way out. The unanchored stops still
+  // appear in the brochure's Stops list with their addresses.
   let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-  for (const { coords: [lat, lon] } of located) {
+  for (const { coords: [lat, lon] } of anchorSet) {
     if (lat < minLat) minLat = lat;
     if (lat > maxLat) maxLat = lat;
     if (lon < minLon) minLon = lon;
     if (lon > maxLon) maxLon = lon;
   }
-
-  // Synthesize a usable span when all stops happen to share coords.
   if (minLat === maxLat) { minLat -= 0.01; maxLat += 0.01; }
   if (minLon === maxLon) { minLon -= 0.01; maxLon += 0.01; }
 
-  // Map view targets 720×480 viewBox at @2x retina. chooseZoomForBbox gives
-  // the largest integer zoom that fits — cap at 13 so single-town clusters
-  // don't render at building-block scale; floor at 9 so wide-spread trips
-  // still show street structure.
   const fitZoom = chooseZoomForBbox({
     bbox: { minLat, maxLat, minLon, maxLon },
     viewBoxW: 720,
     viewBoxH: 480,
     padding: 0.12,
   });
-  const zoom = Math.max(9, Math.min(13, fitZoom));
-
-  const centerLat = (minLat + maxLat) / 2;
-  const centerLon = (minLon + maxLon) / 2;
+  // Range tuned for "destination area with surroundings" — zoom 11
+  // (≈17-mi viewport) on the loose end, zoom 13 (≈4-mi viewport) when
+  // anchors are tightly clustered. Zoom 14+ reads as village-roof scale
+  // and loses the orientation context the brochure should provide.
+  const zoom = Math.max(11, Math.min(13, fitZoom));
 
   const url = stadiaStaticMapUrl({
     centerLat,
