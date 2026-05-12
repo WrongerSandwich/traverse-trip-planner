@@ -15,7 +15,6 @@ traverse/
 ├── CLAUDE.md          # this file — repo conventions
 ├── home.md            # user-specific preferences and constraints
 ├── PRODUCT.md         # design context for the frontend
-├── TODO.md            # deferred UX/perf follow-ups
 ├── .claude/
 │   └── agents/        # subagents (researcher) — for ad-hoc Claude Code use
 ├── src/               # SvelteKit frontend (npm run dev -- --port 3456)

@@ -48,13 +48,13 @@ See [CLAUDE.md](CLAUDE.md) for the full set, but the highlights:
 ## Filing issues
 
 - **Bugs:** open a GitHub issue with reproduction steps and your `.env` provider config (without the keys themselves — see SECURITY.md).
-- **Feature ideas:** check [TODO.md](TODO.md) first; many ideas are already captured there with implementation context. If yours isn't, open a discussion or issue and link it to where it'd land.
+- **Feature ideas:** check the [open issues](https://github.com/WrongerSandwich/traverse/issues) first; many ideas are already captured there with implementation context. If yours isn't, open a discussion or issue and link it to where it'd land.
 
 ## Areas that welcome contribution
 
 - Additional model adapters (Google Gemini, Mistral, local Ollama). The seam is in place — see `src/lib/server/ai/anthropic.js` and `openai.js` for the pattern.
 - Additional search backends (Serper, Brave, Exa). Same seam in `src/lib/server/search/`.
-- Items in `TODO.md` — they're roughly prioritized and have file pointers.
+- Anything on the [open issues](https://github.com/WrongerSandwich/traverse/issues) list — most have file pointers in the body.
 - Open-source ergonomics: better error messages, clearer setup docs, missing-key UX.
 
 ## Things to discuss before building
