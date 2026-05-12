@@ -225,7 +225,17 @@
   );
   $effect(() => {
     if (!hasResearching) return;
-    const id = setInterval(() => invalidateAll(), 4000);
+    const id = setInterval(async () => {
+      await invalidateAll();
+      if (selectedTrip) {
+        const fresh = data.trips.find(t => t._slug === selectedTrip._slug);
+        if (!fresh || (fresh._stage || fresh.status) === 'planning') {
+          selectedTrip = null;
+        } else {
+          selectedTrip = fresh;
+        }
+      }
+    }, 4000);
     return () => clearInterval(id);
   });
 
