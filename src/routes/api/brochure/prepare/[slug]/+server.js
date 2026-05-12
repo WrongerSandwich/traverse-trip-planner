@@ -4,8 +4,11 @@ import { formatUsage } from '$lib/server/ai.js';
 import { TraverseError } from '$lib/server/errors.js';
 
 const ERROR_MESSAGES = {
-  missing_planning_sections: 'Add at least an overview before preparing the brochure.',
-  model_returned_no_yaml: "The model didn't return structured data — try again.",
+  trip_not_found: 'Trip not found.',
+  wrong_stage: 'Move this trip to exploring or planning before preparing a brochure.',
+  missing_overview: 'Add at least an overview before preparing the brochure.',
+  model_returned_no_yaml_block: "The model didn't return structured data — try again.",
+  model_returned_invalid_yaml: "The model returned malformed data — try again.",
   geocode_quota: 'Map service is rate-limited; wait a minute before retrying.',
 };
 
