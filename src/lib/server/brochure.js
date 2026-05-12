@@ -18,6 +18,7 @@ import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { findTripLocation, geocode, getTripFiles, readHomeMd, parseFrontmatter, flushCaches } from './data.js';
 import { chat } from './ai.js';
 import { getEffectiveConfig } from './config.js';
+import { TraverseError } from './errors.js';
 
 const BROCHURE_FILENAME = 'brochure.md';
 
@@ -158,7 +159,10 @@ async function geocodeStops(stops = [], { destinationContext = '' } = {}) {
       try {
         const coord = await geocode(q);
         if (coord) { stop.coords = coord; break; }
-      } catch { /* try the next fallback */ }
+      } catch (e) {
+        if (e instanceof TraverseError) throw e; // propagate quota/typed errors
+        // otherwise try the next fallback query
+      }
     }
   }
   return stops;
@@ -187,7 +191,11 @@ export async function prepareBrochure(slug, { signal, onActivity } = {}) {
   if (loc.kind !== 'dir') throw new Error(`Brochure requires a folder-stage trip (exploring/planning/completed); "${slug}" is in ${loc.stage}.`);
 
   // Load the trip's content
-  const tripFm = parseFrontmatter(readFileSync(join(loc.path, 'overview.md'), 'utf8')) || {};
+  const overviewPath = join(loc.path, 'overview.md');
+  if (!existsSync(overviewPath)) {
+    throw new TraverseError('missing_planning_sections', `overview.md is required to prepare a brochure for "${slug}".`);
+  }
+  const tripFm = parseFrontmatter(readFileSync(overviewPath, 'utf8')) || {};
   const filesResult = getTripFiles(slug);
   const files = filesResult?.files || {};
 
@@ -211,13 +219,13 @@ export async function prepareBrochure(slug, { signal, onActivity } = {}) {
 
   // Parse YAML out of the XML wrapper
   const yamlBody = extractBrochureBlock(text);
-  if (!yamlBody) throw new Error('Model did not return a <brochure> block.');
+  if (!yamlBody) throw new TraverseError('model_returned_no_yaml', 'Model did not return a <brochure> block.');
 
   let data;
   try {
     data = yamlParse(yamlBody) || {};
   } catch (err) {
-    throw new Error(`Returned YAML failed to parse: ${err.message}`);
+    throw new TraverseError('model_returned_no_yaml', `Returned YAML failed to parse: ${err.message}`);
   }
 
   // Pin the cover image: use the trip's enriched _image.large or _image.medium

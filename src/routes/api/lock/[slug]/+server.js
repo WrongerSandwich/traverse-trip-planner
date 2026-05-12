@@ -5,6 +5,7 @@ import { setLocked, readPlanningTrip, PLANNING_SECTIONS } from '$lib/server/data
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { sseStream } from '$lib/server/sse.js';
+import { TraverseError } from '$lib/server/errors.js';
 
 export function POST({ params, request }) {
   const { slug } = params;
@@ -59,6 +60,7 @@ Format rules:
     }
 
     itinerary = itinerary.trim();
+    if (!itinerary) throw new TraverseError('empty_model_output', "The model didn't return itinerary content — try again.");
     try {
       writeFileSync(join(trip.dir, 'itinerary.md'), `${itinerary}\n`);
     } catch (err) {

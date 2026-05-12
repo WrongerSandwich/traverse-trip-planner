@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, renameSync } from 'fs';
 import { join } from 'path';
 import { resolveEnv } from './settings.js';
+import { TraverseError } from './errors.js';
 
 export const ROOT = process.cwd();
 const IMAGE_CACHE_PATH   = join(ROOT, '.image-cache.json');
@@ -69,8 +70,7 @@ export async function geocode(destination) {
       const res = await fetch(url, { headers: { 'User-Agent': 'traverse/1.0 (personal)' } });
       if (res.status === 429) {
         if (attempt === 0) { await sleep(2000); continue; }
-        console.warn('geocode rate-limited (429) for', destination);
-        return null;
+        throw new TraverseError('geocode_quota', `Nominatim rate-limited for "${destination}"`);
       }
       if (!res.ok) {
         console.warn('geocode HTTP', res.status, 'for', destination);
@@ -300,9 +300,17 @@ async function geocodeWaypoints(waypoints, trackSet = null) {
   for (const wp of wps) {
     if (trackSet) trackSet.add(wp);
     const needsFetch = geocodeCache[wp] === undefined;
-    const coord = await geocode(wp);
-    if (needsFetch) await sleep(1100);
-    if (coord) geocoded.push(coord);
+    try {
+      const coord = await geocode(wp);
+      if (needsFetch) await sleep(1100);
+      if (coord) geocoded.push(coord);
+    } catch (e) {
+      if (e instanceof TraverseError && e.code === 'geocode_quota') {
+        console.warn('geocode rate-limited during enrichment for', wp);
+      } else {
+        throw e;
+      }
+    }
   }
   return geocoded;
 }
@@ -332,8 +340,17 @@ export async function enrichTrips() {
     const dest = trip.destination;
     if (dest) liveGeocodeKeys.add(dest);
     if (dest && geocodeCache[dest] === undefined) {
-      trip._coords = await geocode(dest);
-      await sleep(1100);
+      try {
+        trip._coords = await geocode(dest);
+        await sleep(1100);
+      } catch (e) {
+        if (e instanceof TraverseError && e.code === 'geocode_quota') {
+          console.warn('geocode rate-limited during enrichment for', dest);
+          trip._coords = null;
+        } else {
+          throw e;
+        }
+      }
     } else {
       trip._coords = geocodeCache[dest] ?? null;
     }
