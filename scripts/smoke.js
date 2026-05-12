@@ -44,7 +44,7 @@ const tinyMessages = [{ role: 'user', content: 'Reply with the single word OK an
 
 if (d.modelDefault.ok) {
   await probe(`chat() default — ${d.modelDefault.provider}`, async () => {
-    const { text } = await chat({ ...config.modelDefault, system: 'Be terse.', messages: tinyMessages, maxTokens: 10 });
+    const { text } = await chat({ ...config.modelDefault, label: 'smoke-default', system: 'Be terse.', messages: tinyMessages, maxTokens: 10 });
     if (!text.trim()) throw new Error('empty response');
   });
 } else {
@@ -53,7 +53,7 @@ if (d.modelDefault.ok) {
 
 if (d.modelResearch.ok) {
   await probe(`chat() research — ${d.modelResearch.provider}`, async () => {
-    const { text } = await chat({ ...config.modelResearch, system: 'Be terse.', messages: tinyMessages, maxTokens: 10 });
+    const { text } = await chat({ ...config.modelResearch, label: 'smoke-research', system: 'Be terse.', messages: tinyMessages, maxTokens: 10 });
     if (!text.trim()) throw new Error('empty response');
   });
 } else {
