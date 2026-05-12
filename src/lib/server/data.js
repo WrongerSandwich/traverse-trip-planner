@@ -575,6 +575,17 @@ export function getTripFiles(slug) {
   return null;
 }
 
+// Append a block of text to notes.md for a completed trip, separated by a
+// blank line. Creates the file if it does not exist. Returns true on success.
+export function appendToNotes(slug, text) {
+  const notesPath = join(ROOT, 'completed', slug, 'notes.md');
+  const existing = existsSync(notesPath) ? readFileSync(notesPath, 'utf8') : '';
+  const separator = existing.trimEnd().length > 0 ? '\n\n' : '';
+  writeFileSync(notesPath, existing.trimEnd() + separator + text.trim() + '\n');
+  invalidateEnrichCache();
+  return true;
+}
+
 // ── Stage transition utility ──
 // Moves a trip folder from one stage directory to another and updates
 // the status field in overview.md. Used by promote, complete, and archive routes.

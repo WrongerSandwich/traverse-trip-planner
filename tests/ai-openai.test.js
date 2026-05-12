@@ -270,3 +270,46 @@ describe('OpenAI adapter — tool loop', () => {
     expect(toolMsg.content).toContain('search down');
   });
 });
+
+describe('OpenAI adapter — image content blocks', () => {
+  it('translates normalized image blocks to image_url data URIs', async () => {
+    fetch.mockResolvedValueOnce(jsonResponse({
+      choices: [{ message: { role: 'assistant', content: 'two receipts' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 500, completion_tokens: 20 },
+    }));
+
+    await chat({
+      model: 'gpt-4o', system: 's', maxTokens: 200,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Parse these.' },
+          { type: 'image', mediaType: 'image/jpeg', data: 'abc123' },
+        ],
+      }],
+    });
+
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    const imageBlock = body.messages.find(m => m.role === 'user').content[1];
+    expect(imageBlock).toEqual({
+      type: 'image_url',
+      image_url: { url: 'data:image/jpeg;base64,abc123' },
+    });
+  });
+
+  it('passes plain string content through unchanged', async () => {
+    fetch.mockResolvedValueOnce(jsonResponse({
+      choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 5, completion_tokens: 2 },
+    }));
+
+    await chat({
+      model: 'gpt-4o', system: 's', maxTokens: 50,
+      messages: [{ role: 'user', content: 'just text' }],
+    });
+
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    const userMsg = body.messages.find(m => m.role === 'user');
+    expect(userMsg.content).toBe('just text');
+  });
+});

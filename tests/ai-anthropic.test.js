@@ -353,3 +353,47 @@ describe('Anthropic adapter — usage accumulation', () => {
     expect(usage).toEqual({ input: 600, output: 100, total: 700, turns: 3 });
   });
 });
+
+describe('Anthropic adapter — image content blocks', () => {
+  it('translates normalized image blocks to Anthropic source format', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'two receipts' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 500, output_tokens: 20 },
+    });
+
+    await chat({
+      model: 'claude-test', system: 's', maxTokens: 200,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Parse these.' },
+          { type: 'image', mediaType: 'image/jpeg', data: 'abc123' },
+        ],
+      }],
+    });
+
+    const sentMessages = mockCreate.mock.calls[0][0].messages;
+    const imageBlock = sentMessages[0].content[1];
+    expect(imageBlock).toEqual({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: 'abc123' },
+    });
+  });
+
+  it('passes plain string content through unchanged', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 5, output_tokens: 2 },
+    });
+
+    await chat({
+      model: 'm', system: 's', maxTokens: 50,
+      messages: [{ role: 'user', content: 'just text' }],
+    });
+
+    const sentMessages = mockCreate.mock.calls[0][0].messages;
+    expect(sentMessages[0].content).toBe('just text');
+  });
+});

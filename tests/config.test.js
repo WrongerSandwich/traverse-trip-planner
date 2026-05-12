@@ -110,14 +110,14 @@ describe('getFeatureAvailability', () => {
   it('disables every feature when no keys are set', async () => {
     const { getFeatureAvailability } = await loadConfig();
     expect(getFeatureAvailability()).toEqual({
-      seed: false, add: false, lock: false, chat: false, retro: false, deepen: false, share: false,
+      seed: false, add: false, lock: false, chat: false, retro: false, receipts: false, deepen: false, share: false,
     });
   });
 
   it('enables all features with anthropic + builtin search', async () => {
     const { getFeatureAvailability } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
     expect(getFeatureAvailability()).toEqual({
-      seed: true, add: true, lock: true, chat: true, retro: true, deepen: true, share: false,
+      seed: true, add: true, lock: true, chat: true, retro: true, receipts: true, deepen: true, share: false,
     });
   });
 
