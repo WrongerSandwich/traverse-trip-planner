@@ -5,6 +5,7 @@ import { setLocked, readPlanningTrip, PLANNING_SECTIONS } from '$lib/server/data
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { sseStream } from '$lib/server/sse.js';
+import { TraverseError } from '$lib/server/errors.js';
 
 export function POST({ params, request }) {
   const { slug } = params;
@@ -55,6 +56,9 @@ Format rules:
       if (!itinerary && result?.text) itinerary = result.text;
       usage = result?.usage;
     } catch (err) {
+      if (err instanceof TraverseError && err.code === 'model_returned_no_yaml') {
+        throw new Error("The model didn't return itinerary content — try again.");
+      }
       throw new Error(`Itinerary generation failed: ${err.message}`);
     }
 

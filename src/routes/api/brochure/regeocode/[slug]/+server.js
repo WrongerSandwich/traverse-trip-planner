@@ -1,5 +1,6 @@
 import { sseStream } from '$lib/server/sse.js';
 import { regeocodeBrochureStops } from '$lib/server/brochure.js';
+import { TraverseError } from '$lib/server/errors.js';
 
 export function POST({ params }) {
   const { slug } = params;
@@ -12,6 +13,9 @@ export function POST({ params }) {
         },
       });
     } catch (err) {
+      if (err instanceof TraverseError && err.code === 'geocode_quota') {
+        throw new Error('Map service is rate-limited; wait a minute before retrying.');
+      }
       throw new Error(`Re-geocode failed: ${err.message}`);
     }
     if (result.stopsAdded === 0 && result.lodgingAdded === 0) {

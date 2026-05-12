@@ -1,3 +1,14 @@
+// Application-level typed error. Thrown by server logic when a failure has a
+// known, recoverable cause. Route handlers catch it and map `code` to a
+// user-facing action sentence rather than surfacing the raw message.
+export class TraverseError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'TraverseError';
+    this.code = code;
+  }
+}
+
 // Normalized error type for AI/search adapter failures.
 //
 // `message` is a short, public-safe summary suitable for SSE streams or end-user UI.

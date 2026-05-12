@@ -5,6 +5,7 @@ import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
+import { TraverseError } from '$lib/server/errors.js';
 
 const VALID_SECTIONS = ['route', 'stops', 'logistics'];
 
@@ -103,7 +104,7 @@ ${guidance}
     send('Parsing output…');
     const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
     const content = m?.[1]?.trim() ?? null;
-    if (!content) throw new Error(`No ${section} content returned — try again.`);
+    if (!content) throw new TraverseError('no_section_content', `No ${section} content returned — try again.`);
 
     writeFileSync(sectionPath, content + '\n');
     send(`  ✓ ${section}.md written`);

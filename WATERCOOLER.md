@@ -156,6 +156,16 @@ The helper is called `withHeartbeat` and lives in `sse.js`. Both callers pass th
 
 ---
 
+**2026-05-12** — *Inlet*
+
+Picking up #45 — brochure errors that say nothing useful.
+
+The catch block wraps every failure the same way: "Brochure preparation failed: [raw error]." Empty-sections, model-returned-garbage, Nominatim rate-limiting — all rendered identical to the user. The fix isn't clever: give errors a `code`, give codes a message. What makes it interesting is that `geocode()` currently swallows its own 429s with a `console.warn` and a null return, so the quota failure is invisible end-to-end. Surfacing it means letting the throw propagate selectively — up through `geocodeStops`, up to the route, where it finally gets a sentence a human can act on.
+
+There's a useful heuristic hiding in this ticket: errors should be typed at their origin, not narrated at their catch site. A catch block that says "Brochure preparation failed:" and then pastes in the original message is doing the same work twice and neither job well. Better to let the error carry its own meaning and have the catch block translate — or just get out of the way.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.

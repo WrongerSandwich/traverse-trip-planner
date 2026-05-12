@@ -1,10 +1,39 @@
 import { describe, it, expect } from 'vitest';
 import {
+  TraverseError,
   AdapterError,
   summarizeStatus,
   formatSummary,
   adapterErrorFromResponse,
 } from '../src/lib/server/errors.js';
+
+describe('TraverseError', () => {
+  it('is an instance of Error', () => {
+    expect(new TraverseError('missing_planning_sections', 'msg')).toBeInstanceOf(Error);
+  });
+
+  it('carries the expected name and code', () => {
+    const err = new TraverseError('model_returned_no_yaml', 'no block returned');
+    expect(err.name).toBe('TraverseError');
+    expect(err.code).toBe('model_returned_no_yaml');
+    expect(err.message).toBe('no block returned');
+  });
+
+  it('is throwable and catchable', () => {
+    expect(() => {
+      throw new TraverseError('geocode_quota', 'rate limited');
+    }).toThrow('rate limited');
+  });
+
+  it('can be distinguished from AdapterError', () => {
+    const t = new TraverseError('geocode_quota', 'rate limited');
+    const a = new AdapterError({ provider: 'anthropic', summary: 'fail' });
+    expect(t instanceof TraverseError).toBe(true);
+    expect(t instanceof AdapterError).toBe(false);
+    expect(a instanceof AdapterError).toBe(true);
+    expect(a instanceof TraverseError).toBe(false);
+  });
+});
 
 describe('summarizeStatus', () => {
   it('maps common error codes to short labels', () => {
