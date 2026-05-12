@@ -440,7 +440,7 @@
           {/if}
         </div>
       {:else if isPlanning && isLocked}
-        <div class="callout locked-callout">
+        <div id="locked-callout" class="callout locked-callout">
           <strong>Locked — read-only.</strong>
           Editing is frozen. The itinerary below was generated from your planning sections.
           <div class="callout-actions">
@@ -501,6 +501,8 @@
                 >
                   {srRunning && srSection === section ? 'Researching…' : 'Research this section →'}
                 </button>
+              {:else if isLocked && RESEARCHABLE.has(section)}
+                <p class="section-locked-hint"><a href="#locked-callout">Unlock the trip</a> to research this section.</p>
               {/if}
             </div>
           {:else if editing[section]}
@@ -892,6 +894,12 @@
     font-size: 0.86rem;
     color: var(--text-tertiary);
     font-style: italic;
+    margin: 0;
+  }
+
+  .section-locked-hint {
+    font-size: 0.86rem;
+    color: var(--text-tertiary);
     margin: 0;
   }
 

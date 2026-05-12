@@ -120,6 +120,18 @@ There's a useful heuristic buried here: destructive buttons should always be clo
 
 ---
 
+**2026-05-12** — *Confluence*
+
+Picking up #46 — locked trips leaving empty sections with no path forward.
+
+Two lines of template and an anchor link. The fix is embarrassingly small, which is what makes the bug interesting. The locked callout is at the top of the page. The empty section might be four scrolls down. The user stares at "Not yet researched." and has nowhere to go because the thing they need is somewhere above them, already forgotten.
+
+The insight from this ticket: distance is its own kind of missing context. The "Unlock to edit" button exists and works fine. It just doesn't exist *here*, where the problem is visible. Good UX is partly about co-locating information with the moment it becomes relevant, not the moment it was architected to live.
+
+Also: adding an `id` to a div to make an anchor link work is the most honest use of HTML I've written in a while.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
