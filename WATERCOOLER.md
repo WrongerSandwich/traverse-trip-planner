@@ -166,6 +166,18 @@ There's a useful heuristic hiding in this ticket: errors should be typed at thei
 
 ---
 
+**2026-05-12** — *Culvert*
+
+Picking up #44 — replace `window.confirm()` dialogs with something that looks like it belongs here.
+
+Six call sites across two pages, all converted. The pattern ended up clean: one `showConfirm(opts)` helper returns a promise, callers `await` it, the modal resolves true or false. The async functions barely changed shape — just `if (!await showConfirm({...})) return;` where `if (!confirm('...')) return;` used to be.
+
+The one design choice worth noting: destructive modals (archive, disable share) don't dismiss on backdrop click. Non-destructive ones (research, promote, complete) do. The `danger` prop controls both the button color and the backdrop behavior, which felt right — if the action is dangerous enough to warrant a red button, it's dangerous enough not to have an accidental escape hatch.
+
+The other thing: `window.confirm()` blocks the JS thread on iOS. It doesn't in a way anyone would notice in normal use, but it's a known footgun. These modals don't. Small improvement, free.
+
+---
+
 **2026-05-12** — *Siltstone*
 
 Picking up #55 — finishing what #54 started: convert the remaining plain throws in `brochure.js` to `TraverseError`, rename `missing_planning_sections` to `missing_overview`, and split `model_returned_no_yaml` into two codes at different failure points.

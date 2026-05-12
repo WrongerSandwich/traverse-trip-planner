@@ -3,6 +3,7 @@
   import TripCard from '$lib/components/TripCard.svelte';
   import DetailPanel from '$lib/components/DetailPanel.svelte';
   import ActionPanel from '$lib/components/ActionPanel.svelte';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import { streamAction } from '$lib/utils/action.js';
   import { goto, invalidateAll } from '$app/navigation';
@@ -33,6 +34,20 @@
   let activeStarred  = $state(false);
   // Optimistic bookmark overrides (slug → boolean) so toggles feel instant
   let bookmarkOverrides = $state({});
+
+  // ── Confirm modal ──
+  let confirmOpen  = $state(false);
+  let confirmOpts  = $state({});
+  let confirmResolve = null;
+
+  function showConfirm(opts) {
+    if (confirmResolve) confirmResolve(false); // resolve any stranded caller
+    return new Promise(resolve => {
+      confirmResolve = resolve;
+      confirmOpts    = opts;
+      confirmOpen    = true;
+    });
+  }
 
   function isStarred(trip) {
     if (bookmarkOverrides[trip._slug] !== undefined) return bookmarkOverrides[trip._slug];
@@ -200,7 +215,13 @@
   }
 
   async function runDeepen(trip) {
-    if (!confirm(`Research "${trip.title || trip._slug}" with web search? It runs in the background — you can navigate away.`)) return;
+    const ok = await showConfirm({
+      title:        `Research "${trip.title || trip._slug}"?`,
+      body:         'Searches the web for hours, prices, lodging, and route highlights. Runs in the background — you can navigate away.',
+      confirmLabel: 'Start research',
+      danger:       false,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (res.status === 409) {
@@ -248,7 +269,13 @@
     e?.stopPropagation?.();
     if (!trip) return;
     const label = trip.title || trip._slug;
-    if (!confirm(`Archive "${label}"? It'll vanish from view but stay on disk, so the seeder won't suggest it again.`)) return;
+    const ok = await showConfirm({
+      title:        `Archive "${label}"?`,
+      body:         "It'll vanish from view but stay on disk, so the seeder won't suggest it again.",
+      confirmLabel: 'Archive',
+      danger:       true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/archive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (!res.ok) throw new Error(`Archive failed: ${res.status}`);
@@ -262,7 +289,13 @@
 
   async function promoteToPlanning(trip, e) {
     e?.stopPropagation?.();
-    if (!confirm(`Move "${trip.title || trip._slug}" into planning?`)) return;
+    const ok = await showConfirm({
+      title:        `Move to planning?`,
+      body:         `"${trip.title || trip._slug}" will move from exploring to planning.`,
+      confirmLabel: 'Move to planning',
+      danger:       false,
+    });
+    if (!ok) return;
     const slug = trip._slug;
     try {
       const res = await fetch(`/api/promote/${encodeURIComponent(slug)}`, { method: 'POST' });
@@ -588,6 +621,16 @@
   onpromote={(e) => selectedTrip && promoteToPlanning(selectedTrip, e)}
   onarchive={(e) => selectedTrip && archiveTrip(selectedTrip, e)}
   onclose={() => selectedTrip = null}
+/>
+
+<ConfirmModal
+  bind:open={confirmOpen}
+  title={confirmOpts.title ?? ''}
+  body={confirmOpts.body ?? ''}
+  confirmLabel={confirmOpts.confirmLabel ?? 'Confirm'}
+  danger={confirmOpts.danger ?? false}
+  onconfirm={() => { confirmResolve?.(true);  confirmResolve = null; }}
+  oncancel={() =>  { confirmResolve?.(false); confirmResolve = null; }}
 />
 
 <style>

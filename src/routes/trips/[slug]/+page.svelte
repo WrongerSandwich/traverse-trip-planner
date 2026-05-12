@@ -7,6 +7,7 @@
   import Logo from '$lib/components/Logo.svelte';
   import ActionPanel from '$lib/components/ActionPanel.svelte';
   import RetroModal from '$lib/components/RetroModal.svelte';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
@@ -48,6 +49,20 @@
   let completing = $state(false);
   let lockStreamingText = $state('');
   let lockStatus = $state('');
+
+  // ── Confirm modal ──
+  let confirmOpen  = $state(false);
+  let confirmOpts  = $state({});
+  let confirmResolve = null;
+
+  function showConfirm(opts) {
+    if (confirmResolve) confirmResolve(false); // resolve any stranded caller
+    return new Promise(resolve => {
+      confirmResolve = resolve;
+      confirmOpts    = opts;
+      confirmOpen    = true;
+    });
+  }
 
   // ── Section research (deepen-section) ──
   let srMessages  = $state([]);
@@ -280,7 +295,13 @@
   async function completeTrip() {
     if (!trip || completing) return;
     const label = trip.title || trip._slug;
-    if (!confirm(`Mark "${label}" as completed? It'll move out of planning.`)) return;
+    const ok = await showConfirm({
+      title:        `Mark "${label}" as completed?`,
+      body:         "It'll move out of planning into the completed archive.",
+      confirmLabel: 'Mark as completed',
+      danger:       false,
+    });
+    if (!ok) return;
     completing = true;
     try {
       const res = await fetch(`/api/complete/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
@@ -345,7 +366,13 @@
 
   async function disableShare() {
     if (!trip || shareBusy) return;
-    if (!confirm('Disable the share link? Anyone who already has the URL will lose access.')) return;
+    const ok = await showConfirm({
+      title:        'Disable share link?',
+      body:         'Anyone who already has the URL will lose access immediately.',
+      confirmLabel: 'Disable',
+      danger:       true,
+    });
+    if (!ok) return;
     shareBusy = true;
     try {
       const res = await fetch(`/api/share/${encodeURIComponent(trip._slug)}`, { method: 'DELETE' });
@@ -371,7 +398,13 @@
   async function archiveTrip() {
     if (!trip) return;
     const label = trip.title || trip._slug;
-    if (!confirm(`Archive "${label}"? It'll vanish from view but stay on disk, so the seeder won't suggest it again.`)) return;
+    const ok = await showConfirm({
+      title:        `Archive "${label}"?`,
+      body:         "It'll vanish from view but stay on disk, so the seeder won't suggest it again.",
+      confirmLabel: 'Archive',
+      danger:       true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/archive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (!res.ok) throw new Error(`Archive failed: ${res.status}`);
@@ -594,6 +627,16 @@
       onsaved={onRetroSaved}
     />
   {/if}
+
+  <ConfirmModal
+    bind:open={confirmOpen}
+    title={confirmOpts.title ?? ''}
+    body={confirmOpts.body ?? ''}
+    confirmLabel={confirmOpts.confirmLabel ?? 'Confirm'}
+    danger={confirmOpts.danger ?? false}
+    onconfirm={() => { confirmResolve?.(true);  confirmResolve = null; }}
+    oncancel={() =>  { confirmResolve?.(false); confirmResolve = null; }}
+  />
 
   <div class="chat-backdrop" class:open={chatOpen} onclick={() => chatOpen = false} role="presentation"></div>
 
