@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AdapterError, formatSummary, logAdapterError } from '../errors.js';
+import { resolveEnv } from '../settings.js';
 
 const MAX_TOOL_TURNS = 20;
 
@@ -36,7 +37,9 @@ function accumUsage(acc, u) {
 }
 
 export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText }) {
-  const client = new Anthropic();
+  // Pass apiKey explicitly so settings.json overlay reaches the SDK; otherwise
+  // the SDK reads ANTHROPIC_API_KEY from process.env directly and bypasses it.
+  const client = new Anthropic({ apiKey: resolveEnv('ANTHROPIC_API_KEY') });
   const apiTools = translateTools(tools);
   const usage = { input: 0, output: 0, total: 0, turns: 0 };
 

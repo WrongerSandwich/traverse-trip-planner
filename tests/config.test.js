@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// Mock node:fs so settings.json on disk doesn't sneak into these tests.
+// readSettings() (used by getFeatureAvailability and getEffectiveConfig)
+// reads settings.json from the repo root, and a real one with provider keys
+// would flip feature flags on even though the test sets no env values.
+vi.mock('node:fs', () => ({
+  readFileSync: () => { throw new Error('ENOENT'); },
+  writeFileSync: () => {},
+}));
+
 const TRAVERSE_KEYS = [
   'TRAVERSE_MODEL_DEFAULT_PROVIDER',
   'TRAVERSE_MODEL_DEFAULT',

@@ -10,10 +10,12 @@
 // then falls back to its illustrative-paper rendering with state outlines
 // and rivers.
 
+import { resolveEnv } from './settings.js';
+
 const ENDPOINT = 'https://tiles.stadiamaps.com/static';
 
 export function stadiaStaticMapUrl({ centerLat, centerLon, zoom, width, height, style = 'outdoors', retina = true }) {
-  const apiKey = process.env.STADIA_API_KEY;
+  const apiKey = resolveEnv('STADIA_API_KEY');
   if (!apiKey) return null;
 
   // Stadia accepts size up to 2048×2048 for free tier (and larger paid);
@@ -38,5 +40,5 @@ export function stadiaStaticMapUrl({ centerLat, centerLon, zoom, width, height, 
 }
 
 export function stadiaEnabled() {
-  return Boolean(process.env.STADIA_API_KEY);
+  return Boolean(resolveEnv('STADIA_API_KEY'));
 }

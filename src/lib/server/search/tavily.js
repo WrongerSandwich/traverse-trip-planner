@@ -1,5 +1,6 @@
 import { withRetry } from '../retry.js';
 import { adapterErrorFromResponse, logAdapterError } from '../errors.js';
+import { resolveEnv } from '../settings.js';
 
 export function searchToolDefinition() {
   return {
@@ -17,7 +18,7 @@ export function searchToolDefinition() {
 }
 
 export async function search({ query, maxResults = 5, signal = null }) {
-  const apiKey = process.env.TAVILY_API_KEY;
+  const apiKey = resolveEnv('TAVILY_API_KEY');
   if (!apiKey) throw new Error('TAVILY_API_KEY not set.');
 
   const data = await withRetry(async () => {

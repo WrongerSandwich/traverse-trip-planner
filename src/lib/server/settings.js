@@ -20,7 +20,20 @@ const PROVIDER_KEY_ENV = {
   openrouter: 'OPENROUTER_API_KEY',
 };
 
+// Non-model third-party services that take an API key. Same storage shape as
+// providers (settings.services.<name>) but kept distinct in the UI so they can
+// be grouped separately from model providers.
+const SERVICE_KEY_ENV = {
+  tavily: 'TAVILY_API_KEY',
+  pexels: 'PEXELS_API_KEY',
+  stadia: 'STADIA_API_KEY',
+};
+
 export const SUPPORTED_PROVIDERS = Object.keys(PROVIDER_KEY_ENV);
+export const SUPPORTED_SERVICES = Object.keys(SERVICE_KEY_ENV);
+export const SUPPORTED_SEARCH_PROVIDERS = ['anthropic-builtin', 'tavily'];
+
+export const SERVICE_ENV_NAMES = SERVICE_KEY_ENV;
 
 export function readSettings() {
   try {
@@ -62,11 +75,25 @@ export function settingsToEnv(settings) {
     }
   }
 
+  const services = settings?.services ?? {};
+  for (const [service, envName] of Object.entries(SERVICE_KEY_ENV)) {
+    if (services[service] && typeof services[service] === 'string' && services[service].trim()) {
+      out[envName] = services[service].trim();
+    }
+  }
+
   const slots = settings?.slots ?? {};
   if (slots.default?.provider) out['TRAVERSE_MODEL_DEFAULT_PROVIDER'] = slots.default.provider;
   if (slots.default?.model)    out['TRAVERSE_MODEL_DEFAULT']          = slots.default.model;
   if (slots.research?.provider) out['TRAVERSE_MODEL_RESEARCH_PROVIDER'] = slots.research.provider;
   if (slots.research?.model)    out['TRAVERSE_MODEL_RESEARCH']          = slots.research.model;
+
+  if (settings?.search?.provider && typeof settings.search.provider === 'string' && settings.search.provider.trim()) {
+    out['TRAVERSE_SEARCH_PROVIDER'] = settings.search.provider.trim();
+  }
+  if (settings?.assistantName && typeof settings.assistantName === 'string' && settings.assistantName.trim()) {
+    out['TRAVERSE_ASSISTANT_NAME'] = settings.assistantName.trim();
+  }
 
   return out;
 }
@@ -89,11 +116,37 @@ export function redactSettings(settings) {
     };
   }
 
+  const services = settings?.services ?? {};
+  const redactedServices = {};
+  for (const service of SUPPORTED_SERVICES) {
+    const raw = services[service] ?? '';
+    redactedServices[service] = {
+      isSet: Boolean(raw),
+      preview: raw ? redactKey(raw) : '',
+    };
+  }
+
   return {
     keys: redactedKeys,
+    services: redactedServices,
     slots: {
       default: settings?.slots?.default ?? null,
       research: settings?.slots?.research ?? null,
     },
+    search: { provider: settings?.search?.provider ?? '' },
+    assistantName: settings?.assistantName ?? '',
   };
+}
+
+/**
+ * Resolve a runtime env value, preferring the settings.json overlay over
+ * process.env. Used by services (Tavily, Pexels, Stadia) so keys saved via the
+ * Settings UI take effect on the next request without writing process.env.
+ *
+ * @param {string} envName — env var name (e.g. 'TAVILY_API_KEY')
+ * @returns {string|undefined}
+ */
+export function resolveEnv(envName) {
+  const overlay = settingsToEnv(readSettings());
+  return overlay[envName] ?? process.env[envName];
 }

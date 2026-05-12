@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, renameSync } from 'fs';
 import { join } from 'path';
+import { resolveEnv } from './settings.js';
 
 export const ROOT = process.cwd();
 const IMAGE_CACHE_PATH   = join(ROOT, '.image-cache.json');
@@ -115,7 +116,7 @@ export async function fetchImage(query) {
   const cached = readImageCacheEntry(imageCache, query);
   if (cached.state === 'hit') return cached.value;
   // miss or expired — refetch
-  const key = process.env.PEXELS_API_KEY;
+  const key = resolveEnv('PEXELS_API_KEY');
   if (!key) { writeImageCacheEntry(imageCache, query, null); return null; }
   try {
     const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=3&orientation=landscape`;

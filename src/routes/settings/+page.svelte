@@ -11,12 +11,30 @@
     openrouter: 'OpenRouter',
   };
 
+  const SERVICES = ['tavily', 'pexels', 'stadia'];
+  const SERVICE_LABELS = {
+    tavily: 'Tavily',
+    pexels: 'Pexels',
+    stadia: 'Stadia Maps',
+  };
+  const SERVICE_DESCRIPTIONS = {
+    tavily: 'Web search backend (used by deepen when TRAVERSE_SEARCH_PROVIDER=tavily).',
+    pexels: 'Cover photos shown on trip cards and brochures.',
+    stadia: 'Static destination maps in the brochure.',
+  };
+
   // Editable form state — keys are plaintext (user is typing), slots are provider+model.
   // We start with empty key fields (not the redacted preview) so the user can type a new key.
   let keys = $state({
     anthropic: '',
     openai: '',
     openrouter: '',
+  });
+
+  let services = $state({
+    tavily: '',
+    pexels: '',
+    stadia: '',
   });
 
   let slots = $state(untrack(() => ({
@@ -30,12 +48,40 @@
     },
   })));
 
+  // Empty string means "inherit from .env"; storing this value clears the override.
+  let searchProvider = $state(untrack(() => data.settingsView.search?.provider ?? ''));
+  let assistantName  = $state(untrack(() => data.settingsView.assistantName ?? ''));
+
+  // Warning when anthropic-builtin is selected but the research slot will use
+  // a non-anthropic provider — that combo is rejected at runtime.
+  let researchProviderEffective = $derived(
+    slots.research.provider || data.settingsView.slots.research?.provider || 'anthropic'
+  );
+  let searchProviderEffective = $derived(
+    searchProvider || data.effectiveSearchProvider
+  );
+  let searchProviderWarning = $derived(
+    searchProviderEffective === 'anthropic-builtin' && researchProviderEffective !== 'anthropic'
+      ? `"anthropic-builtin" only works when the research slot uses anthropic — currently "${researchProviderEffective}".`
+      : ''
+  );
+
+  const FEATURE_LABELS = {
+    seed:   'Seed ideas',
+    add:    'Add destination',
+    lock:   'Lock itinerary',
+    chat:   'Ask Field guide',
+    deepen: 'Research (deepen)',
+    share:  'Share links',
+  };
+
   let busy = $state(false);
   let savedOk = $state(false);
   let saveError = $state('');
 
-  // Per-provider remove confirmation state.
+  // Per-provider / per-service remove confirmation state.
   let removingKey = $state({ anthropic: false, openai: false, openrouter: false });
+  let removingService = $state({ tavily: false, pexels: false, stadia: false });
 
   async function removeKey(provider) {
     if (busy) return;
@@ -65,6 +111,34 @@
     }
   }
 
+  async function removeService(service) {
+    if (busy) return;
+    busy = true;
+    savedOk = false;
+    saveError = '';
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ servicesToClear: [service] }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        saveError = body.error ?? `Server error ${res.status}`;
+      } else {
+        removingService[service] = false;
+        const updated = await res.json();
+        if (updated.settingsView) {
+          data = { ...data, settingsView: updated.settingsView };
+        }
+      }
+    } catch (e) {
+      saveError = e.message;
+    } finally {
+      busy = false;
+    }
+  }
+
   async function save() {
     if (busy) return;
     busy = true;
@@ -76,6 +150,11 @@
     const keysPayload = {};
     for (const p of PROVIDERS) {
       if (keys[p].trim()) keysPayload[p] = keys[p].trim();
+    }
+
+    const servicesPayload = {};
+    for (const s of SERVICES) {
+      if (services[s].trim()) servicesPayload[s] = services[s].trim();
     }
 
     const slotsPayload = {};
@@ -90,11 +169,21 @@
       if (slots.research.model)    slotsPayload.research.model    = slots.research.model;
     }
 
+    const payload = {
+      keys: keysPayload,
+      services: servicesPayload,
+      slots: slotsPayload,
+      // Always send search.provider and assistantName — blank clears any override,
+      // a value sets it. This is the only way to "remove" them from the UI.
+      search: { provider: searchProvider },
+      assistantName: assistantName,
+    };
+
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys: keysPayload, slots: slotsPayload }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -102,6 +191,7 @@
       } else {
         savedOk = true;
         keys = { anthropic: '', openai: '', openrouter: '' };
+        services = { tavily: '', pexels: '', stadia: '' };
         // Reload to get fresh redacted previews
         const updated = await res.json();
         if (updated.settingsView) {
@@ -132,7 +222,22 @@
 
   <main>
     <section class="settings-section">
-      <h2>API Keys</h2>
+      <h2>Feature health</h2>
+      <p class="section-desc">Live status for each feature based on the keys, slots, and search backend currently in effect. ✓ means the feature should work; ✗ means it's missing a key or has a mismatched configuration.</p>
+      <ul class="health-grid">
+        {#each Object.entries(FEATURE_LABELS) as [feature, label]}
+          {@const ok = data.features?.[feature]}
+          <li class="health-row {ok ? 'health-ok' : 'health-bad'}">
+            <span class="health-mark" aria-hidden="true">{ok ? '✓' : '✗'}</span>
+            <span class="health-label">{label}</span>
+            <span class="health-status">{ok ? 'available' : 'unavailable'}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+
+    <section class="settings-section">
+      <h2>Model provider keys</h2>
       <p class="section-desc">Provider API keys are stored in <code>settings.json</code> at the server root and overlay your <code>.env</code> values. The full key is never sent back to the browser after saving.</p>
 
       <div class="field-group">
@@ -164,6 +269,46 @@
               class="field-input"
               placeholder={current?.isSet ? 'Paste new key to replace…' : 'Paste API key…'}
               bind:value={keys[provider]}
+            />
+          </div>
+        {/each}
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2>Service keys</h2>
+      <p class="section-desc">Non-model integrations — search, photos, maps. Same overlay rules as provider keys: stored in <code>settings.json</code>, overlay your <code>.env</code>, never sent back to the browser.</p>
+
+      <div class="field-group">
+        {#each SERVICES as service}
+          {@const current = data.settingsView.services?.[service]}
+          <div class="field">
+            <div class="field-label-row">
+              <label for="service-{service}" class="field-label">{SERVICE_LABELS[service]}</label>
+              {#if current?.isSet}
+                <span class="badge badge-set">set — {current.preview}</span>
+                {#if removingService[service]}
+                  <span class="remove-confirm">
+                    Remove key?
+                    <button class="btn-confirm-yes" onclick={() => removeService(service)} disabled={busy}>Yes, remove</button>
+                    <button class="btn-confirm-cancel" onclick={() => removingService[service] = false}>Cancel</button>
+                  </span>
+                {:else}
+                  <button class="btn-remove" onclick={() => removingService[service] = true} title="Remove stored key — .env value resumes">Remove</button>
+                {/if}
+              {:else}
+                <span class="badge badge-unset">not set</span>
+              {/if}
+            </div>
+            <p class="field-hint">{SERVICE_DESCRIPTIONS[service]}</p>
+            <input
+              id="service-{service}"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              class="field-input"
+              placeholder={current?.isSet ? 'Paste new key to replace…' : 'Paste API key…'}
+              bind:value={services[service]}
             />
           </div>
         {/each}
@@ -206,6 +351,43 @@
       {/each}
     </section>
 
+    <section class="settings-section">
+      <h2>Search</h2>
+      <p class="section-desc">Which backend to use when a feature needs a web search (today: Research/deepen). <code>anthropic-builtin</code> uses Anthropic's native search tool — but only works when the Research slot is also Anthropic. <code>tavily</code> works with any model provider but requires a Tavily key above.</p>
+
+      <div class="slot-fields">
+        <div class="field">
+          <label for="search-provider" class="field-label">Search provider</label>
+          <select id="search-provider" class="field-select" bind:value={searchProvider}>
+            <option value="">— inherit from .env ({data.effectiveSearchProvider}) —</option>
+            {#each data.supportedSearchProviders as sp}
+              <option value={sp}>{sp}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+      {#if searchProviderWarning}
+        <p class="field-warn">{searchProviderWarning}</p>
+      {/if}
+    </section>
+
+    <section class="settings-section">
+      <h2>Assistant</h2>
+      <p class="section-desc">Display name used wherever the trip-assistant chat is referenced ("Ask {data.effectiveAssistantName}", section headings, etc.). Leave blank to inherit from <code>.env</code>.</p>
+
+      <div class="field">
+        <label for="assistant-name" class="field-label">Assistant name</label>
+        <input
+          id="assistant-name"
+          type="text"
+          class="field-input"
+          maxlength="60"
+          placeholder={data.effectiveAssistantName}
+          bind:value={assistantName}
+        />
+      </div>
+    </section>
+
     <div class="actions">
       <button class="btn btn-primary" onclick={save} disabled={busy}>
         {busy ? 'Saving…' : 'Save settings'}
@@ -221,6 +403,15 @@
 </div>
 
 <style>
+  /* The home page sets `:global(html, body) { height: 100%; overflow: hidden }`
+     for its fixed map/list layout. Those rules can linger after client-side
+     navigation, so reset them explicitly here — the settings page is a normal
+     scrolling document. */
+  :global(html, body) {
+    height: auto;
+    overflow: auto;
+  }
+
   .page {
     min-height: 100vh;
     background: var(--surface-page);
@@ -320,6 +511,64 @@
     font-size: 12px;
     font-weight: 500;
     color: var(--text-secondary);
+  }
+
+  .field-hint {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin: 0 0 2px;
+    line-height: 1.5;
+  }
+
+  .field-warn {
+    font-size: 11px;
+    color: var(--sunset-800);
+    margin: 10px 0 0;
+    line-height: 1.5;
+  }
+
+  .health-grid {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 6px 16px;
+  }
+
+  .health-row {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    background: var(--surface-raised);
+    border: 1px solid var(--bone-200);
+  }
+
+  .health-ok  { border-color: var(--forest-200); }
+  .health-bad { border-color: var(--sunset-200); }
+
+  .health-mark {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    text-align: center;
+    line-height: 1;
+  }
+  .health-ok  .health-mark { color: var(--forest-600); }
+  .health-bad .health-mark { color: var(--sunset-700); }
+
+  .health-label {
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+
+  .health-status {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+    letter-spacing: 0.02em;
   }
 
   .badge {

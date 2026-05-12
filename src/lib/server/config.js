@@ -101,24 +101,28 @@ export function getFeatureAvailability() {
 }
 
 export function describeConfig() {
+  const overlay = settingsToEnv(readSettings());
+  const effectiveEnv = { ...process.env, ...overlay };
   const featureDetails = {};
   const slotForFeature = (f) => config[FEATURE_SLOT[f]];
   for (const [feature, info] of Object.entries(config.features)) {
     const slot = slotForFeature(feature);
     const overridden = info.provider !== slot.provider || info.model !== slot.model;
-    const ok = providerKeyOkIn(process.env, info.provider) && (feature === 'deepen' ? searchOkIn(config, process.env) : true);
+    const ok = providerKeyOkIn(effectiveEnv, info.provider) && (feature === 'deepen' ? searchOkIn(config, effectiveEnv) : true);
     featureDetails[feature] = { ...info, ok, overridden };
   }
   return {
-    modelDefault: { ...config.modelDefault, ok: providerKeyOkIn(process.env, config.modelDefault.provider) },
-    modelResearch: { ...config.modelResearch, ok: providerKeyOkIn(process.env, config.modelResearch.provider) },
-    search: { provider: config.search.provider, ok: searchOkIn(config, process.env) },
+    modelDefault: { ...config.modelDefault, ok: providerKeyOkIn(effectiveEnv, config.modelDefault.provider) },
+    modelResearch: { ...config.modelResearch, ok: providerKeyOkIn(effectiveEnv, config.modelResearch.provider) },
+    search: { provider: config.search.provider, ok: searchOkIn(config, effectiveEnv) },
     features: featureDetails,
     issues: validateConfig(),
   };
 }
 
 export function validateConfig() {
+  const overlay = settingsToEnv(readSettings());
+  const effectiveEnv = { ...process.env, ...overlay };
   const issues = [];
   const seenProviders = new Set();
 
@@ -128,7 +132,7 @@ export function validateConfig() {
     const keyName = PROVIDER_KEYS[provider];
     if (keyName === undefined) {
       issues.push(`Unknown model provider for ${slot}: "${provider}". Supported: ${Object.keys(PROVIDER_KEYS).join(', ')}.`);
-    } else if (keyName && !process.env[keyName]) {
+    } else if (keyName && !effectiveEnv[keyName]) {
       issues.push(`${slot} provider "${provider}" requires ${keyName} in env.`);
     }
   }
@@ -139,7 +143,7 @@ export function validateConfig() {
     const keyName = PROVIDER_KEYS[info.provider];
     if (keyName === undefined) {
       issues.push(`Unknown model provider for feature ${feature}: "${info.provider}". Supported: ${Object.keys(PROVIDER_KEYS).join(', ')}.`);
-    } else if (keyName && !process.env[keyName]) {
+    } else if (keyName && !effectiveEnv[keyName]) {
       issues.push(`Feature ${feature} provider "${info.provider}" requires ${keyName} in env.`);
     }
   }
@@ -149,7 +153,7 @@ export function validateConfig() {
     issues.push(`Unknown search provider: "${sp}". Supported: ${Object.keys(SEARCH_KEYS).join(', ')}.`);
   } else {
     const keyName = SEARCH_KEYS[sp];
-    if (keyName && !process.env[keyName]) {
+    if (keyName && !effectiveEnv[keyName]) {
       issues.push(`Search provider "${sp}" requires ${keyName} in env.`);
     }
     if (sp === 'anthropic-builtin' && config.features.deepen.provider !== 'anthropic') {

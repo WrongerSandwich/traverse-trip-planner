@@ -1,5 +1,6 @@
 import { withRetry } from '../retry.js';
 import { adapterErrorFromResponse, logAdapterError } from '../errors.js';
+import { resolveEnv } from '../settings.js';
 
 const MAX_TOOL_TURNS = 20;
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
@@ -61,7 +62,7 @@ function accumUsage(acc, u) {
 
 export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText }) {
   const apiTools = translateTools(tools);
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = resolveEnv('OPENAI_API_KEY');
   if (!apiKey) throw new Error('OPENAI_API_KEY not set.');
   const usage = { input: 0, output: 0, total: 0, turns: 0 };
   let convo = [

@@ -1,6 +1,11 @@
 import { error } from '@sveltejs/kit';
-import { readSettings, redactSettings, SUPPORTED_PROVIDERS } from '$lib/server/settings.js';
-import { getFeatureAvailability, config } from '$lib/server/config.js';
+import {
+  readSettings,
+  redactSettings,
+  SUPPORTED_PROVIDERS,
+  SUPPORTED_SEARCH_PROVIDERS,
+} from '$lib/server/settings.js';
+import { getFeatureAvailability, getEffectiveConfig } from '$lib/server/config.js';
 
 export function load() {
   if (process.env.TRAVERSE_DISABLE_SETTINGS_UI) {
@@ -8,10 +13,13 @@ export function load() {
   }
 
   const settings = readSettings();
+  const effective = getEffectiveConfig();
   return {
     settingsView: redactSettings(settings),
     supportedProviders: SUPPORTED_PROVIDERS,
+    supportedSearchProviders: SUPPORTED_SEARCH_PROVIDERS,
     features: getFeatureAvailability(),
-    assistantName: config.assistantName,
+    effectiveSearchProvider: effective.search.provider,
+    effectiveAssistantName: effective.assistantName,
   };
 }

@@ -1,4 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Block settings.json on disk from sneaking a real OPENAI_API_KEY into
+// resolveEnv() — the adapter now consults the settings overlay before
+// process.env, so a real file would mask `delete process.env.OPENAI_API_KEY`.
+vi.mock('node:fs', () => ({
+  readFileSync: () => { throw new Error('ENOENT'); },
+  writeFileSync: () => {},
+}));
+
 import { chat } from '../src/lib/server/ai/openai.js';
 
 function jsonResponse(body, ok = true, status = 200) {
