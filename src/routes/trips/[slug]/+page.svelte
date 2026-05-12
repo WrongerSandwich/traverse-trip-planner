@@ -552,10 +552,12 @@
         </span>
       </div>
 
-      <div class="danger-zone">
-        <button class="btn btn-danger btn-compact" onclick={archiveTrip}>Archive trip</button>
-        <span class="archive-hint">Hides it from view but keeps the file so it won't be re-suggested.</span>
-      </div>
+      {#if !isCompleted}
+        <div class="danger-zone">
+          <button class="btn btn-danger btn-compact" onclick={archiveTrip}>Archive trip</button>
+          <span class="archive-hint">Hides it from view but keeps the file so it won't be re-suggested.</span>
+        </div>
+      {/if}
     </main>
   </div>
 
