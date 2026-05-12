@@ -28,6 +28,25 @@ function findTool(tools, name) {
   return tools?.find(t => (t.kind === 'anthropic-native' ? t.spec.name : t.name) === name);
 }
 
+// Translate a single content block from the normalized internal format to
+// the OpenRouter (OpenAI-compatible) wire format.
+function translateBlock(block) {
+  if (block.type === 'image') {
+    return {
+      type: 'image_url',
+      image_url: { url: `data:${block.mediaType};base64,${block.data}` },
+    };
+  }
+  return block;
+}
+
+function translateMessages(messages) {
+  return messages.map(m => {
+    if (!Array.isArray(m.content)) return m;
+    return { ...m, content: m.content.map(translateBlock) };
+  });
+}
+
 function baseHeaders(apiKey) {
   return {
     'Content-Type': 'application/json',
@@ -75,7 +94,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
   const usage = { input: 0, output: 0, total: 0, turns: 0 };
   let convo = [
     ...(system ? [{ role: 'system', content: system }] : []),
-    ...messages.map(m => ({ role: m.role, content: m.content })),
+    ...translateMessages(messages).map(m => ({ role: m.role, content: m.content })),
   ];
 
   if (onText && (!apiTools || apiTools.length === 0)) {

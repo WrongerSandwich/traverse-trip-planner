@@ -75,7 +75,12 @@ Rules:
     });
     text = result.text;
   } catch (err) {
-    return new Response(`Receipt parsing failed: ${err.message}`, { status: 502 });
+    const msg = err.message ?? '';
+    const isVision = /vision|image|multimodal|does not support/i.test(msg);
+    const detail = isVision
+      ? 'The configured model does not support image input. Set TRAVERSE_MODEL_RECEIPTS to a vision-capable model (e.g. claude-sonnet-4-6, gpt-4o).'
+      : `Receipt parsing failed: ${msg}`;
+    return new Response(detail, { status: 502 });
   }
 
   const lines = text
