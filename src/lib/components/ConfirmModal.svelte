@@ -1,17 +1,4 @@
 <script>
-  /**
-   * A styled in-app replacement for window.confirm().
-   *
-   * Usage — give the component a `show` function ref:
-   *   let confirm; // bound via bind:show
-   *   const ok = await confirm({ title, body, confirmLabel, danger });
-   *
-   * Or drive it with explicit state props:
-   *   <ConfirmModal open={...} title={...} onconfirm={...} oncancel={...} />
-   *
-   * The simpler pattern used here: callers import and call the exported
-   * `showConfirm(opts)` helper which returns a Promise<boolean>.
-   */
   let {
     open = $bindable(false),
     title = '',
@@ -23,16 +10,27 @@
   } = $props();
 
   let confirmBtn = $state(null);
+  let cancelBtn  = $state(null);
+  let previousFocus = null;
 
+  // Focus management: capture trigger element on open, restore on close.
+  // For danger dialogs, default focus lands on Cancel to prevent accidental
+  // Enter-to-confirm on destructive actions.
   $effect(() => {
-    if (open && confirmBtn) confirmBtn.focus();
+    if (open) {
+      previousFocus = document.activeElement;
+      (danger ? cancelBtn : confirmBtn)?.focus();
+    } else if (previousFocus) {
+      previousFocus.focus();
+      previousFocus = null;
+    }
   });
 
   function handleKey(e) {
     if (!open) return;
     if (e.key === 'Escape') { e.preventDefault(); cancel(); }
     if (e.key === 'Tab') {
-      const modal = confirmBtn?.closest('[role="dialog"]');
+      const modal = (confirmBtn ?? cancelBtn)?.closest('[role="dialog"]');
       if (!modal) return;
       const focusable = [...modal.querySelectorAll('button:not(:disabled)')];
       if (focusable.length < 2) return;
@@ -61,20 +59,25 @@
 {#if open}
   <div
     class="backdrop"
-    class:dismissible={!danger}
     onclick={!danger ? cancel : undefined}
     role="presentation"
   ></div>
 
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+  <div
+    class="modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="confirm-title"
+    aria-describedby={body ? 'confirm-body' : undefined}
+  >
     <div class="modal-body">
       <h2 id="confirm-title" class="modal-title" class:danger>{title}</h2>
       {#if body}
-        <p class="modal-desc">{body}</p>
+        <p class="modal-desc" id="confirm-body">{body}</p>
       {/if}
     </div>
     <div class="modal-actions">
-      <button class="btn btn-tertiary" onclick={cancel}>Cancel</button>
+      <button class="btn btn-tertiary" bind:this={cancelBtn} onclick={cancel}>Cancel</button>
       <button
         class="btn"
         class:btn-danger={danger}

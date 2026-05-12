@@ -56,6 +56,7 @@
   let confirmResolve = null;
 
   function showConfirm(opts) {
+    if (confirmResolve) confirmResolve(false); // resolve any stranded caller
     return new Promise(resolve => {
       confirmResolve = resolve;
       confirmOpts    = opts;
