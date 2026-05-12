@@ -123,6 +123,7 @@ Traverse talks to model and search providers through a thin adapter layer. The d
 | Seed / Add (`+`, pin)      | `modelDefault` provider with valid key                  |
 | Lock & generate itinerary  | `modelDefault` provider with valid key                  |
 | Ask Field guide (planning chat) | `modelDefault` provider with valid key             |
+| Retro on completion        | `modelDefault` provider with valid key                  |
 | Research → (deepen)        | `modelResearch` provider with key **+** search backend  |
 
 If a feature's backing provider isn't configured, its button is disabled in the UI with a tooltip pointing at `.env`. The startup banner (printed to the server log) lists which features are wired.
@@ -137,7 +138,7 @@ If a feature's backing provider isn't configured, its button is disabled in the 
 | Research model | `TRAVERSE_MODEL_RESEARCH`              | tool-use-capable model id           |
 | Search backend | `TRAVERSE_SEARCH_PROVIDER`             | `anthropic-builtin` (default) · `tavily` |
 | Assistant name | `TRAVERSE_ASSISTANT_NAME`              | display name in UI (default `Field guide`)    |
-| Per-feature    | `TRAVERSE_MODEL_<FEATURE>(_PROVIDER)?` | optional override; `<FEATURE>` ∈ `SEED`, `ADD`, `LOCK`, `CHAT`, `DEEPEN` |
+| Per-feature    | `TRAVERSE_MODEL_<FEATURE>(_PROVIDER)?` | optional override; `<FEATURE>` ∈ `SEED`, `ADD`, `LOCK`, `CHAT`, `RETRO`, `DEEPEN` |
 
 `anthropic-builtin` runs Anthropic's server-side `web_search` tool — only valid when the research model is also Anthropic. `tavily` is portable across any model provider but requires a `TAVILY_API_KEY`.
 

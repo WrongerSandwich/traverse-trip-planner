@@ -9,6 +9,7 @@ A personal road-trip filing cabinet — managed through a web UI and an LLM. Tri
 - **Seed** — generate trip ideas based on your home base, taste, and constraints (uses an LLM)
 - **Research** — flesh out an idea with live web-searched details: hours, prices, lodging, routes (uses an LLM + web search)
 - **Plan** — edit trip sections in-browser, chat with the assistant to refine them, then lock the trip to generate a day-by-day itinerary
+- **Retro** — when a trip is marked completed, an AI-prompted Q&A writes a `notes.md` retrospective (rating, highlights, would-do-again) you can revisit later
 - **Map** — all trips rendered on an interactive map with drive-time routing
 - **Filter** — by stage, drive time, cost tier, NPS units, bookmarks
 - **Calendar** — subscribe to `/api/cal.ics` from Google/Apple/Outlook to see planned trips on your calendar; per-trip feed at `/api/cal/<slug>.ics`

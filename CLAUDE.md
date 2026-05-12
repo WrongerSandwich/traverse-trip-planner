@@ -36,7 +36,7 @@ Trips progress through four stages. Earlier-stage fields are never removed — s
 1. **idea** — single `.md` file in `ideas/`. Fields: `title`, `status`, `destination`, `pitch`, `created`, `vibe`. Target: <30 seconds to create.
 2. **exploring** — promoted to a folder. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out.
 3. **planning** — concrete dates, lodging, reservations. The frontend's planning page enables in-place editing of any section + an "Ask Field guide" chat that writes section updates back to disk.
-4. **completed** — moved to `completed/` with a `notes.md` retrospective.
+4. **completed** — moved to `completed/`. The Mark-as-completed action offers an AI-prompted retro flow that writes `notes.md` (skippable; available later via an "Add retro" button on the completed view).
 
 **Canonical section sets per stage:** The detail view always renders a fixed tab set regardless of which files actually exist on disk. Missing files show an empty-state placeholder — producers (deepen, chat) are not required to write every section. The canonical sets are:
 - exploring / planning: `overview`, `route`, `stops`, `logistics`
@@ -94,6 +94,7 @@ All lifecycle operations live in the SvelteKit app — the browser is the canoni
 - **Unlock to edit** (locked detail view) — clears `locked: true`. The `itinerary.md` is kept but editing is restored. Re-lock to regenerate the itinerary.
 - **Print / Save PDF** (locked detail view) — opens the browser print dialog with print CSS that hides all chrome so only the itinerary renders.
 - **Share** (any detail view, when `TRAVERSE_SHARE_SECRET` is set) — generates a public read-only `/share/<token>` URL backed by an HMAC of the slug. Disabling revokes access immediately.
+- **Mark as completed** (planning detail view, locked or unlocked) — moves the trip to `completed/` and opens an AI-prompted retro modal: 5 trip-specific questions, a star rating, and a "would do again" toggle. The model writes a prose `notes.md` body with a `## Highlights` section; the server lifts those bullets into the file's YAML frontmatter alongside `rating`, `would_repeat`, and `date_completed`. Skippable; an "Add retro" button on the completed callout lets you fill it in later. PUT returns 409 if `notes.md` already exists — to redo, delete the file and reload.
 - **Archive** (detail view, gated by confirm) — moves the trip to `archived/<stage>/<slug>/`. The trip vanishes from the UI but stays in the seed-avoidance list.
 
 ### Ad-hoc research via Claude Code
