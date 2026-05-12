@@ -9,7 +9,7 @@ import {
 
 describe('TraverseError', () => {
   it('is an instance of Error', () => {
-    expect(new TraverseError('missing_planning_sections', 'msg')).toBeInstanceOf(Error);
+    expect(new TraverseError('missing_overview', 'msg')).toBeInstanceOf(Error);
   });
 
   it('carries the expected name and code', () => {
