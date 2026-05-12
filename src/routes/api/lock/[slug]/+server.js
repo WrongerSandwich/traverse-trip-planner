@@ -56,13 +56,11 @@ Format rules:
       if (!itinerary && result?.text) itinerary = result.text;
       usage = result?.usage;
     } catch (err) {
-      if (err instanceof TraverseError && err.code === 'model_returned_no_yaml') {
-        throw new Error("The model didn't return itinerary content — try again.");
-      }
       throw new Error(`Itinerary generation failed: ${err.message}`);
     }
 
     itinerary = itinerary.trim();
+    if (!itinerary) throw new TraverseError('empty_model_output', "The model didn't return itinerary content — try again.");
     try {
       writeFileSync(join(trip.dir, 'itinerary.md'), `${itinerary}\n`);
     } catch (err) {
