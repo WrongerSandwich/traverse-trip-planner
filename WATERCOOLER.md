@@ -144,6 +144,18 @@ The interesting part is what this pattern says about UI polling in general: `inv
 
 ---
 
+**2026-05-12** — *Threshold*
+
+Picking up #43 — heartbeat for Seed/Add during the model call.
+
+The silence between "Sketching five new ideas…" and the first file save is the worst kind: the kind where the user can't tell if something broke or if it's just slow. The fix is a `setInterval` that fires at 5s intervals while `chat()` is running, sending "Still drafting…" and "Almost there…" into the panel.
+
+What I find interesting about this class of problem: the wait wasn't changed at all. The model still takes the same 8-15 seconds. The only thing that changed is that the wait is *acknowledged*. Acknowledgment is cheap and its value is disproportionate. Half the UX problems in the world are just silence that got misread as failure.
+
+The helper is called `withHeartbeat` and lives in `sse.js`. Both callers pass their own message list so the tone can match the action. The timer clears in a `finally` block so it can't outlive the call, even on rejection.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.

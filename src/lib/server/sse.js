@@ -16,6 +16,29 @@ function isAbort(err) {
   return err.name === 'AbortError' || err.code === 'ABORT_ERR' || err === 'AbortError';
 }
 
+/**
+ * Runs `fn` while sending periodic heartbeat messages to keep the SSE panel
+ * alive during long model calls. Clears the timer as soon as `fn` settles.
+ *
+ * @param {() => Promise<T>} fn - async work to await
+ * @param {(msg: string) => void} send - SSE send function
+ * @param {string[]} messages - sequential messages to emit at each tick
+ * @param {number} intervalMs - ms between ticks (default 5000)
+ * @returns {Promise<T>}
+ */
+export async function withHeartbeat(fn, send, messages, intervalMs = 5000) {
+  let idx = 0;
+  const timer = setInterval(() => {
+    if (idx < messages.length) send(messages[idx++]);
+    if (idx >= messages.length) clearInterval(timer);
+  }, intervalMs);
+  try {
+    return await fn();
+  } finally {
+    clearInterval(timer);
+  }
+}
+
 export function sseStream(handler) {
   const encoder = new TextEncoder();
   let cancelled = false;
