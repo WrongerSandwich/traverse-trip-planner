@@ -4,14 +4,13 @@ import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
-import { config, getEffectiveConfig } from '$lib/server/config.js';
-
-const NAME = config.assistantName;
+import { getEffectiveConfig } from '$lib/server/config.js';
 
 // TODO: consolidate trip-lookup helpers (findTripFile/findTrip/findIdeaFile) into data.js
 // TODO: extract readSections() shared by lock/+server.js and trip/[slug]/chat/+server.js
 
 export async function POST({ request }) {
+  const NAME = getEffectiveConfig().assistantName;
   let destination = '';
   try {
     const body = await request.json();

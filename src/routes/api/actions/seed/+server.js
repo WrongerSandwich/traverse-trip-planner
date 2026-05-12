@@ -4,11 +4,10 @@ import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
-import { config, getEffectiveConfig } from '$lib/server/config.js';
-
-const NAME = config.assistantName;
+import { getEffectiveConfig } from '$lib/server/config.js';
 
 export async function POST({ request }) {
+  const NAME = getEffectiveConfig().assistantName;
   // Optional user-supplied steering prompt. Body is JSON; absence is fine.
   let userPrompt = '';
   try {

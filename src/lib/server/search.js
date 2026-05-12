@@ -1,4 +1,4 @@
-import { config } from './config.js';
+import { getEffectiveConfig } from './config.js';
 import * as anthropicBuiltin from './search/anthropic-builtin.js';
 import * as tavily from './search/tavily.js';
 
@@ -7,9 +7,12 @@ const backends = {
   tavily,
 };
 
+// Resolve the backend per call (not once at module load) so changes saved via
+// the Settings UI to TRAVERSE_SEARCH_PROVIDER take effect on the next request.
 function backend() {
-  const b = backends[config.search.provider];
-  if (!b) throw new Error(`No search backend registered for provider "${config.search.provider}".`);
+  const provider = getEffectiveConfig().search.provider;
+  const b = backends[provider];
+  if (!b) throw new Error(`No search backend registered for provider "${provider}".`);
   return b;
 }
 

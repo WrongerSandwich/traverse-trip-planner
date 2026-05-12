@@ -1,6 +1,33 @@
 <script>
-  import { untrack } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import Logo from '$lib/components/Logo.svelte';
+
+  // The home page sets `:global(html, body) { height: 100%; overflow: hidden }`
+  // in its route stylesheet. SvelteKit doesn't unload route stylesheets on
+  // client-side navigation, so that rule lingers and competes with any CSS
+  // override we put here — load order isn't deterministic enough to rely on.
+  // Set inline styles instead (highest specificity beats any sheet rule),
+  // and restore the previous values on unmount so nav-away is clean.
+  onMount(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      htmlHeight: html.style.height,
+      bodyOverflow: body.style.overflow,
+      bodyHeight: body.style.height,
+    };
+    html.style.overflow = 'auto';
+    html.style.height = 'auto';
+    body.style.overflow = 'auto';
+    body.style.height = 'auto';
+    return () => {
+      html.style.overflow = prev.htmlOverflow;
+      html.style.height = prev.htmlHeight;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.height = prev.bodyHeight;
+    };
+  });
 
   let { data } = $props();
 
@@ -403,15 +430,6 @@
 </div>
 
 <style>
-  /* The home page sets `:global(html, body) { height: 100%; overflow: hidden }`
-     for its fixed map/list layout. Those rules can linger after client-side
-     navigation, so reset them explicitly here — the settings page is a normal
-     scrolling document. */
-  :global(html, body) {
-    height: auto;
-    overflow: auto;
-  }
-
   .page {
     min-height: 100vh;
     background: var(--surface-page);

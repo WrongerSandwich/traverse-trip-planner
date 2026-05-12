@@ -1,8 +1,8 @@
-import { getFeatureAvailability, config } from '$lib/server/config.js';
+import { getFeatureAvailability, getEffectiveConfig } from '$lib/server/config.js';
 
 export function load() {
   return {
     features: getFeatureAvailability(),
-    assistantName: config.assistantName,
+    assistantName: getEffectiveConfig().assistantName,
   };
 }
