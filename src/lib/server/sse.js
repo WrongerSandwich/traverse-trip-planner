@@ -30,6 +30,7 @@ export async function withHeartbeat(fn, send, messages, intervalMs = 5000) {
   let idx = 0;
   const timer = setInterval(() => {
     if (idx < messages.length) send(messages[idx++]);
+    if (idx >= messages.length) clearInterval(timer);
   }, intervalMs);
   try {
     return await fn();

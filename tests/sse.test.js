@@ -36,13 +36,17 @@ describe('withHeartbeat', () => {
     expect(await promise).toBe('done');
   });
 
-  it('stops emitting after messages are exhausted', async () => {
+  it('clears the timer once messages are exhausted', async () => {
     const send = vi.fn();
     let resolve;
     const slow = new Promise((r) => { resolve = r; });
     const promise = withHeartbeat(() => slow, send, ['one'], 5000);
 
-    await vi.advanceTimersByTimeAsync(15000);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(send).toHaveBeenCalledTimes(1);
+
+    // Advance well past another interval — timer should be cleared, no more sends
+    await vi.advanceTimersByTimeAsync(10000);
     expect(send).toHaveBeenCalledTimes(1);
 
     resolve();
@@ -60,12 +64,12 @@ describe('withHeartbeat', () => {
 
   it('clears the timer even when fn rejects', async () => {
     const send = vi.fn();
-    let resolve;
-    const slow = new Promise((_, r) => { resolve = r; });
+    let reject;
+    const slow = new Promise((_, r) => { reject = r; });
     const promise = withHeartbeat(() => slow, send, ['tick'], 5000);
 
     await vi.advanceTimersByTimeAsync(3000);
-    resolve(new Error('boom'));
+    reject(new Error('boom'));
     await expect(promise).rejects.toThrow('boom');
 
     await vi.advanceTimersByTimeAsync(10000);
