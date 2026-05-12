@@ -2,9 +2,11 @@
   import { marked } from 'marked';
   import { untrack } from 'svelte';
   import { invalidateAll, goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import MiniMap from '$lib/components/MiniMap.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import ActionPanel from '$lib/components/ActionPanel.svelte';
+  import RetroModal from '$lib/components/RetroModal.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
@@ -283,13 +285,33 @@
     try {
       const res = await fetch(`/api/complete/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (!res.ok) throw new Error(`Complete failed: ${res.status}`);
-      await goto('/', { invalidateAll: true });
+      // Stay on the trip page (now in completed/) so the retro prompt can fire.
+      await goto(`/trips/${encodeURIComponent(trip._slug)}?just-completed=1`, { invalidateAll: true });
     } catch (err) {
       console.error(err);
       alert("Couldn't mark the trip as completed. The server log may have more detail.");
     } finally {
       completing = false;
     }
+  }
+
+  // ── Retro ──
+  let retroOpen = $state(false);
+  const hasNotes = $derived(typeof sections.notes === 'string' && sections.notes.trim().length > 0);
+
+  onMount(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('just-completed') === '1' && isCompleted && !hasNotes) {
+      retroOpen = true;
+      // Clear the param so a refresh doesn't re-trigger the modal.
+      url.searchParams.delete('just-completed');
+      history.replaceState(history.state, '', url.toString());
+    }
+  });
+
+  async function onRetroSaved() {
+    retroOpen = false;
+    await invalidateAll();
   }
 
   // ── Share ──
@@ -433,6 +455,13 @@
         <div class="callout completed-callout">
           <strong>Completed.</strong>
           This trip is done. All sections are preserved below.
+          {#if !hasNotes && data.features?.retro}
+            <div class="callout-actions">
+              <button class="btn btn-secondary" onclick={() => retroOpen = true}>
+                Add retro
+              </button>
+            </div>
+          {/if}
         </div>
       {:else}
         <div class="callout warn">
@@ -550,6 +579,15 @@
       done={srDone}
       onclose={() => srVisible = false}
       oncancel={srAborter ? cancelSectionResearch : null}
+    />
+  {/if}
+
+  {#if retroOpen}
+    <RetroModal
+      slug={trip._slug}
+      assistantName={data.assistantName}
+      onclose={() => retroOpen = false}
+      onsaved={onRetroSaved}
     />
   {/if}
 

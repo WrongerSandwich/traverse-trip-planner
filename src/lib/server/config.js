@@ -10,6 +10,7 @@ const FEATURE_SLOT = {
   add: 'modelDefault',
   lock: 'modelDefault',
   chat: 'modelDefault',
+  retro: 'modelDefault',
   deepen: 'modelResearch',
 };
 
