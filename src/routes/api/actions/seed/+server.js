@@ -2,7 +2,7 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
-import { sseStream } from '$lib/server/sse.js';
+import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
@@ -57,13 +57,17 @@ national_park: true`;
       ? `Generate 5 new trip ideas. The user has asked specifically for: ${userPrompt}\n\nStill obey the diversity and "would they actually go?" rules — interpret their request through the taste profile, don't override it.`
       : 'Generate 5 new trip ideas.';
 
-    const { text, usage } = await chat({
-      ...getEffectiveConfig().features.seed,
-      label: 'seed',
-      system,
-      maxTokens: 3000,
-      messages: [{ role: 'user', content: userMessage }],
-    });
+    const { text, usage } = await withHeartbeat(
+      () => chat({
+        ...getEffectiveConfig().features.seed,
+        label: 'seed',
+        system,
+        maxTokens: 3000,
+        messages: [{ role: 'user', content: userMessage }],
+      }),
+      send,
+      ['Still drafting…', 'Almost there…']
+    );
 
     const fileRegex = /<file name="([^"]+)">([\s\S]*?)<\/file>/g;
     const files = [];

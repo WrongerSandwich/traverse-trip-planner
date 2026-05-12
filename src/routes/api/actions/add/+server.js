@@ -2,7 +2,7 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
-import { sseStream } from '$lib/server/sse.js';
+import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
@@ -69,13 +69,17 @@ vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
 ---
 </file>`;
 
-    const { text, usage } = await chat({
-      ...getEffectiveConfig().features.add,
-      label: 'add',
-      system,
-      maxTokens: 600,
-      messages: [{ role: 'user', content: `Add a trip idea for: ${destination}` }],
-    });
+    const { text, usage } = await withHeartbeat(
+      () => chat({
+        ...getEffectiveConfig().features.add,
+        label: 'add',
+        system,
+        maxTokens: 600,
+        messages: [{ role: 'user', content: `Add a trip idea for: ${destination}` }],
+      }),
+      send,
+      ['Still thinking…']
+    );
 
 
     const dupMatch = text.match(/<duplicate>([\s\S]*?)<\/duplicate>/);
