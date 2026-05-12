@@ -28,6 +28,30 @@ function extractText(content) {
   return content.filter(b => b.type === 'text').map(b => b.text).join('\n');
 }
 
+// Translate a single content block from the normalized internal format to
+// the Anthropic wire format. Non-image blocks pass through unchanged.
+function translateBlock(block) {
+  if (block.type === 'image') {
+    return {
+      type: 'image',
+      source: { type: 'base64', media_type: block.mediaType, data: block.data },
+    };
+  }
+  return block;
+}
+
+function translateContent(content) {
+  if (!Array.isArray(content)) return content;
+  return content.map(translateBlock);
+}
+
+function translateMessages(messages) {
+  return messages.map(m => {
+    if (!Array.isArray(m.content)) return m;
+    return { ...m, content: translateContent(m.content) };
+  });
+}
+
 function accumUsage(acc, u) {
   if (!u) return acc;
   acc.input += u.input_tokens || 0;
@@ -48,10 +72,10 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
   // loops require synchronous decisions that don't compose cleanly with token
   // streaming. (Lock is the only consumer today; lock has no tools.)
   if (onText && (!apiTools || apiTools.length === 0)) {
-    return streamChat({ client, model, system, messages, maxTokens, signal, onText, usage });
+    return streamChat({ client, model, system, messages: translateMessages(messages), maxTokens, signal, onText, usage });
   }
 
-  let convo = messages.map(m => ({ ...m }));
+  let convo = translateMessages(messages);
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     if (signal?.aborted) throw signal.reason ?? new Error('Aborted');

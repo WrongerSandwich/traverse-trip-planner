@@ -335,6 +335,42 @@
     await invalidateAll();
   }
 
+  // ── Receipts ──
+  let receiptsInput = $state(null);
+  let receiptsStatus = $state('idle'); // 'idle' | 'uploading' | 'done' | 'error'
+  let receiptsLines = $state([]);
+  let receiptsError = $state('');
+
+  function openReceiptPicker() {
+    receiptsInput?.click();
+  }
+
+  async function uploadReceipts(e) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    receiptsStatus = 'uploading';
+    receiptsError = '';
+    receiptsLines = [];
+    const fd = new FormData();
+    for (const f of files) fd.append('image', f);
+    try {
+      const res = await fetch(`/api/actions/receipts/${encodeURIComponent(trip._slug)}`, {
+        method: 'POST', body: fd,
+      });
+      if (!res.ok) throw new Error(await res.text().catch(() => `Upload failed (${res.status})`));
+      const data = await res.json();
+      receiptsLines = data.lines || [];
+      receiptsStatus = 'done';
+      await invalidateAll();
+    } catch (err) {
+      receiptsError = err.message;
+      receiptsStatus = 'error';
+    } finally {
+      // Reset the file input so the same file can be re-selected after an error.
+      if (receiptsInput) receiptsInput.value = '';
+    }
+  }
+
   // ── Share ──
   let shareUrl = $state('');
   let shareBusy = $state(false);
@@ -488,12 +524,39 @@
         <div class="callout completed-callout">
           <strong>Completed.</strong>
           This trip is done. All sections are preserved below.
-          {#if !hasNotes && data.features?.retro}
+          {#if (!hasNotes && data.features?.retro) || data.features?.receipts}
             <div class="callout-actions">
-              <button class="btn btn-secondary" onclick={() => retroOpen = true}>
-                Add retro
-              </button>
+              {#if !hasNotes && data.features?.retro}
+                <button class="btn btn-secondary" onclick={() => retroOpen = true}>
+                  Add retro
+                </button>
+              {/if}
+              {#if data.features?.receipts}
+                <button
+                  class="btn btn-secondary"
+                  onclick={openReceiptPicker}
+                  disabled={receiptsStatus === 'uploading'}
+                >
+                  {receiptsStatus === 'uploading' ? 'Parsing receipts…' : 'Add receipts'}
+                </button>
+                <input
+                  bind:this={receiptsInput}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style="display:none"
+                  onchange={uploadReceipts}
+                />
+              {/if}
             </div>
+          {/if}
+          {#if receiptsStatus === 'done' && receiptsLines.length}
+            <div class="receipts-result">
+              <strong>Added {receiptsLines.length} receipt{receiptsLines.length === 1 ? '' : 's'} to notes.</strong>
+            </div>
+          {/if}
+          {#if receiptsStatus === 'error'}
+            <div class="receipts-error">{receiptsError}</div>
           {/if}
         </div>
       {:else}
@@ -873,6 +936,16 @@
     background: var(--bark-50);
     color: var(--bark-600);
     border-left-color: var(--bark-400);
+  }
+  .receipts-result {
+    margin-top: 0.6rem;
+    font-size: 0.82rem;
+    color: var(--forest-700);
+  }
+  .receipts-error {
+    margin-top: 0.6rem;
+    font-size: 0.82rem;
+    color: var(--embers-600);
   }
 
   .map-strip {

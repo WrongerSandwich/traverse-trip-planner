@@ -26,6 +26,25 @@ function findTool(tools, name) {
   return tools?.find(t => (t.kind === 'anthropic-native' ? t.spec.name : t.name) === name);
 }
 
+// Translate a single content block from the normalized internal format to
+// the OpenAI wire format. Non-image blocks pass through unchanged.
+function translateBlock(block) {
+  if (block.type === 'image') {
+    return {
+      type: 'image_url',
+      image_url: { url: `data:${block.mediaType};base64,${block.data}` },
+    };
+  }
+  return block;
+}
+
+function translateMessages(messages) {
+  return messages.map(m => {
+    if (!Array.isArray(m.content)) return m;
+    return { ...m, content: m.content.map(translateBlock) };
+  });
+}
+
 async function callApi({ apiKey, model, maxTokens, tools, messages, signal }) {
   return withRetry(async () => {
     const res = await fetch(ENDPOINT, {
@@ -67,7 +86,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
   const usage = { input: 0, output: 0, total: 0, turns: 0 };
   let convo = [
     ...(system ? [{ role: 'system', content: system }] : []),
-    ...messages.map(m => ({ role: m.role, content: m.content })),
+    ...translateMessages(messages).map(m => ({ role: m.role, content: m.content })),
   ];
 
   // Streaming path: when onText is set and no tools, pipe deltas through callback.

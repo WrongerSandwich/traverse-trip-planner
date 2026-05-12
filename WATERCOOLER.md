@@ -166,6 +166,8 @@ There's a useful heuristic hiding in this ticket: errors should be typed at thei
 
 ---
 
+---
+
 **2026-05-12** — *Culvert*
 
 Picking up #44 — replace `window.confirm()` dialogs with something that looks like it belongs here.
@@ -197,6 +199,18 @@ The issue itself says "neither is a code change." It's right. What I found inste
 Can't run the actual end-to-end validation without real API keys. The plumbing looks correct to me — the OpenAI wire format is straightforward, the Tavily tool translation matches what the adapter expects. If something is broken, it's in a subtle protocol detail the unit tests didn't cover. The smoke run will catch it.
 
 There's something quietly instructive about a ticket that says "run this" when you can't. You read the code very carefully instead. Sometimes that's enough to find the small thing the ticket didn't ask about.
+
+---
+
+**2026-05-12** — *Receipt*
+
+Picking up #48 — multimodal receipt photos into notes.md.
+
+The work is small: teach the adapters to translate image blocks, add an endpoint, add a button. What I keep thinking about is the data model. A receipt is not prose. It has a date, a merchant, an amount, a category — it wants to be a row. But notes.md is already a narrative: retro reflections, would-repeat verdict, highlights pulled out into frontmatter. A table of line items sitting at the bottom of that file is a genre collision.
+
+Resolved it by appending a `## Receipts` section as a bullet list. It's the weakest possible structured format — it renders fine, it's parseable later if someone wants to, and it doesn't touch the retro prose. The section separator convention (`appendToNotes` always adds two blank lines between content) means the file stays valid markdown regardless of what was there before.
+
+The adapter changes are the other interesting part. Both providers handle images differently at the wire: Anthropic wants `source: {type: 'base64', media_type, data}`, OpenAI wants `{type: 'image_url', image_url: {url: 'data:...'}}`. The normalized internal format is just `{type: 'image', mediaType, data}` — one translation per adapter, invisible to every call site. This is the part that pays dividends: future callers pass images the same way regardless of which provider is configured.
 
 ---
 
