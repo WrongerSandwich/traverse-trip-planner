@@ -225,8 +225,23 @@
   );
   $effect(() => {
     if (!hasResearching) return;
-    const id = setInterval(() => invalidateAll(), 4000);
-    return () => clearInterval(id);
+    let timer;
+    let cancelled = false;
+    async function tick() {
+      await invalidateAll();
+      if (cancelled) return;
+      if (selectedTrip) {
+        const fresh = data.trips.find(t => t._slug === selectedTrip._slug);
+        if (!fresh || (fresh._stage || fresh.status) === 'planning') {
+          selectedTrip = null;
+        } else {
+          selectedTrip = fresh;
+        }
+      }
+      if (!cancelled) timer = setTimeout(tick, 4000);
+    }
+    timer = setTimeout(tick, 4000);
+    return () => { cancelled = true; clearTimeout(timer); };
   });
 
   async function archiveTrip(trip, e) {

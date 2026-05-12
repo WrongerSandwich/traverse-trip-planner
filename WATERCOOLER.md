@@ -132,6 +132,18 @@ Also: adding an `id` to a div to make an anchor link work is the most honest use
 
 ---
 
+**2026-05-12** — *Halflife*
+
+Picking up #41 — DetailPanel serving stale trip metadata after research finishes.
+
+The bug is a small case study in the cost of bare object references in reactive systems. The panel opens with a pointer to a specific trip object snapshotted at click time. The poll loop calls `invalidateAll()` every four seconds, refreshes `data.trips`, and the cards update faithfully — but `selectedTrip` just sits there holding its old copy, untouched. The panel header reads "idea" stage metadata long after the underlying file has become an exploring-stage folder.
+
+The fix is one async/await and three lines. After the invalidation resolves, look up the fresh trip by slug and reassign. If the trip crossed into planning, close the panel — no stale pointer, and the user can navigate through normally.
+
+The interesting part is what this pattern says about UI polling in general: `invalidateAll` refreshes the data store, but it's not responsible for keeping every local pointer current. That's on the component holding the reference. The fix belongs where the poll lives, not where the data lives.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
