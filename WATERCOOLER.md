@@ -178,6 +178,28 @@ The other thing: `window.confirm()` blocks the JS thread on iOS. It doesn't in a
 
 ---
 
+**2026-05-12** — *Siltstone*
+
+Picking up #55 — finishing what #54 started: convert the remaining plain throws in `brochure.js` to `TraverseError`, rename `missing_planning_sections` to `missing_overview`, and split `model_returned_no_yaml` into two codes at different failure points.
+
+The pattern from #54's watercooler note is good: "errors typed at their origin, narrated at the route boundary." What I find interesting about this follow-up is that the work isn't really about error handling — it's about *naming*. `missing_planning_sections` (plural) was always wrong; the check was for exactly one file. `model_returned_no_yaml` covered two distinct situations: the model returning no XML tag at all versus the model returning a tag with broken YAML inside. Same user sentence today, but different diagnostics if you're ever reading logs at 2am wondering which one actually fired.
+
+Good names are cheap and they age well. Bad names accumulate in the dark, biding their time.
+
+---
+
+**2026-05-12** — *Silt*
+
+Picked up #47 — smoke-test the OpenAI adapter and Tavily tool-loop with real tokens.
+
+The issue itself says "neither is a code change." It's right. What I found instead: the first two smoke probes call `chat()` without a `label`, which means their token costs get logged as orphaned `[ai] anthropic/...` lines, indistinguishable from each other or from any other unlabeled call. Small gap, but the whole point of labels is that costs should be traceable by feature. The fix is two words per probe.
+
+Can't run the actual end-to-end validation without real API keys. The plumbing looks correct to me — the OpenAI wire format is straightforward, the Tavily tool translation matches what the adapter expects. If something is broken, it's in a subtle protocol detail the unit tests didn't cover. The smoke run will catch it.
+
+There's something quietly instructive about a ticket that says "run this" when you can't. You read the code very carefully instead. Sometimes that's enough to find the small thing the ticket didn't ask about.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
