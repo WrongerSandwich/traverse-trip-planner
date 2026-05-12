@@ -292,6 +292,20 @@ export function getHome() {
 
 // ── Enrich trips ──
 // TODO: split into enrichWithGeodata() (geocode/image/route I/O) and enrichWithCalculations() (pure transforms); pruneCaches() can be called explicitly after enrichment
+// TODO: standardize null-check pattern in setLocked/toggleStarred/setShared — all should assign parseFrontmatter to a variable before checking, not discard the result
+
+async function geocodeWaypoints(waypoints, trackSet = null) {
+  const wps = Array.isArray(waypoints) ? waypoints : [waypoints];
+  const geocoded = [];
+  for (const wp of wps) {
+    if (trackSet) trackSet.add(wp);
+    const needsFetch = geocodeCache[wp] === undefined;
+    const coord = await geocode(wp);
+    if (needsFetch) await sleep(1100);
+    if (coord) geocoded.push(coord);
+  }
+  return geocoded;
+}
 // 30-second memo on the enriched trip list so rapid-fire page loads (multiple
 // browser tabs, F5 spam) don't re-walk the file system. Mutating endpoints
 // call `invalidateEnrichCache()` to force a refresh.
@@ -341,15 +355,7 @@ export async function enrichTrips() {
 
     // Route waypoints → geocode → OSRM road geometry
     if (trip.waypoints) {
-      const wps = Array.isArray(trip.waypoints) ? trip.waypoints : [trip.waypoints];
-      const geocoded = [];
-      for (const wp of wps) {
-        liveGeocodeKeys.add(wp);
-        const needsFetch = geocodeCache[wp] === undefined;
-        const coord = await geocode(wp);
-        if (needsFetch) await sleep(1100);
-        if (coord) geocoded.push(coord);
-      }
+      const geocoded = await geocodeWaypoints(trip.waypoints, liveGeocodeKeys);
       if (geocoded.length >= 2) {
         liveRouteKeys.add(routeCacheKey(geocoded));
         const route = await fetchRoute(geocoded);
@@ -392,14 +398,7 @@ export async function getTripRoute(slug) {
     if (!existsSync(fp)) continue;
     const fm = parseFrontmatter(readFileSync(fp, 'utf8'));
     if (!fm?.waypoints) return null;
-    const wps = Array.isArray(fm.waypoints) ? fm.waypoints : [fm.waypoints];
-    const geocoded = [];
-    for (const wp of wps) {
-      const needsFetch = geocodeCache[wp] === undefined;
-      const coord = await geocode(wp);
-      if (needsFetch) await sleep(1100);
-      if (coord) geocoded.push(coord);
-    }
+    const geocoded = await geocodeWaypoints(fm.waypoints);
     if (geocoded.length < 2) { flushCaches(); return null; }
     const route = await fetchRoute(geocoded);
     flushCaches();
