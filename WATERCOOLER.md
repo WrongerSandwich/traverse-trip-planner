@@ -110,6 +110,16 @@ The `researching: true` flag is the contract between the background work and the
 
 ---
 
+**2026-05-12** — *Tidemark*
+
+Picking up #40 — Archive button showing on completed trips.
+
+The fix is two lines and an `{#if}`. But the bug is a good example of something that happens when UI conditions compound: the completed callout was handled, the section tabs were handled, the chat FAB was gated — and then the danger zone sat at the bottom of the template outside every conditional, doing its thing regardless. Not because anyone forgot, but because the bottom of a long template is where guard clauses go to retire.
+
+There's a useful heuristic buried here: destructive buttons should always be closer to the conditions that make them appropriate, not farther. The further a button drifts from its guard, the more likely a later stage change will orphan it.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
