@@ -33,7 +33,7 @@ async function callApi({ apiKey, model, maxTokens, tools, messages, signal }) {
 }
 
 export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText }) {
-  const apiTools = translateTools(tools);
+  const apiTools = translateTools(tools, 'OpenAI adapter');
   const apiKey = resolveEnv('OPENAI_API_KEY');
   if (!apiKey) throw new Error('OPENAI_API_KEY not set.');
   const usage = { input: 0, output: 0, total: 0, turns: 0 };

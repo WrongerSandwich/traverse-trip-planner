@@ -2,11 +2,11 @@
 // Both adapters speak the same wire format, so all pure-transformation helpers
 // live here to avoid drift between the two implementations.
 
-export function translateTools(tools) {
+export function translateTools(tools, providerName = 'OpenAI-compatible adapter') {
   if (!tools || tools.length === 0) return undefined;
   return tools.map(t => {
     if (t.kind === 'anthropic-native') {
-      throw new Error(`OpenAI-compatible adapter cannot use anthropic-native tool "${t.spec?.name}". Set TRAVERSE_SEARCH_PROVIDER to a portable backend (e.g. tavily).`);
+      throw new Error(`${providerName} cannot use anthropic-native tool "${t.spec?.name}". Set TRAVERSE_SEARCH_PROVIDER to a portable backend (e.g. tavily).`);
     }
     return {
       type: 'function',
