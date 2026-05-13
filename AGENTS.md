@@ -140,6 +140,14 @@ well-understood reasons.
 - **AI adapter test** → `tests/ai-anthropic.test.js` — `vi.hoisted` +
   class-as-constructor mock for the SDK; covers tool loops and error
   paths.
+- **Endpoint test** → `tests/api-settings.test.js` (POST-only route) or
+  `tests/api-deepen.test.js` / `tests/api-receipts.test.js` /
+  `tests/api-lock.test.js` (richer contracts). Pattern: mock `node:fs`,
+  `@sveltejs/kit`, `$lib/server/ai.js`, and `$lib/server/data.js`; call
+  the route export directly. For SSE routes, mock `$lib/server/sse.js` to
+  run the handler synchronously and collect sent messages into an array.
+  For fire-and-forget paths (deepen), flush the microtask queue with
+  `await new Promise(r => setTimeout(r, 50))` before asserting on cleanup.
 - **Pure-function test** → `tests/share.test.js` or
   `tests/format-usage.test.js` — no mocks, deterministic input/output.
 - **Frontmatter parsing test** → `tests/data-frontmatter.test.js` —
