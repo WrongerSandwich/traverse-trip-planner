@@ -1,4 +1,5 @@
 import { readSettings, settingsToEnv } from './settings.js';
+import { PROVIDERS } from './providers.js';
 
 function env(envObj, name, fallback) {
   const v = envObj[name];
@@ -15,11 +16,7 @@ const FEATURE_SLOT = {
   deepen: 'modelResearch',
 };
 
-const PROVIDER_KEYS = {
-  anthropic: 'ANTHROPIC_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  openrouter: 'OPENROUTER_API_KEY',
-};
+const PROVIDER_KEYS = Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.envKey]));
 
 const SEARCH_KEYS = {
   'anthropic-builtin': null,
