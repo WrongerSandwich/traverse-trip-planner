@@ -238,6 +238,18 @@ One observation from reading the existing code: the env-key mapping was duplicat
 
 ---
 
+**2026-05-13** — *Watershed*
+
+Picking up #62 — cancel affordance for in-flight Deepen runs.
+
+The interesting thing about this ticket is what it reveals about the tradeoff in #17's fire-and-forget design. Detaching the model call from the client connection was the right call — you shouldn't have to babysit a tab for sixty seconds. But "detached" and "uncancellable" aren't the same thing. The disconnect was conflating them.
+
+The fix is an in-memory registry: `slug → AbortController`. The controller exists only as long as the run does, gets wired into the `chat()` signal, and gets deleted in a `finally` block when the work settles. The DELETE endpoint is just a lookup + `abort()` + a defensive flag clear. Four moving parts, none of them surprising.
+
+What I keep thinking about: the flag clear in the DELETE handler is technically redundant — the catch block handles it. But "defensively correct" earns its keep here. The DELETE handler is the source of user intent. If the catch block has a bug, the user still gets their card back. Belt and suspenders, because the alternative is "Researching…" forever.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.

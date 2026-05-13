@@ -214,6 +214,15 @@
     }
   }
 
+  async function cancelDeepen(trip) {
+    try {
+      await fetch(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, { method: 'DELETE' });
+      await invalidateAll();
+    } catch (e) {
+      console.error('[deepen] Cancel failed:', e);
+    }
+  }
+
   async function runDeepen(trip) {
     const ok = await showConfirm({
       title:        `Research "${trip.title || trip._slug}"?`,
@@ -599,6 +608,7 @@
               onbookmark={(e) => toggleBookmark(trip, e)}
               ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
               onpromote={(e) => promoteToPlanning(trip, e)}
+              oncancel={(e) => { e?.stopPropagation(); cancelDeepen(trip); }}
             />
           {:else}
             <div class="empty">

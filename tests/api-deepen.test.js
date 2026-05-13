@@ -64,7 +64,7 @@ vi.mock('$lib/server/config.js', () => ({
   }),
 }));
 
-import { GET, POST } from '../src/routes/api/actions/deepen/[slug]/+server.js';
+import { GET, POST, DELETE } from '../src/routes/api/actions/deepen/[slug]/+server.js';
 
 const IDEA_CONTENT = '---\ntitle: Test Trip\nstatus: idea\ndestination: Testville\n---\nGreat idea.';
 
@@ -191,5 +191,66 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(mockRemoveFrontmatterField).not.toHaveBeenCalled();
     // Only one writeFileSync: the initial flag-set.
     expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('fire-and-forget catch path: clears researching flag when chat() throws AbortError', async () => {
+    mockExistsSync.mockReturnValue(true);
+    const err = new Error('The operation was aborted');
+    err.name = 'AbortError';
+    mockChat.mockRejectedValue(err);
+
+    await POST({ params: { slug: 'test-trip' } });
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(mockRemoveFrontmatterField).toHaveBeenCalledWith(expect.any(String), 'researching');
+    expect(mockWriteFileSync).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── DELETE ─────────────────────────────────────────────────────────────────────
+
+describe('DELETE /api/actions/deepen/[slug]', () => {
+  it('returns 200 even when no in-flight run is registered', async () => {
+    mockExistsSync.mockReturnValue(false);
+    const res = await DELETE({ params: { slug: 'no-such-trip' } });
+    expect(res.status).toBe(200);
+  });
+
+  it('clears orphan researching flag when idea file exists', async () => {
+    mockExistsSync.mockReturnValue(true);
+    const res = await DELETE({ params: { slug: 'stale-trip' } });
+    expect(res.status).toBe(200);
+    expect(mockRemoveFrontmatterField).toHaveBeenCalledWith(expect.any(String), 'researching');
+    expect(mockWriteFileSync).toHaveBeenCalled();
+    expect(mockInvalidateEnrichCache).toHaveBeenCalled();
+  });
+
+  it('returns 200 when idea file does not exist', async () => {
+    mockExistsSync.mockReturnValue(false);
+    const res = await DELETE({ params: { slug: 'gone-trip' } });
+    expect(res.status).toBe(200);
+    expect(mockRemoveFrontmatterField).not.toHaveBeenCalled();
+    expect(mockWriteFileSync).not.toHaveBeenCalled();
+  });
+
+  it('aborts an in-flight run registered by POST', async () => {
+    mockExistsSync.mockReturnValue(true);
+    // chat() hangs indefinitely — simulates an in-flight run
+    let abortSignal;
+    mockChat.mockImplementation(({ signal }) => {
+      abortSignal = signal;
+      return new Promise(() => {}); // never resolves on its own
+    });
+
+    await POST({ params: { slug: 'test-trip' } });
+    // The run is now in-flight; give the event loop a tick to register the controller.
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(abortSignal).toBeDefined();
+    expect(abortSignal.aborted).toBe(false);
+
+    const res = await DELETE({ params: { slug: 'test-trip' } });
+    expect(res.status).toBe(200);
+    expect(abortSignal.aborted).toBe(true);
   });
 });
