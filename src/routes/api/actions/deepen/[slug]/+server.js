@@ -13,6 +13,9 @@ import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
+// Maps slug → AbortController for in-flight doResearch() calls.
+const cancelRegistry = new Map();
+
 function findIdeaFile(slug) {
   const p = join(ROOT, 'ideas', `${slug}.md`);
   return existsSync(p) ? p : null;
@@ -23,7 +26,7 @@ function parseSection(text, tag) {
   return m?.[1]?.trim() ?? null;
 }
 
-async function doResearch(slug, ideaPath) {
+async function doResearch(slug, ideaPath, signal) {
   const ideaContent = readFileSync(ideaPath, 'utf8');
   const homeMd = readHomeMd();
   const homeFm = parseFrontmatter(homeMd) || {};
@@ -83,6 +86,7 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
     system,
     messages: [{ role: 'user', content: 'Research this trip thoroughly using web search.' }],
     tools: [searchToolDefinition()],
+    signal,
     onToolCall: async ({ name, input }) => {
       if (name === 'web_search') return search({ query: input.query });
       return null;
@@ -156,16 +160,40 @@ export async function POST({ params }) {
 
   // Fire and forget — intentionally not awaited. The research runs to
   // completion on the server even if the client closes the tab.
-  doResearch(slug, ideaPath).catch(err => {
-    console.error(`[deepen] ${slug} failed:`, err);
-    try {
-      if (existsSync(ideaPath)) {
-        const c = readFileSync(ideaPath, 'utf8');
-        writeFileSync(ideaPath, removeFrontmatterField(c, 'researching'));
-        invalidateEnrichCache();
-      }
-    } catch { /* ignore */ }
-  });
+  const controller = new AbortController();
+  cancelRegistry.set(slug, controller);
+  doResearch(slug, ideaPath, controller.signal)
+    .catch(err => {
+      console.error(`[deepen] ${slug} failed:`, err);
+      try {
+        if (existsSync(ideaPath)) {
+          const c = readFileSync(ideaPath, 'utf8');
+          writeFileSync(ideaPath, removeFrontmatterField(c, 'researching'));
+          invalidateEnrichCache();
+        }
+      } catch { /* ignore */ }
+    })
+    .finally(() => cancelRegistry.delete(slug));
 
   return new Response(null, { status: 202 });
+}
+
+export async function DELETE({ params }) {
+  const { slug } = params;
+
+  const controller = cancelRegistry.get(slug);
+  if (controller) controller.abort();
+
+  // Defensively clear the researching flag regardless of whether a run was
+  // registered — handles stale flags left by crashes or missed cleanups.
+  const ideaPath = findIdeaFile(slug);
+  if (ideaPath) {
+    try {
+      const c = readFileSync(ideaPath, 'utf8');
+      writeFileSync(ideaPath, removeFrontmatterField(c, 'researching'));
+      invalidateEnrichCache();
+    } catch { /* ignore */ }
+  }
+
+  return new Response(null, { status: 200 });
 }

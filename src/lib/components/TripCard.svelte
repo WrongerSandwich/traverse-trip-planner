@@ -3,7 +3,7 @@
   import Logo from './Logo.svelte';
   import { tripColor } from '$lib/utils/colors.js';
 
-  let { trip, starred = false, onclick, onhover, onleave, onbookmark, ondeepen, onpromote } = $props();
+  let { trip, starred = false, onclick, onhover, onleave, onbookmark, ondeepen, onpromote, oncancel } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
   const isExploring = $derived((trip.status || trip._stage) === 'exploring');
@@ -101,9 +101,14 @@
 
     {#if isIdea}
       {#if trip.researching === true || trip.researching === 'true'}
-        <button class="btn btn-secondary btn-compact card-cta researching-label" disabled aria-busy="true">
-          Researching…
-        </button>
+        <div class="researching-row">
+          <button class="btn btn-secondary btn-compact researching-label" disabled aria-busy="true">
+            Researching…
+          </button>
+          {#if oncancel}
+            <button class="cancel-btn" onclick={oncancel} title="Cancel research">✕ cancel</button>
+          {/if}
+        </div>
       {:else}
         <button
           class="btn btn-secondary btn-compact card-cta"
@@ -347,8 +352,30 @@
   /* Card-level secondary CTA — small inline action button on idea/exploring cards. */
   .card-cta { position: relative; z-index: 2; align-self: flex-start; }
 
-  /* Disabled in-progress indicator replaces Research → while running. */
+  /* Researching row: disabled indicator + cancel link side by side. */
+  .researching-row {
+    position: relative;
+    z-index: 2;
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
   .researching-label { opacity: 0.65; }
+  .cancel-btn {
+    position: relative;
+    z-index: 2;
+    background: none;
+    border: none;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 0.1rem 0.2rem;
+    transition: color 0.12s;
+    line-height: 1;
+  }
+  .cancel-btn:hover { color: var(--sunset-800); }
 
   @media (max-width: 768px) {
     /* Shorter thumbnail — saves ~50px per card */
