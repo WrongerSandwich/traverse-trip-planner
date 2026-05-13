@@ -150,6 +150,32 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(mockInvalidateEnrichCache).toHaveBeenCalledTimes(2);
   });
 
+  it('fire-and-forget success path: writes to exploring/ and unlinks the idea file', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockChat.mockResolvedValue({
+      text: '<overview_prose>prose</overview_prose><route_md>route</route_md>',
+      usage: {},
+    });
+
+    await POST({ params: { slug: 'test-trip' } });
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockMkdirSync).toHaveBeenCalledWith(
+      expect.stringContaining('exploring/test-trip'),
+      { recursive: true }
+    );
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('overview.md'),
+      expect.stringContaining('prose')
+    );
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('route.md'),
+      expect.stringContaining('route')
+    );
+    expect(mockUnlinkSync).toHaveBeenCalled();
+    expect(mockInvalidateEnrichCache).toHaveBeenCalled();
+  });
+
   it('fire-and-forget catch path: no cleanup when idea file is gone by the time catch runs', async () => {
     // existsSync: true for the initial file check, false in the catch block.
     mockExistsSync
