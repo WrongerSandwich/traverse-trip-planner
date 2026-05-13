@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // --- fs mock ---
 const { mockExistsSync, mockReadFileSync, mockWriteFileSync, mockMkdirSync, mockUnlinkSync } = vi.hoisted(() => ({
@@ -216,13 +216,23 @@ describe('DELETE /api/actions/deepen/[slug]', () => {
     expect(res.status).toBe(200);
   });
 
-  it('clears orphan researching flag when idea file exists', async () => {
+  it('clears orphan researching flag when idea file exists and flag is set', async () => {
     mockExistsSync.mockReturnValue(true);
+    mockParseFrontmatter.mockReturnValue({ title: 'Test Trip', status: 'idea', researching: 'true' });
     const res = await DELETE({ params: { slug: 'stale-trip' } });
     expect(res.status).toBe(200);
     expect(mockRemoveFrontmatterField).toHaveBeenCalledWith(expect.any(String), 'researching');
     expect(mockWriteFileSync).toHaveBeenCalled();
     expect(mockInvalidateEnrichCache).toHaveBeenCalled();
+  });
+
+  it('does not write when idea file exists but researching flag is absent', async () => {
+    mockExistsSync.mockReturnValue(true);
+    // Default parseFrontmatter has no researching flag.
+    const res = await DELETE({ params: { slug: 'clean-trip' } });
+    expect(res.status).toBe(200);
+    expect(mockWriteFileSync).not.toHaveBeenCalled();
+    expect(mockInvalidateEnrichCache).not.toHaveBeenCalled();
   });
 
   it('returns 200 when idea file does not exist', async () => {
@@ -233,17 +243,24 @@ describe('DELETE /api/actions/deepen/[slug]', () => {
     expect(mockWriteFileSync).not.toHaveBeenCalled();
   });
 
+  let resolveChat;
+  afterEach(() => {
+    // Let any hanging chat() promise settle so .finally() clears cancelRegistry.
+    resolveChat?.({ text: '', usage: {} });
+    resolveChat = undefined;
+  });
+
   it('aborts an in-flight run registered by POST', async () => {
     mockExistsSync.mockReturnValue(true);
-    // chat() hangs indefinitely — simulates an in-flight run
+    // chat() hangs until resolved in afterEach — simulates an in-flight run.
     let abortSignal;
     mockChat.mockImplementation(({ signal }) => {
       abortSignal = signal;
-      return new Promise(() => {}); // never resolves on its own
+      return new Promise(resolve => { resolveChat = resolve; });
     });
 
     await POST({ params: { slug: 'test-trip' } });
-    // The run is now in-flight; give the event loop a tick to register the controller.
+    // Give the event loop a tick to register the controller.
     await new Promise(r => setTimeout(r, 10));
 
     expect(abortSignal).toBeDefined();

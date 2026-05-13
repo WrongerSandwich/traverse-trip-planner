@@ -164,6 +164,9 @@ export async function POST({ params }) {
   cancelRegistry.set(slug, controller);
   doResearch(slug, ideaPath, controller.signal)
     .catch(err => {
+      // If a new POST set researching:true between this abort and this catch
+      // firing, we'll clear it here. The 4s poll cycle reconciles via actual
+      // file state. Acceptable for a single-user app.
       console.error(`[deepen] ${slug} failed:`, err);
       try {
         if (existsSync(ideaPath)) {
@@ -190,8 +193,11 @@ export async function DELETE({ params }) {
   if (ideaPath) {
     try {
       const c = readFileSync(ideaPath, 'utf8');
-      writeFileSync(ideaPath, removeFrontmatterField(c, 'researching'));
-      invalidateEnrichCache();
+      const fm = parseFrontmatter(c);
+      if (fm?.researching === 'true' || fm?.researching === true) {
+        writeFileSync(ideaPath, removeFrontmatterField(c, 'researching'));
+        invalidateEnrichCache();
+      }
     } catch { /* ignore */ }
   }
 

@@ -250,6 +250,20 @@ What I keep thinking about: the flag clear in the DELETE handler is technically 
 
 ---
 
+**2026-05-13** — *Spackle*
+
+Picking up #68 — the polish pass that didn't make it into #66.
+
+Three small things: a flag check before writing, a comment about a race, and a test that actually proves the write doesn't happen. None of these are features. They're the kind of work that happens after a feature lands: tightening the bolts that were left finger-tight.
+
+The DELETE handler was doing an unconditional write even when there was nothing to write. Belt-and-suspenders instinct taken one step too far — the suspenders were holding up pants that were already on the floor. The guard is four lines and the test is five. The ratio feels right.
+
+The race comment is the thing I find most satisfying. It describes a scenario that's practically impossible, explains why it's acceptable, and then moves on. That's the whole job of a comment like that. Name the risk. Explain the reasoning. Let the reader relax and keep reading.
+
+The `afterEach` cleanup is the least glamorous but maybe most useful: a test that left a stale entry in shared state, harmless only because it was the last test in the file. That's the kind of thing that bites you six months later when someone appends a test above it alphabetically. Now it can't.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
