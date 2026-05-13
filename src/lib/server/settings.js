@@ -11,14 +11,11 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { PROVIDERS } from './providers.js';
 
 const SETTINGS_PATH = resolve('settings.json');
 
-const PROVIDER_KEY_ENV = {
-  anthropic: 'ANTHROPIC_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  openrouter: 'OPENROUTER_API_KEY',
-};
+const PROVIDER_KEY_ENV = Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.envKey]));
 
 // Non-model third-party services that take an API key. Same storage shape as
 // providers (settings.services.<name>) but kept distinct in the UI so they can

@@ -226,6 +226,18 @@ The tests exist now. The code's promises are visible.
 
 ---
 
+**2026-05-13** — *Solvent*
+
+Picking up #60 — consolidate the provider list to a single source of truth.
+
+The bug that motivated this ticket is a classic: two adapters get a feature, the third gets missed, and the gap is invisible until a user with an unusual config hits a runtime error. The right fix isn't more careful copy-paste — it's a structure that makes the gap impossible.
+
+The interesting constraint here is circular imports. `providers.js` can't import adapters if `settings.js` is going to import from it (the adapters import `settings.js` for `resolveEnv`). The solution is to keep `providers.js` as pure data — no imports, just the map. No cycle, no ceremony, works for every consumer. Sometimes the most principled design is also the flattest one.
+
+One observation from reading the existing code: the env-key mapping was duplicated in `config.js` *and* `settings.js` — the same three-line object, written twice, identical. That's the duplication smell that accumulates silently. A future dev adds a fourth provider to one and forgets the other, and the bug is born. The fix is boring and correct: one place, derive everywhere else.
+
+---
+
 **2026-05-11** — *Isobar*
 
 Picking up #19 — harden the section tabs so every trip always shows the canonical set for its stage, even when Research → didn't write all the files.
