@@ -1,49 +1,10 @@
 import { withRetry } from '../retry.js';
 import { adapterErrorFromResponse, logAdapterError } from '../errors.js';
 import { resolveEnv } from '../settings.js';
+import { translateTools, findTool, translateMessages, accumUsage } from './openai-compat.js';
 
 const MAX_TOOL_TURNS = 20;
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
-
-function translateTools(tools) {
-  if (!tools || tools.length === 0) return undefined;
-  return tools.map(t => {
-    if (t.kind === 'anthropic-native') {
-      throw new Error(`OpenAI adapter cannot use anthropic-native tool "${t.spec?.name}". Set TRAVERSE_SEARCH_PROVIDER to a portable backend (e.g. tavily).`);
-    }
-    return {
-      type: 'function',
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.inputSchema,
-      },
-    };
-  });
-}
-
-function findTool(tools, name) {
-  return tools?.find(t => (t.kind === 'anthropic-native' ? t.spec.name : t.name) === name);
-}
-
-// Translate a single content block from the normalized internal format to
-// the OpenAI wire format. Non-image blocks pass through unchanged.
-function translateBlock(block) {
-  if (block.type === 'image') {
-    return {
-      type: 'image_url',
-      image_url: { url: `data:${block.mediaType};base64,${block.data}` },
-    };
-  }
-  return block;
-}
-
-function translateMessages(messages) {
-  return messages.map(m => {
-    if (!Array.isArray(m.content)) return m;
-    return { ...m, content: m.content.map(translateBlock) };
-  });
-}
 
 async function callApi({ apiKey, model, maxTokens, tools, messages, signal }) {
   return withRetry(async () => {
@@ -69,14 +30,6 @@ async function callApi({ apiKey, model, maxTokens, tools, messages, signal }) {
     }
     return res.json();
   }, { label: `openai ${model}`, signal });
-}
-
-function accumUsage(acc, u) {
-  if (!u) return acc;
-  acc.input += u.prompt_tokens || 0;
-  acc.output += u.completion_tokens || 0;
-  acc.turns += 1;
-  return acc;
 }
 
 export async function chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText }) {
