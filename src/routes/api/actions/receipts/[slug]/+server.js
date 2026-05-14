@@ -3,6 +3,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { ROOT, appendToNotes } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
 export const _promise = {
@@ -72,6 +73,7 @@ Rules:
   ];
 
   let text;
+  let receiptUsage;
   try {
     const result = await chat({
       ...getEffectiveConfig().features.receipts,
@@ -81,6 +83,7 @@ Rules:
       messages: [{ role: 'user', content: userContent }],
     });
     text = result.text;
+    receiptUsage = result.usage;
   } catch (err) {
     const msg = err.message ?? '';
     const isVision = /vision|image|multimodal|does not support/i.test(msg);
@@ -106,5 +109,5 @@ Rules:
     return new Response(`Failed to append to notes.md: ${err.message}`, { status: 500 });
   }
 
-  return json({ lines });
+  return json({ lines, tokens: usageToTokens(receiptUsage) });
 }

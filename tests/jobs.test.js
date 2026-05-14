@@ -196,6 +196,22 @@ describe('completeJob', () => {
     completeJob('deepen', 'never-started');
     expect(listJobs()).toHaveLength(0);
   });
+
+  it('records tokens from { tokens } directly (spec-preferred shape)', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+    completeJob('deepen', 'marfa-tx', { tokens: 400 });
+    const events = listRecentEvents();
+    expect(events[0].tokens).toBe(400);
+  });
+
+  it('records tokens from normalized adapter usage shape { input, output }', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+    completeJob('deepen', 'marfa-tx', { usage: { input: 150, output: 250 } });
+    const events = listRecentEvents();
+    expect(events[0].tokens).toBe(400);
+  });
 });
 
 describe('failJob', () => {

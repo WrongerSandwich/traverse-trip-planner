@@ -3,6 +3,7 @@ import { join } from 'path';
 import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache } from '$lib/server/data.js';
 import { sseStream } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { TraverseError } from '$lib/server/errors.js';
@@ -118,6 +119,6 @@ ${guidance}
 
     invalidateEnrichCache();
     send(formatUsage(usage));
-    send(`Done — ${section} section is ready.`, true);
+    send(`Done — ${section} section is ready.`, true, usageToTokens(usage));
   });
 }

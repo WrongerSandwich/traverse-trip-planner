@@ -1,6 +1,7 @@
 import { sseStream } from '$lib/server/sse.js';
 import { prepareBrochure } from '$lib/server/brochure.js';
 import { formatUsage } from '$lib/server/ai.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { TraverseError } from '$lib/server/errors.js';
 
 export const _promise = {
@@ -41,6 +42,6 @@ export function POST({ params, request }) {
     }
 
     if (usage) send(formatUsage(usage));
-    send('Done — brochure prepared. Open the brochure page to review.', true);
+    send('Done — brochure prepared. Open the brochure page to review.', true, usageToTokens(usage));
   });
 }

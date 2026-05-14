@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
 export const _promise = {
@@ -94,5 +95,5 @@ Your output format:
     writePlanningSection(trip.dir, section, trip.frontmatter, content);
   }
 
-  return json({ reply, updates, usage });
+  return json({ reply, updates, usage, tokens: usageToTokens(usage) });
 }
