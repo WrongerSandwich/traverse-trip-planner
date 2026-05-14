@@ -3,7 +3,6 @@
   import TripCard from '$lib/components/TripCard.svelte';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import DetailPanel from '$lib/components/DetailPanel.svelte';
-  import ActionPanel from '$lib/components/ActionPanel.svelte';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import Logo from '$lib/components/Logo.svelte';
@@ -27,6 +26,15 @@
     const label = Number.isInteger(rounded) ? `${rounded}k` : `${rounded.toFixed(1)}k`;
     return `${label} tokens`;
   }
+
+  // Mirror of src/routes/api/actions/add/+server.js _promise export.
+  // Keep in sync if the endpoint promise object changes.
+  const ADD_PROMISE = {
+    verb: 'Add destination',
+    produces: 'One new trip idea file for the named destination, after checking for duplicates and road-trip viability.',
+    time_seconds: 12,
+    tokens_range: [400, 800],
+  };
 
   // Mirror of src/routes/api/actions/seed/+server.js _promise export.
   // Keep in sync if the endpoint promise object changes.
@@ -205,20 +213,12 @@
   let seedLog        = $state([]);       // SSE messages for the <details> disclosure
   let seedToastTimer = $state(null);     // setTimeout handle for success auto-dismiss
 
-  // ── Add-destination ActionPanel (Pin) ─────────────────────────────────────
-  // Stays on ActionPanel until #78 lands.
-  let actionVisible  = $state(false);
-  let actionRunning  = $state(false);
-  let actionMessages = $state([]);
-  let actionDone     = $state(false);
-  let actionAborter  = $state(null); // AbortController for the running action, null if none cancellable
-
-  function cancelAction() {
-    if (actionAborter) {
-      actionAborter.abort();
-      actionPush('Cancelled by user.', true);
-    }
-  }
+  // ── Add destination — Instant Inline (docs/ai-workflow-ux.md §2.1) ────────
+  let addStatus     = $state('idle');   // 'idle' | 'in_progress' | 'success' | 'failure'
+  let addErrorCode  = $state(null);
+  let addTokens     = $state(null);
+  let addLog        = $state([]);       // SSE messages for the <details> disclosure
+  let addToastTimer = $state(null);     // setTimeout handle for success auto-dismiss
 
   // Seed prompt form (the + button opens this instead of running immediately
   // — gives the user a chance to steer the batch and is its own confirmation).
@@ -228,11 +228,6 @@
   // Pin form — add one specific destination
   let pinFormOpen = $state(false);
   let pinDest     = $state('');
-
-  function actionPush(msg, done = false) {
-    actionMessages = [...actionMessages, msg];
-    if (done) { actionDone = true; actionRunning = false; }
-  }
 
   async function runSeed() {
     if (seedStatus === 'in_progress') return;
@@ -287,23 +282,57 @@
   }
 
   async function runPin() {
-    if (actionRunning) return;
+    if (addStatus === 'in_progress') return;
     const dest = pinDest.trim();
     if (!dest) return;
-    pinFormOpen = false;
-    pinDest     = '';
-    actionVisible = true;
-    actionRunning = true;
-    actionDone    = false;
-    actionMessages = [];
+
+    // Clear any pending toast auto-dismiss timer from a previous run
+    if (addToastTimer) { clearTimeout(addToastTimer); addToastTimer = null; }
+
+    addStatus    = 'in_progress';
+    addErrorCode = null;
+    addTokens    = null;
+    addLog       = [];
+
     try {
-      await streamAction('/api/actions/add', ({ msg, done }) => {
-        actionPush(msg, done);
-        if (done) invalidateAll();
+      await streamAction('/api/actions/add', (event) => {
+        const { msg, done, tokens } = event;
+        addLog = [...addLog, msg];
+
+        if (done) {
+          const isErr = typeof msg === 'string' && msg.toLowerCase().startsWith('error');
+          if (isErr) {
+            addStatus    = 'failure';
+            addErrorCode = 'network_error';
+          } else {
+            addStatus = 'success';
+            addTokens = tokens ?? null;
+            invalidateAll();
+            // Close the form and reset input on success
+            pinFormOpen = false;
+            pinDest     = '';
+            // Auto-dismiss the success state after 4s
+            addToastTimer = setTimeout(() => {
+              addStatus     = 'idle';
+              addToastTimer = null;
+            }, 4000);
+          }
+        }
       }, { destination: dest });
     } catch (e) {
-      actionPush(`Error: ${e.message}`, true);
+      addLog       = [...addLog, `Error: ${e.message}`];
+      addStatus    = 'failure';
+      addErrorCode = 'network_error';
     }
+  }
+
+  function retryAdd() {
+    runPin();
+  }
+
+  function dismissAddError() {
+    addStatus    = 'idle';
+    addErrorCode = null;
   }
 
   async function cancelDeepen(trip) {
@@ -470,14 +499,10 @@
     </div>
   {/if}
 
-  {#if actionVisible}
-    <ActionPanel
-      messages={actionMessages}
-      running={actionRunning}
-      done={actionDone}
-      onclose={() => actionVisible = false}
-      oncancel={actionAborter ? cancelAction : null}
-    />
+  {#if addStatus === 'success'}
+    <div class="seed-toast" role="status" aria-live="polite">
+      ✓ Idea added{addTokens ? ` · ${formatTokens(addTokens)}` : ''}
+    </div>
   {/if}
 
   <header bind:this={headerEl}>
@@ -535,20 +560,28 @@
           {/if}
         </button>
       </PromiseTooltip>
-      <button
-        class="seed-btn pin-btn"
-        class:open={pinFormOpen}
-        onclick={() => { pinFormOpen = !pinFormOpen; seedFormOpen = false; }}
-        disabled={actionRunning || !data.features?.add}
-        title={data.features?.add ? 'Add a specific destination' : 'No default model configured — edit your .env to enable this'}
-        aria-label="Add destination"
-        aria-expanded={pinFormOpen}
-      >
-        <svg width="12" height="15" viewBox="0 0 12 15" aria-hidden="true">
-          <path d="M6 0C3.24 0 1 2.24 1 5c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5z" fill="currentColor" opacity="0.85"/>
-          <circle cx="6" cy="5" r="1.8" fill="var(--surface-raised)"/>
-        </svg>
-      </button>
+      <PromiseTooltip promise={ADD_PROMISE}>
+        <button
+          class="seed-btn pin-btn"
+          class:open={pinFormOpen}
+          class:add-running={addStatus === 'in_progress'}
+          onclick={() => { if (addStatus !== 'in_progress') { pinFormOpen = !pinFormOpen; seedFormOpen = false; } }}
+          disabled={addStatus === 'in_progress' || !data.features?.add}
+          title={data.features?.add ? null : 'No default model configured — edit your .env to enable this'}
+          aria-label={addStatus === 'in_progress' ? 'Adding…' : 'Add destination'}
+          aria-expanded={pinFormOpen}
+          aria-busy={addStatus === 'in_progress'}
+        >
+          {#if addStatus === 'in_progress'}
+            <span class="seed-spinner" aria-hidden="true"></span>
+          {:else}
+            <svg width="12" height="15" viewBox="0 0 12 15" aria-hidden="true">
+              <path d="M6 0C3.24 0 1 2.24 1 5c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5z" fill="currentColor" opacity="0.85"/>
+              <circle cx="6" cy="5" r="1.8" fill="var(--surface-raised)"/>
+            </svg>
+          {/if}
+        </button>
+      </PromiseTooltip>
     </div>
   </header>
 
@@ -617,7 +650,7 @@
   {/if}
 
   {#if pinFormOpen}
-    <div class="seed-backdrop" onclick={() => pinFormOpen = false} role="presentation"></div>
+    <div class="seed-backdrop" onclick={() => { if (addStatus !== 'in_progress') pinFormOpen = false; }} role="presentation"></div>
     <div class="seed-popover" role="dialog" aria-label="Add specific destination">
       <label class="seed-label" for="pin-dest">
         Add a destination
@@ -629,16 +662,55 @@
         class="pin-input"
         bind:value={pinDest}
         placeholder="e.g. Marfa, TX or Boundary Waters, MN"
+        disabled={addStatus === 'in_progress'}
         use:focusOnMount
         onkeydown={e => {
           if (e.key === 'Enter') { e.preventDefault(); runPin(); }
-          if (e.key === 'Escape') { pinFormOpen = false; }
+          if (e.key === 'Escape') { if (addStatus !== 'in_progress') pinFormOpen = false; }
         }}
       />
       <div class="seed-actions">
-        <button class="btn btn-tertiary btn-compact" onclick={() => { pinFormOpen = false; pinDest = ''; }}>Cancel</button>
-        <button class="btn btn-primary btn-compact" onclick={runPin}>Add →</button>
+        <button
+          class="btn btn-tertiary btn-compact"
+          onclick={() => { pinFormOpen = false; pinDest = ''; }}
+          disabled={addStatus === 'in_progress'}
+        >Cancel</button>
+        <button
+          class="btn btn-primary btn-compact"
+          class:is-busy={addStatus === 'in_progress'}
+          onclick={runPin}
+          disabled={addStatus === 'in_progress'}
+          aria-busy={addStatus === 'in_progress'}
+        >
+          {#if addStatus === 'in_progress'}
+            <span class="btn-spinner" aria-hidden="true"></span>
+            Adding…
+          {:else}
+            Add →
+          {/if}
+        </button>
       </div>
+
+      {#if addLog.length > 0}
+        <details class="seed-log-disclosure">
+          <summary>Details</summary>
+          <div class="seed-log">
+            {#each addLog as line}
+              <div class="seed-log-line">{line}</div>
+            {/each}
+          </div>
+        </details>
+      {/if}
+
+      {#if addStatus === 'failure'}
+        <div class="seed-error" role="alert">
+          <p class="seed-error-sentence">{failureSentence(addErrorCode)}</p>
+          <div class="seed-error-actions">
+            <button class="btn btn-primary btn-compact" onclick={retryAdd}>Retry</button>
+            <button class="btn btn-tertiary btn-compact" onclick={dismissAddError}>Dismiss</button>
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -880,6 +952,7 @@
   .pin-btn { color: var(--sunset-600); border-color: var(--sunset-800); }
   .pin-btn:hover:not(:disabled) { border-color: var(--sunset-600); color: var(--sunset-200); background: var(--sunset-800); }
   .pin-btn.open { background: var(--sunset-800); border-color: var(--sunset-600); color: var(--sunset-200); }
+  .pin-btn.add-running { border-color: var(--sunset-600); opacity: 1; }
 
   /* ── Seed prompt popover ── */
   .seed-backdrop {
