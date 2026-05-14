@@ -4,12 +4,38 @@
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import DetailPanel from '$lib/components/DetailPanel.svelte';
   import ActionPanel from '$lib/components/ActionPanel.svelte';
+  import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import { streamAction } from '$lib/utils/action.js';
   import { goto, invalidateAll } from '$app/navigation';
   import { browser } from '$app/environment';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
+  import { failureSentence } from '$lib/errors-registry.js';
+
+  // Local copy of formatTokens — avoids pulling workflow-status/core.js into
+  // the page bundle (which transitively imports $lib/server/errors.js and
+  // triggers SvelteKit's server-boundary guard). The canonical implementation
+  // lives in src/lib/workflow-status/core.js.
+  function formatTokens(count) {
+    if (count == null) return null;
+    if (typeof count !== 'number' || !Number.isFinite(count)) return null;
+    if (count <= 0) return null;
+    if (count < 1000) return `${Math.round(count)} tokens`;
+    const k = count / 1000;
+    const rounded = Math.round(k * 10) / 10;
+    const label = Number.isInteger(rounded) ? `${rounded}k` : `${rounded.toFixed(1)}k`;
+    return `${label} tokens`;
+  }
+
+  // Mirror of src/routes/api/actions/seed/+server.js _promise export.
+  // Keep in sync if the endpoint promise object changes.
+  const SEED_PROMISE = {
+    verb: 'Generate ideas',
+    produces: 'Five new road-trip idea files tailored to your taste profile and steering prompt.',
+    time_seconds: 20,
+    tokens_range: [1500, 3000],
+  };
 
   let { data } = $props();
 
@@ -171,7 +197,16 @@
   // On mobile use scroll position to drive map focus; mouse hover wins on desktop
   const effectiveHovered = $derived(hoveredSlug || (isMobile ? scrollFocusedSlug : null));
 
-  // ── In-browser actions ──
+  // ── Seed — Instant Inline (docs/ai-workflow-ux.md §2.1) ──────────────────
+  // Status drives both the header button spinner and the popover submit button.
+  let seedStatus     = $state('idle');   // 'idle' | 'in_progress' | 'success' | 'failure'
+  let seedErrorCode  = $state(null);
+  let seedTokens     = $state(null);
+  let seedLog        = $state([]);       // SSE messages for the <details> disclosure
+  let seedToastTimer = $state(null);     // setTimeout handle for success auto-dismiss
+
+  // ── Add-destination ActionPanel (Pin) ─────────────────────────────────────
+  // Stays on ActionPanel until #78 lands.
   let actionVisible  = $state(false);
   let actionRunning  = $state(false);
   let actionMessages = $state([]);
@@ -200,22 +235,55 @@
   }
 
   async function runSeed() {
-    if (actionRunning) return;
+    if (seedStatus === 'in_progress') return;
     const prompt = seedPrompt.trim();
     seedFormOpen = false;
     seedPrompt   = '';
-    actionVisible = true;
-    actionRunning = true;
-    actionDone    = false;
-    actionMessages = [];
+
+    // Clear any pending toast auto-dismiss timer from a previous run
+    if (seedToastTimer) { clearTimeout(seedToastTimer); seedToastTimer = null; }
+
+    seedStatus    = 'in_progress';
+    seedErrorCode = null;
+    seedTokens    = null;
+    seedLog       = [];
+
     try {
-      await streamAction('/api/actions/seed', ({ msg, done }) => {
-        actionPush(msg, done);
-        if (done) invalidateAll();
+      await streamAction('/api/actions/seed', (event) => {
+        const { msg, done, tokens } = event;
+        seedLog = [...seedLog, msg];
+
+        if (done) {
+          const isErr = typeof msg === 'string' && msg.toLowerCase().startsWith('error');
+          if (isErr) {
+            seedStatus    = 'failure';
+            seedErrorCode = 'network_error';
+          } else {
+            seedStatus = 'success';
+            seedTokens = tokens ?? null;
+            invalidateAll();
+            // Auto-dismiss the success state after 4s
+            seedToastTimer = setTimeout(() => {
+              seedStatus     = 'idle';
+              seedToastTimer = null;
+            }, 4000);
+          }
+        }
       }, { prompt });
     } catch (e) {
-      actionPush(`Error: ${e.message}`, true);
+      seedLog       = [...seedLog, `Error: ${e.message}`];
+      seedStatus    = 'failure';
+      seedErrorCode = 'network_error';
     }
+  }
+
+  function retrySeed() {
+    runSeed();
+  }
+
+  function dismissSeedError() {
+    seedStatus    = 'idle';
+    seedErrorCode = null;
   }
 
   async function runPin() {
@@ -396,6 +464,12 @@
 </script>
 
 <div class="page">
+  {#if seedStatus === 'success'}
+    <div class="seed-toast" role="status" aria-live="polite">
+      ✓ 5 ideas added{seedTokens ? ` · ${formatTokens(seedTokens)}` : ''}
+    </div>
+  {/if}
+
   {#if actionVisible}
     <ActionPanel
       messages={actionMessages}
@@ -440,19 +514,27 @@
           <span class="count-label">destination{data.trips.length !== 1 ? 's' : ''}</span>
         {/if}
       </div>
-      <button
-        class="seed-btn"
-        class:open={seedFormOpen}
-        onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
-        disabled={actionRunning || !data.features?.seed}
-        title={data.features?.seed ? 'Add 5 new trip ideas' : 'No default model configured — edit your .env to enable this'}
-        aria-label="Add trips"
-        aria-expanded={seedFormOpen}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-      </button>
+      <PromiseTooltip promise={SEED_PROMISE}>
+        <button
+          class="seed-btn"
+          class:open={seedFormOpen}
+          class:seed-running={seedStatus === 'in_progress'}
+          onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
+          disabled={seedStatus === 'in_progress' || !data.features?.seed}
+          title={data.features?.seed ? null : 'No default model configured — edit your .env to enable this'}
+          aria-label={seedStatus === 'in_progress' ? 'Generating ideas…' : 'Add trips'}
+          aria-expanded={seedFormOpen}
+          aria-busy={seedStatus === 'in_progress'}
+        >
+          {#if seedStatus === 'in_progress'}
+            <span class="seed-spinner" aria-hidden="true"></span>
+          {:else}
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          {/if}
+        </button>
+      </PromiseTooltip>
       <button
         class="seed-btn pin-btn"
         class:open={pinFormOpen}
@@ -482,6 +564,7 @@
         bind:value={seedPrompt}
         placeholder="e.g. fall colors within 4 hours, or scenic byways with quirky small towns"
         rows="3"
+        disabled={seedStatus === 'in_progress'}
         use:focusOnMount
         onkeydown={e => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); runSeed(); }
@@ -489,9 +572,47 @@
         }}
       ></textarea>
       <div class="seed-actions">
-        <button class="btn btn-tertiary btn-compact" onclick={() => { seedFormOpen = false; seedPrompt = ''; }}>Cancel</button>
-        <button class="btn btn-primary btn-compact" onclick={runSeed}>Generate 5 →</button>
+        <button
+          class="btn btn-tertiary btn-compact"
+          onclick={() => { seedFormOpen = false; seedPrompt = ''; }}
+          disabled={seedStatus === 'in_progress'}
+        >Cancel</button>
+        <button
+          class="btn btn-primary btn-compact"
+          class:is-busy={seedStatus === 'in_progress'}
+          onclick={runSeed}
+          disabled={seedStatus === 'in_progress'}
+          aria-busy={seedStatus === 'in_progress'}
+        >
+          {#if seedStatus === 'in_progress'}
+            <span class="btn-spinner" aria-hidden="true"></span>
+            Generating…
+          {:else}
+            Generate 5 →
+          {/if}
+        </button>
       </div>
+
+      {#if seedLog.length > 0}
+        <details class="seed-log-disclosure">
+          <summary>Details</summary>
+          <div class="seed-log">
+            {#each seedLog as line}
+              <div class="seed-log-line">{line}</div>
+            {/each}
+          </div>
+        </details>
+      {/if}
+
+      {#if seedStatus === 'failure'}
+        <div class="seed-error" role="alert">
+          <p class="seed-error-sentence">{failureSentence(seedErrorCode)}</p>
+          <div class="seed-error-actions">
+            <button class="btn btn-primary btn-compact" onclick={retrySeed}>Retry</button>
+            <button class="btn btn-tertiary btn-compact" onclick={dismissSeedError}>Dismiss</button>
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -741,6 +862,20 @@
   }
   .seed-btn.open svg { transform: rotate(45deg); }
   .seed-btn svg { transition: transform 0.18s; }
+
+  /* Instant Inline: spinner inside the header seed button while running */
+  @keyframes seed-spin { to { transform: rotate(360deg); } }
+  .seed-spinner {
+    width: 12px; height: 12px;
+    border: 1.5px solid var(--forest-600);
+    border-top-color: var(--bone-400);
+    border-radius: 50%;
+    animation: seed-spin 0.8s linear infinite;
+    display: block;
+    flex-shrink: 0;
+  }
+  .seed-btn.seed-running { border-color: var(--forest-400); opacity: 1; }
+
   .pin-btn svg { transform: none !important; }
   .pin-btn { color: var(--sunset-600); border-color: var(--sunset-800); }
   .pin-btn:hover:not(:disabled) { border-color: var(--sunset-600); color: var(--sunset-200); background: var(--sunset-800); }
@@ -803,7 +938,95 @@
   }
   .pin-input:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
   .seed-actions {
-    display: flex; gap: 0.5rem; justify-content: flex-end;
+    display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center;
+  }
+
+  /* Instant Inline: spinner inside the Generate 5 button */
+  .btn-spinner {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: seed-spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.2rem;
+    flex-shrink: 0;
+  }
+  .btn.is-busy { opacity: 0.75; cursor: not-allowed; }
+
+  /* SSE log disclosure — power-user details, collapsed by default */
+  .seed-log-disclosure {
+    margin-top: 0.35rem;
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+  }
+  .seed-log-disclosure summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.72rem;
+    color: var(--text-tertiary);
+    list-style: none;
+    padding: 0.15rem 0;
+    user-select: none;
+  }
+  .seed-log-disclosure summary::-webkit-details-marker { display: none; }
+  .seed-log {
+    margin-top: 0.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    max-height: 140px;
+    overflow-y: auto;
+    padding: 0.35rem 0.5rem;
+    background: var(--surface-page);
+    border: 1px solid var(--bone-400);
+    border-radius: 4px;
+  }
+  .seed-log-line { line-height: 1.45; }
+
+  /* Inline failure envelope */
+  .seed-error {
+    margin-top: 0.4rem;
+    padding: 0.5rem 0.65rem;
+    background: var(--sunset-50, #fff5f0);
+    border: 1px solid var(--embers-600, #c0392b);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .seed-error-sentence {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+  }
+  .seed-error-actions {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  /* Success toast — fixed top-right, auto-dismisses after 4s */
+  .seed-toast {
+    position: fixed;
+    top: 1rem;
+    right: 1.5rem;
+    background: var(--forest-800);
+    color: var(--bone-200);
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    z-index: 200;
+    pointer-events: none;
+    animation: toast-in 0.18s ease;
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
   header h1 {
