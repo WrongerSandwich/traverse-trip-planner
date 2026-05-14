@@ -1,3 +1,23 @@
+// Ambient Background workflow: Deepen (research an idea into exploring stage).
+//
+// Contract (docs/ai-workflow-ux.md §2.3, §6):
+// - assertNotRunning('deepen', slug) → 409 Conflict if already in flight.
+// - startJob('deepen', slug, { est_seconds }) registers the job and writes
+//   `running: 'deepen'` to the idea's frontmatter (standard per-trip badge
+//   picks this up automatically). Replaces the old ad-hoc `researching: true`
+//   flag.
+// - POST returns 202 Accepted immediately. The user is free to navigate away.
+// - The background worker forwards the AbortController signal from the job
+//   handle into chat() so /api/jobs/cancel can interrupt the model call.
+//   On AbortError: swallow — cancelJob() already wrote the failure event.
+// - On success: completeJob('deepen', slug, { tokens }).
+// - On failure: failJob('deepen', slug, { code, message }).
+//
+// DELETE handler: thin shim that calls cancelJob('deepen', slug).
+// The old per-slug cancelRegistry Map and the ad-hoc `researching` flag
+// writes are fully removed — jobs.js now owns both concerns.
+
+import { json } from '@sveltejs/kit';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import {
@@ -5,13 +25,13 @@ import {
   readHomeMd,
   parseFrontmatter,
   parseFrontmatterFields,
-  setFrontmatterField,
-  removeFrontmatterField,
   invalidateEnrichCache,
 } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
+import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
+import { TraverseError } from '$lib/server/errors.js';
 
 export const _promise = {
   verb: 'Research trip',
@@ -19,9 +39,6 @@ export const _promise = {
   time_seconds: 90,
   tokens_range: [4000, 8000],
 };
-
-// Maps slug → AbortController for in-flight doResearch() calls.
-const cancelRegistry = new Map();
 
 function findIdeaFile(slug) {
   const p = join(ROOT, 'ideas', `${slug}.md`);
@@ -31,6 +48,18 @@ function findIdeaFile(slug) {
 function parseSection(text, tag) {
   const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
   return m?.[1]?.trim() ?? null;
+}
+
+function isAbort(err) {
+  if (!err) return false;
+  return err.name === 'AbortError' || err.code === 'ABORT_ERR';
+}
+
+function tokensFromUsage(usage) {
+  if (!usage) return 0;
+  const input = usage.input_tokens ?? usage.input ?? 0;
+  const output = usage.output_tokens ?? usage.output ?? 0;
+  return input + output;
 }
 
 async function doResearch(slug, ideaPath, signal) {
@@ -117,8 +146,6 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
     travelers: homeFm.travelers ?? '[you]',
     pet_sitter_needed: String(homeFm.pets_need_sitter ?? 'false'),
   };
-  // Drop the temporary in-progress flag from the promoted overview.
-  delete merged.researching;
 
   const fmLines = Object.entries(merged)
     .map(([k, v]) => `${k}: ${Array.isArray(v) ? `[${v.join(', ')}]` : v}`)
@@ -129,14 +156,16 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
   mkdirSync(dir, { recursive: true });
 
   writeFileSync(join(dir, 'overview.md'), overviewContent);
-  if (routeMd)    writeFileSync(join(dir, 'route.md'),     routeMd     + '\n');
-  if (stopsMd)    writeFileSync(join(dir, 'stops.md'),     stopsMd     + '\n');
+  if (routeMd)     writeFileSync(join(dir, 'route.md'),     routeMd     + '\n');
+  if (stopsMd)     writeFileSync(join(dir, 'stops.md'),     stopsMd     + '\n');
   if (logisticsMd) writeFileSync(join(dir, 'logistics.md'), logisticsMd + '\n');
 
   unlinkSync(ideaPath);
   invalidateEnrichCache();
 
   console.log(`[deepen] ${fm.title || slug}: research complete. ${formatUsage(usage)}`);
+
+  return { usage };
 }
 
 export function GET({ params }) {
@@ -150,63 +179,42 @@ export async function POST({ params }) {
   const ideaPath = findIdeaFile(slug);
   if (!ideaPath) return new Response('Not found', { status: 404 });
 
-  const content = readFileSync(ideaPath, 'utf8');
-  const fm = parseFrontmatter(content);
-
-  // Best-effort concurrent-click guard. Two POSTs arriving before either
-  // writes the flag can both pass — acceptable for a single-user app.
-  if (fm?.researching === 'true' || fm?.researching === true) {
-    return new Response(JSON.stringify({ error: 'Already researching' }), {
-      status: 409,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  // Already running? Return 409 so the trigger UI can react.
+  try {
+    assertNotRunning('deepen', slug);
+  } catch (err) {
+    if (err instanceof TraverseError && err.code === 'already_running') {
+      return json({ code: 'already_running', message: err.message }, { status: 409 });
+    }
+    throw err;
   }
 
-  writeFileSync(ideaPath, setFrontmatterField(content, 'researching', 'true'));
-  invalidateEnrichCache();
+  // Register the in-flight job. startJob writes `running: 'deepen'` to
+  // frontmatter (standard per-trip badge reads this). The AbortController
+  // signal flows into chat() so /api/jobs/cancel can interrupt mid-run.
+  const job = startJob('deepen', slug, { est_seconds: _promise.time_seconds });
 
-  // Fire and forget — intentionally not awaited. The research runs to
-  // completion on the server even if the client closes the tab.
-  const controller = new AbortController();
-  cancelRegistry.set(slug, controller);
-  doResearch(slug, ideaPath, controller.signal)
-    .catch(err => {
-      // If a new POST set researching:true between this abort and this catch
-      // firing, we'll clear it here. The 4s poll cycle reconciles via actual
-      // file state. Acceptable for a single-user app.
-      console.error(`[deepen] ${slug} failed:`, err);
-      try {
-        if (existsSync(ideaPath)) {
-          const c = readFileSync(ideaPath, 'utf8');
-          writeFileSync(ideaPath, removeFrontmatterField(c, 'researching'));
-          invalidateEnrichCache();
-        }
-      } catch { /* ignore */ }
+  // Fire-and-forget. Errors that aren't AbortError are recorded via failJob.
+  // An AbortError means cancelJob() already wrote the failure event — do not
+  // call failJob a second time.
+  doResearch(slug, ideaPath, job.controller.signal)
+    .then((result) => {
+      completeJob('deepen', slug, { tokens: tokensFromUsage(result?.usage) });
     })
-    .finally(() => cancelRegistry.delete(slug));
+    .catch((err) => {
+      if (isAbort(err)) return; // cancelJob() owns the failure event
+      const code = err instanceof TraverseError ? err.code : 'unknown';
+      failJob('deepen', slug, { code, message: err?.message ?? 'Unknown error' });
+    });
 
   return new Response(null, { status: 202 });
 }
 
 export async function DELETE({ params }) {
   const { slug } = params;
-
-  const controller = cancelRegistry.get(slug);
-  if (controller) controller.abort();
-
-  // Defensively clear the researching flag regardless of whether a run was
-  // registered — handles stale flags left by crashes or missed cleanups.
-  const ideaPath = findIdeaFile(slug);
-  if (ideaPath) {
-    try {
-      const c = readFileSync(ideaPath, 'utf8');
-      const fm = parseFrontmatter(c);
-      if (fm?.researching === 'true' || fm?.researching === true) {
-        writeFileSync(ideaPath, removeFrontmatterField(c, 'researching'));
-        invalidateEnrichCache();
-      }
-    } catch { /* ignore */ }
-  }
-
+  // Delegate entirely to jobs.js — it aborts the in-flight controller and
+  // clears the `running:` flag. No need to touch cancelRegistry (removed) or
+  // the `researching:` flag (replaced by `running:`).
+  cancelJob('deepen', slug);
   return new Response(null, { status: 200 });
 }

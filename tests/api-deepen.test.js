@@ -64,9 +64,35 @@ vi.mock('$lib/server/config.js', () => ({
   }),
 }));
 
+// --- jobs mock (standardized Ambient Background registry) ---
+const {
+  mockAssertNotRunning, mockStartJob, mockCompleteJob, mockFailJob, mockCancelJob,
+} = vi.hoisted(() => ({
+  mockAssertNotRunning: vi.fn(),
+  mockStartJob: vi.fn(),
+  mockCompleteJob: vi.fn(),
+  mockFailJob: vi.fn(),
+  mockCancelJob: vi.fn(),
+}));
+
+vi.mock('$lib/server/jobs.js', () => ({
+  assertNotRunning: mockAssertNotRunning,
+  startJob: mockStartJob,
+  completeJob: mockCompleteJob,
+  failJob: mockFailJob,
+  cancelJob: mockCancelJob,
+}));
+
+import { TraverseError } from '../src/lib/server/errors.js';
 import { GET, POST, DELETE } from '../src/routes/api/actions/deepen/[slug]/+server.js';
 
 const IDEA_CONTENT = '---\ntitle: Test Trip\nstatus: idea\ndestination: Testville\n---\nGreat idea.';
+
+// A fake job handle with an AbortController — mirrors what startJob() returns.
+function makeJobHandle() {
+  const controller = new AbortController();
+  return { workflow: 'deepen', slug: 'test-trip', startedAt: Date.now(), controller, opts: {} };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -77,8 +103,11 @@ beforeEach(() => {
   mockParseFrontmatterFields.mockReturnValue({});
   mockSetFrontmatterField.mockImplementation((content, field, value) => `${content}\n${field}: ${value}`);
   mockRemoveFrontmatterField.mockImplementation((content, field) => content);
-  // Default chat: resolves (so fire-and-forget tests can control rejection separately).
-  mockChat.mockResolvedValue({ text: '<overview_prose>prose</overview_prose>', usage: {} });
+  // Default: assertNotRunning does nothing (not running), startJob returns a handle.
+  mockAssertNotRunning.mockReturnValue(undefined);
+  mockStartJob.mockReturnValue(makeJobHandle());
+  // Default chat: resolves with minimal valid response.
+  mockChat.mockResolvedValue({ text: '<overview_prose>prose</overview_prose>', usage: { input_tokens: 100, output_tokens: 50 } });
 });
 
 // ── GET ────────────────────────────────────────────────────────────────────────
@@ -106,48 +135,55 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns 409 when researching flag is already set (string "true")', async () => {
+  it('returns 409 with already_running code when assertNotRunning throws', async () => {
     mockExistsSync.mockReturnValue(true);
-    mockParseFrontmatter.mockReturnValue({ title: 'Test', researching: 'true' });
+    mockAssertNotRunning.mockImplementation(() => {
+      throw new TraverseError('already_running', 'deepen already running for test-trip');
+    });
     const res = await POST({ params: { slug: 'test-trip' } });
     expect(res.status).toBe(409);
     const body = await res.json();
-    expect(body.error).toMatch(/already researching/i);
+    expect(body.code).toBe('already_running');
   });
 
-  it('returns 409 when researching flag is boolean true', async () => {
+  it('calls assertNotRunning with workflow=deepen and the slug', async () => {
     mockExistsSync.mockReturnValue(true);
-    mockParseFrontmatter.mockReturnValue({ title: 'Test', researching: true });
-    const res = await POST({ params: { slug: 'test-trip' } });
-    expect(res.status).toBe(409);
+    await POST({ params: { slug: 'test-trip' } });
+    expect(mockAssertNotRunning).toHaveBeenCalledWith('deepen', 'test-trip');
   });
 
-  it('returns 202 and sets researching flag on first POST', async () => {
+  it('calls startJob with workflow=deepen, slug, and est_seconds option', async () => {
     mockExistsSync.mockReturnValue(true);
-    const res = await POST({ params: { slug: 'test-trip' } });
-    expect(res.status).toBe(202);
-    expect(mockSetFrontmatterField).toHaveBeenCalledWith(IDEA_CONTENT, 'researching', 'true');
-    expect(mockWriteFileSync).toHaveBeenCalled();
-    expect(mockInvalidateEnrichCache).toHaveBeenCalled();
+    await POST({ params: { slug: 'test-trip' } });
+    expect(mockStartJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({ est_seconds: expect.any(Number) }));
   });
 
-  it('fire-and-forget catch path: clears researching flag when doResearch fails', async () => {
+  it('returns 202 Accepted on first POST', async () => {
     mockExistsSync.mockReturnValue(true);
-    mockChat.mockRejectedValue(new Error('network timeout'));
-
     const res = await POST({ params: { slug: 'test-trip' } });
     expect(res.status).toBe(202);
+  });
 
-    // Let the fire-and-forget promise chain settle.
-    await new Promise(resolve => setTimeout(resolve, 50));
+  it('does NOT write researching:true — uses startJob instead', async () => {
+    mockExistsSync.mockReturnValue(true);
+    await POST({ params: { slug: 'test-trip' } });
+    // setFrontmatterField should NOT be called with 'researching'
+    const calls = mockSetFrontmatterField.mock.calls;
+    const researchingCall = calls.find(([, field]) => field === 'researching');
+    expect(researchingCall).toBeUndefined();
+  });
 
-    expect(mockRemoveFrontmatterField).toHaveBeenCalledWith(
-      expect.any(String),
-      'researching'
-    );
-    // writeFileSync: once to set the flag, once to clear it.
-    expect(mockWriteFileSync).toHaveBeenCalledTimes(2);
-    expect(mockInvalidateEnrichCache).toHaveBeenCalledTimes(2);
+  it('fire-and-forget success path: calls completeJob with tokens', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockChat.mockResolvedValue({
+      text: '<overview_prose>prose</overview_prose><route_md>route</route_md>',
+      usage: { input_tokens: 200, output_tokens: 100 },
+    });
+
+    await POST({ params: { slug: 'test-trip' } });
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockCompleteJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({ tokens: 300 }));
   });
 
   it('fire-and-forget success path: writes to exploring/ and unlinks the idea file', async () => {
@@ -173,101 +209,67 @@ describe('POST /api/actions/deepen/[slug]', () => {
       expect.stringContaining('route')
     );
     expect(mockUnlinkSync).toHaveBeenCalled();
-    expect(mockInvalidateEnrichCache).toHaveBeenCalled();
   });
 
-  it('fire-and-forget catch path: no cleanup when idea file is gone by the time catch runs', async () => {
-    // existsSync: true for the initial file check, false in the catch block.
-    mockExistsSync
-      .mockReturnValueOnce(true)  // findIdeaFile in POST
-      .mockReturnValueOnce(false); // existsSync(ideaPath) in catch block
-    mockChat.mockRejectedValue(new Error('boom'));
+  it('fire-and-forget failure path: calls failJob with error code', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockChat.mockRejectedValue(new Error('network timeout'));
 
     await POST({ params: { slug: 'test-trip' } });
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(r => setTimeout(r, 50));
 
-    // removeFrontmatterField and the second writeFileSync should NOT be called
-    // because existsSync returned false in the catch block.
-    expect(mockRemoveFrontmatterField).not.toHaveBeenCalled();
-    // Only one writeFileSync: the initial flag-set.
-    expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
+    expect(mockFailJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({ code: expect.any(String) }));
   });
 
-  it('fire-and-forget catch path: clears researching flag when chat() throws AbortError', async () => {
+  it('fire-and-forget abort path: swallows AbortError without calling failJob', async () => {
     mockExistsSync.mockReturnValue(true);
     const err = new Error('The operation was aborted');
     err.name = 'AbortError';
     mockChat.mockRejectedValue(err);
 
     await POST({ params: { slug: 'test-trip' } });
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(r => setTimeout(r, 50));
 
-    expect(mockRemoveFrontmatterField).toHaveBeenCalledWith(expect.any(String), 'researching');
-    expect(mockWriteFileSync).toHaveBeenCalledTimes(2);
+    // cancelJob owns the failure event; the catch in the worker must NOT call failJob
+    expect(mockFailJob).not.toHaveBeenCalled();
+  });
+
+  it('passes AbortController signal from job handle into chat()', async () => {
+    mockExistsSync.mockReturnValue(true);
+    const handle = makeJobHandle();
+    mockStartJob.mockReturnValue(handle);
+
+    let capturedSignal;
+    mockChat.mockImplementation(({ signal }) => {
+      capturedSignal = signal;
+      return Promise.resolve({ text: '<overview_prose>p</overview_prose>', usage: {} });
+    });
+
+    await POST({ params: { slug: 'test-trip' } });
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(capturedSignal).toBe(handle.controller.signal);
   });
 });
 
 // ── DELETE ─────────────────────────────────────────────────────────────────────
 
 describe('DELETE /api/actions/deepen/[slug]', () => {
-  it('returns 200 even when no in-flight run is registered', async () => {
-    mockExistsSync.mockReturnValue(false);
-    const res = await DELETE({ params: { slug: 'no-such-trip' } });
-    expect(res.status).toBe(200);
-  });
-
-  it('clears orphan researching flag when idea file exists and flag is set', async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockParseFrontmatter.mockReturnValue({ title: 'Test Trip', status: 'idea', researching: 'true' });
-    const res = await DELETE({ params: { slug: 'stale-trip' } });
-    expect(res.status).toBe(200);
-    expect(mockRemoveFrontmatterField).toHaveBeenCalledWith(expect.any(String), 'researching');
-    expect(mockWriteFileSync).toHaveBeenCalled();
-    expect(mockInvalidateEnrichCache).toHaveBeenCalled();
-  });
-
-  it('does not write when idea file exists but researching flag is absent', async () => {
-    mockExistsSync.mockReturnValue(true);
-    // Default parseFrontmatter has no researching flag.
-    const res = await DELETE({ params: { slug: 'clean-trip' } });
-    expect(res.status).toBe(200);
-    expect(mockWriteFileSync).not.toHaveBeenCalled();
-    expect(mockInvalidateEnrichCache).not.toHaveBeenCalled();
-  });
-
-  it('returns 200 when idea file does not exist', async () => {
-    mockExistsSync.mockReturnValue(false);
-    const res = await DELETE({ params: { slug: 'gone-trip' } });
-    expect(res.status).toBe(200);
-    expect(mockRemoveFrontmatterField).not.toHaveBeenCalled();
-    expect(mockWriteFileSync).not.toHaveBeenCalled();
-  });
-
-  let resolveChat;
-  afterEach(() => {
-    // Let any hanging chat() promise settle so .finally() clears cancelRegistry.
-    resolveChat?.({ text: '', usage: {} });
-    resolveChat = undefined;
-  });
-
-  it('aborts an in-flight run registered by POST', async () => {
-    mockExistsSync.mockReturnValue(true);
-    // chat() hangs until resolved in afterEach — simulates an in-flight run.
-    let abortSignal;
-    mockChat.mockImplementation(({ signal }) => {
-      abortSignal = signal;
-      return new Promise(resolve => { resolveChat = resolve; });
-    });
-
-    await POST({ params: { slug: 'test-trip' } });
-    // Give the event loop a tick to register the controller.
-    await new Promise(r => setTimeout(r, 10));
-
-    expect(abortSignal).toBeDefined();
-    expect(abortSignal.aborted).toBe(false);
-
+  it('returns 200 and calls cancelJob', async () => {
     const res = await DELETE({ params: { slug: 'test-trip' } });
     expect(res.status).toBe(200);
-    expect(abortSignal.aborted).toBe(true);
+    expect(mockCancelJob).toHaveBeenCalledWith('deepen', 'test-trip');
+  });
+
+  it('does not reference cancelRegistry (legacy mechanism is gone)', async () => {
+    // If cancelRegistry were still in the module, cancelJob would not be the
+    // primary cancel mechanism. This test verifies that after DELETE, cancelJob
+    // was called — implying jobs.js owns cancellation.
+    mockExistsSync.mockReturnValue(true);
+    const res = await DELETE({ params: { slug: 'stale-trip' } });
+    expect(res.status).toBe(200);
+    expect(mockCancelJob).toHaveBeenCalledWith('deepen', 'stale-trip');
+    // Should NOT be calling removeFrontmatterField directly — that's jobs.js's job
+    expect(mockRemoveFrontmatterField).not.toHaveBeenCalled();
   });
 });
