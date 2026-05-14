@@ -143,7 +143,16 @@ export function completeJob(workflow, slug, result = {}) {
   jobs.delete(key);
 
   const extras = { last_run_success_at: new Date().toISOString() };
-  const tokens = (result?.usage?.input_tokens ?? 0) + (result?.usage?.output_tokens ?? 0);
+  // Accept { tokens } directly (spec-preferred), or extract from usage in either
+  // the raw Anthropic shape { input_tokens, output_tokens } or the normalized
+  // adapter shape { input, output }.
+  let tokens = 0;
+  if (typeof result?.tokens === 'number') {
+    tokens = result.tokens;
+  } else if (result?.usage) {
+    tokens = (result.usage.input_tokens ?? result.usage.input ?? 0)
+           + (result.usage.output_tokens ?? result.usage.output ?? 0);
+  }
   if (tokens > 0) extras.last_run_tokens = String(tokens);
   clearRunningFlag(slug, extras);
 
