@@ -15,3 +15,6 @@ home.md
 # Vite/dev logs
 *.log
 /tmp/
+
+# Brainstorming companion sessions
+.superpowers/
