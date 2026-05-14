@@ -1,6 +1,7 @@
 <script>
   import OverviewMap from '$lib/components/OverviewMap.svelte';
   import TripCard from '$lib/components/TripCard.svelte';
+  import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import DetailPanel from '$lib/components/DetailPanel.svelte';
   import ActionPanel from '$lib/components/ActionPanel.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
@@ -8,8 +9,31 @@
   import { streamAction } from '$lib/utils/action.js';
   import { goto, invalidateAll } from '$app/navigation';
   import { browser } from '$app/environment';
+  import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
 
   let { data } = $props();
+
+  // ── Background jobs polling (10s interval) ──
+  // Fetches GET /api/jobs once and distributes the filtered subset to each
+  // card via filterJobsForSlug(). Stops/starts cleanly with the component.
+  let allJobs = $state([]);
+
+  $effect(() => {
+    if (!browser) return;
+    let cancelled = false;
+    async function fetchJobs() {
+      try {
+        const res = await fetch('/api/jobs');
+        if (!cancelled && res.ok) {
+          const body = await res.json();
+          allJobs = body.jobs ?? [];
+        }
+      } catch { /* network blip — keep stale state */ }
+    }
+    fetchJobs();
+    const timer = setInterval(fetchJobs, 10_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  });
 
   // Focuses the popover input on mount. Used via `use:focusOnMount` instead
   // of the HTML autofocus attribute — autofocus's a11y warning applies to
@@ -602,6 +626,7 @@
           {#each trips as trip (trip._slug)}
             <TripCard {trip}
               starred={isStarred(trip)}
+              jobs={filterJobsForSlug(allJobs, trip._slug)}
               onclick={() => openTrip(trip)}
               onhover={() => hoveredSlug = trip._slug}
               onleave={() => hoveredSlug = null}

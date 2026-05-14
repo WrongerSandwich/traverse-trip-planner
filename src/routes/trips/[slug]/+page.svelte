@@ -8,12 +8,37 @@
   import ActionPanel from '$lib/components/ActionPanel.svelte';
   import RetroModal from '$lib/components/RetroModal.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
   import { streamAction } from '$lib/utils/action.js';
+  import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
+  import { browser } from '$app/environment';
 
   let { data } = $props();
+
+  // ── Background jobs polling (10s interval) for the per-trip badge ──
+  let allJobs = $state([]);
+
+  $effect(() => {
+    if (!browser) return;
+    let cancelled = false;
+    async function fetchJobs() {
+      try {
+        const res = await fetch('/api/jobs');
+        if (!cancelled && res.ok) {
+          const body = await res.json();
+          allJobs = body.jobs ?? [];
+        }
+      } catch { /* network blip — keep stale state */ }
+    }
+    fetchJobs();
+    const timer = setInterval(fetchJobs, 10_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  });
+
+  const tripJobs = $derived(filterJobsForSlug(allJobs, trip?._slug ?? ''));
 
   const SECTION_LABELS = {
     overview: 'Overview',
@@ -470,6 +495,11 @@
       {/if}
       {#if trip?._cost}<span class="cost">{trip._cost}</span>{/if}
     </div>
+    {#if tripJobs.length > 0}
+      <div class="header-job-badge">
+        <TripJobBadge jobs={tripJobs} />
+      </div>
+    {/if}
   </header>
 
   {#if trip?._image}
@@ -786,6 +816,12 @@
     align-items: center;
     gap: 0.9rem;
     flex-wrap: wrap;
+  }
+
+  /* Per-trip job badge inside the page header. Pushes to the right of the meta
+     block; wraps gracefully on small screens thanks to flex-wrap on the header. */
+  .header-job-badge {
+    margin-left: auto;
   }
 
   .back {
