@@ -1,8 +1,11 @@
 <script>
+  import PromiseBody from './PromiseBody.svelte';
+
   let {
     open = $bindable(false),
     title = '',
     body = '',
+    promise = null,
     confirmLabel = 'Confirm',
     danger = false,
     onconfirm,
@@ -75,6 +78,11 @@
       {#if body}
         <p class="modal-desc" id="confirm-body">{body}</p>
       {/if}
+      {#if promise}
+        <div class="promise-wrap" id={!body ? 'confirm-body' : undefined}>
+          <PromiseBody {promise} />
+        </div>
+      {/if}
     </div>
     <div class="modal-actions">
       <button class="btn btn-tertiary" bind:this={cancelBtn} onclick={cancel}>Cancel</button>
@@ -129,6 +137,10 @@
     color: var(--text-secondary);
     margin: 0;
     line-height: 1.55;
+  }
+
+  .promise-wrap {
+    margin-top: 0.5rem;
   }
 
   .modal-actions {
