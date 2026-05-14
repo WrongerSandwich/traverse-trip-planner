@@ -1,9 +1,10 @@
 <script>
   import MiniMap from './MiniMap.svelte';
   import Logo from './Logo.svelte';
+  import TripJobBadge from './TripJobBadge.svelte';
   import { tripColor } from '$lib/utils/colors.js';
 
-  let { trip, starred = false, onclick, onhover, onleave, onbookmark, ondeepen, onpromote, oncancel } = $props();
+  let { trip, starred = false, jobs = [], onclick, onhover, onleave, onbookmark, ondeepen, onpromote, oncancel } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
   const isExploring = $derived((trip.status || trip._stage) === 'exploring');
@@ -123,6 +124,12 @@
       <button class="btn btn-secondary btn-compact card-cta" onclick={onpromote} title="Move into Planning">
         Start planning →
       </button>
+    {/if}
+
+    {#if jobs.length > 0}
+      <div class="badge-row">
+        <TripJobBadge {jobs} />
+      </div>
     {/if}
 
     <div class="footer">
@@ -351,6 +358,13 @@
 
   /* Card-level secondary CTA — small inline action button on idea/exploring cards. */
   .card-cta { position: relative; z-index: 2; align-self: flex-start; }
+
+  /* Per-trip job badge container — sits above the footer, below CTAs. */
+  .badge-row {
+    position: relative;
+    z-index: 2;
+    align-self: flex-start;
+  }
 
   /* Researching row: disabled indicator + cancel link side by side. */
   .researching-row {
