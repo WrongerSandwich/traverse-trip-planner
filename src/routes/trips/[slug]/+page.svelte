@@ -13,9 +13,6 @@
   import { failureSentence, ERROR_REGISTRY } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
-  import AffordanceButtons from '$lib/workflow-status/AffordanceButtons.svelte';
-  import { formatTokens } from '$lib/utils/formatTokens.js';
-  import { failureSentence } from '$lib/errors-registry.js';
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
   import StreamBanner from '$lib/workflow-status/StreamBanner.svelte';
   import { tripColor } from '$lib/utils/colors.js';
