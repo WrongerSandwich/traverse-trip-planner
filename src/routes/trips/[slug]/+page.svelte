@@ -9,14 +9,13 @@
   import RetroModal from '$lib/components/RetroModal.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
-  import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import AffordanceButtons from '$lib/workflow-status/AffordanceButtons.svelte';
+  import { failureSentence, ERROR_REGISTRY } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
-  import { failureSentence } from '$lib/errors-registry.js';
+  import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
   import StreamBanner from '$lib/workflow-status/StreamBanner.svelte';
   import { tripColor } from '$lib/utils/colors.js';
-  import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
   import { streamAction } from '$lib/utils/action.js';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
@@ -207,10 +206,21 @@
   }
 
   // ── AI chat ──
+  // Mirrors _promise from the chat route — consumed by PromiseTooltip on the Send button.
+  const CHAT_PROMISE = {
+    verb: 'Ask Field Guide',
+    produces: 'A conversational reply and any updated planning sections written directly to disk.',
+    time_seconds: 20,
+    tokens_range: [2000, 6000],
+  };
+
   let chatOpen = $state(false);
-  let chatMessages = $state([]); // [{role: 'user'|'assistant', content: '...'}]
+  let chatMessages = $state([]); // [{role: 'user'|'assistant', content: '...', tokens?: number}]
   let chatInput = $state('');
   let chatBusy = $state(false);
+  let chatErrorCode = $state(null);    // TraverseError code string | null
+  let chatErrorContext = $state(null); // interpolation context | null
+  let lastChatInput = $state('');      // preserved for retry
 
   const chatStorageKey = $derived(trip?._slug ? `traverse-chat-${trip._slug}` : null);
 
@@ -238,12 +248,17 @@
     chatMessages = [];
   }
 
-  async function sendChat() {
-    const text = chatInput.trim();
+  async function sendChat(retryText = null) {
+    const text = retryText ?? chatInput.trim();
     if (!text || chatBusy) return;
     chatBusy = true;
-    chatMessages = [...chatMessages, { role: 'user', content: text }];
-    chatInput = '';
+    chatErrorCode = null;
+    chatErrorContext = null;
+    lastChatInput = text;
+    if (!retryText) {
+      chatMessages = [...chatMessages, { role: 'user', content: text }];
+      chatInput = '';
+    }
 
     try {
       const res = await fetch(
@@ -254,8 +269,12 @@
           body: JSON.stringify({ messages: chatMessages }),
         }
       );
-      if (!res.ok) throw new Error(`Chat failed (${res.status})`);
       const data = await res.json();
+      if (!res.ok) {
+        chatErrorCode = data.error ?? 'network_error';
+        chatErrorContext = data.context ?? null;
+        return;
+      }
       chatMessages = [
         ...chatMessages,
         {
@@ -263,6 +282,7 @@
           content: data.reply || '(no reply)',
           updated: Object.keys(data.updates || {}),
           usage: data.usage,
+          tokens: data.tokens ?? 0,
         },
       ];
       // Apply any updates the model wrote to disk
@@ -276,14 +296,22 @@
           }
         }
       }
-    } catch (err) {
-      chatMessages = [
-        ...chatMessages,
-        { role: 'assistant', content: `Error: ${err.message}` },
-      ];
+    } catch {
+      chatErrorCode = 'network_error';
     } finally {
       chatBusy = false;
     }
+  }
+
+  function retryChatSend() {
+    chatErrorCode = null;
+    chatErrorContext = null;
+    sendChat(lastChatInput);
+  }
+
+  function dismissChatError() {
+    chatErrorCode = null;
+    chatErrorContext = null;
   }
 
   function handleChatKey(e) {
@@ -1021,8 +1049,8 @@
                 Updated: {m.updated.map(s => SECTION_LABELS[s] || s).join(', ')}
               </div>
             {/if}
-            {#if m.usage}
-              <div class="msg-usage">{formatUsage(m.usage)}</div>
+            {#if m.tokens}
+              <div class="msg-tokens">{formatTokens(m.tokens)}</div>
             {/if}
           </div>
         {/each}
@@ -1040,8 +1068,26 @@
         rows="2"
         disabled={chatBusy}
       ></textarea>
-      <button type="submit" disabled={chatBusy || !chatInput.trim()}>Send</button>
+      <PromiseTooltip promise={CHAT_PROMISE}>
+        <button type="submit" class="send-btn" disabled={chatBusy || !chatInput.trim()}>
+          {#if chatBusy}
+            <span class="spinner" aria-hidden="true"></span>
+          {/if}
+          {chatBusy ? 'Sending…' : 'Send'}
+        </button>
+      </PromiseTooltip>
     </form>
+    {#if chatErrorCode}
+      <div class="chat-error" role="alert">
+        <p class="chat-error-sentence">{failureSentence(chatErrorCode, chatErrorContext ?? {})}</p>
+        <AffordanceButtons
+          affordances={ERROR_REGISTRY[chatErrorCode]?.affordances ?? ['retry', 'dismiss']}
+          size="sm"
+          onretry={retryChatSend}
+          ondismiss={dismissChatError}
+        />
+      </div>
+    {/if}
   </aside>
 </div>
 
@@ -1546,13 +1592,6 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
-  .msg-usage {
-    margin-top: 0.35rem;
-    font-size: 0.7rem;
-    color: var(--text-tertiary);
-    font-variant-numeric: tabular-nums;
-  }
-
   .typing { display: inline-flex; gap: 4px; }
   .typing span {
     width: 6px; height: 6px;
@@ -1585,7 +1624,7 @@
     resize: none;
   }
   .chat-input textarea:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
-  .chat-input button {
+  .chat-input .send-btn {
     background: var(--forest-800);
     color: var(--bone-50);
     border: none;
@@ -1595,8 +1634,47 @@
     font-weight: 700;
     font-family: var(--font-sans);
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    white-space: nowrap;
   }
-  .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .chat-input .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Spinner inside the send button — matches InstantInlineStatus.svelte's .spinner */
+  @keyframes chat-spin { to { transform: rotate(360deg); } }
+  .chat-input .spinner {
+    width: 11px; height: 11px;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: chat-spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  /* Inline error envelope below the chat input area */
+  .chat-error {
+    padding: 0.6rem 0.9rem 0.7rem;
+    background: var(--sunset-50, #fff5f0);
+    border-top: 1px solid var(--embers-600);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .chat-error-sentence {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    line-height: 1.4;
+  }
+
+  /* Per-turn token count — subtle dim text below assistant message */
+  .msg-tokens {
+    margin-top: 0.3rem;
+    font-size: 0.68rem;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
 
   /* ── Itinerary view (locked state) ── */
   .itinerary-view {
