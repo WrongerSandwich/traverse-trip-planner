@@ -335,15 +335,6 @@
     addErrorCode = null;
   }
 
-  async function cancelDeepen(trip) {
-    try {
-      await fetch(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, { method: 'DELETE' });
-      await invalidateAll();
-    } catch (e) {
-      console.error('[deepen] Cancel failed:', e);
-    }
-  }
-
   async function runDeepen(trip) {
     const ok = await showConfirm({
       title:        `Research "${trip.title || trip._slug}"?`,
@@ -368,32 +359,6 @@
       alert(`Couldn't start research: ${e.message}`);
     }
   }
-
-  // Poll while any idea is in the researching state. The interval stops as soon
-  // as no researching trips remain so there's no steady-state cost.
-  const hasResearching = $derived(
-    data.trips.some(t => t.researching === true || t.researching === 'true'),
-  );
-  $effect(() => {
-    if (!hasResearching) return;
-    let timer;
-    let cancelled = false;
-    async function tick() {
-      await invalidateAll();
-      if (cancelled) return;
-      if (selectedTrip) {
-        const fresh = data.trips.find(t => t._slug === selectedTrip._slug);
-        if (!fresh || (fresh._stage || fresh.status) === 'planning') {
-          selectedTrip = null;
-        } else {
-          selectedTrip = fresh;
-        }
-      }
-      if (!cancelled) timer = setTimeout(tick, 4000);
-    }
-    timer = setTimeout(tick, 4000);
-    return () => { cancelled = true; clearTimeout(timer); };
-  });
 
   async function archiveTrip(trip, e) {
     e?.stopPropagation?.();
@@ -826,7 +791,7 @@
               onbookmark={(e) => toggleBookmark(trip, e)}
               ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
               onpromote={(e) => promoteToPlanning(trip, e)}
-              oncancel={(e) => { e?.stopPropagation(); cancelDeepen(trip); }}
+              oncancel={null}
             />
           {:else}
             <div class="empty">

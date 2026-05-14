@@ -101,25 +101,14 @@
     {#if trip.pitch}<p class="pitch">{trip.pitch}</p>{/if}
 
     {#if isIdea}
-      {#if trip.researching === true || trip.researching === 'true'}
-        <div class="researching-row">
-          <button class="btn btn-secondary btn-compact researching-label" disabled aria-busy="true">
-            Researching…
-          </button>
-          {#if oncancel}
-            <button class="cancel-btn" onclick={oncancel} title="Cancel research">✕ cancel</button>
-          {/if}
-        </div>
-      {:else}
-        <button
-          class="btn btn-secondary btn-compact card-cta"
-          onclick={ondeepen}
-          disabled={!ondeepen}
-          title={ondeepen ? 'Look into this trip with web search' : 'Research is offline — research model or search backend not configured'}
-        >
-          Research →
-        </button>
-      {/if}
+      <button
+        class="btn btn-secondary btn-compact card-cta"
+        onclick={ondeepen}
+        disabled={!ondeepen}
+        title={ondeepen ? 'Look into this trip with web search' : 'Research is offline — research model or search backend not configured'}
+      >
+        Research →
+      </button>
     {:else if isExploring && onpromote}
       <button class="btn btn-secondary btn-compact card-cta" onclick={onpromote} title="Move into Planning">
         Start planning →
@@ -365,31 +354,6 @@
     z-index: 2;
     align-self: flex-start;
   }
-
-  /* Researching row: disabled indicator + cancel link side by side. */
-  .researching-row {
-    position: relative;
-    z-index: 2;
-    align-self: flex-start;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  .researching-label { opacity: 0.65; }
-  .cancel-btn {
-    position: relative;
-    z-index: 2;
-    background: none;
-    border: none;
-    font-size: 0.72rem;
-    font-family: var(--font-mono);
-    color: var(--text-tertiary);
-    cursor: pointer;
-    padding: 0.1rem 0.2rem;
-    transition: color 0.12s;
-    line-height: 1;
-  }
-  .cancel-btn:hover { color: var(--sunset-800); }
 
   @media (max-width: 768px) {
     /* Shorter thumbnail — saves ~50px per card */
