@@ -3,8 +3,19 @@
   import { goto, invalidateAll } from '$app/navigation';
   import { streamAction } from '$lib/utils/action.js';
   import { parseCoordInput } from '$lib/utils/coords.js';
+  import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
+  import { failureSentence } from '$lib/errors-registry.js';
 
   let { data } = $props();
+
+  // Mirror of src/routes/api/brochure/regeocode/[slug]/+server.js _promise.
+  // Keep in sync if the endpoint promise object changes.
+  const REGEOCODE_PROMISE = {
+    verb: 'Re-geocode stops',
+    produces: 'Updated map pin coordinates for any stops that were missing a location on the brochure.',
+    time_seconds: 8,
+    tokens_range: [0, 0],
+  };
 
   const trip = $derived(data.trip);
   // Snapshot of brochure data we'll mutate locally before save. The
@@ -36,6 +47,65 @@
   let statusLog = $state([]);
   let error = $state(null);
 
+  // ── Regeocode — Instant Inline (docs/ai-workflow-ux.md §2.1) ─────────────
+  let regeoStatus        = $state('idle');   // 'idle' | 'in_progress' | 'success' | 'failure'
+  let regeoErrorCode     = $state(null);
+  let regeoGeocodedCount = $state(null);     // # of new pins added (null = not run yet)
+  let regeoLog           = $state([]);       // SSE messages for <details> disclosure
+  let regeoToastTimer    = $state(null);     // setTimeout handle for success auto-dismiss
+
+  async function regeocode() {
+    if (regeoStatus === 'in_progress') return;
+
+    if (regeoToastTimer) { clearTimeout(regeoToastTimer); regeoToastTimer = null; }
+
+    regeoStatus        = 'in_progress';
+    regeoErrorCode     = null;
+    regeoGeocodedCount = null;
+    regeoLog           = [];
+
+    try {
+      await streamAction(
+        `/api/brochure/regeocode/${encodeURIComponent(trip._slug)}`,
+        ({ msg, done }) => {
+          regeoLog = [...regeoLog, msg];
+          if (!done) return;
+
+          const isErr = typeof msg === 'string' && msg.toLowerCase().startsWith('error');
+          if (isErr) {
+            regeoStatus    = 'failure';
+            regeoErrorCode = 'network_error';
+          } else {
+            // Extract count from the server's done message.
+            // Patterns: "Added 2 new stop pins. …" or "No new pins found. …"
+            const added = msg.match(/Added (\d+) new (stop|lodging) pin/);
+            regeoStatus        = 'success';
+            regeoGeocodedCount = added ? parseInt(added[1], 10) : 0;
+            invalidateAll();
+            // Auto-dismiss the success toast after 4s
+            regeoToastTimer = setTimeout(() => {
+              regeoStatus     = 'idle';
+              regeoToastTimer = null;
+            }, 4000);
+          }
+        },
+      );
+    } catch (e) {
+      regeoLog       = [...regeoLog, `Error: ${e.message}`];
+      regeoStatus    = 'failure';
+      regeoErrorCode = 'network_error';
+    }
+  }
+
+  function retryRegeocode() {
+    regeocode();
+  }
+
+  function dismissRegeoError() {
+    regeoStatus    = 'idle';
+    regeoErrorCode = null;
+  }
+
   // Kick off the Ambient Background brochure-prepare job. The route returns
   // 202 immediately; progress + success/failure are surfaced by the global
   // jobs indicator. When the user dismisses or opens the success toast,
@@ -59,25 +129,6 @@
         ...statusLog,
         'Brochure prep is running in the background — the indicator at the top of the page will tell you when the draft is ready. You can navigate away.',
       ];
-    } catch (e) {
-      error = e.message;
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function regeocode() {
-    if (busy) return;
-    busy = true;
-    error = null;
-    statusLog = [];
-    try {
-      await streamAction(`/api/brochure/regeocode/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
-        statusLog = [...statusLog, msg];
-        if (done && !msg.toLowerCase().startsWith('error')) {
-          invalidateAll();
-        }
-      });
     } catch (e) {
       error = e.message;
     } finally {
@@ -349,19 +400,63 @@
     {/if}
 
     <div class="actions">
-      <button class="btn btn-primary" disabled={busy} onclick={save}>
+      <button class="btn btn-primary" disabled={busy || regeoStatus === 'in_progress'} onclick={save}>
         {busy ? 'Saving…' : 'Save brochure'}
       </button>
       {#if missingCoordsCount > 0}
-        <button class="btn btn-secondary" disabled={busy} onclick={regeocode} title="Try fallback geocode queries for stops without coords. No AI call.">
-          Fill in {missingCoordsCount} missing pin{missingCoordsCount === 1 ? '' : 's'}
-        </button>
+        <!-- Instant Inline: regeocode button is the spinner (docs/ai-workflow-ux.md §2.1) -->
+        <PromiseTooltip promise={REGEOCODE_PROMISE}>
+          <button
+            class="btn btn-secondary regeo-btn"
+            class:regeo-running={regeoStatus === 'in_progress'}
+            disabled={regeoStatus === 'in_progress' || busy}
+            aria-busy={regeoStatus === 'in_progress'}
+            onclick={regeocode}
+          >
+            {#if regeoStatus === 'in_progress'}
+              <span class="regeo-spinner" aria-hidden="true"></span>
+              Re-geocoding…
+            {:else}
+              Fill in {missingCoordsCount} missing pin{missingCoordsCount === 1 ? '' : 's'}
+            {/if}
+          </button>
+        </PromiseTooltip>
       {/if}
-      <button class="btn btn-secondary" disabled={busy} onclick={generate} title="Re-run the AI extraction — overwrites any edits in brochure.md">
+      <button class="btn btn-secondary" disabled={busy || regeoStatus === 'in_progress'} onclick={generate} title="Re-run the AI extraction — overwrites any edits in brochure.md">
         Re-generate from notes
       </button>
       <a class="btn btn-tertiary" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`}>View brochure</a>
     </div>
+
+    <!-- Instant Inline: SSE log as collapsed disclosure -->
+    {#if regeoLog.length > 0}
+      <details class="regeo-log-disclosure">
+        <summary>Geocoding details</summary>
+        <div class="regeo-log">
+          {#each regeoLog as line}
+            <div class="regeo-log-line">{line}</div>
+          {/each}
+        </div>
+      </details>
+    {/if}
+
+    <!-- Instant Inline: success toast — auto-dismisses after 4s -->
+    {#if regeoStatus === 'success'}
+      <div class="regeo-toast" role="status" aria-live="polite">
+        {regeoGeocodedCount ? `✓ ${regeoGeocodedCount} stop${regeoGeocodedCount === 1 ? '' : 's'} geocoded` : '✓ No new pins found'}
+      </div>
+    {/if}
+
+    <!-- Instant Inline: failure envelope with registry-resolved sentence + affordances -->
+    {#if regeoStatus === 'failure'}
+      <div class="regeo-error" role="alert">
+        <p class="regeo-error-sentence">{failureSentence(regeoErrorCode)}</p>
+        <div class="regeo-error-actions">
+          <button class="btn btn-secondary btn-compact" onclick={retryRegeocode}>Retry</button>
+          <button class="btn btn-tertiary btn-compact" onclick={dismissRegeoError}>Dismiss</button>
+        </div>
+      </div>
+    {/if}
 
     {#if statusLog.length}
       <ul class="status-log">
@@ -674,4 +769,100 @@
     color: var(--bark-800);
   }
   .status-log li { padding: 2px 0; }
+
+  /* ── Instant Inline: regeocode button-as-spinner ── */
+  @keyframes regeo-spin { to { transform: rotate(360deg); } }
+
+  .regeo-spinner {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border: 1.5px solid rgba(0, 0, 0, 0.2);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: regeo-spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.2rem;
+    flex-shrink: 0;
+  }
+  .regeo-btn.regeo-running {
+    opacity: 0.8;
+    cursor: not-allowed;
+  }
+
+  /* SSE log disclosure — power-user details, collapsed by default */
+  .regeo-log-disclosure {
+    margin-top: 0.75rem;
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+  }
+  .regeo-log-disclosure summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.72rem;
+    color: var(--text-tertiary);
+    list-style: none;
+    padding: 0.15rem 0;
+    user-select: none;
+  }
+  .regeo-log-disclosure summary::-webkit-details-marker { display: none; }
+  .regeo-log {
+    margin-top: 0.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 0.35rem 0.5rem;
+    background: var(--surface-raised);
+    border: 0.5px solid var(--bone-400);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--bark-800);
+  }
+  .regeo-log-line { line-height: 1.45; }
+
+  /* Instant Inline: success toast */
+  @keyframes regeo-toast-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .regeo-toast {
+    margin-top: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    background: var(--forest-800);
+    color: var(--bone-200);
+    padding: 0.45rem 0.85rem;
+    border-radius: 5px;
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    font-weight: 600;
+    animation: regeo-toast-in 0.18s ease;
+    pointer-events: none;
+  }
+
+  /* Inline failure envelope */
+  .regeo-error {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.65rem;
+    background: var(--sunset-50, #fff5f0);
+    border: 1px solid var(--embers-600, #c0392b);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-width: 36rem;
+  }
+  .regeo-error-sentence {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+  }
+  .regeo-error-actions {
+    display: flex;
+    gap: 0.4rem;
+  }
 </style>
