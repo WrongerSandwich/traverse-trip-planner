@@ -13,6 +13,13 @@ import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
+export const _promise = {
+  verb: 'Research trip',
+  produces: 'Detailed overview, route, stops, and logistics files — with web-searched hours, prices, lodging, and route specifics.',
+  time_seconds: 90,
+  tokens_range: [4000, 8000],
+};
+
 // Maps slug → AbortController for in-flight doResearch() calls.
 const cancelRegistry = new Map();
 
