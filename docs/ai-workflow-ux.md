@@ -101,7 +101,7 @@ Every AI trigger declares upfront **what it produces, how long it takes, and rou
 ```
 Example: `Prepare brochure · ~45s · 2–4k tokens`
 
-**Long form — confirm modal body** (where a confirm exists) or an info-icon popover next to the trigger (where it doesn't):
+**Long form — confirm modal body** (rendered inside the existing `src/lib/components/ConfirmModal.svelte`) or an info-icon popover next to the trigger (where no confirm exists):
 ```
 {What it produces in one sentence}. ~{time}. ~{tokens}.
 ```
@@ -254,7 +254,7 @@ Every existing workflow is assigned an archetype. **Deviations** from the archet
 | **Deepen-section** | Ambient Background | Currently uses ActionPanel; same migration as Brochure prepare. |
 | **Deepen** | Ambient Background | Already navigable. Migration replaces the ad-hoc 4s home-page poll + frontmatter `researching:` flag with the unified global indicator + standard job state. |
 | **Retro** | Conversational / Modal | — |
-| **Receipts** | (defer) | Named in the source ticket but not found in the codebase as of this design's writing. If it returns, likely Instant Inline (~10–30s, button-text-change today). |
+| **Receipts** | Instant Inline | Multimodal upload action on completed trips; today uses local `$state` for `idle / uploading / done / error`. Alignment work: consume the failure recovery registry, add the promise sentence, fold inline parsed-lines output into the success state. |
 
 Notable migration: **the current `ActionPanel` (bottom-right corner log) has no home in the rubric and is retired.** Its only legitimate use today is the power-user SSE log, which becomes an opt-in details disclosure inside whichever archetype the workflow lives in.
 
