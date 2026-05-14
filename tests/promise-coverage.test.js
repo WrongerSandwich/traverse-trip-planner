@@ -52,14 +52,20 @@ describe('promise-coverage', () => {
   it('every AI action route exports a valid promise object', async () => {
     const allFiles = await collectServerFiles(ROUTES_DIR);
 
-    // Filter to routes that import chat() from the AI module
+    // Filter to AI action routes: anything that imports chat() directly OR
+    // declares a `_promise` export. The second clause covers Ambient
+    // Background routes that delegate the chat() call to a server-side
+    // library (e.g. brochure prepare → prepareBrochure → chat()) so the
+    // route file itself no longer imports ai.js but still owes the trigger
+    // UI a promise contract.
     const aiRoutes = [];
     for (const file of allFiles) {
       const src = await readFile(file, 'utf8');
-      if (
+      const importsAi =
         src.includes("from '$lib/server/ai.js'") ||
-        src.includes('from "$lib/server/ai.js"')
-      ) {
+        src.includes('from "$lib/server/ai.js"');
+      const declaresPromise = /export\s+const\s+_promise\s*=/.test(src);
+      if (importsAi || declaresPromise) {
         aiRoutes.push(file);
       }
     }
