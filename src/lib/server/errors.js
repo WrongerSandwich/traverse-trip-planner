@@ -147,4 +147,8 @@ export const ERROR_REGISTRY = {
     sentence: 'The model returned output that failed to parse. Try again.',
     affordances: ['retry'],
   },
+  already_running: {
+    sentence: 'This action is already running for this trip. Check the indicator for progress.',
+    affordances: ['dismiss'],
+  },
 };
