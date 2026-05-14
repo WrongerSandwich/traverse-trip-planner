@@ -36,19 +36,29 @@
   let statusLog = $state([]);
   let error = $state(null);
 
+  // Kick off the Ambient Background brochure-prepare job. The route returns
+  // 202 immediately; progress + success/failure are surfaced by the global
+  // jobs indicator. When the user dismisses or opens the success toast,
+  // invalidateAll() picks up the new brochure.md on the next nav.
   async function generate() {
     if (busy) return;
     busy = true;
     error = null;
-    statusLog = [];
+    statusLog = ['Submitting…'];
     try {
-      await streamAction(`/api/brochure/prepare/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
-        statusLog = [...statusLog, msg];
-        if (done && !msg.toLowerCase().startsWith('error')) {
-          // brochure.md is now on disk — reload so the form populates from it
-          invalidateAll();
-        }
-      });
+      const res = await fetch(`/api/brochure/prepare/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      if (res.status === 409) {
+        error = 'Already preparing this brochure — watch the indicator at the top of the page.';
+        return;
+      }
+      if (!res.ok && res.status !== 202) {
+        error = `Couldn't start brochure prep (${res.status}).`;
+        return;
+      }
+      statusLog = [
+        ...statusLog,
+        'Brochure prep is running in the background — the indicator at the top of the page will tell you when the draft is ready. You can navigate away.',
+      ];
     } catch (e) {
       error = e.message;
     } finally {
@@ -186,9 +196,9 @@
     <!-- No brochure.md yet — show the Generate CTA. -->
     <div class="cta">
       <button class="btn btn-primary" disabled={busy} onclick={generate}>
-        {busy ? 'Generating proposal…' : 'Generate proposal'}
+        {busy ? 'Submitting…' : 'Generate proposal'}
       </button>
-      <p class="cta-hint">Takes 15–30 seconds. Uses your default model.</p>
+      <p class="cta-hint">Runs in the background (~45s). You can navigate away — the indicator at the top of the page surfaces the result when it's ready.</p>
     </div>
 
     {#if statusLog.length}

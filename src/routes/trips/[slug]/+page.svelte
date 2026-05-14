@@ -8,6 +8,7 @@
   import ActionPanel from '$lib/components/ActionPanel.svelte';
   import RetroModal from '$lib/components/RetroModal.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
@@ -456,6 +457,60 @@
   }
 
   // ── Archive ──
+  // ── Brochure prepare (Ambient Background) ──
+  // The route returns 202 immediately and the global jobs indicator surfaces
+  // progress + the success toast (which links back to /trips/<slug>, where
+  // "Open prepare form" lives). We mirror the route's _promise here so the
+  // tooltip + confirm-modal long form can render without a server round-trip.
+  const BROCHURE_PROMISE = {
+    verb: 'Prepare brochure',
+    produces: 'A structured brochure draft — stops with map pins, lodging, field guide notes, and gotchas — ready to review before saving.',
+    time_seconds: 45,
+    tokens_range: [2000, 5000],
+  };
+
+  // True while a brochure job is in flight for this trip. Drives the disabled
+  // state on the trigger button so the user can't kick off a second run.
+  const brochureRunning = $derived(
+    tripJobs.some(j => j.workflow === 'brochure'),
+  );
+
+  let brochureError = $state(null);
+
+  async function prepareBrochure() {
+    if (!trip || brochureRunning) return;
+    const ok = await showConfirm({
+      title: 'Prepare brochure?',
+      promise: BROCHURE_PROMISE,
+      confirmLabel: 'Prepare in background',
+    });
+    if (!ok) return;
+    brochureError = null;
+    try {
+      const res = await fetch(`/api/brochure/prepare/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      if (res.status === 409) {
+        brochureError = 'Already preparing this brochure — see the jobs indicator at the top of the page.';
+        return;
+      }
+      if (!res.ok && res.status !== 202) {
+        brochureError = `Couldn't start brochure prep (${res.status}).`;
+        return;
+      }
+      // 202 Accepted — the global indicator takes over from here. Refresh the
+      // jobs poll immediately so the per-trip badge appears without waiting
+      // for the next 10s tick.
+      try {
+        const jobsRes = await fetch('/api/jobs');
+        if (jobsRes.ok) {
+          const body = await jobsRes.json();
+          allJobs = body.jobs ?? [];
+        }
+      } catch { /* the 10s poll will pick it up */ }
+    } catch (err) {
+      brochureError = `Network error: ${err.message}`;
+    }
+  }
+
   async function archiveTrip() {
     if (!trip) return;
     const label = trip.title || trip._slug;
@@ -673,11 +728,26 @@
       <div class="brochure-zone">
         <div class="brochure-row">
           <a class="btn btn-secondary btn-compact" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">View brochure</a>
-          <a class="btn btn-secondary btn-compact" href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Prepare brochure</a>
+          <a class="btn btn-secondary btn-compact" href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Open prepare form</a>
+          <PromiseTooltip promise={BROCHURE_PROMISE}>
+            <button
+              type="button"
+              class="btn btn-primary btn-compact"
+              onclick={prepareBrochure}
+              disabled={brochureRunning}
+              title={brochureRunning ? 'Already running — see indicator' : undefined}
+            >
+              {brochureRunning ? 'Preparing…' : 'Prepare brochure'}
+            </button>
+          </PromiseTooltip>
         </div>
-        <span class="archive-hint">
-          The Field guide reads your notes and proposes a structured set of stops, lodging, and notes for the brochure. You review and toggle, then save.
-        </span>
+        {#if brochureError}
+          <span class="brochure-error">{brochureError}</span>
+        {:else}
+          <span class="archive-hint">
+            The Field guide reads your notes and proposes a structured set of stops, lodging, and notes for the brochure. The job runs in the background — the indicator at the top of the page will tell you when it's ready.
+          </span>
+        {/if}
       </div>
 
       {#if !isCompleted}
@@ -725,6 +795,7 @@
     bind:open={confirmOpen}
     title={confirmOpts.title ?? ''}
     body={confirmOpts.body ?? ''}
+    promise={confirmOpts.promise ?? null}
     confirmLabel={confirmOpts.confirmLabel ?? 'Confirm'}
     danger={confirmOpts.danger ?? false}
     onconfirm={() => { confirmResolve?.(true);  confirmResolve = null; }}
@@ -1138,6 +1209,11 @@
     gap: 0.5rem;
   }
   .archive-hint { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.45; }
+  .brochure-error {
+    font-size: 0.78rem;
+    color: var(--embers-600);
+    line-height: 1.45;
+  }
 
   /* ── AI chat ── */
   .chat-fab {
