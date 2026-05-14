@@ -5,7 +5,6 @@
   import { onMount } from 'svelte';
   import MiniMap from '$lib/components/MiniMap.svelte';
   import Logo from '$lib/components/Logo.svelte';
-  import ActionPanel from '$lib/components/ActionPanel.svelte';
   import RetroModal from '$lib/components/RetroModal.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
@@ -102,13 +101,9 @@
     });
   }
 
-  // ── Section research (deepen-section) ──
-  let srMessages  = $state([]);
-  let srRunning   = $state(false);
-  let srDone      = $state(false);
-  let srVisible   = $state(false);
-  let srAborter   = $state(null);  // AbortController, non-null while cancellable
-  let srSection   = $state(null);  // which section is currently being researched
+  // ── Section research (deepen-section) — Ambient Background archetype ──
+  // The route returns 202 immediately; global indicator + per-trip badge
+  // surface progress. The confirm modal carries the long-form promise.
 
   // Refresh sections when nav causes a new load (rarely, but safe).
   $effect(() => { sections = { ...data.files }; });
@@ -131,45 +126,52 @@
     Boolean(data.features?.deepen)
   );
 
-  function srPush(msg, done = false) {
-    srMessages = [...srMessages, msg];
-    if (done) { srDone = true; srRunning = false; }
-  }
+  const DEEPEN_SECTION_PROMISE = {
+    verb: 'Research section',
+    produces: 'One trip section (route, stops, or logistics) written from web-searched current information. You can navigate away while it runs.',
+    time_seconds: 60,
+    tokens_range: [2000, 4000],
+  };
 
-  function cancelSectionResearch() {
-    if (srAborter) {
-      srAborter.abort();
-      srPush('Cancelled by user.', true);
-    }
-  }
+  // True when any deepen-section job is running for this trip (any section).
+  const deepenSectionRunning = $derived(
+    tripJobs.some(j => j.workflow?.startsWith('deepen-section:')),
+  );
+
+  let deepenSectionError = $state(/** @type {string|null} */ (null));
 
   async function researchSection(section) {
-    if (srRunning) return;
-    srMessages  = [];
-    srRunning   = true;
-    srDone      = false;
-    srVisible   = true;
-    srSection   = section;
-    srAborter   = new AbortController();
+    if (deepenSectionRunning) return;
+    const ok = await showConfirm({
+      title: `Research ${section} section?`,
+      promise: DEEPEN_SECTION_PROMISE,
+      confirmLabel: 'Research in background',
+    });
+    if (!ok) return;
+    deepenSectionError = null;
     try {
-      await streamAction(
+      const res = await fetch(
         `/api/actions/deepen-section/${encodeURIComponent(trip._slug)}/${encodeURIComponent(section)}`,
-        ({ msg, done }) => {
-          srPush(msg, done);
-          if (done && !msg.toLowerCase().startsWith('error')) {
-            // Pull the new section content into the page without a full reload.
-            invalidateAll();
-          }
-        },
-        null,
-        srAborter.signal,
+        { method: 'POST' },
       );
-      if (!srDone) srPush('Cancelled.', true);
-    } catch (e) {
-      srPush(`Error: ${e.message}`, true);
-    } finally {
-      srAborter  = null;
-      srSection  = null;
+      if (res.status === 409) {
+        deepenSectionError = 'Already researching a section for this trip — see the jobs indicator at the top of the page.';
+        return;
+      }
+      if (!res.ok && res.status !== 202) {
+        deepenSectionError = `Couldn't start section research (${res.status}).`;
+        return;
+      }
+      // 202 Accepted — refresh jobs poll immediately so the per-trip badge appears.
+      try {
+        const jobsRes = await fetch('/api/jobs');
+        if (jobsRes.ok) {
+          const body = await jobsRes.json();
+          allJobs = body.jobs ?? [];
+        }
+      } catch { /* the 10s poll will pick it up */ }
+    } catch (err) {
+      deepenSectionError = `Network error: ${err.message}`;
     }
   }
 
@@ -882,13 +884,17 @@
             <div class="section-empty-block">
               <p class="section-empty">Not yet researched.</p>
               {#if canResearchSection && RESEARCHABLE.has(section)}
-                <button
-                  class="btn btn-secondary btn-compact"
-                  onclick={() => researchSection(section)}
-                  disabled={srRunning}
-                >
-                  {srRunning && srSection === section ? 'Researching…' : 'Research this section →'}
-                </button>
+                <PromiseTooltip promise={DEEPEN_SECTION_PROMISE}>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-compact"
+                    onclick={() => researchSection(section)}
+                    disabled={deepenSectionRunning}
+                    title={deepenSectionRunning ? 'Already running — see indicator' : undefined}
+                  >
+                    {deepenSectionRunning ? 'Researching…' : 'Research this section →'}
+                  </button>
+                </PromiseTooltip>
               {:else if isLocked && RESEARCHABLE.has(section)}
                 <p class="section-locked-hint"><a href="#locked-callout">Unlock the trip</a> to research this section.</p>
               {/if}
@@ -930,6 +936,10 @@
             <span class="share-hint">Creates a public read-only URL anyone can view (no Traverse account needed).</span>
           {/if}
         </div>
+      {/if}
+
+      {#if deepenSectionError}
+        <div class="deepen-section-error" role="alert">{deepenSectionError}</div>
       {/if}
 
       <div class="brochure-zone">
@@ -977,16 +987,6 @@
         Ask {data.assistantName}
       {/if}
     </button>
-  {/if}
-
-  {#if srVisible}
-    <ActionPanel
-      messages={srMessages}
-      running={srRunning}
-      done={srDone}
-      onclose={() => srVisible = false}
-      oncancel={srAborter ? cancelSectionResearch : null}
-    />
   {/if}
 
   {#if retroOpen}
@@ -1471,6 +1471,13 @@
     font-size: 0.78rem;
     color: var(--embers-600);
     line-height: 1.45;
+  }
+
+  .deepen-section-error {
+    font-size: 0.78rem;
+    color: var(--embers-600);
+    line-height: 1.45;
+    margin-top: 0.25rem;
   }
 
   /* ── AI chat ── */
