@@ -44,10 +44,12 @@ export function sseStream(handler) {
   let cancelled = false;
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (msg, done = false) => {
+      const send = (msg, done = false, tokens = null) => {
         if (cancelled) return; // client gone — drop the write
         try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg, done })}\n\n`));
+          const payload = { msg, done };
+          if (done && tokens != null && tokens > 0) payload.tokens = tokens;
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
         } catch { /* stream is closed — ignore */ }
       };
       try {

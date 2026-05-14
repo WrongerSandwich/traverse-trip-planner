@@ -1,5 +1,67 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { withHeartbeat } from '../src/lib/server/sse.js';
+import { withHeartbeat, sseStream } from '../src/lib/server/sse.js';
+
+// ─── sseStream token propagation ─────────────────────────────────────────────
+
+async function collectEvents(handler) {
+  const res = sseStream(handler);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const events = [];
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try { events.push(JSON.parse(line.slice(6))); } catch { /* ignore */ }
+    }
+  }
+  return events;
+}
+
+describe('sseStream', () => {
+  it('includes tokens in the done event when tokens > 0', async () => {
+    const events = await collectEvents(async (send) => {
+      send('Done.', true, 3200);
+    });
+    const doneEvent = events.find(e => e.done);
+    expect(doneEvent).toBeDefined();
+    expect(doneEvent.tokens).toBe(3200);
+    expect(doneEvent.msg).toBe('Done.');
+  });
+
+  it('omits tokens from the done event when tokens is 0', async () => {
+    const events = await collectEvents(async (send) => {
+      send('Done.', true, 0);
+    });
+    const doneEvent = events.find(e => e.done);
+    expect(doneEvent).toBeDefined();
+    expect(doneEvent.tokens).toBeUndefined();
+  });
+
+  it('omits tokens from the done event when tokens is null', async () => {
+    const events = await collectEvents(async (send) => {
+      send('Done.', true, null);
+    });
+    const doneEvent = events.find(e => e.done);
+    expect(doneEvent).toBeDefined();
+    expect(doneEvent.tokens).toBeUndefined();
+  });
+
+  it('does not include tokens on non-done events', async () => {
+    const events = await collectEvents(async (send) => {
+      send('Progress…', false, 999);
+      send('Done.', true, 3200);
+    });
+    const progressEvent = events.find(e => !e.done);
+    expect(progressEvent).toBeDefined();
+    expect(progressEvent.tokens).toBeUndefined();
+  });
+});
 
 describe('withHeartbeat', () => {
   beforeEach(() => { vi.useFakeTimers(); });
