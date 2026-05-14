@@ -516,7 +516,11 @@ export function findTripLocation(slug) {
 }
 
 // ── Bookmark toggle ──
-function findTripFile(slug) {
+// Returns the source-of-truth markdown path for a trip (idea .md or
+// overview.md inside the stage folder). Used by frontmatter-mutation
+// helpers (bookmark, share, jobs registry) that don't care which stage
+// the trip is in, only where its frontmatter lives.
+export function findTripFile(slug) {
   const loc = findTripLocation(slug);
   if (!loc) return null;
   return loc.kind === 'file' ? loc.path : join(loc.path, 'overview.md');
