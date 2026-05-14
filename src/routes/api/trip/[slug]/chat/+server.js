@@ -3,6 +3,7 @@ import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS }
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
+import { TraverseError, AdapterError } from '$lib/server/errors.js';
 
 export const _promise = {
   verb: 'Ask Field Guide',
@@ -80,20 +81,38 @@ Your output format:
     content: String(m.content || ''),
   }));
 
-  const { text, usage } = await chat({
-    ...getEffectiveConfig().features.chat,
-    label: 'chat',
-    maxTokens: 6000,
-    system,
-    messages: apiMessages,
-  });
+  try {
+    const { text, usage } = await chat({
+      ...getEffectiveConfig().features.chat,
+      label: 'chat',
+      maxTokens: 6000,
+      system,
+      messages: apiMessages,
+    });
 
-  const reply = parseReply(text);
-  const updates = parseUpdates(text);
+    if (!text || !text.trim()) {
+      return json({ error: 'empty_model_output' }, { status: 502 });
+    }
 
-  for (const [section, content] of Object.entries(updates)) {
-    writePlanningSection(trip.dir, section, trip.frontmatter, content);
+    const reply = parseReply(text);
+    const updates = parseUpdates(text);
+
+    for (const [section, content] of Object.entries(updates)) {
+      writePlanningSection(trip.dir, section, trip.frontmatter, content);
+    }
+
+    return json({ reply, updates, usage, tokens: usageToTokens(usage) });
+  } catch (err) {
+    if (err instanceof TraverseError) {
+      return json({ error: err.code }, { status: 502 });
+    }
+    if (err instanceof AdapterError) {
+      return json(
+        { error: 'provider_error', context: { provider: err.provider, summary: err.message } },
+        { status: 502 },
+      );
+    }
+    console.error('[chat]', err);
+    return json({ error: 'network_error' }, { status: 502 });
   }
-
-  return json({ reply, updates, usage, tokens: usageToTokens(usage) });
 }
