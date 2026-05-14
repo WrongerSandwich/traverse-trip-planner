@@ -5,6 +5,13 @@ import { ROOT, readHomeMd, getTripFiles, invalidateEnrichCache } from '$lib/serv
 import { chat } from '$lib/server/ai.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
+export const promise = {
+  verb: 'Generate questions',
+  produces: 'Five trip-specific retrospective questions drawn from your actual stops and itinerary.',
+  time_seconds: 10,
+  tokens_range: [300, 700],
+};
+
 function loadCompletedTrip(slug) {
   const dir = join(ROOT, 'completed', slug);
   if (!existsSync(dir)) return null;

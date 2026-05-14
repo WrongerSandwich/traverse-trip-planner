@@ -6,6 +6,13 @@ import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
+export const promise = {
+  verb: 'Generate ideas',
+  produces: 'Five new road-trip idea files tailored to your taste profile and steering prompt.',
+  time_seconds: 20,
+  tokens_range: [1500, 3000],
+};
+
 export async function POST({ request }) {
   const NAME = getEffectiveConfig().assistantName;
   // Optional user-supplied steering prompt. Body is JSON; absence is fine.

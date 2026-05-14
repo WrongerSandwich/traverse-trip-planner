@@ -6,6 +6,13 @@ import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
+export const promise = {
+  verb: 'Add destination',
+  produces: 'One new trip idea file for the named destination, after checking for duplicates and road-trip viability.',
+  time_seconds: 12,
+  tokens_range: [400, 800],
+};
+
 // TODO: consolidate trip-lookup helpers (findTripFile/findTrip/findIdeaFile) into data.js
 // TODO: extract readSections() shared by lock/+server.js and trip/[slug]/chat/+server.js
 
