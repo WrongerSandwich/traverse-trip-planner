@@ -39,10 +39,11 @@ vi.mock('@sveltejs/kit', () => ({
 
 // Mock sseStream to run the handler synchronously and capture sent messages.
 // Returns { _messages } so tests can inspect what the handler sent.
+// The send function captures (msg, done, tokens) matching the real sseStream signature.
 vi.mock('$lib/server/sse.js', () => ({
   sseStream: async (handler) => {
     const messages = [];
-    const send = (msg, done = false) => messages.push({ msg, done });
+    const send = (msg, done = false, tokens = null) => messages.push({ msg, done, tokens });
     try {
       await handler(send);
     } catch (err) {
@@ -113,6 +114,62 @@ describe('POST /api/lock/[slug] — empty model output', () => {
   });
 });
 
+// ── cancel (AbortError from request.signal) ────────────────────────────────────
+
+describe('POST /api/lock/[slug] — cancel', () => {
+  it('does not send an Error message when the request is aborted', async () => {
+    // Simulate an abort by rejecting chat() with an AbortError
+    const abortErr = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
+    mockChat.mockRejectedValueOnce(abortErr);
+    const res = await POST(makeRequest());
+    const errMsg = res._messages.find(m => m.done && m.msg.startsWith('Error:'));
+    expect(errMsg).toBeUndefined();
+  });
+
+  it('does not write itinerary.md when the request is aborted', async () => {
+    const abortErr = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
+    mockChat.mockRejectedValueOnce(abortErr);
+    await POST(makeRequest());
+    expect(mockWriteFileSync).not.toHaveBeenCalled();
+  });
+
+  it('does not call setLocked when the request is aborted', async () => {
+    const abortErr = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
+    mockChat.mockRejectedValueOnce(abortErr);
+    await POST(makeRequest());
+    expect(mockSetLocked).not.toHaveBeenCalled();
+  });
+});
+
+// ── typed-error failure envelope ───────────────────────────────────────────────
+
+describe('POST /api/lock/[slug] — typed error codes', () => {
+  it('sends an Error message containing the TraverseError code when chat() throws a known error', async () => {
+    // The lock route wraps chat() errors — but empty_model_output is thrown
+    // after chat(), so we test via the whitespace guard path.
+    // For this test, simulate a TraverseError being thrown directly.
+    const { TraverseError } = await import('../src/lib/server/errors.js');
+    mockChat.mockRejectedValueOnce(new TraverseError('provider_error', 'Provider blew up'));
+    const res = await POST(makeRequest());
+    const errMsg = res._messages.find(m => m.done && m.msg.startsWith('Error:'));
+    expect(errMsg).toBeDefined();
+    // The error message should be surfaced to the client (not silently swallowed)
+    expect(errMsg.msg).toContain('Provider blew up');
+  });
+
+  it('does not write itinerary.md when chat() throws a non-abort error', async () => {
+    mockChat.mockRejectedValueOnce(new Error('Network blip'));
+    await POST(makeRequest());
+    expect(mockWriteFileSync).not.toHaveBeenCalled();
+  });
+
+  it('does not call setLocked when chat() throws a non-abort error', async () => {
+    mockChat.mockRejectedValueOnce(new Error('Network blip'));
+    await POST(makeRequest());
+    expect(mockSetLocked).not.toHaveBeenCalled();
+  });
+});
+
 // ── success path ───────────────────────────────────────────────────────────────
 
 describe('POST /api/lock/[slug] — success', () => {
@@ -152,5 +209,18 @@ describe('POST /api/lock/[slug] — success', () => {
     await POST(makeRequest());
     const [, written] = mockWriteFileSync.mock.calls[0];
     expect(written).toBe('## Day 1\n');
+  });
+
+  it('includes tokens in the done SSE event when usage is present', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: '## Day 1\n- 9am Depart',
+      usage: { input: 100, output: 50 },
+    });
+    const res = await POST(makeRequest());
+    const done = res._messages.find(m => m.done);
+    expect(done).toBeDefined();
+    expect(done.msg).toBe('Done — itinerary is set.');
+    // tokens = input + output = 150 (usageToTokens)
+    expect(done.tokens).toBe(150);
   });
 });
