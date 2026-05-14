@@ -5,13 +5,6 @@ import { ROOT, appendToNotes } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
-export const promise = {
-  verb: 'Parse receipts',
-  produces: 'Structured expense lines (date · merchant · amount · category) appended to your trip notes.',
-  time_seconds: 10,
-  tokens_range: [400, 900],
-};
-
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGES = 10;
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB per image

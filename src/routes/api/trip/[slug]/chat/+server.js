@@ -3,13 +3,6 @@ import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS }
 import { chat } from '$lib/server/ai.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
-export const promise = {
-  verb: 'Ask Field Guide',
-  produces: 'A conversational reply and any updated planning sections written directly to disk.',
-  time_seconds: 20,
-  tokens_range: [2000, 6000],
-};
-
 function parseUpdates(text) {
   const updates = {};
   const re = /<update\s+section="([^"]+)">([\s\S]*?)<\/update>/g;

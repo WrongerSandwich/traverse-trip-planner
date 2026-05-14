@@ -7,13 +7,6 @@ import { getEffectiveConfig } from '$lib/server/config.js';
 import { sseStream } from '$lib/server/sse.js';
 import { TraverseError } from '$lib/server/errors.js';
 
-export const promise = {
-  verb: 'Generate itinerary',
-  produces: 'A day-by-day itinerary synthesized from your planning sections, streamed in real time.',
-  time_seconds: 30,
-  tokens_range: [2000, 4000],
-};
-
 export function POST({ params, request }) {
   const { slug } = params;
   const signal = request.signal;
