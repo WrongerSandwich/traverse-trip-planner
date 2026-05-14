@@ -10,6 +10,10 @@
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
+  import AffordanceButtons from '$lib/workflow-status/AffordanceButtons.svelte';
+  import { formatTokens } from '$lib/utils/formatTokens.js';
+  import { failureSentence } from '$lib/errors-registry.js';
+  import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
   import StreamBanner from '$lib/workflow-status/StreamBanner.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
@@ -442,7 +446,11 @@
   let receiptsInput = $state(null);
   let receiptsStatus = $state('idle'); // 'idle' | 'uploading' | 'done' | 'error'
   let receiptsLines = $state([]);
-  let receiptsError = $state('');
+  let receiptsErrorCode = $state(/** @type {string|null} */ (null));
+  let receiptsErrorCtx = $state(/** @type {Record<string,string>} */ ({}));
+  let receiptsTokens = $state(/** @type {number|null} */ (null));
+  let receiptsSuccessVisible = $state(false);
+  let receiptsSuccessTimer = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
 
   function openReceiptPicker() {
     receiptsInput?.click();
@@ -451,27 +459,68 @@
   async function uploadReceipts(e) {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
+    // Clear previous state
     receiptsStatus = 'uploading';
-    receiptsError = '';
+    receiptsErrorCode = null;
+    receiptsErrorCtx = {};
     receiptsLines = [];
+    receiptsTokens = null;
+    receiptsSuccessVisible = false;
+    if (receiptsSuccessTimer) { clearTimeout(receiptsSuccessTimer); receiptsSuccessTimer = null; }
+
     const fd = new FormData();
     for (const f of files) fd.append('image', f);
     try {
       const res = await fetch(`/api/actions/receipts/${encodeURIComponent(trip._slug)}`, {
         method: 'POST', body: fd,
       });
-      if (!res.ok) throw new Error(await res.text().catch(() => `Upload failed (${res.status})`));
-      const data = await res.json();
-      receiptsLines = data.lines || [];
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        const { code, ctx } = receiptsErrorFromStatus(res.status, body);
+        receiptsErrorCode = code;
+        receiptsErrorCtx = ctx;
+        receiptsStatus = 'error';
+        return;
+      }
+      const json = await res.json();
+      receiptsLines = json.lines || [];
+      receiptsTokens = json.tokens ?? null;
       receiptsStatus = 'done';
+      receiptsSuccessVisible = true;
       await invalidateAll();
-    } catch (err) {
-      receiptsError = err.message;
+      // Auto-dismiss the success headline after 4s; parsed lines remain.
+      receiptsSuccessTimer = setTimeout(() => {
+        receiptsSuccessVisible = false;
+        receiptsSuccessTimer = null;
+      }, 4000);
+    } catch {
+      receiptsErrorCode = 'network_error';
+      receiptsErrorCtx = {};
       receiptsStatus = 'error';
     } finally {
       // Reset the file input so the same file can be re-selected after an error.
       if (receiptsInput) receiptsInput.value = '';
     }
+  }
+
+  function dismissReceiptsError() {
+    receiptsStatus = 'idle';
+    receiptsErrorCode = null;
+    receiptsErrorCtx = {};
+  }
+
+  function retryReceipts() {
+    dismissReceiptsError();
+    receiptsInput?.click();
+  }
+
+  /** Affordances for a given receipts error code. */
+  function receiptsAffordances(code) {
+    if (!code) return [];
+    if (code === 'trip_not_found') return ['dismiss'];
+    if (code === 'empty_model_output' || code === 'network_error' || code === 'provider_error') return ['retry', 'dismiss'];
+    if (code === 'invalid_input') return ['dismiss'];
+    return ['retry', 'dismiss'];
   }
 
   // ── Share ──
@@ -540,6 +589,15 @@
     produces: 'A day-by-day itinerary synthesized from your planning sections, streamed in real time as it generates.',
     time_seconds: 30,
     tokens_range: [2000, 4000],
+  };
+
+  // ── Receipts promise (mirrors _promise from the receipts route) ──
+  // Kept here so PromiseTooltip can render without a server round-trip.
+  const RECEIPTS_PROMISE = {
+    verb: 'Parse receipts',
+    produces: 'Structured expense lines (date · merchant · amount · category) appended to your trip notes.',
+    time_seconds: 10,
+    tokens_range: [400, 900],
   };
 
   // ── Archive ──
@@ -716,13 +774,20 @@
                 </button>
               {/if}
               {#if data.features?.receipts}
-                <button
-                  class="btn btn-secondary"
-                  onclick={openReceiptPicker}
-                  disabled={receiptsStatus === 'uploading'}
-                >
-                  {receiptsStatus === 'uploading' ? 'Parsing receipts…' : 'Add receipts'}
-                </button>
+                <PromiseTooltip promise={RECEIPTS_PROMISE}>
+                  <button
+                    class="btn btn-secondary"
+                    onclick={openReceiptPicker}
+                    disabled={receiptsStatus === 'uploading'}
+                  >
+                    {#if receiptsStatus === 'uploading'}
+                      <span class="btn-spinner" aria-hidden="true"></span>
+                      Parsing receipts…
+                    {:else}
+                      Add receipts
+                    {/if}
+                  </button>
+                </PromiseTooltip>
                 <input
                   bind:this={receiptsInput}
                   type="file"
@@ -734,13 +799,28 @@
               {/if}
             </div>
           {/if}
-          {#if receiptsStatus === 'done' && receiptsLines.length}
-            <div class="receipts-result">
-              <strong>Added {receiptsLines.length} receipt{receiptsLines.length === 1 ? '' : 's'} to notes.</strong>
+          {#if receiptsSuccessVisible && receiptsStatus === 'done'}
+            <div class="receipts-success" role="status">
+              ✓ Parsed {receiptsLines.length} receipt{receiptsLines.length === 1 ? '' : 's'}{receiptsTokens ? ` · ${formatTokens(receiptsTokens)}` : ''}
             </div>
           {/if}
-          {#if receiptsStatus === 'error'}
-            <div class="receipts-error">{receiptsError}</div>
+          {#if receiptsStatus === 'done' && receiptsLines.length}
+            <ul class="receipts-lines">
+              {#each receiptsLines as line}
+                <li>{line}</li>
+              {/each}
+            </ul>
+          {/if}
+          {#if receiptsStatus === 'error' && receiptsErrorCode}
+            <div class="receipts-error-envelope" role="alert">
+              <p class="receipts-error-sentence">{failureSentence(receiptsErrorCode, receiptsErrorCtx)}</p>
+              <AffordanceButtons
+                affordances={receiptsAffordances(receiptsErrorCode)}
+                size="sm"
+                onretry={retryReceipts}
+                ondismiss={dismissReceiptsError}
+              />
+            </div>
           {/if}
         </div>
       {:else}
@@ -1142,15 +1222,49 @@
     color: var(--bark-600);
     border-left-color: var(--bark-400);
   }
-  .receipts-result {
+  /* ── Receipts inline result / error ── */
+  .receipts-success {
     margin-top: 0.6rem;
     font-size: 0.82rem;
+    font-weight: 600;
     color: var(--forest-700);
   }
-  .receipts-error {
+  .receipts-lines {
+    margin: 0.4rem 0 0 1.1rem;
+    padding: 0;
+    font-size: 0.80rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+  .receipts-error-envelope {
     margin-top: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.5rem 0.65rem;
+    background: var(--sunset-50, #fff5f0);
+    border: 1px solid var(--embers-600);
+    border-radius: 4px;
+    max-width: 28rem;
+  }
+  .receipts-error-sentence {
+    margin: 0;
     font-size: 0.82rem;
-    color: var(--embers-600);
+    color: var(--text-primary);
+    line-height: 1.4;
+  }
+  /* Spinner inside a standard btn (matches Instant Inline shape) */
+  @keyframes btn-spin { to { transform: rotate(360deg); } }
+  .btn-spinner {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border: 1.5px solid rgba(0, 0, 0, 0.2);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: btn-spin 0.8s linear infinite;
+    vertical-align: middle;
+    flex-shrink: 0;
   }
 
   .map-strip {
