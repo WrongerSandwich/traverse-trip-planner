@@ -1,6 +1,7 @@
 <script>
   import 'leaflet/dist/leaflet.css';
   import '../app.css';
+  import BackgroundJobsIndicator from '$lib/components/BackgroundJobsIndicator.svelte';
   let { children } = $props();
 </script>
 
@@ -11,3 +12,9 @@
 </svelte:head>
 
 {@render children()}
+
+<!--
+  Global Ambient Background indicator. Fixed top-right, floats above every
+  page's own header. See docs/ai-workflow-ux.md §6 and issue #74.
+-->
+<BackgroundJobsIndicator />
