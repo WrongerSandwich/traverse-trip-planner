@@ -10,6 +10,7 @@
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
+  import StreamBanner from '$lib/workflow-status/StreamBanner.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatUsage } from '$lib/utils/format.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
@@ -71,10 +72,18 @@
   let editing = $state({});      // { route: true, ... }
   let drafts  = $state({});      // staging textareas while editing
   let saving  = $state({});
-  let locking = $state(false);
-  let completing = $state(false);
+  // ── Lock state (In-Page Stream archetype) ──
+  // lockState: 'idle' | 'in_progress' | 'success' | 'failure' | 'cancelled'
+  let lockState = $state('idle');
   let lockStreamingText = $state('');
-  let lockStatus = $state('');
+  let lockTokens = $state(null);       // number | null — populated from done event
+  let lockErrorCode = $state(null);    // TraverseError code string | null
+  let lockElapsed = $state(0);         // seconds elapsed while in_progress
+  let lockAborter = $state(null);      // AbortController | null
+  let lockElapsedTimer = null;         // setInterval handle
+
+  const locking = $derived(lockState === 'in_progress');
+  let completing = $state(false);
 
   // ── Confirm modal ──
   let confirmOpen  = $state(false);
@@ -281,28 +290,96 @@
   }
 
   // ── Lock / Unlock ──
+
+  function startLockElapsedTimer() {
+    lockElapsed = 0;
+    if (lockElapsedTimer) clearInterval(lockElapsedTimer);
+    lockElapsedTimer = setInterval(() => { lockElapsed += 1; }, 1000);
+  }
+
+  function stopLockElapsedTimer() {
+    if (lockElapsedTimer) { clearInterval(lockElapsedTimer); lockElapsedTimer = null; }
+  }
+
+  /** Elapsed + estimated-remaining label for the banner, e.g. "12s · ~18s remaining" */
+  const lockEstimateRemaining = $derived.by(() => {
+    if (lockState !== 'in_progress') return null;
+    const remaining = Math.max(0, LOCK_PROMISE.time_seconds - lockElapsed);
+    if (remaining === 0) return `${lockElapsed}s elapsed`;
+    return `${lockElapsed}s · ~${remaining}s remaining`;
+  });
+
   async function lockTrip() {
     if (!trip || locking) return;
-    locking = true;
+
+    // Confirm before starting (long-form promise in modal body).
+    const ok = await showConfirm({
+      title: 'Generate itinerary?',
+      promise: LOCK_PROMISE,
+      confirmLabel: 'Generate itinerary',
+    });
+    if (!ok) return;
+
+    // Reset state and begin.
+    lockState = 'in_progress';
     lockStreamingText = '';
-    lockStatus = 'Plotting the itinerary…';
+    lockTokens = null;
+    lockErrorCode = null;
+    lockAborter = new AbortController();
+    startLockElapsedTimer();
+
     try {
-      await streamAction(`/api/lock/${encodeURIComponent(trip._slug)}`, ({ msg, done }) => {
-        if (msg.startsWith('itinerary:')) {
-          lockStreamingText += msg.slice('itinerary:'.length);
-        } else {
-          lockStatus = msg;
-        }
-        if (done && !msg.toLowerCase().startsWith('error')) invalidateAll();
-      });
+      await streamAction(
+        `/api/lock/${encodeURIComponent(trip._slug)}`,
+        ({ msg, done, tokens }) => {
+          if (msg.startsWith('itinerary:')) {
+            lockStreamingText += msg.slice('itinerary:'.length);
+          }
+          if (done) {
+            if (msg.toLowerCase().startsWith('error:')) {
+              lockState = 'failure';
+              // Try to extract a TraverseError code from the message.
+              // The server emits "Error: Itinerary generation failed: …" for generic
+              // errors and "Error: <TraverseError message>" for typed ones.
+              // We surface a generic 'network_error' code when we can't parse a known code.
+              lockErrorCode = 'network_error';
+            } else {
+              lockState = 'success';
+              if (tokens) lockTokens = tokens;
+              // Trigger page reload to show the locked state / itinerary tab.
+              invalidateAll();
+            }
+          }
+        },
+        null,
+        lockAborter.signal,
+      );
+      // streamAction resolves silently on abort (abort = cancel).
+      if (lockState === 'in_progress') {
+        lockState = 'cancelled';
+      }
     } catch (err) {
       console.error(err);
-      alert("Couldn't lock the trip. The server log may have more detail.");
+      lockState = 'failure';
+      lockErrorCode = 'network_error';
     } finally {
-      locking = false;
-      // Keep the streamed text visible until invalidateAll has refreshed the page;
-      // the locked-state render replaces this UI naturally.
+      stopLockElapsedTimer();
+      lockAborter = null;
     }
+  }
+
+  function cancelLock() {
+    if (lockAborter) {
+      lockAborter.abort();
+      // State transitions to 'cancelled' in the finally block of lockTrip.
+    }
+  }
+
+  function dismissLock() {
+    lockState = 'idle';
+    lockStreamingText = '';
+    lockTokens = null;
+    lockErrorCode = null;
   }
 
   async function unlockTrip() {
@@ -456,6 +533,15 @@
     } catch { /* clipboard blocked — user can copy manually */ }
   }
 
+  // ── Lock promise (mirrors _promise from the lock route) ──
+  // Keeps PromiseTooltip and ConfirmModal in sync without a server round-trip.
+  const LOCK_PROMISE = {
+    verb: 'Generate itinerary',
+    produces: 'A day-by-day itinerary synthesized from your planning sections, streamed in real time as it generates.',
+    time_seconds: 30,
+    tokens_range: [2000, 4000],
+  };
+
   // ── Archive ──
   // ── Brochure prepare (Ambient Background) ──
   // The route returns 202 immediately and the global jobs indicator surfaces
@@ -571,28 +657,41 @@
           <strong>Planning mode.</strong>
           Edit any section below, or tap <em>Ask {data.assistantName}</em> to describe a change in plain English — updates are written straight to the markdown.
           <div class="callout-actions">
-            <button
-              class="btn btn-primary"
-              onclick={lockTrip}
-              disabled={locking || !data.features?.lock}
-              title={data.features?.lock ? '' : 'No default model configured — edit your .env to enable this'}
-            >
-              {locking ? 'Plotting the itinerary…' : 'Lock trip & generate itinerary'}
-            </button>
+            <PromiseTooltip promise={LOCK_PROMISE}>
+              <button
+                class="btn btn-primary"
+                onclick={lockTrip}
+                disabled={locking || !data.features?.lock}
+                title={data.features?.lock ? undefined : 'No default model configured — edit your .env to enable this'}
+              >
+                {locking ? 'Generating itinerary…' : 'Lock trip & generate itinerary'}
+              </button>
+            </PromiseTooltip>
             <a class="btn btn-secondary" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">Preview brochure</a>
-            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
+            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing || locking}>
               {completing ? 'Completing…' : 'Mark as completed'}
             </button>
           </div>
-          {#if locking}
-            <div class="lock-stream">
-              <div class="lock-status">{lockStatus}</div>
-              {#if lockStreamingText}
-                <pre class="lock-preview">{lockStreamingText}</pre>
-              {/if}
-            </div>
-          {/if}
         </div>
+
+        {#if lockState !== 'idle'}
+          <div class="lock-stream-wrap">
+            <StreamBanner
+              state={lockState}
+              title="Generating itinerary…"
+              successTitle="Trip locked"
+              tokens={lockTokens}
+              estimateRemaining={lockEstimateRemaining}
+              errorCode={lockErrorCode}
+              oncancel={cancelLock}
+              onretry={lockTrip}
+              ondismiss={dismissLock}
+            />
+            {#if lockStreamingText}
+              <pre class="lock-preview" aria-label="Itinerary preview">{lockStreamingText}</pre>
+            {/if}
+          </div>
+        {/if}
       {:else if isPlanning && isLocked}
         <div id="locked-callout" class="callout locked-callout">
           <strong>Locked — read-only.</strong>
@@ -1015,15 +1114,14 @@
     flex-wrap: wrap;
     margin-top: 0.65rem;
   }
-  .lock-stream {
-    margin-top: 0.85rem;
-    padding-top: 0.85rem;
-    border-top: 1px dashed rgba(201, 182, 149, 0.6);
-  }
-  .lock-status {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.5rem;
+  /* lock-stream-wrap: StreamBanner + preview pre, rendered as a section-level card */
+  .lock-stream-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--bone-200);
   }
   .lock-preview {
     margin: 0;

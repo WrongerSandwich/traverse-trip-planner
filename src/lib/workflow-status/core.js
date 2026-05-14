@@ -10,7 +10,10 @@
 // recovery contract). Failure rendering MUST consume ERROR_REGISTRY — no
 // inline catch sentences anywhere in components.
 
-import { ERROR_REGISTRY } from '../server/errors.js';
+// Import from the client-safe registry (no node imports, no side effects) so
+// workflow-status components can be used in browser routes as well as server code.
+// $lib/server/errors.js re-exports these for backwards compat with server-only imports.
+import { ERROR_REGISTRY } from '../errors-registry.js';
 
 /** Canonical workflow states. Wrappers branch their envelope on these. */
 export const STATES = ['idle', 'in_progress', 'success', 'failure', 'cancelled'];

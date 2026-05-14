@@ -64,6 +64,8 @@ Format rules:
       if (!itinerary && result?.text) itinerary = result.text;
       usage = result?.usage;
     } catch (err) {
+      // Re-throw abort signals so sseStream's cancel() path handles them silently.
+      if (err.name === 'AbortError' || err.code === 'ABORT_ERR') throw err;
       throw new Error(`Itinerary generation failed: ${err.message}`);
     }
 
