@@ -3,6 +3,7 @@ import { writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { ROOT, readHomeMd, getTripFiles, invalidateEnrichCache } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
 export const _promise = {
@@ -74,7 +75,7 @@ ${context || '(no planning sections available)'}`;
     return new Response('Field guide returned malformed questions — try again', { status: 502 });
   }
 
-  return json({ questions, usage });
+  return json({ questions, usage, tokens: usageToTokens(usage) });
 }
 
 function yamlEscape(str) {
@@ -186,5 +187,5 @@ Write the notes.md body now.`;
   }
 
   invalidateEnrichCache();
-  return json({ ok: true, usage });
+  return json({ ok: true, usage, tokens: usageToTokens(usage) });
 }
