@@ -3,6 +3,7 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { setLocked, readPlanningTrip, PLANNING_SECTIONS } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { sseStream } from '$lib/server/sse.js';
 import { TraverseError } from '$lib/server/errors.js';
@@ -78,7 +79,7 @@ Format rules:
     if (!lockResult) throw new Error('Failed to update frontmatter');
 
     if (usage) send(formatUsage(usage));
-    send('Done — itinerary is set.', true);
+    send('Done — itinerary is set.', true, usageToTokens(usage));
   });
 }
 

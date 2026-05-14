@@ -4,6 +4,7 @@ import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 
 export const _promise = {
@@ -95,6 +96,6 @@ national_park: true`;
 
     invalidateEnrichCache();
     send(formatUsage(usage));
-    send(`Done — ${files.length} new trip${files.length === 1 ? '' : 's'} on the list.`, true);
+    send(`Done — ${files.length} new trip${files.length === 1 ? '' : 's'} on the list.`, true, usageToTokens(usage));
   });
 }
