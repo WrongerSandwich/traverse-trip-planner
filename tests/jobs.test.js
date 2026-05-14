@@ -115,7 +115,7 @@ afterEach(() => {
 // at module load. We need to set cwd BEFORE first import.
 process.cwd = () => ROOT;
 
-const { startJob, completeJob, failJob, cancelJob, listJobs, assertNotRunning, sweepStaleJobs, _resetForTests } = await import('../src/lib/server/jobs.js');
+const { startJob, completeJob, failJob, cancelJob, listJobs, listRecentEvents, assertNotRunning, sweepStaleJobs, _resetForTests } = await import('../src/lib/server/jobs.js');
 const { parseFrontmatter, setFrontmatterField } = await import('../src/lib/server/data.js');
 
 function seedIdea(slug, extraFm = {}) {
@@ -276,6 +276,84 @@ describe('listJobs', () => {
       expect(() => JSON.stringify(row)).not.toThrow();
       expect(row.controller).toBeUndefined();
     }
+  });
+});
+
+// ─── listRecentEvents ────────────────────────────────────────────────────────
+
+describe('listRecentEvents', () => {
+  it('records a success event when completeJob runs', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+    completeJob('deepen', 'marfa-tx', { usage: { input_tokens: 100, output_tokens: 200 } });
+
+    const events = listRecentEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      workflow: 'deepen',
+      slug: 'marfa-tx',
+      outcome: 'success',
+      tokens: 300,
+    });
+    expect(typeof events[0].at).toBe('number');
+  });
+
+  it('records a failure event when failJob runs', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+    failJob('deepen', 'marfa-tx', { code: 'provider_error', message: 'oops' });
+
+    const events = listRecentEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      workflow: 'deepen',
+      slug: 'marfa-tx',
+      outcome: 'failure',
+      code: 'provider_error',
+    });
+  });
+
+  it('records a cancellation event when cancelJob runs', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+    cancelJob('deepen', 'marfa-tx');
+
+    const events = listRecentEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      workflow: 'deepen',
+      slug: 'marfa-tx',
+      outcome: 'failure',
+      code: 'cancelled',
+    });
+  });
+
+  it('prunes events older than the TTL (default 60s)', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+    completeJob('deepen', 'marfa-tx', {});
+
+    const originalNow = Date.now;
+    try {
+      // Advance 90s
+      Date.now = () => originalNow() + 90 * 1000;
+      expect(listRecentEvents()).toHaveLength(0);
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
+  it('keeps multiple events in chronological order', () => {
+    seedIdea('a');
+    seedIdea('b');
+    startJob('deepen', 'a');
+    completeJob('deepen', 'a', {});
+    startJob('brochure', 'b');
+    failJob('brochure', 'b', { code: 'timeout' });
+
+    const events = listRecentEvents();
+    expect(events).toHaveLength(2);
+    expect(events.map((e) => e.slug)).toEqual(['a', 'b']);
   });
 });
 

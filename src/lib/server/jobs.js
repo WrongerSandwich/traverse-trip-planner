@@ -31,8 +31,35 @@ import { TraverseError } from './errors.js';
 /** @type {Map<string, { workflow: string, slug: string, startedAt: number, controller: AbortController, opts: object }>} */
 const jobs = new Map();
 
+/**
+ * Ring buffer of recently-finished job outcomes, used by the indicator UI to
+ * surface success/failure toasts after a job disappears from `listJobs()`.
+ * Entries auto-prune by TTL on every read so we never leak memory and the
+ * client can poll without seeing stale events forever.
+ *
+ * Shape: { workflow, slug, outcome: 'success' | 'failure', code?, tokens?, at }
+ */
+/** @type {Array<{ workflow: string, slug: string, outcome: 'success' | 'failure', code?: string, tokens?: number, at: number }>} */
+const recentEvents = [];
+
+/** Recent-event retention window. 60s is enough for a 10s poll to catch any
+ *  outcome twice over without indefinite growth. */
+const RECENT_EVENT_TTL_MS = 60 * 1000;
+
 function keyFor(workflow, slug) {
   return `${workflow}:${slug}`;
+}
+
+function pushEvent(event) {
+  recentEvents.push({ ...event, at: Date.now() });
+  pruneRecentEvents();
+}
+
+function pruneRecentEvents() {
+  const cutoff = Date.now() - RECENT_EVENT_TTL_MS;
+  while (recentEvents.length > 0 && recentEvents[0].at < cutoff) {
+    recentEvents.shift();
+  }
 }
 
 // ─── Frontmatter helpers ─────────────────────────────────────────────────────
@@ -119,6 +146,13 @@ export function completeJob(workflow, slug, result = {}) {
   const tokens = (result?.usage?.input_tokens ?? 0) + (result?.usage?.output_tokens ?? 0);
   if (tokens > 0) extras.last_run_tokens = String(tokens);
   clearRunningFlag(slug, extras);
+
+  pushEvent({
+    workflow,
+    slug,
+    outcome: 'success',
+    ...(tokens > 0 ? { tokens } : {}),
+  });
 }
 
 /**
@@ -136,6 +170,13 @@ export function failJob(workflow, slug, error = {}) {
   clearRunningFlag(slug, {
     last_run_error: code,
     last_run_error_at: new Date().toISOString(),
+  });
+
+  pushEvent({
+    workflow,
+    slug,
+    outcome: 'failure',
+    code,
   });
 }
 
@@ -174,6 +215,17 @@ export function listJobs() {
     });
   }
   return out;
+}
+
+/**
+ * Snapshot of recently-completed job outcomes. Events older than
+ * `RECENT_EVENT_TTL_MS` are pruned on every call. The indicator UI uses this
+ * to convert "job disappeared from snapshot" into a typed success/failure
+ * toast even when the poll interval misses the live transition.
+ */
+export function listRecentEvents() {
+  pruneRecentEvents();
+  return recentEvents.map((e) => ({ ...e }));
 }
 
 /**
@@ -271,4 +323,5 @@ export function sweepStaleJobs({ maxAgeMinutes = 10 } = {}) {
 /** Resets the in-memory map. Tests only. */
 export function _resetForTests() {
   jobs.clear();
+  recentEvents.length = 0;
 }
