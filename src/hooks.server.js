@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describeConfig } from '$lib/server/config.js';
 import { ROOT, parseFrontmatter, removeFrontmatterField } from '$lib/server/data.js';
+import { sweepStaleJobs } from '$lib/server/jobs.js';
 
 let banneredOnce = false;
 
@@ -38,6 +39,10 @@ printConfigBanner();
 // On startup, clear any `researching: true` flags left behind by a prior
 // crashed process. The associated idea stays in ideas/ — only the flag is
 // removed so the card's "Research →" button becomes clickable again.
+//
+// This is the legacy Deepen-only sweep. Once Deepen migrates to the unified
+// job registry (issue #84), this can be retired in favor of `sweepStaleJobs`
+// below — which scans for the new `running:` flag across all stages.
 (function clearStaleResearchingFlags() {
   const ideasDir = join(ROOT, 'ideas');
   if (!existsSync(ideasDir)) return;
@@ -54,3 +59,11 @@ printConfigBanner();
   }
   if (cleared > 0) console.log(`[startup] Cleared ${cleared} stale researching flag(s).`);
 })();
+
+// Unified job-registry sweep. On boot, any `running:` flag still on disk
+// is orphaned by definition (the in-memory registry that holds the
+// AbortController is empty after restart). The age threshold guards
+// against clobbering an in-flight write from another process.
+//
+// See src/lib/server/jobs.js and docs/ai-workflow-ux.md §8.
+sweepStaleJobs();

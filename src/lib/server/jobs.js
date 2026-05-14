@@ -1,0 +1,274 @@
+// Server-side job registry for Ambient Background workflows.
+//
+// See docs/ai-workflow-ux.md §6 (background-status surface) and §8 (edge cases).
+//
+// Two coordinated sources of truth:
+//   1. An in-memory Map keyed by `${workflow}:${slug}` — authoritative for live
+//      state. The indicator UI reads `listJobs()` and the per-job AbortController
+//      lives here.
+//   2. A `running: '<workflow>'` flag in the trip's frontmatter — a recovery
+//      hint that survives server restart. On boot, `sweepStaleJobs()` reconciles
+//      any orphaned flags left by a crashed process.
+//
+// The in-memory map is authoritative when present. Frontmatter is only consulted
+// during the restart sweep — not during normal live-state reads. This avoids
+// re-parsing files on every indicator poll.
+
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  ROOT,
+  parseFrontmatter,
+  setFrontmatterField,
+  removeFrontmatterField,
+  findTripFile,
+  invalidateEnrichCache,
+} from './data.js';
+import { TraverseError } from './errors.js';
+
+// ─── In-memory registry ──────────────────────────────────────────────────────
+
+/** @type {Map<string, { workflow: string, slug: string, startedAt: number, controller: AbortController, opts: object }>} */
+const jobs = new Map();
+
+function keyFor(workflow, slug) {
+  return `${workflow}:${slug}`;
+}
+
+// ─── Frontmatter helpers ─────────────────────────────────────────────────────
+
+// Return the on-disk path to the trip's source-of-truth markdown file.
+// Returns null when the trip isn't found in any stage (the caller will skip
+// frontmatter mutation but keep its in-memory entry).
+function tripFilePath(slug) {
+  return findTripFile(slug);
+}
+
+function readTripFile(path) {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+function writeRunningFlag(slug, workflow) {
+  const path = tripFilePath(slug);
+  if (!path) return;
+  const content = readTripFile(path);
+  if (content === null) return;
+  if (!parseFrontmatter(content)) return;
+  writeFileSync(path, setFrontmatterField(content, 'running', workflow));
+  invalidateEnrichCache();
+}
+
+function clearRunningFlag(slug, extraFields = {}) {
+  const path = tripFilePath(slug);
+  if (!path) return;
+  let content = readTripFile(path);
+  if (content === null) return;
+  if (!parseFrontmatter(content)) return;
+
+  content = removeFrontmatterField(content, 'running');
+  for (const [field, value] of Object.entries(extraFields)) {
+    content = setFrontmatterField(content, field, value);
+  }
+  writeFileSync(path, content);
+  invalidateEnrichCache();
+}
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+/**
+ * Register a new job. Adds an entry to the in-memory map and writes the
+ * `running: '<workflow>'` flag to the trip's frontmatter as a recovery hint.
+ *
+ * Returns a handle: { workflow, slug, startedAt, controller, opts }.
+ * Callers wire `controller.signal` into the `chat()` call so cancellation
+ * propagates.
+ */
+export function startJob(workflow, slug, opts = {}) {
+  const key = keyFor(workflow, slug);
+  const controller = new AbortController();
+  const entry = {
+    workflow,
+    slug,
+    startedAt: Date.now(),
+    controller,
+    opts,
+  };
+  jobs.set(key, entry);
+  writeRunningFlag(slug, workflow);
+  return entry;
+}
+
+/**
+ * Mark a job complete. Removes the in-memory entry and clears the running
+ * flag. Optionally records `last_run_success` + token count for indicator UI.
+ */
+export function completeJob(workflow, slug, result = {}) {
+  const key = keyFor(workflow, slug);
+  if (!jobs.has(key)) {
+    // Idempotent — caller might invoke completeJob from a finally{} after
+    // cancelJob already cleaned up.
+    return;
+  }
+  jobs.delete(key);
+
+  const extras = { last_run_success_at: new Date().toISOString() };
+  const tokens = (result?.usage?.input_tokens ?? 0) + (result?.usage?.output_tokens ?? 0);
+  if (tokens > 0) extras.last_run_tokens = String(tokens);
+  clearRunningFlag(slug, extras);
+}
+
+/**
+ * Mark a job failed. Removes the in-memory entry, clears the running flag,
+ * and records `last_run_error` + `last_run_error_at` for indicator UI.
+ *
+ * `error` may be a TraverseError, a plain Error, or `{ code, message }`.
+ */
+export function failJob(workflow, slug, error = {}) {
+  const key = keyFor(workflow, slug);
+  if (!jobs.has(key)) return;
+  jobs.delete(key);
+
+  const code = error?.code || 'unknown';
+  clearRunningFlag(slug, {
+    last_run_error: code,
+    last_run_error_at: new Date().toISOString(),
+  });
+}
+
+/**
+ * Cancel an in-flight job. Triggers the AbortController (which propagates
+ * into `chat()` via the `signal` parameter) and then performs the same
+ * cleanup as `failJob` with code `cancelled`.
+ *
+ * The action route's own `.catch()` will still run after the abort fires;
+ * it should also call `failJob` defensively — which is a no-op once the
+ * entry is gone.
+ */
+export function cancelJob(workflow, slug) {
+  const key = keyFor(workflow, slug);
+  const entry = jobs.get(key);
+  if (!entry) return;
+  try {
+    entry.controller.abort();
+  } catch {
+    /* ignore */
+  }
+  failJob(workflow, slug, { code: 'cancelled' });
+}
+
+/**
+ * Snapshot of currently-running jobs for the indicator UI. Returns plain
+ * JSON-serializable objects — the AbortController is stripped.
+ */
+export function listJobs() {
+  const out = [];
+  for (const entry of jobs.values()) {
+    out.push({
+      workflow: entry.workflow,
+      slug: entry.slug,
+      startedAt: entry.startedAt,
+    });
+  }
+  return out;
+}
+
+/**
+ * Throws a TraverseError with code `already_running` if a job for this
+ * (workflow, slug) is already in flight. Action routes call this before
+ * `startJob()` and translate the throw to a 409 Conflict response.
+ */
+export function assertNotRunning(workflow, slug) {
+  const key = keyFor(workflow, slug);
+  if (jobs.has(key)) {
+    throw new TraverseError('already_running', `${workflow} already running for ${slug}`);
+  }
+}
+
+// ─── Restart sweep ───────────────────────────────────────────────────────────
+
+/**
+ * Scan all trip files for `running:` flags older than `maxAgeMinutes`. For
+ * each match, clear the flag and record `last_run_aborted: true` with a
+ * timestamp. Used at server startup to recover from crashes mid-job.
+ *
+ * Returns the count of flags cleared.
+ *
+ * Threshold uses file mtime as a proxy for "how long has this job been
+ * orphaned". A job that's truly still running on a fresh process boot is
+ * impossible — the in-memory map is the only place the AbortController lives —
+ * so any `running:` flag on disk after startup is orphaned. The age threshold
+ * exists only to guard against accidentally clobbering an in-progress write
+ * (e.g. another process touching the file). Default: 10 minutes.
+ */
+export function sweepStaleJobs({ maxAgeMinutes = 10 } = {}) {
+  const threshold = Date.now() - maxAgeMinutes * 60 * 1000;
+  let cleared = 0;
+
+  for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
+    const dir = join(ROOT, stage);
+    if (!existsSync(dir)) continue;
+
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      let filePath;
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        filePath = join(dir, entry.name);
+      } else if (entry.isDirectory()) {
+        const ov = join(dir, entry.name, 'overview.md');
+        if (existsSync(ov)) filePath = ov;
+      }
+      if (!filePath) continue;
+
+      let content;
+      try {
+        content = readFileSync(filePath, 'utf8');
+      } catch {
+        continue;
+      }
+      const fm = parseFrontmatter(content);
+      if (!fm) continue;
+      if (!fm.running) continue;
+
+      let mtimeMs;
+      try {
+        mtimeMs = statSync(filePath).mtimeMs;
+      } catch {
+        mtimeMs = 0;
+      }
+      if (mtimeMs > threshold) continue;
+
+      let updated = removeFrontmatterField(content, 'running');
+      updated = setFrontmatterField(updated, 'last_run_aborted', 'true');
+      updated = setFrontmatterField(updated, 'last_run_aborted_at', new Date().toISOString());
+      try {
+        writeFileSync(filePath, updated);
+        cleared++;
+      } catch (e) {
+        console.warn(`[jobs] sweep: failed to clear flag on ${filePath}:`, e.message);
+      }
+    }
+  }
+
+  if (cleared > 0) {
+    invalidateEnrichCache();
+    console.log(`[jobs] sweep: cleared ${cleared} stale running flag(s).`);
+  }
+  return cleared;
+}
+
+// ─── Test seam ───────────────────────────────────────────────────────────────
+
+/** Resets the in-memory map. Tests only. */
+export function _resetForTests() {
+  jobs.clear();
+}
