@@ -1,0 +1,32 @@
+services:
+  traverse:
+    build: .
+    image: traverse:local
+    container_name: traverse
+    restart: unless-stopped
+    ports:
+      - "3456:3456"
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3456
+    env_file:
+      - .env
+    volumes:
+      - ./ideas:/app/ideas
+      - ./planning:/app/planning
+      - ./completed:/app/completed
+      - ./archived:/app/archived
+      - ./home.md:/app/home.md:ro
+      - ./settings.json:/app/settings.json
+      - ./.geocode-cache.json:/app/.geocode-cache.json
+      - ./.image-cache.json:/app/.image-cache.json
+      - ./.route-cache.json:/app/.route-cache.json
+      - ./.workflow-stats.json:/app/.workflow-stats.json
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3456/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

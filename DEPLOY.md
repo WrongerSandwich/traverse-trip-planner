@@ -1,6 +1,19 @@
 # Deploying Traverse to a Home Server
 
-## Prerequisites (on the Linux server)
+Traverse can be deployed two ways. Both reach the same `http://<server-ip>:3456` and read the same on-disk trip data. Pick whichever feels lighter.
+
+| Option              | Best for                                                                        |
+| ------------------- | ------------------------------------------------------------------------------- |
+| **A. PM2**          | Existing Linux servers that already run Node services; no Docker dependency.    |
+| **B. Docker**       | Fresh installs, devices without a Node toolchain, easier teardown / migration.  |
+
+You can swap between them later — both read the same `ideas/`, `planning/`, `completed/`, `archived/`, `home.md`, `.env`, and cache files.
+
+---
+
+## Option A — PM2
+
+### Prerequisites (on the Linux server)
 
 ```bash
 # Node.js 20+
@@ -11,7 +24,7 @@ sudo apt-get install -y nodejs
 sudo npm install -g pm2
 ```
 
-## First deploy
+### First deploy
 
 ```bash
 # 1. Clone the repo
@@ -40,13 +53,13 @@ pm2 startup                     # enable auto-start (follow the printed command)
 
 Traverse is now accessible on your LAN at `http://<server-ip>:3456`.
 
-## Finding the server IP
+### Finding the server IP
 
 ```bash
 ip addr show | grep "inet " | grep -v 127.0.0.1
 ```
 
-## Updating after changes
+### Updating after changes
 
 ```bash
 git pull
@@ -54,6 +67,86 @@ npm install          # if dependencies changed
 npm run build
 pm2 restart traverse
 ```
+
+---
+
+## Option B — Docker
+
+### Prerequisites (on the host)
+
+- Docker Engine 20.10+ with Compose v2 (`docker compose ...`, not the old `docker-compose`).
+- That's it — no Node, no PM2 on the host.
+
+### First deploy
+
+```bash
+# 1. Clone the repo
+git clone <your-repo-url> traverse
+cd traverse
+
+# 2. Configure your preferences (same as Option A)
+cp home.example.md home.md
+cp .env.example .env
+# Edit home.md and .env.
+
+# 3. Initialize on-disk state files that Compose will bind-mount
+# (Docker would otherwise create these as directories on first run.)
+touch settings.json .geocode-cache.json .image-cache.json \
+      .route-cache.json .workflow-stats.json
+mkdir -p ideas planning completed archived
+
+# 4. Build the image and start the container
+docker compose up -d --build
+
+# 5. Tail logs to confirm the boot banner
+docker compose logs -f traverse
+```
+
+Traverse is now accessible on your LAN at `http://<server-ip>:3456`.
+
+### Updating after changes
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+### Stopping and uninstalling
+
+```bash
+docker compose down                # stop the container; data on disk is untouched
+docker image rm traverse:local     # also drop the image
+```
+
+Trip data, `home.md`, `.env`, and caches stay on the host — `docker compose down` does not touch them.
+
+### uid/gid on Linux servers
+
+If your host user isn't uid 1000 (the default `node` user inside the image), writes to bind-mounted files (`settings.json`, the cache JSONs) would end up root-owned. Set both env vars before `up`:
+
+```bash
+echo "UID=$(id -u)" >> .env
+echo "GID=$(id -g)" >> .env
+docker compose up -d
+```
+
+macOS Docker Desktop translates ownership automatically; you can leave the defaults.
+
+### Swapping between PM2 and Docker
+
+Both want port 3456. If you're migrating, stop the other first:
+
+```bash
+# PM2 → Docker
+pm2 delete traverse
+docker compose up -d --build
+
+# Docker → PM2
+docker compose down
+pm2 start ecosystem.config.cjs
+```
+
+---
 
 ## Migrating from the old `atlas` process name
 

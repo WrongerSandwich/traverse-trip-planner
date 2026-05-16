@@ -42,6 +42,8 @@ node build/index.js
 
 Open `http://localhost:3456`.
 
+Prefer Docker? See [DEPLOY.md](DEPLOY.md#option-b--docker) for `docker compose up -d --build`.
+
 ## Trip data
 
 Trips are markdown files organized by stage:
