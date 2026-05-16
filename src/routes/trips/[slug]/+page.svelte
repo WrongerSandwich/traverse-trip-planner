@@ -869,6 +869,11 @@
           </div>
         {/if}
         <div class="itinerary-view">
+          <div class="itinerary-toolbar no-print">
+            <button class="btn btn-secondary btn-compact" onclick={() => window.print()}>
+              Print / Save PDF
+            </button>
+          </div>
           {@html marked.parse(sections.itinerary || '')}
         </div>
       {/if}
@@ -1669,6 +1674,10 @@
   }
 
   /* ── Itinerary view ── */
+  .itinerary-toolbar {
+    display: flex;
+    justify-content: flex-end;
+  }
   .itinerary-view {
     display: flex;
     flex-direction: column;
@@ -1735,7 +1744,8 @@
     .callout,
     .danger-zone,
     .map-strip,
-    .hero { display: none !important; }
+    .hero,
+    .no-print { display: none !important; }
 
     .page { background: #fff; color: #111; }
     .layout { padding: 0; }
