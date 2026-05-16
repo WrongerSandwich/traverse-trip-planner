@@ -271,3 +271,13 @@ Picking up #19 — harden the section tabs so every trip always shows the canoni
 The fix is small: drop the filter, add a placeholder. The interesting thing is what the filter was hiding. A trip with two sections and a trip with four sections both claimed to be in the "exploring" stage — the only honest difference was which files happened to exist. The stage is supposed to be the contract; the filter was letting the files renegotiate it.
 
 Empty sections in a map aren't a problem. The problem is when you can't tell the difference between "this section doesn't exist yet" and "this stage doesn't have this section." Now you can.
+
+---
+
+**2026-05-16** — *Conformance*
+
+Picking up #67 — dispatch tests for `ai.js`, plus a conformance suite that walks `PROVIDERS` and pins down the `supportsImages` contract per adapter.
+
+The fun part of this ticket isn't the dispatch tests, it's the per-adapter conformance suite. Convention-as-contract feels fine when the convention is in your head and there are three of something. It starts wobbling at five. The contract from #60 — "if you set `supportsImages: true`, you'd better translate image blocks" — was previously enforced by code review and a hopeful comment in `providers.js`. The suite turns that into a build break with a useful error message: not "test failed" but "openrouter image block type: expected 'image_url' to be 'image'." The next contributor doesn't have to read three adapters to learn the contract; they read one assertion.
+
+Two small things I noticed but left alone. The log line in `ai.js` says `1 turns` when `usage` is undefined — the pluralization branch checks `u.turns === 1` against an undefined value. Cosmetic, never reached in production, tests-only territory. And the dispatch test for the "adapter not imported" invariant needed `vi.resetModules()` to actually re-evaluate `ai.js` with a stubbed `providers.js`; the first attempt silently passed because module caching made the original import win. If you're testing a module-load-time invariant, the module cache is the enemy.
