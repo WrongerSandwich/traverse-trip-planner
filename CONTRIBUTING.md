@@ -14,6 +14,8 @@ npm run smoke                    # 1-token round-trip per provider — verifies 
 npm run dev                      # http://localhost:3456
 ```
 
+Prefer Docker for a prod-style local run? `docker compose up -d --build` works the same way as on a server (see [DEPLOY.md](DEPLOY.md#option-b--docker)). The inner dev loop is still `npm run dev` — Vite HMR is not containerized.
+
 ## Before opening a PR
 
 ```bash
