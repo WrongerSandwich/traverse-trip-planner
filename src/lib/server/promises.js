@@ -56,12 +56,6 @@ export const HAND_DEFAULTS = {
     time_seconds: 10,
     tokens_range: [300, 700],
   },
-  itinerary: {
-    verb: 'Generate itinerary',
-    produces: 'A day-by-day itinerary synthesized from your planning sections, streamed in real time.',
-    time_seconds: 30,
-    tokens_range: [2000, 4000],
-  },
   chat: {
     verb: 'Ask Field Guide',
     produces: 'A conversational reply and any updated planning sections written directly to disk.',

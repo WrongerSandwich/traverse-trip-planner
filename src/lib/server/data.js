@@ -459,18 +459,6 @@ export function isArtifactStale(dir, sources, artifact, stat) {
 }
 
 /**
- * Convenience wrapper: returns true when `itinerary.md` is stale relative to
- * the four canonical planning sections.
- *
- * @param {string} dir
- * @param {(path: string) => { mtimeMs: number } | null} [stat]
- * @returns {boolean}
- */
-export function isItineraryStale(dir, stat) {
-  return isArtifactStale(dir, PLANNING_SECTIONS, 'itinerary.md', stat);
-}
-
-/**
  * Convenience wrapper: returns true when `brochure.md` is stale relative to
  * the four canonical planning sections.
  *
