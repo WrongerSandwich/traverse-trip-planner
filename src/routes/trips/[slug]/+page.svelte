@@ -13,10 +13,8 @@
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
-  import StreamBanner from '$lib/workflow-status/StreamBanner.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
-  import { streamAction } from '$lib/utils/action.js';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { browser } from '$app/environment';
   import BrochureDayView from '$lib/components/BrochureDayView.svelte';
@@ -73,17 +71,6 @@
   let editing = $state({});      // { route: true, ... }
   let drafts  = $state({});      // staging textareas while editing
   let saving  = $state({});
-  // ── Itinerary generation state (In-Page Stream archetype) ──
-  // itinState: 'idle' | 'in_progress' | 'success' | 'failure' | 'cancelled'
-  let itinState = $state('idle');
-  let itinStreamingText = $state('');
-  let itinTokens = $state(null);       // number | null — populated from done event
-  let itinErrorCode = $state(null);    // TraverseError code string | null
-  let itinElapsed = $state(0);         // seconds elapsed while in_progress
-  let itinAborter = $state(null);      // AbortController | null
-  let itinElapsedTimer = null;         // setInterval handle
-
-  const generating = $derived(itinState === 'in_progress');
   let completing = $state(false);
 
   // ── Confirm modal ──
@@ -332,98 +319,6 @@
     }
   }
 
-  // ── Generate itinerary ──
-
-  function startItinElapsedTimer() {
-    itinElapsed = 0;
-    if (itinElapsedTimer) clearInterval(itinElapsedTimer);
-    itinElapsedTimer = setInterval(() => { itinElapsed += 1; }, 1000);
-  }
-
-  function stopItinElapsedTimer() {
-    if (itinElapsedTimer) { clearInterval(itinElapsedTimer); itinElapsedTimer = null; }
-  }
-
-  /** Elapsed + estimated-remaining label for the banner, e.g. "12s · ~18s remaining" */
-  const itinEstimateRemaining = $derived.by(() => {
-    if (itinState !== 'in_progress') return null;
-    const remaining = Math.max(0, ITINERARY_PROMISE.time_seconds - itinElapsed);
-    if (remaining === 0) return `${itinElapsed}s elapsed`;
-    return `${itinElapsed}s · ~${remaining}s remaining`;
-  });
-
-  async function generateItinerary() {
-    if (!trip || generating) return;
-
-    // Confirm before starting (long-form promise in modal body).
-    const ok = await showConfirm({
-      title: sections.itinerary ? 'Regenerate itinerary?' : 'Generate itinerary?',
-      promise: ITINERARY_PROMISE,
-      confirmLabel: sections.itinerary ? 'Regenerate itinerary' : 'Generate itinerary',
-    });
-    if (!ok) return;
-
-    // Reset state and begin.
-    itinState = 'in_progress';
-    itinStreamingText = '';
-    itinTokens = null;
-    itinErrorCode = null;
-    itinAborter = new AbortController();
-    startItinElapsedTimer();
-
-    try {
-      await streamAction(
-        `/api/itinerary/${encodeURIComponent(trip._slug)}`,
-        ({ msg, done, tokens }) => {
-          if (msg.startsWith('itinerary:')) {
-            itinStreamingText += msg.slice('itinerary:'.length);
-          }
-          if (done) {
-            if (msg.toLowerCase().startsWith('error:')) {
-              itinState = 'failure';
-              // The server emits "Error: Itinerary generation failed: …" for generic
-              // errors and "Error: <TraverseError message>" for typed ones.
-              // We surface a generic 'network_error' code when we can't parse a known code.
-              itinErrorCode = 'network_error';
-            } else {
-              itinState = 'success';
-              if (tokens) itinTokens = tokens;
-              // Trigger page reload so the itinerary tab picks up the new file.
-              invalidateAll();
-            }
-          }
-        },
-        null,
-        itinAborter.signal,
-      );
-      // streamAction resolves silently on abort (abort = cancel).
-      if (itinState === 'in_progress') {
-        itinState = 'cancelled';
-      }
-    } catch (err) {
-      console.error(err);
-      itinState = 'failure';
-      itinErrorCode = 'network_error';
-    } finally {
-      stopItinElapsedTimer();
-      itinAborter = null;
-    }
-  }
-
-  function cancelGenerate() {
-    if (itinAborter) {
-      itinAborter.abort();
-      // State transitions to 'cancelled' in the finally block of generateItinerary.
-    }
-  }
-
-  function dismissGenerate() {
-    itinState = 'idle';
-    itinStreamingText = '';
-    itinTokens = null;
-    itinErrorCode = null;
-  }
-
   // ── Complete ──
   async function completeTrip() {
     if (!trip || completing) return;
@@ -608,18 +503,6 @@
     } catch { /* clipboard blocked — user can copy manually */ }
   }
 
-  // ── Itinerary promise (mirrors _promise from the itinerary route) ──
-  // Telemetry-resolved values come from `data.promises.itinerary` (see
-  // src/lib/server/promises.js). The fallback keeps PromiseTooltip /
-  // ConfirmModal rendering when the server-load hasn't delivered them yet.
-  const ITINERARY_FALLBACK = {
-    verb: 'Generate itinerary',
-    produces: 'A day-by-day itinerary synthesized from your planning sections, streamed in real time as it generates.',
-    time_seconds: 30,
-    tokens_range: [2000, 4000],
-  };
-  const ITINERARY_PROMISE = $derived(data.promises?.itinerary ?? ITINERARY_FALLBACK);
-
   // ── Receipts promise (mirrors _promise from the receipts route) ──
   // Telemetry-resolved values come from `data.promises.receipts`.
   const RECEIPTS_FALLBACK = {
@@ -748,43 +631,12 @@
           <strong>Planning mode.</strong>
           Edit any section below, or tap <em>Ask {data.assistantName}</em> to describe a change in plain English — updates are written straight to the markdown.
           <div class="callout-actions">
-            <PromiseTooltip promise={ITINERARY_PROMISE}>
-              <button
-                class="btn btn-primary"
-                onclick={generateItinerary}
-                disabled={generating || !data.features?.itinerary}
-                title={data.features?.itinerary ? undefined : 'No default model configured — edit your .env to enable this'}
-              >
-                {generating
-                  ? 'Generating itinerary…'
-                  : sections.itinerary ? 'Regenerate itinerary' : 'Generate itinerary'}
-              </button>
-            </PromiseTooltip>
             <a class="btn btn-secondary" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">Preview brochure</a>
-            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing || generating}>
+            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
               {completing ? 'Completing…' : 'Mark as completed'}
             </button>
           </div>
         </div>
-
-        {#if itinState !== 'idle'}
-          <div class="itin-stream-wrap">
-            <StreamBanner
-              state={itinState}
-              title="Generating itinerary…"
-              successTitle="Itinerary ready"
-              tokens={itinTokens}
-              estimateRemaining={itinEstimateRemaining}
-              errorCode={itinErrorCode}
-              oncancel={cancelGenerate}
-              onretry={generateItinerary}
-              ondismiss={dismissGenerate}
-            />
-            {#if itinStreamingText}
-              <pre class="itin-preview" aria-label="Itinerary preview">{itinStreamingText}</pre>
-            {/if}
-          </div>
-        {/if}
       {:else if isCompleted}
         <div class="callout completed-callout">
           <strong>Completed.</strong>
@@ -868,16 +720,6 @@
           <BrochureDayView days={data.brochureData.days} />
         </div>
       {:else if sections.itinerary}
-        {#if data.itineraryStale && isPlanning}
-          <div class="itinerary-stale-notice">
-            <span>Sections have changed — regenerate?</span>
-            <button
-              class="btn btn-secondary btn-compact"
-              onclick={generateItinerary}
-              disabled={generating || !data.features?.itinerary}
-            >Regenerate itinerary</button>
-          </div>
-        {/if}
         <div class="itinerary-view">
           <div class="itinerary-toolbar no-print">
             <button class="btn btn-secondary btn-compact" onclick={() => window.print()}>
@@ -1257,29 +1099,6 @@
     gap: 0.5rem;
     flex-wrap: wrap;
     margin-top: 0.65rem;
-  }
-  /* itin-stream-wrap: StreamBanner + preview pre, rendered as a section-level card */
-  .itin-stream-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid var(--bone-200);
-  }
-  .itin-preview {
-    margin: 0;
-    max-height: 280px;
-    overflow-y: auto;
-    background: var(--bone-50);
-    border: 1px solid var(--bone-200);
-    border-radius: 4px;
-    padding: 0.75rem 0.9rem;
-    font-family: var(--font-sans);
-    font-size: 0.78rem;
-    line-height: 1.55;
-    white-space: pre-wrap;
-    color: var(--text-primary);
   }
   .callout.completed-callout {
     background: var(--bark-50);
@@ -1748,21 +1567,6 @@
     font-size: 0.85rem;
     color: var(--text-secondary, #64748b);
   }
-
-  /* ── Itinerary staleness notice ── */
-  .itinerary-stale-notice {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    background: var(--amber-50, #fffbeb);
-    border: 1px solid var(--amber-300, #fcd34d);
-    border-radius: 6px;
-    font-size: 0.85rem;
-    color: var(--amber-800, #92400e);
-    margin-bottom: 0.5rem;
-  }
-  .itinerary-stale-notice span { flex: 1; }
 
   /* ── Brochure staleness notice ── */
   .brochure-stale-notice {

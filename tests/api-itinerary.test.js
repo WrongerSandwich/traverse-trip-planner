@@ -1,3 +1,5 @@
+// NOTE: The endpoint was retired in #138; the stub at src/routes/api/itinerary/
+// keeps this import live until the dead-code cleanup pass in #139 removes both.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // --- fs mock ---
@@ -78,7 +80,7 @@ function makeRequest(slug = 'test-trip') {
 
 // ── 404 ────────────────────────────────────────────────────────────────────────
 
-describe('POST /api/itinerary/[slug]', () => {
+describe.skip('POST /api/itinerary/[slug]', () => {
   it('returns 404 when trip is not in planning stage', async () => {
     mockReadPlanningTrip.mockReturnValue(null);
     const res = await POST(makeRequest('missing-trip'));
@@ -88,7 +90,7 @@ describe('POST /api/itinerary/[slug]', () => {
 
 // ── empty model output ─────────────────────────────────────────────────────────
 
-describe('POST /api/itinerary/[slug] — empty model output', () => {
+describe.skip('POST /api/itinerary/[slug] — empty model output', () => {
   it('sends error when chat() returns empty text', async () => {
     mockChat.mockResolvedValueOnce({ text: '', usage: null });
     const res = await POST(makeRequest());
@@ -115,7 +117,7 @@ describe('POST /api/itinerary/[slug] — empty model output', () => {
 
 // ── cancel (AbortError from request.signal) ────────────────────────────────────
 
-describe('POST /api/itinerary/[slug] — cancel', () => {
+describe.skip('POST /api/itinerary/[slug] — cancel', () => {
   it('does not send an Error message when the request is aborted', async () => {
     // Simulate an abort by rejecting chat() with an AbortError
     const abortErr = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
@@ -135,7 +137,7 @@ describe('POST /api/itinerary/[slug] — cancel', () => {
 
 // ── typed-error failure envelope ───────────────────────────────────────────────
 
-describe('POST /api/itinerary/[slug] — typed error codes', () => {
+describe.skip('POST /api/itinerary/[slug] — typed error codes', () => {
   it('sends an Error message containing the TraverseError code when chat() throws a known error', async () => {
     const { TraverseError } = await import('../src/lib/server/errors.js');
     mockChat.mockRejectedValueOnce(new TraverseError('provider_error', 'Provider blew up'));
@@ -155,7 +157,7 @@ describe('POST /api/itinerary/[slug] — typed error codes', () => {
 
 // ── success path ───────────────────────────────────────────────────────────────
 
-describe('POST /api/itinerary/[slug] — success', () => {
+describe.skip('POST /api/itinerary/[slug] — success', () => {
   it('writes itinerary.md with the model output', async () => {
     mockChat.mockResolvedValueOnce({
       text: '## Day 1 — Monday\n- 9:00 AM — Depart\n## Day 2 — Tuesday\n- Drive home',

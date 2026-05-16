@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { error } from '@sveltejs/kit';
-import { enrichTrips, getHome, getTripFiles, isItineraryStale, isBrochureStale, ROOT } from '$lib/server/data.js';
+import { enrichTrips, getHome, getTripFiles, isBrochureStale, ROOT } from '$lib/server/data.js';
 import { makeShareToken } from '$lib/server/share.js';
 import { readBrochure } from '$lib/server/brochure.js';
 
@@ -22,11 +22,9 @@ export async function load({ params }) {
   const resolvedStage = files?.stage || trip._stage;
 
   // Compute staleness for planning/completed trips that have generated artifacts.
-  let itineraryStale = false;
   let brochureStale = false;
   if (resolvedStage === 'planning' || resolvedStage === 'completed') {
     const tripDir = join(ROOT, resolvedStage, slug);
-    itineraryStale = isItineraryStale(tripDir);
     brochureStale = isBrochureStale(tripDir);
   }
 
@@ -42,5 +40,5 @@ export async function load({ params }) {
     // Malformed brochure.md — fall through to itinerary.md legacy rendering.
   }
 
-  return { trip, home, files: files?.files || {}, stage: resolvedStage, itineraryStale, brochureStale, brochureData };
+  return { trip, home, files: files?.files || {}, stage: resolvedStage, brochureStale, brochureData };
 }
