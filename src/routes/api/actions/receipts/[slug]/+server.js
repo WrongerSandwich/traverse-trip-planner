@@ -5,13 +5,9 @@ import { ROOT, appendToNotes } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Parse receipts',
-  produces: 'Structured expense lines (date · merchant · amount · category) appended to your trip notes.',
-  time_seconds: 10,
-  tokens_range: [400, 900],
-};
+export const _promise = HAND_DEFAULTS.receipts;
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGES = 10;

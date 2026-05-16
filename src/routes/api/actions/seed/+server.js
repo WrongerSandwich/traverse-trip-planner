@@ -6,13 +6,9 @@ import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Generate ideas',
-  produces: 'Five new road-trip idea files tailored to your taste profile and steering prompt.',
-  time_seconds: 20,
-  tokens_range: [1500, 3000],
-};
+export const _promise = HAND_DEFAULTS.seed;
 
 export async function POST({ request }) {
   const NAME = getEffectiveConfig().assistantName;

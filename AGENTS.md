@@ -38,11 +38,17 @@ A short list of patterns and constraints that aren't visible from grepping
 the source. Knowing these up front saves debugging time.
 
 - **Disk-backed caches at repo root.** `.geocode-cache.json`,
-  `.image-cache.json`, `.route-cache.json` persist across restarts. If
-  your tests exercise code that reads or writes them, clean up after
-  yourself or stub at the boundary.
-- **`chat()` requires a `label`.** Token-usage logs group costs by it.
-  Forgetting the label means your feature's costs become invisible.
+  `.image-cache.json`, `.route-cache.json`, and `.workflow-stats.json`
+  persist across restarts. If your tests exercise code that reads or
+  writes them, clean up after yourself or stub at the boundary.
+  `.workflow-stats.json` is the rolling-p50 telemetry that calibrates
+  the `_promise` time/token estimates (see
+  `src/lib/server/workflow-stats.js`); it's written from `chat()` on
+  every AI call and read at load time by `getResolvedPromises()`.
+- **`chat()` requires a `label`.** Token-usage logs group costs by it,
+  and workflow-stats keys its rolling p50 by it. Forgetting the label
+  means your feature's costs are invisible and its promise estimates
+  never auto-tune.
 - **`enrichTrips()` runs on every page load** and includes a GC pass over
   stale cache entries. It's guarded against the empty-list case (won't
   wipe everything if trips temporarily fail to load), but simulating it

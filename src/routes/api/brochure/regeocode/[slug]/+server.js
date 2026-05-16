@@ -1,13 +1,9 @@
 import { sseStream } from '$lib/server/sse.js';
 import { regeocodeBrochureStops } from '$lib/server/brochure.js';
 import { TraverseError } from '$lib/server/errors.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Re-geocode stops',
-  produces: 'Updated map pin coordinates for any stops that were missing a location on the brochure.',
-  time_seconds: 8,
-  tokens_range: [0, 0],
-};
+export const _promise = HAND_DEFAULTS.regeocode;
 
 export function POST({ params }) {
   const { slug } = params;

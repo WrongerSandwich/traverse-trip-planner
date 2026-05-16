@@ -8,14 +8,17 @@
 
   let { data } = $props();
 
-  // Mirror of src/routes/api/brochure/regeocode/[slug]/+server.js _promise.
-  // Keep in sync if the endpoint promise object changes.
-  const REGEOCODE_PROMISE = {
+  // Mirror of src/routes/api/brochure/regeocode/[slug]/+server.js _promise,
+  // used as a synchronous fallback. Telemetry-resolved values come from
+  // `data.promises.regeocode` (see src/lib/server/promises.js). Regeocode
+  // doesn't call chat() so its tokens stay zero regardless.
+  const REGEOCODE_FALLBACK = {
     verb: 'Re-geocode stops',
     produces: 'Updated map pin coordinates for any stops that were missing a location on the brochure.',
     time_seconds: 8,
     tokens_range: [0, 0],
   };
+  const REGEOCODE_PROMISE = $derived(data.promises?.regeocode ?? REGEOCODE_FALLBACK);
 
   const trip = $derived(data.trip);
   // Snapshot of brochure data we'll mutate locally before save. The

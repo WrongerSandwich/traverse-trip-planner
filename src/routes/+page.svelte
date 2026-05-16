@@ -27,25 +27,27 @@
     return `${label} tokens`;
   }
 
-  // Mirror of src/routes/api/actions/add/+server.js _promise export.
-  // Keep in sync if the endpoint promise object changes.
-  const ADD_PROMISE = {
+  let { data } = $props();
+
+  // Mirror of src/routes/api/actions/add/+server.js _promise export, used
+  // as a synchronous fallback when `data.promises` isn't populated (e.g.
+  // older client builds rehydrating against a fresh server). When
+  // telemetry overrides are available the server delivers them via
+  // `data.promises` keyed by `chat()` label (see src/lib/server/promises.js).
+  const ADD_FALLBACK = {
     verb: 'Add destination',
     produces: 'One new trip idea file for the named destination, after checking for duplicates and road-trip viability.',
     time_seconds: 12,
     tokens_range: [400, 800],
   };
-
-  // Mirror of src/routes/api/actions/seed/+server.js _promise export.
-  // Keep in sync if the endpoint promise object changes.
-  const SEED_PROMISE = {
+  const SEED_FALLBACK = {
     verb: 'Generate ideas',
     produces: 'Five new road-trip idea files tailored to your taste profile and steering prompt.',
     time_seconds: 20,
     tokens_range: [1500, 3000],
   };
-
-  let { data } = $props();
+  const ADD_PROMISE = $derived(data.promises?.add ?? ADD_FALLBACK);
+  const SEED_PROMISE = $derived(data.promises?.seed ?? SEED_FALLBACK);
 
   // ── Background jobs polling (10s interval) ──
   // Fetches GET /api/jobs once and distributes the filtered subset to each

@@ -271,3 +271,15 @@ Picking up #19 — harden the section tabs so every trip always shows the canoni
 The fix is small: drop the filter, add a placeholder. The interesting thing is what the filter was hiding. A trip with two sections and a trip with four sections both claimed to be in the "exploring" stage — the only honest difference was which files happened to exist. The stage is supposed to be the contract; the filter was letting the files renegotiate it.
 
 Empty sections in a map aren't a problem. The problem is when you can't tell the difference between "this section doesn't exist yet" and "this stage doesn't have this section." Now you can.
+
+---
+
+**2026-05-16** — *Plumbline*
+
+Picking up #111 — telemetry-driven calibration for the `_promise` estimates.
+
+The interesting decision was where to record. `jobs.js` has a ring buffer already, but it lives in the lifecycle of *in-flight* Ambient jobs — TTL of 60s, only registered workflows. Telemetry has a different lifecycle: every `chat()` call (Ambient or not), 14-day window, survives restart. Two different concerns asking for one buffer was the kind of small mistake you only notice later when you go to evict by both rules at once.
+
+So: `workflow-stats.js` next to the other disk-backed caches, keyed by `chat()` label. The recording hook sits where token usage is already logged — one line, best-effort, never breaks the call path. The drift guard is what I find most satisfying: if telemetry says `seed` takes 200s but hand-default is 20s, something's broken elsewhere, and the right answer is to fall back to the hand default and log a warning, not to silently rewrite the promise into an obviously-wrong number. Honest fallback beats honest-looking lies.
+
+The hand defaults moved into `src/lib/server/promises.js` and each route imports its slot — additive, the `_promise` export shape is unchanged. The Svelte pages keep their fallback constants in case `data.promises` ever fails to ship, but the server-resolved values win when present.
