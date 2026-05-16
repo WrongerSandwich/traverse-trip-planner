@@ -963,9 +963,18 @@
             </button>
           </PromiseTooltip>
         </div>
+        {#if data.brochureStale && !brochureRunning}
+          <div class="brochure-stale-notice">
+            <span>Sections have changed — re-prepare?</span>
+            <button
+              class="btn btn-secondary btn-compact"
+              onclick={prepareBrochure}
+            >Re-prepare brochure</button>
+          </div>
+        {/if}
         {#if brochureError}
           <span class="brochure-error">{brochureError}</span>
-        {:else}
+        {:else if !data.brochureStale}
           <span class="archive-hint">
             The Field guide reads your notes and proposes a structured set of stops, lodging, and notes for the brochure. The job runs in the background — the indicator at the top of the page will tell you when it's ready.
           </span>
@@ -1734,6 +1743,21 @@
     margin-bottom: 0.5rem;
   }
   .itinerary-stale-notice span { flex: 1; }
+
+  /* ── Brochure staleness notice ── */
+  .brochure-stale-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: var(--amber-50, #fffbeb);
+    border: 1px solid var(--amber-300, #fcd34d);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: var(--amber-800, #92400e);
+    margin-top: 0.5rem;
+  }
+  .brochure-stale-notice span { flex: 1; }
 
   /* ── Print styles ── */
   @media print {

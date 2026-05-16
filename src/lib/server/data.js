@@ -428,32 +428,58 @@ export async function getTripRoute(slug) {
 export const PLANNING_SECTIONS = ['overview', 'route', 'stops', 'logistics'];
 
 /**
- * Returns true when itinerary.md exists AND at least one source section
- * (overview / route / stops / logistics) has been modified more recently
- * than the itinerary — i.e. the itinerary is stale.
+ * Returns true when `artifact` exists in `dir` AND at least one of the
+ * `sources` section files has been modified more recently than `artifact` —
+ * i.e. the artifact is stale relative to its source sections.
  *
  * Accepts an optional `stat` callback so tests can inject synthetic mtimes
  * without touching the filesystem.
  *
- * @param {string} dir  - Absolute path to the trip folder.
+ * @param {string}   dir      - Absolute path to the trip folder.
+ * @param {string[]} sources  - Section names to check (without `.md` extension).
+ * @param {string}   artifact - Filename of the artifact to check (e.g. `'itinerary.md'`).
  * @param {(path: string) => { mtimeMs: number } | null} [stat]
  *   - Defaults to `fs.statSync` with a null-returning catch.
  * @returns {boolean}
  */
-export function isItineraryStale(dir, stat) {
+export function isArtifactStale(dir, sources, artifact, stat) {
   const safeStat = stat ?? ((p) => { try { return statSync(p); } catch { return null; } });
 
-  const itineraryPath = join(dir, 'itinerary.md');
-  const itineraryStat = safeStat(itineraryPath);
-  if (!itineraryStat) return false; // no itinerary — nothing to be stale
+  const artifactPath = join(dir, artifact);
+  const artifactStat = safeStat(artifactPath);
+  if (!artifactStat) return false; // artifact absent — nothing to be stale
 
-  const itineraryMtime = itineraryStat.mtimeMs;
+  const artifactMtime = artifactStat.mtimeMs;
 
-  for (const section of PLANNING_SECTIONS) {
+  for (const section of sources) {
     const sectionStat = safeStat(join(dir, `${section}.md`));
-    if (sectionStat && sectionStat.mtimeMs > itineraryMtime) return true;
+    if (sectionStat && sectionStat.mtimeMs > artifactMtime) return true;
   }
   return false;
+}
+
+/**
+ * Convenience wrapper: returns true when `itinerary.md` is stale relative to
+ * the four canonical planning sections.
+ *
+ * @param {string} dir
+ * @param {(path: string) => { mtimeMs: number } | null} [stat]
+ * @returns {boolean}
+ */
+export function isItineraryStale(dir, stat) {
+  return isArtifactStale(dir, PLANNING_SECTIONS, 'itinerary.md', stat);
+}
+
+/**
+ * Convenience wrapper: returns true when `brochure.md` is stale relative to
+ * the four canonical planning sections.
+ *
+ * @param {string} dir
+ * @param {(path: string) => { mtimeMs: number } | null} [stat]
+ * @returns {boolean}
+ */
+export function isBrochureStale(dir, stat) {
+  return isArtifactStale(dir, PLANNING_SECTIONS, 'brochure.md', stat);
 }
 
 // Returns { dir, frontmatter, sections } for a trip in the planning stage,
