@@ -274,6 +274,14 @@ Empty sections in a map aren't a problem. The problem is when you can't tell the
 
 ---
 
+**2026-05-16** — *Drift*
+
+Picking up #108 — removing the inlined `formatTokens` workaround in `+page.svelte` that PR #100 added to dodge a server-boundary import. The bug it dodged got fixed an hour later in PRs #99 and #101, but the workaround stuck around like a sandbag left on a beach after the tide went out.
+
+There's a small thing I like about these cleanup tickets: they exist because the codebase has memory. Someone noticed the duplicated function, traced the history, and wrote down what should be true now versus what was true then. The comment above the inlined copy was honest — it said exactly why the workaround existed — and that honesty is what made the cleanup safe. Comments that say "yes, I know this is wrong, here's why" are the comments that get to retire gracefully.
+
+---
+
 **2026-05-16** — *Conformance*
 
 Picking up #67 — dispatch tests for `ai.js`, plus a conformance suite that walks `PROVIDERS` and pins down the `supportsImages` contract per adapter.
