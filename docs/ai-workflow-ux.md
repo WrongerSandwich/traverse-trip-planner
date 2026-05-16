@@ -15,12 +15,12 @@ The rubric defines four **archetypes**, the **promise/cost** the user sees befor
 | **Ambient Background** | 20s–2min+ | New artifact or in-place edit | User free to navigate away |
 | **Conversational / Modal** | Multi-turn | At end of flow | User drives the pace |
 
-The axis is **result location + attention model**, not wall-clock alone. Wall-clock matters but is a soft signal: Brochure prepare (30–60s) and Deepen (60–120s) both belong to Ambient Background because the user shouldn't be blocked at a screen for either. Lock (20–40s) belongs to In-Page Stream because the streaming output *is* the experience — watching the model produce an itinerary is what makes the action feel right.
+The axis is **result location + attention model**, not wall-clock alone. Wall-clock matters but is a soft signal: Brochure prepare (30–60s) and Deepen (60–120s) both belong to Ambient Background because the user shouldn't be blocked at a screen for either. Generate itinerary (20–40s) belongs to In-Page Stream because the streaming output *is* the experience — watching the model produce an itinerary is what makes the action feel right.
 
 ### When to pick which
 
 - **Instant Inline** if the user *expects an immediate result* (chat reply, idea cards appearing, a regeocode pass). Failure means trying again right there.
-- **In-Page Stream** if the *materialization is part of the value* (Lock's itinerary; a future "Generate prose introduction" action). The user being present to watch is intentional, not incidental.
+- **In-Page Stream** if the *materialization is part of the value* (Generate itinerary; a future "Generate prose introduction" action). The user being present to watch is intentional, not incidental.
 - **Ambient Background** if the action takes long enough that staring at it would be tedious *and* the produced artifact is fine to discover later (Brochure prep, Deepen-section, Deepen). The user can leave and come back; the global indicator tells them when it's done.
 - **Conversational / Modal** if the *user produces input across multiple steps* (Retro's questionnaire; a future "Plan a trip from scratch" wizard). One AI call per step or per turn; the structure is the wizard, not the AI.
 
@@ -48,8 +48,8 @@ Each archetype has a fixed in-progress, success, and failure envelope. Workflows
 | State | Surface |
 |---|---|
 | **Trigger** | Button + confirm modal (the long promise lives in the modal body). |
-| **In-progress** | A header banner appears at the top of the page section being produced (amber accent). Banner contains: title ("Locking trip…"), estimated time remaining, **Cancel** button. The body below streams text as it arrives. Body is read-only while streaming. |
-| **Success** | Banner switches to green ("✓ Trip locked · 12.4k tokens"). Body retains the produced content. Action transitions to the locked/produced state (Unlock or equivalent affordance now available). |
+| **In-progress** | A header banner appears at the top of the page section being produced (amber accent). Banner contains: title ("Generating itinerary…"), estimated time remaining, **Cancel** button. The body below streams text as it arrives. Body is read-only while streaming. |
+| **Success** | Banner switches to green ("✓ Itinerary generated · 12.4k tokens"). Body retains the produced content. Action transitions to the produced state (Regenerate affordance now available). |
 | **Failure** | Banner switches to red with the failure sentence. Partial stream is discarded — the user's existing content is untouched. Recovery affordances appear in the banner. |
 | **Cancel** | Always available during in-progress. Cancelled = same state as failure but with code `cancelled` and "Dismiss" as the only affordance. |
 
@@ -298,7 +298,7 @@ Every existing workflow is assigned an archetype. **Deviations** from the archet
 | **Add destination** | Instant Inline | — |
 | **Chat turn** | Instant Inline | Lives in a sidebar instead of a button-as-spinner. *Reason:* Chat is a sustained interaction surface, not a one-shot trigger; the sidebar is the persistent UI. The per-turn loading state still follows Instant Inline (input disabled, spinner inline). |
 | **Brochure regeocode** | Instant Inline | — |
-| **Lock (itinerary)** | In-Page Stream | — |
+| **Generate itinerary** | In-Page Stream | — |
 | **Brochure prepare** | Ambient Background | Currently uses ActionPanel; migrating drops it onto the global indicator. The confirm modal stays — it carries the long promise. |
 | **Deepen-section** | Ambient Background | Currently uses ActionPanel; same migration as Brochure prepare. |
 | **Deepen** | Ambient Background | Already navigable. Migration replaces the ad-hoc 4s home-page poll + frontmatter `researching:` flag with the unified global indicator + standard job state. |
@@ -339,7 +339,7 @@ Each is independently shippable. Recommended order is roughly top-to-bottom but 
 7. **Migrate Add destination to Instant Inline** — Same shape as Seed.
 8. **Migrate Chat to Instant Inline** — Deviation captured in §7. Minimal changes; ensure spinner placement is consistent.
 9. **Migrate Brochure regeocode to Instant Inline** — Retire its ActionPanel usage.
-10. **Migrate Lock to In-Page Stream** — Header banner styling + cancel button; standardize the success/failure envelope.
+10. **Migrate Generate itinerary to In-Page Stream** — Header banner styling + cancel button; standardize the success/failure envelope.
 11. **Migrate Brochure prepare to Ambient Background** — Biggest change. Introduce server-state job tracking. Move from ActionPanel to global indicator + per-trip badge. The confirm modal stays; long promise goes in its body.
 12. **Migrate Deepen-section to Ambient Background** — Same shape as Brochure prepare.
 13. **Migrate Deepen to Ambient Background** — Replace 4s poll + `researching:` flag with unified indicator integration. The fire-and-forget shape is preserved; the surface changes.

@@ -16,7 +16,7 @@ Both users are comfortable with technology. Mobile-friendliness means useful-on-
 
 ## Product Purpose
 
-A personal road-trip filing cabinet. Ideas get seeded, researched, deepened, and eventually planned and completed. The tool tracks the full lifecycle of a trip from loose pitch to retrospective. Success looks like the user actually going somewhere they found in this tool — and coming back to log that they did.
+A personal road-trip filing cabinet. Ideas get seeded, researched, and eventually planned and completed. The tool tracks the full lifecycle of a trip from loose pitch to retrospective. Success looks like the user actually going somewhere they found in this tool — and coming back to log that they did.
 
 ## Brand Personality
 
