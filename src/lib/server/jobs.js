@@ -13,6 +13,35 @@
 // The in-memory map is authoritative when present. Frontmatter is only consulted
 // during the restart sweep — not during normal live-state reads. This avoids
 // re-parsing files on every indicator poll.
+//
+// ─── Multi-instance workflow key convention ─────────────────────────────────
+//
+// The registry treats (workflow, slug) opaquely — the only requirement is that
+// the pair is unique per in-flight job. Two patterns are in use:
+//
+//   • Single-instance (one job of this type per trip):
+//       startJob('brochure', slug)         → key 'brochure:<slug>'
+//       startJob('deepen', slug)           → key 'deepen:<slug>'
+//
+//   • Multi-instance (multiple concurrent jobs of this type per trip):
+//       Encode the discriminator in the WORKFLOW arg as
+//       '<workflow>:<discriminator>'. Leave the slug arg clean.
+//         startJob('deepen-section:stops', slug)    → key 'deepen-section:stops:<slug>'
+//         startJob('deepen-section:route', slug)    → key 'deepen-section:route:<slug>'
+//
+// Why discriminator-in-workflow (not in-slug):
+//   • TripJobBadge's filter (filterJobsForSlug in src/lib/utils/jobLabels.js)
+//     does an exact `j.slug === slug` match. Keeping the slug clean means the
+//     per-trip badge surfaces every concurrent job for a trip without special
+//     prefix-handling.
+//   • The frontmatter `running:` flag carries the full workflow string
+//     ('deepen-section:stops'), which is informative for the restart sweep
+//     and any out-of-band debugging.
+//
+// Label rendering: `jobLabel()` and `BackgroundJobsIndicator`'s WORKFLOW_LABELS
+// strip a `:<discriminator>` suffix before lookup, so 'deepen-section:stops'
+// resolves to the same label as 'deepen-section'. New multi-instance workflows
+// must register their bare-workflow label there.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -46,6 +75,15 @@ const recentEvents = [];
  *  outcome twice over without indefinite growth. */
 const RECENT_EVENT_TTL_MS = 60 * 1000;
 
+/**
+ * Build the in-memory registry key for a (workflow, slug) pair.
+ *
+ * Both args are treated as opaque strings — the key is purely `${workflow}:${slug}`.
+ * For multi-instance workflows (e.g. deepen-section's per-section jobs), the
+ * discriminator is encoded in the workflow arg as '<workflow>:<discriminator>',
+ * which produces keys like 'deepen-section:stops:<slug>'. See the file header
+ * for the full convention.
+ */
 function keyFor(workflow, slug) {
   return `${workflow}:${slug}`;
 }
@@ -113,6 +151,12 @@ function clearRunningFlag(slug, extraFields = {}) {
  * Returns a handle: { workflow, slug, startedAt, controller, opts }.
  * Callers wire `controller.signal` into the `chat()` call so cancellation
  * propagates.
+ *
+ * Multi-instance workflows: pass the discriminator in the `workflow` arg as
+ * '<workflow>:<discriminator>' (e.g. 'deepen-section:stops'); keep `slug`
+ * clean. See the file header for the full convention. `cancelJob` /
+ * `assertNotRunning` / `/api/jobs/cancel` all accept the same composite
+ * workflow string.
  */
 export function startJob(workflow, slug, opts = {}) {
   const key = keyFor(workflow, slug);
@@ -241,8 +285,18 @@ export function listRecentEvents() {
  * Throws a TraverseError with code `already_running` if a job for this
  * (workflow, slug) is already in flight. Action routes call this before
  * `startJob()` and translate the throw to a 409 Conflict response.
+ *
+ * The conceptual key is `<workflow>:<slug>`; for multi-instance workflows the
+ * caller folds the discriminator into `workflow` (e.g. 'deepen-section:stops'),
+ * so collision detection naturally respects per-discriminator uniqueness
+ * without any extra plumbing here. See the file header for the convention.
  */
 export function assertNotRunning(workflow, slug) {
+  // `key` is the conceptual `<workflow>:<slug>[:<discriminator>]`. For
+  // single-instance workflows `workflow` is a bare token ('brochure'); for
+  // multi-instance ones the discriminator is embedded in `workflow`
+  // ('deepen-section:stops'), so this lookup distinguishes concurrent
+  // sections of the same trip.
   const key = keyFor(workflow, slug);
   if (jobs.has(key)) {
     throw new TraverseError('already_running', `${workflow} already running for ${slug}`);

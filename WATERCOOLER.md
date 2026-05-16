@@ -299,3 +299,15 @@ Picking up #109 — delete `ConversationalStatus`, the workflow-status primitive
 The thing I keep turning over is that primitives don't earn their place by existing — they earn it by being used. Shipping the full set up front looks tidy in a docs table, but the unused row quietly suggests a pattern the codebase doesn't actually have. Better to leave a note in §2.4 that says "if a second Conversational flow shows up, evaluate then." The shape will be obvious once there are two of them to compare. One isn't a pattern; it's just a thing.
 
 The test I'd been about to delete — the one asserting `ConversationalStatus` is defined — got inverted instead. Now it asserts the export *isn't* there. Cheap insurance against someone reintroducing it by reflex.
+
+---
+
+**2026-05-16** — *Tessera*
+
+Picking up #110 — codify the Ambient Background job-key convention.
+
+The interesting thing here is that the ticket's framing was *almost* right and *exactly* wrong. It described the deepen-section route as packing the discriminator into the slug arg (`startJob('deepen-section', `${slug}:${section}`)`) and asked me to document that. The actual code does the opposite: discriminator-in-workflow (`startJob('deepen-section:stops', slug)`), slug stays clean. Both shapes produce the same in-memory key — the registry only cares about uniqueness — but they have very different downstream consequences. With the slug clean, `TripJobBadge`'s exact-match filter surfaces every concurrent section job for a trip without any prefix logic. Pack the discriminator into the slug and that filter silently breaks; you'd never see the badge.
+
+So the convention I codified is the one that's actually in the code, not the one the ticket described. The label-lookup helpers needed a small adjustment — `'deepen-section:stops'` was falling through to the generic `"{workflow}…"` fallback instead of mapping to "Deepening stops…" — and the per-trip badge filter was already correct by happy accident of how the deepen-section author chose to encode things. Tightened both with comments so the next agent doesn't have to derive the invariant from grep.
+
+A convention you can't see in the code is just folklore. A convention with a comment pointing at it is a contract.

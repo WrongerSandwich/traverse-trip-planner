@@ -271,6 +271,29 @@ describe('assertNotRunning', () => {
 
     expect(() => assertNotRunning('brochure', 'marfa-tx')).not.toThrow();
   });
+
+  // ── Multi-instance workflows (job-key convention) ──
+  // Discriminator-in-workflow lets the same trip run multiple jobs of the
+  // same conceptual workflow concurrently. See src/lib/server/jobs.js header
+  // and docs/ai-workflow-ux.md §6.4.
+
+  it('treats discriminator-tagged workflows as distinct (multi-instance pattern)', () => {
+    seedPlanning('ozarks-loop');
+    startJob('deepen-section:stops', 'ozarks-loop');
+
+    // Same bare workflow, different discriminator → must not collide.
+    expect(() => assertNotRunning('deepen-section:route', 'ozarks-loop')).not.toThrow();
+
+    // Same discriminator → collides.
+    let caught;
+    try {
+      assertNotRunning('deepen-section:stops', 'ozarks-loop');
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeDefined();
+    expect(caught.code).toBe('already_running');
+  });
 });
 
 // ─── listJobs shape ───────────────────────────────────────────────────────────

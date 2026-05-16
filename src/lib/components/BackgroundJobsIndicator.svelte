@@ -13,7 +13,11 @@
   import { createJobsClient, keyFor } from '$lib/utils/jobs-store.js';
 
   /** Workflow → user-facing label. Bare slug → friendly capital. Used in the
-   *  drawer rows and toast bodies. Falls back to title-cased workflow. */
+   *  drawer rows and toast bodies. Falls back to title-cased workflow.
+   *
+   *  Multi-instance workflows arrive as '<workflow>:<discriminator>' (e.g.
+   *  'deepen-section:stops'); we strip the suffix before lookup so they map
+   *  to the bare-workflow label. See src/lib/server/jobs.js header. */
   const WORKFLOW_LABELS = {
     brochure: 'Brochure',
     'brochure-prepare': 'Brochure',
@@ -23,8 +27,13 @@
     research: 'Research',
   };
 
+  function bareWorkflow(w) {
+    return typeof w === 'string' ? w.split(':')[0] : w;
+  }
+
   function labelForWorkflow(w) {
-    return WORKFLOW_LABELS[w] ?? (w?.[0]?.toUpperCase() + w?.slice(1)) ?? w;
+    const bare = bareWorkflow(w);
+    return WORKFLOW_LABELS[bare] ?? (bare?.[0]?.toUpperCase() + bare?.slice(1)) ?? bare;
   }
 
   function fmtElapsed(ms) {
@@ -49,7 +58,9 @@
   };
 
   function fmtRemaining(workflow, elapsedMs) {
-    const est = ESTIMATES_S[workflow];
+    // Multi-instance workflows look up by bare workflow ('deepen-section')
+    // rather than the discriminator-tagged form ('deepen-section:stops').
+    const est = ESTIMATES_S[bareWorkflow(workflow)];
     if (!est) return null;
     const remaining = est * 1000 - elapsedMs;
     if (remaining <= 0) return 'wrapping up…';
