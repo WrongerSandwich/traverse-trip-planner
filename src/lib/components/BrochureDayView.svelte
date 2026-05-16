@@ -91,8 +91,4 @@
   .item-sep {
     color: var(--color-muted, #64748b);
   }
-
-  .item-activity {
-    /* inherits body text */
-  }
 </style>
