@@ -71,14 +71,11 @@
   /* ── Status pills ────────────────────────────────────────────────────── */
   /* Stage-specific composite tokens used by lifecycle badges. Agreed mapping:
        idea       → sky
-       exploring  → sunset
        planning   → forest
        completed  → bark
    */
   --idea-bg:        var(--sky-100);
   --idea-text:      var(--sky-600);
-  --exploring-bg:   var(--sunset-100);
-  --exploring-text: var(--sunset-800);
   --planning-bg:    var(--forest-100);
   --planning-text:  var(--forest-600);
   --completed-bg:   var(--bark-100);

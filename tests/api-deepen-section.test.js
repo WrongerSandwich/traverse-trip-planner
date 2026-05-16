@@ -48,7 +48,7 @@ vi.mock('node:fs', () => ({
 vi.mock('$lib/server/data.js', () => ({
   ROOT: '/test-root',
   readHomeMd: () => '---\ntravelers: [you]\n---\n',
-  parseFrontmatter: vi.fn(() => ({ title: 'Test Trip', status: 'exploring' })),
+  parseFrontmatter: vi.fn(() => ({ title: 'Test Trip', status: 'planning' })),
   invalidateEnrichCache: vi.fn(),
 }));
 
@@ -79,7 +79,7 @@ vi.mock('$lib/server/config.js', () => ({
 import { POST, _promise } from '../src/routes/api/actions/deepen-section/[slug]/[section]/+server.js';
 import { TraverseError } from '../src/lib/server/errors.js';
 
-const OVERVIEW = '---\ntitle: Test Trip\nstatus: exploring\ndestination: Testville\n---\nGreat trip.';
+const OVERVIEW = '---\ntitle: Test Trip\nstatus: planning\ndestination: Testville\n---\nGreat trip.';
 
 function makeRequest(slug, section) {
   return { params: { slug, section }, request: { signal: new AbortController().signal } };
@@ -106,12 +106,12 @@ beforeEach(() => {
   mockReadFileSync.mockReset();
   mockWriteFileSync.mockReset();
   mockChat.mockReset();
-  // Trip dir exists (exploring/test-trip), overview.md exists, section files do NOT exist.
+  // Trip dir exists (planning/test-trip), overview.md exists, section files do NOT exist.
   // Check section files first (more specific) before the trip dir check.
   mockExistsSync.mockImplementation((p) => {
     if (p.includes('stops.md') || p.includes('route.md') || p.includes('logistics.md')) return false;
     if (p.endsWith('overview.md')) return true;
-    if (p.includes('exploring/test-trip')) return true;
+    if (p.includes('planning/test-trip')) return true;
     return false;
   });
   mockReadFileSync.mockReturnValue(OVERVIEW);
@@ -130,7 +130,7 @@ describe('POST /api/actions/deepen-section/[slug]/[section]', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 404 when trip directory is not found in exploring or planning', async () => {
+  it('returns 404 when trip directory is not found in planning', async () => {
     mockExistsSync.mockReturnValue(false);
     const res = await POST(makeRequest('missing-trip', 'stops'));
     expect(res.status).toBe(404);

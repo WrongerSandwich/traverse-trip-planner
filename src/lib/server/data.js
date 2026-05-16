@@ -253,7 +253,7 @@ export function parseFrontmatter(content) {
 // ── Collect raw trips ──
 function collectTrips() {
   const trips = [];
-  for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
+  for (const stage of ['ideas', 'planning', 'completed']) {
     const dir = join(ROOT, stage);
     if (!existsSync(dir)) continue;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -410,7 +410,7 @@ export async function enrichTrips() {
 // Lazy-loaded by /api/route/[slug]. Geocode + route caches make this near-instant
 // for any trip enrichTrips has already touched.
 export async function getTripRoute(slug) {
-  for (const stage of ['exploring', 'planning', 'completed']) {
+  for (const stage of ['planning', 'completed']) {
     const fp = join(ROOT, stage, slug, 'overview.md');
     if (!existsSync(fp)) continue;
     const fm = parseFrontmatter(readFileSync(fp, 'utf8'));
@@ -508,7 +508,7 @@ export function setLocked(slug, locked) {
 export function findTripLocation(slug) {
   const ideaPath = join(ROOT, 'ideas', `${slug}.md`);
   if (existsSync(ideaPath)) return { kind: 'file', path: ideaPath, stage: 'ideas' };
-  for (const stage of ['exploring', 'planning', 'completed']) {
+  for (const stage of ['planning', 'completed']) {
     const dir = join(ROOT, stage, slug);
     if (existsSync(dir)) return { kind: 'dir', path: dir, stage };
   }
@@ -557,7 +557,7 @@ export function setShared(slug, shared) {
 
 // ── Trip file content ──
 export function getTripFiles(slug) {
-  for (const stage of ['exploring', 'planning', 'completed']) {
+  for (const stage of ['planning', 'completed']) {
     const dir = join(ROOT, stage, slug);
     if (existsSync(dir) && statSync(dir).isDirectory()) {
       const files = {};

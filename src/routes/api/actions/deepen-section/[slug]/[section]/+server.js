@@ -48,11 +48,8 @@ const SECTION_PROMPTS = {
 };
 
 function findTripDir(slug) {
-  for (const stage of ['exploring', 'planning']) {
-    const dir = join(ROOT, stage, slug);
-    if (existsSync(dir)) return dir;
-  }
-  return null;
+  const dir = join(ROOT, 'planning', slug);
+  return existsSync(dir) ? dir : null;
 }
 
 function isAbort(err) {

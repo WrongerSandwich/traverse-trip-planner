@@ -20,9 +20,12 @@ export function readDestinationsFromStageDir(stageDir, destinations) {
 
 export function collectExistingDestinations() {
   const destinations = [];
-  for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
+  for (const stage of ['ideas', 'planning', 'completed']) {
     readDestinationsFromStageDir(join(ROOT, stage), destinations);
   }
+  // Archived structure still contains an 'exploring' subdir for trips archived
+  // before the stage was retired — keep scanning it so those destinations
+  // remain in the seed-avoidance list.
   for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
     readDestinationsFromStageDir(join(ROOT, 'archived', stage), destinations);
   }

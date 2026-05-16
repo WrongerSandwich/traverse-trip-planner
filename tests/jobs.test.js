@@ -99,7 +99,6 @@ beforeEach(() => {
   fs.dirs = new Set();
   ensureDir(ROOT);
   ensureDir(`${ROOT}/ideas`);
-  ensureDir(`${ROOT}/exploring`);
   ensureDir(`${ROOT}/planning`);
   ensureDir(`${ROOT}/completed`);
   process.cwd = () => ROOT;

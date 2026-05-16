@@ -188,7 +188,7 @@ function buildExtractionInput({ trip, files }) {
 export async function prepareBrochure(slug, { signal, onActivity } = {}) {
   const loc = findTripLocation(slug);
   if (!loc) throw new TraverseError('trip_not_found', `Trip "${slug}" not found.`);
-  if (loc.kind !== 'dir') throw new TraverseError('wrong_stage', `Brochure requires a folder-stage trip (exploring/planning/completed); "${slug}" is in ${loc.stage}.`);
+  if (loc.kind !== 'dir') throw new TraverseError('wrong_stage', `Brochure requires a folder-stage trip (planning/completed); "${slug}" is in ${loc.stage}.`);
 
   // Load the trip's content
   const overviewPath = join(loc.path, 'overview.md');

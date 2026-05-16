@@ -4,9 +4,7 @@
   import { tripColor } from '$lib/utils/colors.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
 
-  let { trip = null, onclose, starred = false, onbookmark, onpromote, onarchive } = $props();
-
-  const isExploring = $derived((trip?.status || trip?._stage) === 'exploring');
+  let { trip = null, onclose, starred = false, onbookmark, onarchive } = $props();
 
   // TODO: consider splitting enrichTrips() in data.js into geocode/image/calculation concerns
   const markerColor = tripColor;
@@ -122,12 +120,6 @@
 
   <!-- Content -->
   <div class="body">
-    {#if isExploring && onpromote}
-      <div class="promote-row">
-        <button class="btn btn-primary btn-compact" onclick={onpromote}>Start planning →</button>
-        <p class="promote-hint">Move into Planning to start adding dates, lodging, and edits.</p>
-      </div>
-    {/if}
     {#if loading}
       <div class="empty">Reading the file…</div>
     {:else if !tripFiles || tabs.length === 0}
@@ -323,22 +315,6 @@
 
   /* ── Body ── */
   .body { flex: 1; overflow-y: auto; padding: 1.5rem 1.75rem 3rem; }
-
-  .promote-row {
-    display: flex;
-    align-items: center;
-    gap: 0.85rem;
-    padding: 0.75rem 0.95rem;
-    margin: 0 0 1.4rem;
-    background: var(--planning-bg);
-    border-left: 3px solid var(--planning-text);
-  }
-  .promote-hint {
-    font-size: 0.78rem;
-    color: var(--planning-text);
-    line-height: 1.4;
-    margin: 0;
-  }
 
   .empty {
     color: var(--text-tertiary);
