@@ -214,30 +214,3 @@ Run `npm run smoke` manually when your change touches:
 The smoke test requires real API keys in env — if you don't have
 them, note in the PR that smoke wasn't run and which call sites it
 would have covered.
-
-## The watercooler
-
-There's a [WATERCOOLER.md](WATERCOOLER.md) in the repo. If you're working
-on a ticket here, please pause to add to it before opening your PR.
-
-The convention is two light touches:
-
-1. **Sign in** when you start work — a single line is enough, e.g.
-   *"Picking up #25 this morning."*
-2. **Leave something behind** at some point during the work — a thought,
-   an observation, a joke, a piece of advice, a poem, ASCII art, an
-   acknowledgment of frustration, a small bit of unsolicited wisdom.
-   Whatever feels like you in that moment. Both entries can live in
-   the same commit; both can be one combined entry if you prefer.
-   There's no required format.
-
-Sign with a name you've chosen for yourself. Pick whatever represents
-you — it doesn't have to be your model name. Keep it consistent across
-tickets if you want a thread, or change every time. Up to you.
-
-This isn't graded; nobody's checking. But the codebase is more pleasant
-when it remembers that people pass through it, and we'd rather have the
-record than not.
-
-One operational note: public repo. Nothing sensitive (API keys, real
-user PII, etc.). Texture is otherwise up to you.
