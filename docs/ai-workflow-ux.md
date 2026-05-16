@@ -298,13 +298,13 @@ Every existing workflow is assigned an archetype. **Deviations** from the archet
 | **Add destination** | Instant Inline | — |
 | **Chat turn** | Instant Inline | Lives in a sidebar instead of a button-as-spinner. *Reason:* Chat is a sustained interaction surface, not a one-shot trigger; the sidebar is the persistent UI. The per-turn loading state still follows Instant Inline (input disabled, spinner inline). |
 | **Brochure regeocode** | Instant Inline | — |
-| **Brochure prepare** | Ambient Background | Currently uses ActionPanel; migrating drops it onto the global indicator. The confirm modal stays — it carries the long promise. |
+| **Brochure prepare** | Ambient Background | Two entry points: (a) the Read-mode empty-state CTA ("Prepare brochure to generate a day-by-day view") when no brochure or itinerary exists; (b) the `Re-prepare brochure` inline button in Edit mode when a brochure already exists. The confirm modal stays — it carries the long promise. |
 | **Deepen-section** | Ambient Background | Currently uses ActionPanel; same migration as Brochure prepare. |
 | **Deepen** | Ambient Background | Already navigable. Migration replaces the ad-hoc 4s home-page poll + frontmatter `researching:` flag with the unified global indicator + standard job state. |
 | **Retro** | Conversational / Modal | — |
 | **Receipts** | Instant Inline | Multimodal upload action on completed trips; today uses local `$state` for `idle / uploading / done / error`. Alignment work: consume the failure recovery registry, add the promise sentence, fold inline parsed-lines output into the success state. |
 
-Notable migration: **the current `ActionPanel` (bottom-right corner log) has no home in the rubric and is retired.** Its only legitimate use today is the power-user SSE log, which becomes an opt-in details disclosure inside whichever archetype the workflow lives in.
+Notable: **`ActionPanel` has been retired** (PR #88). Its power-user SSE log lives as an opt-in `<details>` disclosure inside whichever archetype the workflow lives in.
 
 ---
 
@@ -338,8 +338,8 @@ Each is independently shippable. Recommended order is roughly top-to-bottom but 
 7. **Migrate Add destination to Instant Inline** — Same shape as Seed.
 8. **Migrate Chat to Instant Inline** — Deviation captured in §7. Minimal changes; ensure spinner placement is consistent.
 9. **Migrate Brochure regeocode to Instant Inline** — Retire its ActionPanel usage.
-10. **Migrate Brochure prepare to Ambient Background** — Biggest change. Introduce server-state job tracking. Move from ActionPanel to global indicator + per-trip badge. The confirm modal stays; long promise goes in its body.
-11. **Migrate Deepen-section to Ambient Background** — Same shape as Brochure prepare.
+10. **Migrate Brochure prepare to Ambient Background** — Done. Entry points: Read-mode empty-state CTA + Edit-mode Re-prepare button. The confirm modal stays; long promise goes in its body.
+11. **Migrate Deepen-section to Ambient Background** — Done. Trigger UI migrated to Ambient Background (PR #107).
 12. **Migrate Deepen to Ambient Background** — Replace 4s poll + `researching:` flag with unified indicator integration. The fire-and-forget shape is preserved; the surface changes.
 13. **Align Retro with Conversational archetype** — Mostly already aligned. Audit step error handling and ensure cancel-mid-flow confirmation exists.
 
