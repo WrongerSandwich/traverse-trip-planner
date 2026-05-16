@@ -23,13 +23,9 @@ const TRAVERSE_KEYS = [
   // Per-feature overrides
   'TRAVERSE_MODEL_SEED_PROVIDER', 'TRAVERSE_MODEL_SEED',
   'TRAVERSE_MODEL_ADD_PROVIDER', 'TRAVERSE_MODEL_ADD',
-  'TRAVERSE_MODEL_ITINERARY_PROVIDER', 'TRAVERSE_MODEL_ITINERARY',
   'TRAVERSE_MODEL_CHAT_PROVIDER', 'TRAVERSE_MODEL_CHAT',
   'TRAVERSE_MODEL_DEEPEN_PROVIDER', 'TRAVERSE_MODEL_DEEPEN',
   'TRAVERSE_SHARE_SECRET',
-  // Deprecated names (cleared so tests don't leak state)
-  'TRAVERSE_MODEL_LOCK',
-  'TRAVERSE_MODEL_LOCK_PROVIDER',
 ];
 
 function clearEnv() {
@@ -113,14 +109,14 @@ describe('getFeatureAvailability', () => {
   it('disables every feature when no keys are set', async () => {
     const { getFeatureAvailability } = await loadConfig();
     expect(getFeatureAvailability()).toEqual({
-      seed: false, add: false, itinerary: false, chat: false, retro: false, receipts: false, deepen: false, share: false,
+      seed: false, add: false, chat: false, retro: false, receipts: false, deepen: false, share: false,
     });
   });
 
   it('enables all features with anthropic + builtin search', async () => {
     const { getFeatureAvailability } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
     expect(getFeatureAvailability()).toEqual({
-      seed: true, add: true, itinerary: true, chat: true, retro: true, receipts: true, deepen: true, share: false,
+      seed: true, add: true, chat: true, retro: true, receipts: true, deepen: true, share: false,
     });
   });
 
@@ -179,11 +175,11 @@ describe('describeConfig', () => {
   it('flags overridden features in the snapshot', async () => {
     const { describeConfig } = await loadConfig({
       ANTHROPIC_API_KEY: 'sk-ant-test',
-      TRAVERSE_MODEL_ITINERARY: 'claude-haiku-4-5',
+      TRAVERSE_MODEL_CHAT: 'claude-haiku-4-5',
     });
     const d = describeConfig();
-    expect(d.features.itinerary.overridden).toBe(true);
-    expect(d.features.itinerary.model).toBe('claude-haiku-4-5');
+    expect(d.features.chat.overridden).toBe(true);
+    expect(d.features.chat.model).toBe('claude-haiku-4-5');
     expect(d.features.seed.overridden).toBe(false);
   });
 });
@@ -228,63 +224,13 @@ describe('OpenRouter provider', () => {
   });
 });
 
-describe('warnOnDeprecatedEnv', () => {
-  it('warns when TRAVERSE_MODEL_LOCK is set', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await loadConfig({ TRAVERSE_MODEL_LOCK: 'claude-haiku-4-5' });
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('TRAVERSE_MODEL_LOCK')
-    );
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('TRAVERSE_MODEL_ITINERARY')
-    );
-    warn.mockRestore();
-  });
-
-  it('warns when TRAVERSE_MODEL_LOCK_PROVIDER is set', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await loadConfig({ TRAVERSE_MODEL_LOCK_PROVIDER: 'openai' });
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('TRAVERSE_MODEL_LOCK_PROVIDER')
-    );
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('TRAVERSE_MODEL_ITINERARY_PROVIDER')
-    );
-    warn.mockRestore();
-  });
-
-  it('does not warn when only new env vars are set', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await loadConfig({ TRAVERSE_MODEL_ITINERARY: 'claude-haiku-4-5' });
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
-  });
-
-  it('does not warn when neither old nor new env vars are set', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await loadConfig({});
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
-  });
-});
-
 describe('per-feature model overrides', () => {
   it('every feature inherits its slot defaults when no overrides set', async () => {
     const { config } = await loadConfig();
     expect(config.features.seed).toEqual(config.modelDefault);
     expect(config.features.add).toEqual(config.modelDefault);
-    expect(config.features.itinerary).toEqual(config.modelDefault);
     expect(config.features.chat).toEqual(config.modelDefault);
     expect(config.features.deepen).toEqual(config.modelResearch);
-  });
-
-  it('TRAVERSE_MODEL_LOCK overrides only the lock feature', async () => {
-    const { config } = await loadConfig({
-      TRAVERSE_MODEL_ITINERARY: 'claude-haiku-4-5',
-    });
-    expect(config.features.itinerary.model).toBe('claude-haiku-4-5');
-    expect(config.features.itinerary.provider).toBe('anthropic'); // inherits slot's provider
-    expect(config.features.seed.model).toBe('claude-sonnet-4-6'); // others untouched
   });
 
   it('TRAVERSE_MODEL_CHAT_PROVIDER allows different provider per feature', async () => {
@@ -301,23 +247,22 @@ describe('per-feature model overrides', () => {
   it('disables only the overridden feature when its provider key is missing', async () => {
     const { getFeatureAvailability } = await loadConfig({
       ANTHROPIC_API_KEY: 'sk-ant-test',
-      TRAVERSE_MODEL_ITINERARY_PROVIDER: 'openai',
+      TRAVERSE_MODEL_CHAT_PROVIDER: 'openai',
       // OPENAI_API_KEY missing
     });
     const f = getFeatureAvailability();
     expect(f.seed).toBe(true);
     expect(f.add).toBe(true);
-    expect(f.itinerary).toBe(false); // override breaks only itinerary
-    expect(f.chat).toBe(true);
+    expect(f.chat).toBe(false); // override breaks only chat
     expect(f.deepen).toBe(true);
   });
 
   it('flags missing provider key for an overridden feature in validateConfig', async () => {
     const { validateConfig } = await loadConfig({
       ANTHROPIC_API_KEY: 'sk-ant-test',
-      TRAVERSE_MODEL_ITINERARY_PROVIDER: 'openai',
+      TRAVERSE_MODEL_CHAT_PROVIDER: 'openai',
     });
     const issues = validateConfig();
-    expect(issues.some(i => i.includes('Feature itinerary') && i.includes('OPENAI_API_KEY'))).toBe(true);
+    expect(issues.some(i => i.includes('Feature chat') && i.includes('OPENAI_API_KEY'))).toBe(true);
   });
 });

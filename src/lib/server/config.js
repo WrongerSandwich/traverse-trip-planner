@@ -9,7 +9,6 @@ function env(envObj, name, fallback) {
 const FEATURE_SLOT = {
   seed: 'modelDefault',
   add: 'modelDefault',
-  itinerary: 'modelDefault',
   chat: 'modelDefault',
   retro: 'modelDefault',
   receipts: 'modelDefault',
@@ -55,22 +54,9 @@ function buildConfig(envObj) {
   };
 }
 
-function warnOnDeprecatedEnv(envObj) {
-  const renames = [
-    ['TRAVERSE_MODEL_LOCK', 'TRAVERSE_MODEL_ITINERARY'],
-    ['TRAVERSE_MODEL_LOCK_PROVIDER', 'TRAVERSE_MODEL_ITINERARY_PROVIDER'],
-  ];
-  for (const [old, current] of renames) {
-    if (envObj[old]) {
-      console.warn(`[config] ${old} is deprecated; rename to ${current}`);
-    }
-  }
-}
-
 // Static config built once at import time — used by the startup banner,
 // backwards-compat callers, and module-level constants (e.g. assistantName).
 export const config = buildConfig(process.env);
-warnOnDeprecatedEnv(process.env);
 
 /**
  * Re-read settings.json and build a fresh config that overlays stored settings

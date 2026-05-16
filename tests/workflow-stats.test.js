@@ -143,14 +143,14 @@ describe('recordInvocation + getStats', () => {
 
   it('persists to disk and survives a simulated restart', async () => {
     const { recordInvocation, _flushNow } = await load();
-    recordN(recordInvocation, 'itinerary', 10, 25, 500, 500);
+    recordN(recordInvocation, 'brochure-prepare', 10, 25, 500, 500);
     _flushNow();
     expect(existsSync(statsPath())).toBe(true);
 
     // Simulate restart by resetting module cache and re-importing.
     vi.resetModules();
     const fresh = await import('../src/lib/server/workflow-stats.js');
-    const s = fresh.getStats('itinerary');
+    const s = fresh.getStats('brochure-prepare');
     expect(s).not.toBeNull();
     expect(s.sample_count).toBe(10);
     expect(s.p50_tokens).toBe(1000);
