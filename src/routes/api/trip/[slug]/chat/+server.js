@@ -4,13 +4,9 @@ import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { TraverseError, AdapterError } from '$lib/server/errors.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Ask Field Guide',
-  produces: 'A conversational reply and any updated planning sections written directly to disk.',
-  time_seconds: 20,
-  tokens_range: [2000, 6000],
-};
+export const _promise = HAND_DEFAULTS.chat;
 
 function parseUpdates(text) {
   const updates = {};

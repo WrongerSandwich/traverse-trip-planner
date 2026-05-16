@@ -126,12 +126,19 @@
     Boolean(data.features?.deepen)
   );
 
-  const DEEPEN_SECTION_PROMISE = {
+  // Mirror of src/routes/api/actions/deepen-section/.../+server.js _promise
+  // export, used as a synchronous fallback when `data.promises` isn't
+  // populated. Telemetry-resolved values come from
+  // `data.promises['deepen-section']` (see src/lib/server/promises.js).
+  const DEEPEN_SECTION_FALLBACK = {
     verb: 'Research section',
     produces: 'One trip section (route, stops, or logistics) written from web-searched current information. You can navigate away while it runs.',
     time_seconds: 60,
     tokens_range: [2000, 4000],
   };
+  const DEEPEN_SECTION_PROMISE = $derived(
+    data.promises?.['deepen-section'] ?? DEEPEN_SECTION_FALLBACK,
+  );
 
   // True when any deepen-section job is running for this trip (any section).
   const deepenSectionRunning = $derived(
@@ -208,13 +215,16 @@
   }
 
   // ── AI chat ──
-  // Mirrors _promise from the chat route — consumed by PromiseTooltip on the Send button.
-  const CHAT_PROMISE = {
+  // Mirrors _promise from the chat route — consumed by PromiseTooltip on
+  // the Send button. Telemetry-resolved values come from
+  // `data.promises.chat` (see src/lib/server/promises.js).
+  const CHAT_FALLBACK = {
     verb: 'Ask Field Guide',
     produces: 'A conversational reply and any updated planning sections written directly to disk.',
     time_seconds: 20,
     tokens_range: [2000, 6000],
   };
+  const CHAT_PROMISE = $derived(data.promises?.chat ?? CHAT_FALLBACK);
 
   let chatOpen = $state(false);
   let chatMessages = $state([]); // [{role: 'user'|'assistant', content: '...', tokens?: number}]
@@ -613,35 +623,42 @@
   }
 
   // ── Lock promise (mirrors _promise from the lock route) ──
-  // Keeps PromiseTooltip and ConfirmModal in sync without a server round-trip.
-  const LOCK_PROMISE = {
+  // Telemetry-resolved values come from `data.promises.lock` (see
+  // src/lib/server/promises.js). The fallback keeps PromiseTooltip /
+  // ConfirmModal rendering when the server-load hasn't delivered them yet.
+  const LOCK_FALLBACK = {
     verb: 'Generate itinerary',
     produces: 'A day-by-day itinerary synthesized from your planning sections, streamed in real time as it generates.',
     time_seconds: 30,
     tokens_range: [2000, 4000],
   };
+  const LOCK_PROMISE = $derived(data.promises?.lock ?? LOCK_FALLBACK);
 
   // ── Receipts promise (mirrors _promise from the receipts route) ──
-  // Kept here so PromiseTooltip can render without a server round-trip.
-  const RECEIPTS_PROMISE = {
+  // Telemetry-resolved values come from `data.promises.receipts`.
+  const RECEIPTS_FALLBACK = {
     verb: 'Parse receipts',
     produces: 'Structured expense lines (date · merchant · amount · category) appended to your trip notes.',
     time_seconds: 10,
     tokens_range: [400, 900],
   };
+  const RECEIPTS_PROMISE = $derived(data.promises?.receipts ?? RECEIPTS_FALLBACK);
 
   // ── Archive ──
   // ── Brochure prepare (Ambient Background) ──
   // The route returns 202 immediately and the global jobs indicator surfaces
-  // progress + the success toast (which links back to /trips/<slug>, where
-  // "Open prepare form" lives). We mirror the route's _promise here so the
-  // tooltip + confirm-modal long form can render without a server round-trip.
-  const BROCHURE_PROMISE = {
+  // progress + the success toast. Telemetry-resolved values come from
+  // `data.promises['brochure-prepare']`; the fallback keeps the UI working
+  // before the server-load round-trip completes.
+  const BROCHURE_FALLBACK = {
     verb: 'Prepare brochure',
     produces: 'A structured brochure draft — stops with map pins, lodging, field guide notes, and gotchas — ready to review before saving.',
     time_seconds: 45,
     tokens_range: [2000, 5000],
   };
+  const BROCHURE_PROMISE = $derived(
+    data.promises?.['brochure-prepare'] ?? BROCHURE_FALLBACK,
+  );
 
   // True while a brochure job is in flight for this trip. Drives the disabled
   // state on the trigger button so the user can't kick off a second run.

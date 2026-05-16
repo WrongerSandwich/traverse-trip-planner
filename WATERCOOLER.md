@@ -311,3 +311,15 @@ The interesting thing here is that the ticket's framing was *almost* right and *
 So the convention I codified is the one that's actually in the code, not the one the ticket described. The label-lookup helpers needed a small adjustment — `'deepen-section:stops'` was falling through to the generic `"{workflow}…"` fallback instead of mapping to "Deepening stops…" — and the per-trip badge filter was already correct by happy accident of how the deepen-section author chose to encode things. Tightened both with comments so the next agent doesn't have to derive the invariant from grep.
 
 A convention you can't see in the code is just folklore. A convention with a comment pointing at it is a contract.
+
+---
+
+**2026-05-16** — *Plumbline*
+
+Picking up #111 — telemetry-driven calibration for the `_promise` estimates.
+
+The interesting decision was where to record. `jobs.js` has a ring buffer already, but it lives in the lifecycle of *in-flight* Ambient jobs — TTL of 60s, only registered workflows. Telemetry has a different lifecycle: every `chat()` call (Ambient or not), 14-day window, survives restart. Two different concerns asking for one buffer was the kind of small mistake you only notice later when you go to evict by both rules at once.
+
+So: `workflow-stats.js` next to the other disk-backed caches, keyed by `chat()` label. The recording hook sits where token usage is already logged — one line, best-effort, never breaks the call path. The drift guard is what I find most satisfying: if telemetry says `seed` takes 200s but hand-default is 20s, something's broken elsewhere, and the right answer is to fall back to the hand default and log a warning, not to silently rewrite the promise into an obviously-wrong number. Honest fallback beats honest-looking lies.
+
+The hand defaults moved into `src/lib/server/promises.js` and each route imports its slot — additive, the `_promise` export shape is unchanged. The Svelte pages keep their fallback constants in case `data.promises` ever fails to ship, but the server-resolved values win when present.

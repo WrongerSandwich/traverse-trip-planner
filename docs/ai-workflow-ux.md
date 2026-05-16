@@ -117,7 +117,18 @@ Example:
 
 ### Source of truth
 
-Each action route exports a `promise` object: `{ verb, produces, time_seconds, tokens_range }`. The UI consumes this; the prose template lives once in `src/lib/components/PromiseTooltip.svelte` (or similar). Time estimates come from rolling p50 measurements (out of scope for the first ticket — initial values are calibrated by hand from historical runs).
+Each action route exports a `_promise` object: `{ verb, produces, time_seconds, tokens_range }`. The hand-tuned defaults live in `src/lib/server/promises.js` (keyed by `chat()` label) and each route re-exports its slot as `_promise`. The UI consumes the resolved shape; the prose template lives once in `src/lib/components/PromiseTooltip.svelte` (short form) / `src/lib/components/PromiseBody.svelte` (long form).
+
+**Telemetry-driven calibration.** `chat()` in `src/lib/server/ai.js` records start/end timestamps + token totals against the call's `label` on every invocation. `src/lib/server/workflow-stats.js` aggregates the rolling window (max 50 samples per label, 14-day retention) and computes p10/p50/p90. At page-load time, `src/routes/+layout.server.js` calls `getResolvedPromises()` which overlays telemetry on the hand defaults and ships `data.promises` to the client.
+
+Fallback rules — telemetry is ignored and the hand default passes through when:
+
+- Fewer than 10 samples have been recorded for that label (`MIN_SAMPLES`).
+- The rolling p50 deviates more than 2x from the hand default in either direction (`DRIFT_RATIO`) — drift this large is a signal that the prompt / model / tool loop changed and the hand default needs a human re-tune. A `[workflow-stats] drift: ...` warning is logged.
+
+Persistence: `.workflow-stats.json` at the repo root, debounced flush on every record, loaded on first call after restart.
+
+Debug view: `GET /api/workflow-stats` returns the current aggregated per-label stats plus the active configuration constants.
 
 ---
 

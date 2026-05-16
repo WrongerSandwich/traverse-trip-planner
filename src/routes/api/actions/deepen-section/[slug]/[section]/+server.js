@@ -23,13 +23,9 @@ import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { assertNotRunning, startJob, completeJob, failJob } from '$lib/server/jobs.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Research section',
-  produces: 'One trip section (route, stops, or logistics) written from web-searched current information.',
-  time_seconds: 60,
-  tokens_range: [2000, 4000],
-};
+export const _promise = HAND_DEFAULTS['deepen-section'];
 
 const VALID_SECTIONS = ['route', 'stops', 'logistics'];
 

@@ -7,13 +7,9 @@ import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { sseStream } from '$lib/server/sse.js';
 import { TraverseError } from '$lib/server/errors.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Generate itinerary',
-  produces: 'A day-by-day itinerary synthesized from your planning sections, streamed in real time.',
-  time_seconds: 30,
-  tokens_range: [2000, 4000],
-};
+export const _promise = HAND_DEFAULTS.lock;
 
 export function POST({ params, request }) {
   const { slug } = params;

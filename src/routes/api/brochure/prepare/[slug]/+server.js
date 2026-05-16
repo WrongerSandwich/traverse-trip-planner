@@ -22,13 +22,9 @@ import { json } from '@sveltejs/kit';
 import { prepareBrochure } from '$lib/server/brochure.js';
 import { assertNotRunning, startJob, completeJob, failJob } from '$lib/server/jobs.js';
 import { TraverseError } from '$lib/server/errors.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Prepare brochure',
-  produces: 'A structured brochure draft — stops with map pins, lodging, field guide notes, and gotchas — ready to review before saving.',
-  time_seconds: 45,
-  tokens_range: [2000, 5000],
-};
+export const _promise = HAND_DEFAULTS['brochure-prepare'];
 
 function tokensFromUsage(usage) {
   if (!usage) return 0;

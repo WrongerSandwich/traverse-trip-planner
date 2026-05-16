@@ -32,13 +32,9 @@ import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
 import { TraverseError } from '$lib/server/errors.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Research trip',
-  produces: 'Detailed overview, route, stops, and logistics files — with web-searched hours, prices, lodging, and route specifics.',
-  time_seconds: 90,
-  tokens_range: [4000, 8000],
-};
+export const _promise = HAND_DEFAULTS.deepen;
 
 function findIdeaFile(slug) {
   const p = join(ROOT, 'ideas', `${slug}.md`);

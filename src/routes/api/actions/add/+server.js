@@ -6,13 +6,9 @@ import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Add destination',
-  produces: 'One new trip idea file for the named destination, after checking for duplicates and road-trip viability.',
-  time_seconds: 12,
-  tokens_range: [400, 800],
-};
+export const _promise = HAND_DEFAULTS.add;
 
 // TODO: consolidate trip-lookup helpers (findTripFile/findTrip/findIdeaFile) into data.js
 // TODO: extract readSections() shared by lock/+server.js and trip/[slug]/chat/+server.js

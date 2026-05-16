@@ -5,13 +5,9 @@ import { ROOT, readHomeMd, getTripFiles, invalidateEnrichCache } from '$lib/serv
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
+import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = {
-  verb: 'Generate questions',
-  produces: 'Five trip-specific retrospective questions drawn from your actual stops and itinerary.',
-  time_seconds: 10,
-  tokens_range: [300, 700],
-};
+export const _promise = HAND_DEFAULTS['retro-questions'];
 
 function loadCompletedTrip(slug) {
   const dir = join(ROOT, 'completed', slug);

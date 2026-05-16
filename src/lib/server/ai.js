@@ -2,6 +2,7 @@ import { PROVIDERS } from './providers.js';
 import * as anthropic from './ai/anthropic.js';
 import * as openai from './ai/openai.js';
 import * as openrouter from './ai/openrouter.js';
+import { recordInvocation } from './workflow-stats.js';
 export { formatUsage } from '../utils/format.js';
 
 // Build the adapters map from PROVIDERS so the two stay in sync: if a provider
@@ -29,9 +30,25 @@ export async function chat({ provider, model, system, messages, maxTokens, tools
   const adapter = adapters[provider];
   const start = Date.now();
   const result = await adapter.chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText });
-  const ms = Date.now() - start;
+  const end = Date.now();
+  const ms = end - start;
   const u = result.usage || {};
   const tag = label ? `${label} ` : '';
   console.log(`[ai] ${tag}${provider}/${model} — ${u.input ?? 0} in / ${u.output ?? 0} out (${u.turns ?? 1} turn${u.turns === 1 ? '' : 's'}, ${ms}ms)`);
+  // Best-effort telemetry hook for `_promise` calibration. Failures here must
+  // never affect the caller — see src/lib/server/workflow-stats.js.
+  if (label) {
+    try {
+      recordInvocation({
+        label,
+        startMs: start,
+        endMs: end,
+        tokensIn: u.input ?? 0,
+        tokensOut: u.output ?? 0,
+      });
+    } catch (e) {
+      console.warn(`[workflow-stats] record hook failed: ${e?.message ?? e}`);
+    }
+  }
   return result;
 }
