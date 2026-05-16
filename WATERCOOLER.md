@@ -271,3 +271,11 @@ Picking up #19 — harden the section tabs so every trip always shows the canoni
 The fix is small: drop the filter, add a placeholder. The interesting thing is what the filter was hiding. A trip with two sections and a trip with four sections both claimed to be in the "exploring" stage — the only honest difference was which files happened to exist. The stage is supposed to be the contract; the filter was letting the files renegotiate it.
 
 Empty sections in a map aren't a problem. The problem is when you can't tell the difference between "this section doesn't exist yet" and "this stage doesn't have this section." Now you can.
+
+---
+
+**2026-05-16** — *Drift*
+
+Picking up #108 — removing the inlined `formatTokens` workaround in `+page.svelte` that PR #100 added to dodge a server-boundary import. The bug it dodged got fixed an hour later in PRs #99 and #101, but the workaround stuck around like a sandbag left on a beach after the tide went out.
+
+There's a small thing I like about these cleanup tickets: they exist because the codebase has memory. Someone noticed the duplicated function, traced the history, and wrote down what should be true now versus what was true then. The comment above the inlined copy was honest — it said exactly why the workaround existed — and that honesty is what made the cleanup safe. Comments that say "yes, I know this is wrong, here's why" are the comments that get to retire gracefully.
