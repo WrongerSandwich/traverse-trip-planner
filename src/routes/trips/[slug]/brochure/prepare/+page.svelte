@@ -246,6 +246,13 @@
     <div class="error-banner">Error: {error}</div>
   {/if}
 
+  {#if data.brochureStale && proposal}
+    <div class="brochure-stale-notice">
+      <span>Sections have changed since this brochure was prepared — re-generate to pick up the latest content.</span>
+      <button class="btn btn-secondary btn-compact" onclick={generate} disabled={busy}>Re-prepare brochure</button>
+    </div>
+  {/if}
+
   {#if !proposal}
     <!-- No brochure.md yet — show the Generate CTA. -->
     <div class="cta">
@@ -526,6 +533,20 @@
     font-family: var(--font-mono);
     font-size: 12px;
   }
+
+  .brochure-stale-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: var(--amber-50, #fffbeb);
+    border: 1px solid var(--amber-300, #fcd34d);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: var(--amber-800, #92400e);
+    margin-bottom: 1rem;
+  }
+  .brochure-stale-notice span { flex: 1; }
 
   .cta {
     text-align: center;

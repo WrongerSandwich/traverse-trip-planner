@@ -1,0 +1,217 @@
+import { describe, it, expect } from 'vitest';
+import { isArtifactStale, isItineraryStale, isBrochureStale, PLANNING_SECTIONS } from '../src/lib/server/data.js';
+
+// Synthetic stat helper: maps file paths to { mtimeMs } or null (not found).
+function makeStat(mtimes) {
+  return (p) => {
+    const ms = mtimes[p];
+    return ms != null ? { mtimeMs: ms } : null;
+  };
+}
+
+const DIR = '/fake/planning/my-trip';
+
+function p(name) {
+  return `${DIR}/${name}.md`;
+}
+
+// ── isArtifactStale (generic) ────────────────────────────────────────────────
+
+describe('isArtifactStale', () => {
+  it('returns false when artifact does not exist', () => {
+    const stat = makeStat({
+      [p('overview')]: 1000,
+      [p('route')]: 2000,
+    });
+    expect(isArtifactStale(DIR, PLANNING_SECTIONS, 'itinerary.md', stat)).toBe(false);
+  });
+
+  it('returns false when all sources are older than artifact', () => {
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+      [p('overview')]: 1000,
+      [p('route')]: 2000,
+      [p('stops')]: 3000,
+      [p('logistics')]: 4000,
+    });
+    expect(isArtifactStale(DIR, PLANNING_SECTIONS, 'itinerary.md', stat)).toBe(false);
+  });
+
+  it('returns false when sources have same mtime as artifact', () => {
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+      [p('overview')]: 5000,
+    });
+    expect(isArtifactStale(DIR, PLANNING_SECTIONS, 'itinerary.md', stat)).toBe(false);
+  });
+
+  it('returns true when any source is newer than artifact', () => {
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+      [p('overview')]: 1000,
+      [p('route')]: 6000, // newer!
+      [p('stops')]: 3000,
+    });
+    expect(isArtifactStale(DIR, PLANNING_SECTIONS, 'itinerary.md', stat)).toBe(true);
+  });
+
+  it('returns false when no sources exist at all', () => {
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+    });
+    expect(isArtifactStale(DIR, PLANNING_SECTIONS, 'itinerary.md', stat)).toBe(false);
+  });
+
+  it('respects a custom sources list', () => {
+    // Only 'overview' is a source; 'route' being newer should not trigger stale.
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+      [p('overview')]: 4000,
+      [p('route')]: 9000, // newer, but not in sources list
+    });
+    expect(isArtifactStale(DIR, ['overview'], 'itinerary.md', stat)).toBe(false);
+  });
+
+  it('works with brochure.md as the artifact', () => {
+    const stat = makeStat({
+      [p('brochure')]: 5000,
+      [p('overview')]: 1000,
+      [p('route')]: 6000, // newer!
+      [p('stops')]: 3000,
+    });
+    expect(isArtifactStale(DIR, PLANNING_SECTIONS, 'brochure.md', stat)).toBe(true);
+  });
+
+  it('returns false for brochure.md when all sources are older', () => {
+    const stat = makeStat({
+      [p('brochure')]: 9000,
+      [p('overview')]: 1000,
+      [p('route')]: 2000,
+      [p('stops')]: 3000,
+      [p('logistics')]: 4000,
+    });
+    expect(isArtifactStale(DIR, PLANNING_SECTIONS, 'brochure.md', stat)).toBe(false);
+  });
+});
+
+// ── isItineraryStale (convenience wrapper) ───────────────────────────────────
+
+describe('isItineraryStale', () => {
+  it('returns false when itinerary.md does not exist', () => {
+    const stat = makeStat({
+      [p('overview')]: 1000,
+      [p('route')]: 2000,
+    });
+    expect(isItineraryStale(DIR, stat)).toBe(false);
+  });
+
+  it('returns false when all sections are older than itinerary', () => {
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+      [p('overview')]: 1000,
+      [p('route')]: 2000,
+      [p('stops')]: 3000,
+      [p('logistics')]: 4000,
+    });
+    expect(isItineraryStale(DIR, stat)).toBe(false);
+  });
+
+  it('returns false when sections have same mtime as itinerary', () => {
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+      [p('overview')]: 5000,
+    });
+    expect(isItineraryStale(DIR, stat)).toBe(false);
+  });
+
+  it('returns true when any section is newer than itinerary', () => {
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+      [p('overview')]: 1000,
+      [p('route')]: 6000, // newer!
+      [p('stops')]: 3000,
+    });
+    expect(isItineraryStale(DIR, stat)).toBe(true);
+  });
+
+  it('returns true when only overview is newer', () => {
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+      [p('overview')]: 9999,
+    });
+    expect(isItineraryStale(DIR, stat)).toBe(true);
+  });
+
+  it('returns false when only some sections exist and none are newer', () => {
+    // route and logistics don't exist — missing sections are not counted stale
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+      [p('overview')]: 3000,
+      [p('stops')]: 4000,
+    });
+    expect(isItineraryStale(DIR, stat)).toBe(false);
+  });
+
+  it('returns false when no sections exist at all', () => {
+    const stat = makeStat({
+      [p('itinerary')]: 5000,
+    });
+    expect(isItineraryStale(DIR, stat)).toBe(false);
+  });
+});
+
+// ── isBrochureStale (convenience wrapper) ────────────────────────────────────
+
+describe('isBrochureStale', () => {
+  it('returns false when brochure.md does not exist', () => {
+    const stat = makeStat({
+      [p('overview')]: 1000,
+      [p('route')]: 2000,
+    });
+    expect(isBrochureStale(DIR, stat)).toBe(false);
+  });
+
+  it('returns false when all sections are older than brochure', () => {
+    const stat = makeStat({
+      [p('brochure')]: 9000,
+      [p('overview')]: 1000,
+      [p('route')]: 2000,
+      [p('stops')]: 3000,
+      [p('logistics')]: 4000,
+    });
+    expect(isBrochureStale(DIR, stat)).toBe(false);
+  });
+
+  it('returns false when sections have same mtime as brochure', () => {
+    const stat = makeStat({
+      [p('brochure')]: 5000,
+      [p('overview')]: 5000,
+    });
+    expect(isBrochureStale(DIR, stat)).toBe(false);
+  });
+
+  it('returns true when any section is newer than brochure', () => {
+    const stat = makeStat({
+      [p('brochure')]: 5000,
+      [p('overview')]: 1000,
+      [p('route')]: 6000, // newer!
+      [p('stops')]: 3000,
+    });
+    expect(isBrochureStale(DIR, stat)).toBe(true);
+  });
+
+  it('returns true when only logistics is newer', () => {
+    const stat = makeStat({
+      [p('brochure')]: 5000,
+      [p('logistics')]: 9999,
+    });
+    expect(isBrochureStale(DIR, stat)).toBe(true);
+  });
+
+  it('returns false when no sections exist at all', () => {
+    const stat = makeStat({
+      [p('brochure')]: 5000,
+    });
+    expect(isBrochureStale(DIR, stat)).toBe(false);
+  });
+});
