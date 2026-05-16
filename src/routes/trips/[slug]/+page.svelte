@@ -67,11 +67,16 @@
   // until saved — intentionally initial-only (don't re-sync on every load),
   // so untrack() to silence the "captures initial value" lint.
   let sections = $state(untrack(() => ({ ...data.files })));
+  // ── Read / Edit mode toggle ──
+  let editMode = $state(false);
+
   // Per-section UI state
   let editing = $state({});      // { route: true, ... }
   let drafts  = $state({});      // staging textareas while editing
   let saving  = $state({});
   let completing = $state(false);
+
+  const anySectionEditing = $derived(Object.values(editing).some(v => v));
 
   // ── Confirm modal ──
   let confirmOpen  = $state(false);
@@ -105,9 +110,11 @@
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
 
   // Show the "Research this section →" button only when the feature is enabled,
-  // the trip is in planning, and the section is a researchable type.
+  // the trip is in planning, the section is a researchable type, and Edit mode
+  // is active.
   const RESEARCHABLE = new Set(['route', 'stops', 'logistics']);
   const canResearchSection = $derived(
+    editMode &&
     stage === 'planning' &&
     Boolean(data.features?.deepen)
   );
@@ -610,6 +617,17 @@
       {/if}
       {#if trip?._cost}<span class="cost">{trip._cost}</span>{/if}
     </div>
+    {#if !isCompleted}
+      <button
+        class="edit-mode-toggle"
+        class:active={editMode}
+        onclick={() => { if (!anySectionEditing) editMode = !editMode; }}
+        title={anySectionEditing ? 'Finish editing the open section first.' : undefined}
+        aria-pressed={editMode}
+      >
+        {editMode ? '✓ Editing' : '✎ Edit'}
+      </button>
+    {/if}
     {#if tripJobs.length > 0}
       <div class="header-job-badge">
         <TripJobBadge jobs={tripJobs} />
@@ -626,6 +644,12 @@
 
   <div class="layout">
     <main class="content">
+      {#if editMode}
+        <div class="editing-banner" role="status">
+          You're editing — section actions + brochure controls are visible below.
+        </div>
+      {/if}
+
       {#if isPlanning}
         <div class="callout">
           <strong>Planning mode.</strong>
@@ -737,7 +761,7 @@
         <section class="section">
           <header class="section-header">
             <h2>{SECTION_LABELS[section] || section}</h2>
-            {#if isPlanning && sections[section] !== undefined && !editing[section]}
+            {#if editMode && isPlanning && sections[section] !== undefined && !editing[section]}
               <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
             {/if}
           </header>
@@ -818,7 +842,7 @@
             </button>
           </PromiseTooltip>
         </div>
-        {#if data.brochureStale && !brochureRunning}
+        {#if editMode && data.brochureStale && !brochureRunning}
           <div class="brochure-stale-notice">
             <span>Sections have changed — re-prepare?</span>
             <button
@@ -987,6 +1011,46 @@
      block; wraps gracefully on small screens thanks to flex-wrap on the header. */
   .header-job-badge {
     margin-left: auto;
+  }
+
+  /* ── Read / Edit mode toggle ── */
+  .edit-mode-toggle {
+    background: none;
+    border: 1.5px solid var(--forest-600);
+    color: var(--bone-400);
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .edit-mode-toggle:hover {
+    background: var(--forest-800);
+    border-color: var(--forest-400);
+    color: var(--bone-100);
+  }
+  .edit-mode-toggle.active {
+    background: var(--amber-50, #fffbeb);
+    border-color: var(--amber-300, #fcd34d);
+    color: var(--amber-800, #92400e);
+  }
+  .edit-mode-toggle.active:hover {
+    background: var(--amber-100, #fef3c7);
+    border-color: var(--amber-400, #f59e0b);
+    color: var(--amber-900, #78350f);
+  }
+
+  /* ── Editing banner ── */
+  .editing-banner {
+    padding: 0.55rem 0.95rem;
+    background: var(--amber-50, #fffbeb);
+    border: 1px solid var(--amber-300, #fcd34d);
+    border-radius: 4px;
+    font-size: 0.82rem;
+    color: var(--amber-800, #92400e);
+    line-height: 1.45;
   }
 
   .back {
