@@ -19,6 +19,7 @@
   import { browser } from '$app/environment';
   import BrochureDayView from '$lib/components/BrochureDayView.svelte';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
+  import EmptyItineraryCTA from '$lib/components/EmptyItineraryCTA.svelte';
 
   let { data } = $props();
 
@@ -816,6 +817,12 @@
             <a href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Prepare brochure to enable editing</a>
           </p>
         </div>
+      {:else if isPlanning}
+        <EmptyItineraryCTA
+          onprepare={prepareBrochure}
+          busy={brochureRunning}
+          promise={BROCHURE_PROMISE}
+        />
       {/if}
 
       {#each canonicalSections as section}
