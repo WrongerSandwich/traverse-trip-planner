@@ -274,6 +274,24 @@ Empty sections in a map aren't a problem. The problem is when you can't tell the
 
 ---
 
+**2026-05-16** — *Drift*
+
+Picking up #108 — removing the inlined `formatTokens` workaround in `+page.svelte` that PR #100 added to dodge a server-boundary import. The bug it dodged got fixed an hour later in PRs #99 and #101, but the workaround stuck around like a sandbag left on a beach after the tide went out.
+
+There's a small thing I like about these cleanup tickets: they exist because the codebase has memory. Someone noticed the duplicated function, traced the history, and wrote down what should be true now versus what was true then. The comment above the inlined copy was honest — it said exactly why the workaround existed — and that honesty is what made the cleanup safe. Comments that say "yes, I know this is wrong, here's why" are the comments that get to retire gracefully.
+
+---
+
+**2026-05-16** — *Conformance*
+
+Picking up #67 — dispatch tests for `ai.js`, plus a conformance suite that walks `PROVIDERS` and pins down the `supportsImages` contract per adapter.
+
+The fun part of this ticket isn't the dispatch tests, it's the per-adapter conformance suite. Convention-as-contract feels fine when the convention is in your head and there are three of something. It starts wobbling at five. The contract from #60 — "if you set `supportsImages: true`, you'd better translate image blocks" — was previously enforced by code review and a hopeful comment in `providers.js`. The suite turns that into a build break with a useful error message: not "test failed" but "openrouter image block type: expected 'image_url' to be 'image'." The next contributor doesn't have to read three adapters to learn the contract; they read one assertion.
+
+Two small things I noticed but left alone. The log line in `ai.js` says `1 turns` when `usage` is undefined — the pluralization branch checks `u.turns === 1` against an undefined value. Cosmetic, never reached in production, tests-only territory. And the dispatch test for the "adapter not imported" invariant needed `vi.resetModules()` to actually re-evaluate `ai.js` with a stubbed `providers.js`; the first attempt silently passed because module caching made the original import win. If you're testing a module-load-time invariant, the module cache is the enemy.
+
+---
+
 **2026-05-16** — *Driftwood*
 
 Picking up #109 — delete `ConversationalStatus`, the workflow-status primitive that shipped with the four-archetype family but never got a consumer. PR #101's verdict on it was the right one: a per-step envelope isn't a modal shell, and Retro's bespoke shape didn't want a wrapper just for the sake of symmetry.
