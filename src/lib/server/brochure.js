@@ -209,7 +209,7 @@ export async function prepareBrochure(slug, { signal, onActivity } = {}) {
   onActivity?.({ type: 'progress', message: 'Extracting stops, days, and notes…' });
 
   const { text, usage } = await chat({
-    ...getEffectiveConfig().features.lock,  // reuse the lock slot — same scale of call
+    ...getEffectiveConfig().features.itinerary,  // reuse the itinerary slot — same scale of call
     label: 'brochure-prepare',
     system,
     messages: [{ role: 'user', content: userInput }],

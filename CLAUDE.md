@@ -39,10 +39,11 @@ Trips progress through three stages. Earlier-stage fields are never removed — 
 2. **planning** — promoted to a folder by the Research action. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out. Concrete dates, lodging, and reservations accrue here as the trip firms up. The frontend's planning page enables in-place editing of any section + an "Ask Field guide" chat that writes section updates back to disk.
 3. **completed** — moved to `completed/`. The Mark-as-completed action offers an AI-prompted retro flow that writes `notes.md` (skippable; available later via an "Add retro" button on the completed view).
 
-**Canonical section sets per stage:** The detail view always renders a fixed tab set regardless of which files actually exist on disk. Missing files show an empty-state placeholder — producers (deepen, chat) are not required to write every section. The canonical sets are:
+**Canonical section sets per stage:** The detail view always renders a fixed set of sections regardless of which files actually exist on disk. Missing files show an empty-state placeholder — producers (deepen, chat) are not required to write every section. The canonical sets are:
 - planning: `overview`, `route`, `stops`, `logistics`
-- locked planning: same as above, plus `itinerary` (shown above the others)
-- completed: `overview`, `route`, `stops`, `logistics`, `notes` (plus `itinerary` if present)
+- completed: `overview`, `route`, `stops`, `logistics`, `notes`
+
+When `itinerary.md` exists in a planning or completed folder it renders above the canonical sections — it's an on-demand artifact rather than a stage marker.
 
 **Archive (orthogonal to lifecycle):** any trip can be archived via the detail view. Archived trips move to `archived/<source-stage>/<slug>/` with the original status frontmatter intact. The frontend never displays them, but the seed action still scans them so previously-rejected destinations don't get re-suggested.
 
@@ -62,7 +63,6 @@ target_date, pet_sitter, lodging, reservations_needed,
 charging_stops (EV trips), cost_estimate_usd
 ```
 Optional flags: `national_park: true` (for NPS units), `starred: true` (bookmarked)
-Optional planning flag: `locked: true` (trip is frozen; itinerary has been generated)
 
 ### Field notes
 
@@ -70,7 +70,6 @@ Optional planning flag: `locked: true` (trip is frozen; itinerary has been gener
 - `waypoints` — key cities along the driving route as an inline array: `[Overland Park KS, Leavenworth KS, Atchison KS]`. Used by the frontend to fetch an OSRM road-following route line. Required for the solid route line to appear on the map.
 - `national_park: true` — add to any trip where the primary draw is an NPS unit (national park, preserve, scenic riverway). Surfaces a badge on the trip card.
 - `starred: true` — bookmarked trip. Toggled by the frontend; write it here if pre-seeding a bookmark.
-- `locked: true` — trip is frozen. Editing and Ask Field guide are disabled. An AI-generated `itinerary.md` exists in the same folder. Unlock to resume editing; re-lock to regenerate the itinerary.
 - `cost_tier` — `budget` | `mid` | `splurge`.
 
 Omit fields rather than guess at creation. Dates are ISO 8601. Distances default to miles.
@@ -88,11 +87,10 @@ All lifecycle operations live in the SvelteKit app — the browser is the canoni
 - **Prepare brochure** (planning detail view) — Ambient Background. Confirm modal carries the promise sentence ("~45s, ~2–5k tokens"). After confirming, runs AI extraction over the planning sections in the background; you can navigate away. The global indicator surfaces progress; success toast links to the review form, which opens `brochure.md` (`days` / `stops` / `lodging` / `field_guide_notes` / `gotchas`) so you can edit before saving. Stops carry an enum `category` (`historic | food | lodging | outdoors | view | entertainment | misc`).
 - **Re-geocode stops** (button on the prepare form) — re-runs Nominatim against each stop with fallback queries (address → name + destination context → name) to fill in missing pin coords without re-extracting from the planning text. Useful when the first pass leaves stops unmapped. Instant Inline.
 - **View brochure** (`/trips/<slug>/brochure` once `brochure.md` exists) — print-optimized layout: cover photos and hero meta (date · distance · drive time · duration), paper-map route inset from home, Stadia destination map with numbered pin overlay (edge indicators for off-viewport stops, "unmapped" tag for stops whose pin we couldn't geocode), and sectioned content (stops, lodging, field guide notes, gotchas). Also reachable under `/share/<token>/brochure` when sharing is enabled.
-- **Lock trip** (planning detail view) — In-Page Stream. Synthesizes a day-by-day `itinerary.md` from the existing sections; an amber banner shows status while the model output materializes in the page body. On success the banner turns green with the token count; on failure it shows the typed-error sentence and recovery affordances. Sets `locked: true` when done. Editing and the assistant chat are hidden while locked.
-- **Unlock to edit** (locked detail view) — clears `locked: true`. The `itinerary.md` is kept but editing is restored. Re-lock to regenerate the itinerary.
-- **Print / Save PDF** (locked detail view) — opens the browser print dialog with print CSS that hides all chrome so only the itinerary renders.
-- **Share** (any detail view, when `TRAVERSE_SHARE_SECRET` is set) — generates a public read-only `/share/<token>` URL backed by an HMAC of the slug. Disabling revokes access immediately.
-- **Mark as completed** (planning detail view, locked or unlocked) — Conversational/Modal. Moves the trip to `completed/` and opens an AI-prompted retro modal: 5 trip-specific questions, a star rating, and a "would do again" toggle. Each step renders failure via `ERROR_REGISTRY`; closing mid-flow with answers entered prompts a discard confirmation. The model writes a prose `notes.md` body with a `## Highlights` section; the server lifts those bullets into the file's YAML frontmatter alongside `rating`, `would_repeat`, and `date_completed`. Skippable; an "Add retro" button on the completed callout lets you fill it in later. PUT returns 409 if `notes.md` already exists — to redo, delete the file and reload.
+- **Generate itinerary** (planning detail view) — In-Page Stream. Synthesizes a day-by-day `itinerary.md` from the existing sections; an amber banner shows status while the model output materializes in the page body. On success the banner turns green with the token count; on failure it shows the typed-error sentence and recovery affordances. Re-running with an itinerary present overwrites the file — the button reads "Regenerate itinerary." Editing and Ask Field guide remain available throughout; the itinerary is an artifact, not a frozen-trip state.
+- **Print / Save PDF** — opens the browser print dialog. Print CSS hides chrome so only the itinerary content renders when an `itinerary.md` exists; falls back to the section content otherwise.
+- **Share** (any detail view, when `TRAVERSE_SHARE_SECRET` is set) — generates a public read-only `/share/<token>` URL backed by an HMAC of the slug. Disabling revokes access immediately. When the trip has an `itinerary.md` the share view shows just that; otherwise it shows the planning sections.
+- **Mark as completed** (planning detail view) — Conversational/Modal. Moves the trip to `completed/` and opens an AI-prompted retro modal: 5 trip-specific questions, a star rating, and a "would do again" toggle. Each step renders failure via `ERROR_REGISTRY`; closing mid-flow with answers entered prompts a discard confirmation. The model writes a prose `notes.md` body with a `## Highlights` section; the server lifts those bullets into the file's YAML frontmatter alongside `rating`, `would_repeat`, and `date_completed`. Skippable; an "Add retro" button on the completed callout lets you fill it in later. PUT returns 409 if `notes.md` already exists — to redo, delete the file and reload.
 - **Add receipts** (completed detail view, when a vision-capable model is configured) — Instant Inline. Accepts one or more receipt photo uploads (JPEG/PNG/WebP/GIF, max 10 × 5 MB). Sends images to `chat()` as normalized `{type: 'image', mediaType, data}` content blocks; both Anthropic and OpenAI/OpenRouter adapters translate to their respective wire formats. Parses each receipt into a `date · merchant · amount · category` line and appends a `## Receipts` section to `notes.md` via `appendToNotes()` (append-only, never rewrites). Requires a vision-capable model for `modelDefault` (e.g. `claude-sonnet-4-6`, `gpt-4o`).
 - **Archive** (detail view, gated by confirm) — moves the trip to `archived/<stage>/<slug>/`. The trip vanishes from the UI but stays in the seed-avoidance list.
 

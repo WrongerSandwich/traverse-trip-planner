@@ -63,7 +63,6 @@
   const stage = $derived(data.stage);
   const isPlanning = $derived(stage === 'planning');
   const isCompleted = $derived(stage === 'completed');
-  const isLocked = $derived(trip?.locked === 'true');
 
   // Local section content state, seeded from server load. Edits live here
   // until saved — intentionally initial-only (don't re-sync on every load),
@@ -73,17 +72,17 @@
   let editing = $state({});      // { route: true, ... }
   let drafts  = $state({});      // staging textareas while editing
   let saving  = $state({});
-  // ── Lock state (In-Page Stream archetype) ──
-  // lockState: 'idle' | 'in_progress' | 'success' | 'failure' | 'cancelled'
-  let lockState = $state('idle');
-  let lockStreamingText = $state('');
-  let lockTokens = $state(null);       // number | null — populated from done event
-  let lockErrorCode = $state(null);    // TraverseError code string | null
-  let lockElapsed = $state(0);         // seconds elapsed while in_progress
-  let lockAborter = $state(null);      // AbortController | null
-  let lockElapsedTimer = null;         // setInterval handle
+  // ── Itinerary generation state (In-Page Stream archetype) ──
+  // itinState: 'idle' | 'in_progress' | 'success' | 'failure' | 'cancelled'
+  let itinState = $state('idle');
+  let itinStreamingText = $state('');
+  let itinTokens = $state(null);       // number | null — populated from done event
+  let itinErrorCode = $state(null);    // TraverseError code string | null
+  let itinElapsed = $state(0);         // seconds elapsed while in_progress
+  let itinAborter = $state(null);      // AbortController | null
+  let itinElapsedTimer = null;         // setInterval handle
 
-  const locking = $derived(lockState === 'in_progress');
+  const generating = $derived(itinState === 'in_progress');
   let completing = $state(false);
 
   // ── Confirm modal ──
@@ -118,10 +117,10 @@
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
 
   // Show the "Research this section →" button only when the feature is enabled,
-  // the trip is not locked/completed, and the section is a researchable type.
+  // the trip is in planning, and the section is a researchable type.
   const RESEARCHABLE = new Set(['route', 'stops', 'logistics']);
   const canResearchSection = $derived(
-    stage === 'planning' && !isLocked &&
+    stage === 'planning' &&
     Boolean(data.features?.deepen)
   );
 
@@ -332,109 +331,96 @@
     }
   }
 
-  // ── Lock / Unlock ──
+  // ── Generate itinerary ──
 
-  function startLockElapsedTimer() {
-    lockElapsed = 0;
-    if (lockElapsedTimer) clearInterval(lockElapsedTimer);
-    lockElapsedTimer = setInterval(() => { lockElapsed += 1; }, 1000);
+  function startItinElapsedTimer() {
+    itinElapsed = 0;
+    if (itinElapsedTimer) clearInterval(itinElapsedTimer);
+    itinElapsedTimer = setInterval(() => { itinElapsed += 1; }, 1000);
   }
 
-  function stopLockElapsedTimer() {
-    if (lockElapsedTimer) { clearInterval(lockElapsedTimer); lockElapsedTimer = null; }
+  function stopItinElapsedTimer() {
+    if (itinElapsedTimer) { clearInterval(itinElapsedTimer); itinElapsedTimer = null; }
   }
 
   /** Elapsed + estimated-remaining label for the banner, e.g. "12s · ~18s remaining" */
-  const lockEstimateRemaining = $derived.by(() => {
-    if (lockState !== 'in_progress') return null;
-    const remaining = Math.max(0, LOCK_PROMISE.time_seconds - lockElapsed);
-    if (remaining === 0) return `${lockElapsed}s elapsed`;
-    return `${lockElapsed}s · ~${remaining}s remaining`;
+  const itinEstimateRemaining = $derived.by(() => {
+    if (itinState !== 'in_progress') return null;
+    const remaining = Math.max(0, ITINERARY_PROMISE.time_seconds - itinElapsed);
+    if (remaining === 0) return `${itinElapsed}s elapsed`;
+    return `${itinElapsed}s · ~${remaining}s remaining`;
   });
 
-  async function lockTrip() {
-    if (!trip || locking) return;
+  async function generateItinerary() {
+    if (!trip || generating) return;
 
     // Confirm before starting (long-form promise in modal body).
     const ok = await showConfirm({
-      title: 'Generate itinerary?',
-      promise: LOCK_PROMISE,
-      confirmLabel: 'Generate itinerary',
+      title: sections.itinerary ? 'Regenerate itinerary?' : 'Generate itinerary?',
+      promise: ITINERARY_PROMISE,
+      confirmLabel: sections.itinerary ? 'Regenerate itinerary' : 'Generate itinerary',
     });
     if (!ok) return;
 
     // Reset state and begin.
-    lockState = 'in_progress';
-    lockStreamingText = '';
-    lockTokens = null;
-    lockErrorCode = null;
-    lockAborter = new AbortController();
-    startLockElapsedTimer();
+    itinState = 'in_progress';
+    itinStreamingText = '';
+    itinTokens = null;
+    itinErrorCode = null;
+    itinAborter = new AbortController();
+    startItinElapsedTimer();
 
     try {
       await streamAction(
-        `/api/lock/${encodeURIComponent(trip._slug)}`,
+        `/api/itinerary/${encodeURIComponent(trip._slug)}`,
         ({ msg, done, tokens }) => {
           if (msg.startsWith('itinerary:')) {
-            lockStreamingText += msg.slice('itinerary:'.length);
+            itinStreamingText += msg.slice('itinerary:'.length);
           }
           if (done) {
             if (msg.toLowerCase().startsWith('error:')) {
-              lockState = 'failure';
-              // Try to extract a TraverseError code from the message.
+              itinState = 'failure';
               // The server emits "Error: Itinerary generation failed: …" for generic
               // errors and "Error: <TraverseError message>" for typed ones.
               // We surface a generic 'network_error' code when we can't parse a known code.
-              lockErrorCode = 'network_error';
+              itinErrorCode = 'network_error';
             } else {
-              lockState = 'success';
-              if (tokens) lockTokens = tokens;
-              // Trigger page reload to show the locked state / itinerary tab.
+              itinState = 'success';
+              if (tokens) itinTokens = tokens;
+              // Trigger page reload so the itinerary tab picks up the new file.
               invalidateAll();
             }
           }
         },
         null,
-        lockAborter.signal,
+        itinAborter.signal,
       );
       // streamAction resolves silently on abort (abort = cancel).
-      if (lockState === 'in_progress') {
-        lockState = 'cancelled';
+      if (itinState === 'in_progress') {
+        itinState = 'cancelled';
       }
     } catch (err) {
       console.error(err);
-      lockState = 'failure';
-      lockErrorCode = 'network_error';
+      itinState = 'failure';
+      itinErrorCode = 'network_error';
     } finally {
-      stopLockElapsedTimer();
-      lockAborter = null;
+      stopItinElapsedTimer();
+      itinAborter = null;
     }
   }
 
-  function cancelLock() {
-    if (lockAborter) {
-      lockAborter.abort();
-      // State transitions to 'cancelled' in the finally block of lockTrip.
+  function cancelGenerate() {
+    if (itinAborter) {
+      itinAborter.abort();
+      // State transitions to 'cancelled' in the finally block of generateItinerary.
     }
   }
 
-  function dismissLock() {
-    lockState = 'idle';
-    lockStreamingText = '';
-    lockTokens = null;
-    lockErrorCode = null;
-  }
-
-  async function unlockTrip() {
-    if (!trip) return;
-    try {
-      const res = await fetch(`/api/lock/${encodeURIComponent(trip._slug)}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`Unlock failed: ${res.status}`);
-      await invalidateAll();
-    } catch (err) {
-      console.error(err);
-      alert("Couldn't unlock the trip. The server log may have more detail.");
-    }
+  function dismissGenerate() {
+    itinState = 'idle';
+    itinStreamingText = '';
+    itinTokens = null;
+    itinErrorCode = null;
   }
 
   // ── Complete ──
@@ -621,17 +607,17 @@
     } catch { /* clipboard blocked — user can copy manually */ }
   }
 
-  // ── Lock promise (mirrors _promise from the lock route) ──
-  // Telemetry-resolved values come from `data.promises.lock` (see
+  // ── Itinerary promise (mirrors _promise from the itinerary route) ──
+  // Telemetry-resolved values come from `data.promises.itinerary` (see
   // src/lib/server/promises.js). The fallback keeps PromiseTooltip /
   // ConfirmModal rendering when the server-load hasn't delivered them yet.
-  const LOCK_FALLBACK = {
+  const ITINERARY_FALLBACK = {
     verb: 'Generate itinerary',
     produces: 'A day-by-day itinerary synthesized from your planning sections, streamed in real time as it generates.',
     time_seconds: 30,
     tokens_range: [2000, 4000],
   };
-  const LOCK_PROMISE = $derived(data.promises?.lock ?? LOCK_FALLBACK);
+  const ITINERARY_PROMISE = $derived(data.promises?.itinerary ?? ITINERARY_FALLBACK);
 
   // ── Receipts promise (mirrors _promise from the receipts route) ──
   // Telemetry-resolved values come from `data.promises.receipts`.
@@ -731,7 +717,7 @@
 <div class="page">
   <header>
     <button class="back" onclick={() => goto('/')} aria-label="Back to all trips">← All trips</button>
-    <span class="stage-pill" class:locked-pill={isLocked && isPlanning}>{isLocked && isPlanning ? 'locked' : (stage || 'planning')}</span>
+    <span class="stage-pill">{stage || 'planning'}</span>
     <h1>{trip?.title || trip?._slug}</h1>
     <div class="meta">
       {#if trip?.destination}<span>{trip.destination}</span>{/if}
@@ -756,58 +742,48 @@
 
   <div class="layout">
     <main class="content">
-      {#if isPlanning && !isLocked}
+      {#if isPlanning}
         <div class="callout">
           <strong>Planning mode.</strong>
           Edit any section below, or tap <em>Ask {data.assistantName}</em> to describe a change in plain English — updates are written straight to the markdown.
           <div class="callout-actions">
-            <PromiseTooltip promise={LOCK_PROMISE}>
+            <PromiseTooltip promise={ITINERARY_PROMISE}>
               <button
                 class="btn btn-primary"
-                onclick={lockTrip}
-                disabled={locking || !data.features?.lock}
-                title={data.features?.lock ? undefined : 'No default model configured — edit your .env to enable this'}
+                onclick={generateItinerary}
+                disabled={generating || !data.features?.itinerary}
+                title={data.features?.itinerary ? undefined : 'No default model configured — edit your .env to enable this'}
               >
-                {locking ? 'Generating itinerary…' : 'Lock trip & generate itinerary'}
+                {generating
+                  ? 'Generating itinerary…'
+                  : sections.itinerary ? 'Regenerate itinerary' : 'Generate itinerary'}
               </button>
             </PromiseTooltip>
             <a class="btn btn-secondary" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">Preview brochure</a>
-            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing || locking}>
+            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing || generating}>
               {completing ? 'Completing…' : 'Mark as completed'}
             </button>
           </div>
         </div>
 
-        {#if lockState !== 'idle'}
-          <div class="lock-stream-wrap">
+        {#if itinState !== 'idle'}
+          <div class="itin-stream-wrap">
             <StreamBanner
-              state={lockState}
+              state={itinState}
               title="Generating itinerary…"
-              successTitle="Trip locked"
-              tokens={lockTokens}
-              estimateRemaining={lockEstimateRemaining}
-              errorCode={lockErrorCode}
-              oncancel={cancelLock}
-              onretry={lockTrip}
-              ondismiss={dismissLock}
+              successTitle="Itinerary ready"
+              tokens={itinTokens}
+              estimateRemaining={itinEstimateRemaining}
+              errorCode={itinErrorCode}
+              oncancel={cancelGenerate}
+              onretry={generateItinerary}
+              ondismiss={dismissGenerate}
             />
-            {#if lockStreamingText}
-              <pre class="lock-preview" aria-label="Itinerary preview">{lockStreamingText}</pre>
+            {#if itinStreamingText}
+              <pre class="itin-preview" aria-label="Itinerary preview">{itinStreamingText}</pre>
             {/if}
           </div>
         {/if}
-      {:else if isPlanning && isLocked}
-        <div id="locked-callout" class="callout locked-callout">
-          <strong>Locked — read-only.</strong>
-          Editing is frozen. The itinerary below was generated from your planning sections.
-          <div class="callout-actions">
-            <button class="btn btn-secondary" onclick={unlockTrip}>Unlock to edit</button>
-            <a class="btn btn-secondary" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">View brochure</a>
-            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
-              {completing ? 'Completing…' : 'Mark as completed'}
-            </button>
-          </div>
-        </div>
       {:else if isCompleted}
         <div class="callout completed-callout">
           <strong>Completed.</strong>
@@ -881,7 +857,7 @@
         </div>
       {/if}
 
-      {#if (isLocked || isCompleted) && sections.itinerary}
+      {#if sections.itinerary}
         <div class="itinerary-view">
           {@html marked.parse(sections.itinerary || '')}
         </div>
@@ -891,7 +867,7 @@
         <section class="section">
           <header class="section-header">
             <h2>{SECTION_LABELS[section] || section}</h2>
-            {#if isPlanning && !isLocked && sections[section] !== undefined && !editing[section]}
+            {#if isPlanning && sections[section] !== undefined && !editing[section]}
               <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
             {/if}
           </header>
@@ -911,8 +887,6 @@
                     {deepenSectionRunning ? 'Researching…' : 'Research this section →'}
                   </button>
                 </PromiseTooltip>
-              {:else if isLocked && RESEARCHABLE.has(section)}
-                <p class="section-locked-hint"><a href="#locked-callout">Unlock the trip</a> to research this section.</p>
               {/if}
             </div>
           {:else if editing[section]}
@@ -992,7 +966,7 @@
     </main>
   </div>
 
-  {#if !isLocked && !isCompleted && data.features?.chat}
+  {#if !isCompleted && data.features?.chat}
     <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask {data.assistantName}">
       {#if chatOpen}
         ✕
@@ -1164,10 +1138,6 @@
     background: var(--planning-bg);
     color: var(--planning-text);
   }
-  .stage-pill.locked-pill {
-    background: var(--sunset-50);
-    color: var(--sunset-800);
-  }
 
   .page > header h1 {
     font-family: var(--font-serif);
@@ -1245,19 +1215,14 @@
     color: var(--sunset-800);
     border-left-color: var(--sunset-600);
   }
-  .callout.locked-callout {
-    background: var(--sunset-50);
-    color: var(--sunset-800);
-    border-left-color: var(--sunset-600);
-  }
   .callout-actions {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
     margin-top: 0.65rem;
   }
-  /* lock-stream-wrap: StreamBanner + preview pre, rendered as a section-level card */
-  .lock-stream-wrap {
+  /* itin-stream-wrap: StreamBanner + preview pre, rendered as a section-level card */
+  .itin-stream-wrap {
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -1265,7 +1230,7 @@
     overflow: hidden;
     border: 1px solid var(--bone-200);
   }
-  .lock-preview {
+  .itin-preview {
     margin: 0;
     max-height: 280px;
     overflow-y: auto;
@@ -1391,12 +1356,6 @@
     font-size: 0.86rem;
     color: var(--text-tertiary);
     font-style: italic;
-    margin: 0;
-  }
-
-  .section-locked-hint {
-    font-size: 0.86rem;
-    color: var(--text-tertiary);
     margin: 0;
   }
 
@@ -1699,7 +1658,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* ── Itinerary view (locked state) ── */
+  /* ── Itinerary view ── */
   .itinerary-view {
     display: flex;
     flex-direction: column;

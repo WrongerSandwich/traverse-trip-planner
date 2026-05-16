@@ -1,7 +1,6 @@
-import { json } from '@sveltejs/kit';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
-import { setLocked, readPlanningTrip, PLANNING_SECTIONS } from '$lib/server/data.js';
+import { readPlanningTrip, PLANNING_SECTIONS, invalidateEnrichCache } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
@@ -9,7 +8,7 @@ import { sseStream } from '$lib/server/sse.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
-export const _promise = HAND_DEFAULTS.lock;
+export const _promise = HAND_DEFAULTS.itinerary;
 
 export function POST({ params, request }) {
   const { slug } = params;
@@ -29,8 +28,8 @@ export function POST({ params, request }) {
     let usage;
     try {
       const result = await chat({
-        ...getEffectiveConfig().features.lock,
-        label: 'lock',
+        ...getEffectiveConfig().features.itinerary,
+        label: 'itinerary',
         maxTokens: 4000,
         signal,
         onText: (chunk) => {
@@ -72,18 +71,9 @@ Format rules:
     } catch (err) {
       throw new Error(`Failed to write itinerary: ${err.message}`);
     }
-
-    const lockResult = setLocked(slug, true);
-    if (!lockResult) throw new Error('Failed to update frontmatter');
+    invalidateEnrichCache();
 
     if (usage) send(formatUsage(usage));
-    send('Done — itinerary is set.', true, usageToTokens(usage));
+    send('Done — itinerary is ready.', true, usageToTokens(usage));
   });
-}
-
-export async function DELETE({ params }) {
-  const { slug } = params;
-  const result = setLocked(slug, false);
-  if (!result) return new Response('Trip not found', { status: 404 });
-  return json({ ok: true });
 }

@@ -8,15 +8,15 @@ vi.mock('node:fs', () => ({
 }));
 
 // --- data mock ---
-const { mockReadPlanningTrip, mockSetLocked } = vi.hoisted(() => ({
+const { mockReadPlanningTrip, mockInvalidateEnrichCache } = vi.hoisted(() => ({
   mockReadPlanningTrip: vi.fn(),
-  mockSetLocked: vi.fn(),
+  mockInvalidateEnrichCache: vi.fn(),
 }));
 
 vi.mock('$lib/server/data.js', () => ({
   PLANNING_SECTIONS: ['overview', 'route', 'stops', 'logistics'],
   readPlanningTrip: mockReadPlanningTrip,
-  setLocked: mockSetLocked,
+  invalidateEnrichCache: mockInvalidateEnrichCache,
 }));
 
 // --- AI / config mocks ---
@@ -29,7 +29,7 @@ vi.mock('$lib/server/ai.js', () => ({
 
 vi.mock('$lib/server/config.js', () => ({
   getEffectiveConfig: () => ({
-    features: { lock: { provider: 'anthropic', model: 'claude-test' } },
+    features: { itinerary: { provider: 'anthropic', model: 'claude-test' } },
   }),
 }));
 
@@ -54,7 +54,7 @@ vi.mock('$lib/server/sse.js', () => ({
   },
 }));
 
-import { POST } from '../src/routes/api/lock/[slug]/+server.js';
+import { POST } from '../src/routes/api/itinerary/[slug]/+server.js';
 
 const TRIP_STUB = {
   dir: '/test-root/planning/test-trip',
@@ -69,7 +69,6 @@ const TRIP_STUB = {
 beforeEach(() => {
   vi.clearAllMocks();
   mockReadPlanningTrip.mockReturnValue(TRIP_STUB);
-  mockSetLocked.mockReturnValue(true);
   mockChat.mockResolvedValue({ text: '## Day 1 — Monday\n- 9:00 AM — Depart', usage: { input: 50, output: 20 } });
 });
 
@@ -79,7 +78,7 @@ function makeRequest(slug = 'test-trip') {
 
 // ── 404 ────────────────────────────────────────────────────────────────────────
 
-describe('POST /api/lock/[slug]', () => {
+describe('POST /api/itinerary/[slug]', () => {
   it('returns 404 when trip is not in planning stage', async () => {
     mockReadPlanningTrip.mockReturnValue(null);
     const res = await POST(makeRequest('missing-trip'));
@@ -89,7 +88,7 @@ describe('POST /api/lock/[slug]', () => {
 
 // ── empty model output ─────────────────────────────────────────────────────────
 
-describe('POST /api/lock/[slug] — empty model output', () => {
+describe('POST /api/itinerary/[slug] — empty model output', () => {
   it('sends error when chat() returns empty text', async () => {
     mockChat.mockResolvedValueOnce({ text: '', usage: null });
     const res = await POST(makeRequest());
@@ -116,7 +115,7 @@ describe('POST /api/lock/[slug] — empty model output', () => {
 
 // ── cancel (AbortError from request.signal) ────────────────────────────────────
 
-describe('POST /api/lock/[slug] — cancel', () => {
+describe('POST /api/itinerary/[slug] — cancel', () => {
   it('does not send an Error message when the request is aborted', async () => {
     // Simulate an abort by rejecting chat() with an AbortError
     const abortErr = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
@@ -132,22 +131,12 @@ describe('POST /api/lock/[slug] — cancel', () => {
     await POST(makeRequest());
     expect(mockWriteFileSync).not.toHaveBeenCalled();
   });
-
-  it('does not call setLocked when the request is aborted', async () => {
-    const abortErr = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
-    mockChat.mockRejectedValueOnce(abortErr);
-    await POST(makeRequest());
-    expect(mockSetLocked).not.toHaveBeenCalled();
-  });
 });
 
 // ── typed-error failure envelope ───────────────────────────────────────────────
 
-describe('POST /api/lock/[slug] — typed error codes', () => {
+describe('POST /api/itinerary/[slug] — typed error codes', () => {
   it('sends an Error message containing the TraverseError code when chat() throws a known error', async () => {
-    // The lock route wraps chat() errors — but empty_model_output is thrown
-    // after chat(), so we test via the whitespace guard path.
-    // For this test, simulate a TraverseError being thrown directly.
     const { TraverseError } = await import('../src/lib/server/errors.js');
     mockChat.mockRejectedValueOnce(new TraverseError('provider_error', 'Provider blew up'));
     const res = await POST(makeRequest());
@@ -162,17 +151,11 @@ describe('POST /api/lock/[slug] — typed error codes', () => {
     await POST(makeRequest());
     expect(mockWriteFileSync).not.toHaveBeenCalled();
   });
-
-  it('does not call setLocked when chat() throws a non-abort error', async () => {
-    mockChat.mockRejectedValueOnce(new Error('Network blip'));
-    await POST(makeRequest());
-    expect(mockSetLocked).not.toHaveBeenCalled();
-  });
 });
 
 // ── success path ───────────────────────────────────────────────────────────────
 
-describe('POST /api/lock/[slug] — success', () => {
+describe('POST /api/itinerary/[slug] — success', () => {
   it('writes itinerary.md with the model output', async () => {
     mockChat.mockResolvedValueOnce({
       text: '## Day 1 — Monday\n- 9:00 AM — Depart\n## Day 2 — Tuesday\n- Drive home',
@@ -185,15 +168,15 @@ describe('POST /api/lock/[slug] — success', () => {
     );
   });
 
-  it('calls setLocked(slug, true) after writing the itinerary', async () => {
+  it('invalidates the enrich cache after writing the itinerary', async () => {
     await POST(makeRequest('my-trip'));
-    expect(mockSetLocked).toHaveBeenCalledWith('my-trip', true);
+    expect(mockInvalidateEnrichCache).toHaveBeenCalled();
   });
 
   it('sends the final Done message', async () => {
     const res = await POST(makeRequest());
     const done = res._messages.find(m => m.done);
-    expect(done?.msg).toBe('Done — itinerary is set.');
+    expect(done?.msg).toBe('Done — itinerary is ready.');
   });
 
   it('passes sections from the trip to chat() in the prompt', async () => {
@@ -202,6 +185,11 @@ describe('POST /api/lock/[slug] — success', () => {
     const userMsg = call.messages[0].content;
     expect(userMsg).toContain('We drive north on Day 1.');
     expect(userMsg).toContain('Take I-70 west.');
+  });
+
+  it('passes label "itinerary" to chat() for telemetry grouping', async () => {
+    await POST(makeRequest());
+    expect(mockChat).toHaveBeenCalledWith(expect.objectContaining({ label: 'itinerary' }));
   });
 
   it('trims trailing whitespace from itinerary before writing', async () => {
@@ -219,7 +207,7 @@ describe('POST /api/lock/[slug] — success', () => {
     const res = await POST(makeRequest());
     const done = res._messages.find(m => m.done);
     expect(done).toBeDefined();
-    expect(done.msg).toBe('Done — itinerary is set.');
+    expect(done.msg).toBe('Done — itinerary is ready.');
     // tokens = input + output = 150 (usageToTokens)
     expect(done.tokens).toBe(150);
   });

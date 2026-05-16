@@ -292,7 +292,7 @@ export function getHome() {
 
 // ── Enrich trips ──
 // TODO: split into enrichWithGeodata() (geocode/image/route I/O) and enrichWithCalculations() (pure transforms); pruneCaches() can be called explicitly after enrichment
-// TODO: standardize null-check pattern in setLocked/toggleStarred/setShared — all should assign parseFrontmatter to a variable before checking, not discard the result
+// TODO: standardize null-check pattern in toggleStarred/setShared — both should assign parseFrontmatter to a variable before checking, not discard the result
 
 async function geocodeWaypoints(waypoints, trackSet = null) {
   const wps = Array.isArray(waypoints) ? waypoints : [waypoints];
@@ -485,19 +485,6 @@ export function removeFrontmatterField(content, field) {
     /^---\n([\s\S]*?)\n---/m,
     (_, block) => `---\n${block.replace(new RegExp(`^${field}:.*\n?`, 'm'), '')}\n---`,
   );
-}
-
-// ── Lock toggle ──
-export function setLocked(slug, locked) {
-  const filePath = join(ROOT, 'planning', slug, 'overview.md');
-  if (!existsSync(filePath)) return null;
-
-  const content = readFileSync(filePath, 'utf8');
-  if (!parseFrontmatter(content)) return null;
-
-  writeFileSync(filePath, setFrontmatterField(content, 'locked', locked));
-  invalidateEnrichCache();
-  return { locked };
 }
 
 // ── Trip location ──

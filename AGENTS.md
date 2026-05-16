@@ -155,7 +155,7 @@ well-understood reasons.
   fail otherwise.
 - **Endpoint test** → `tests/api-settings.test.js` (POST-only route) or
   `tests/api-deepen.test.js` / `tests/api-receipts.test.js` /
-  `tests/api-lock.test.js` (richer contracts). Pattern: mock `node:fs`,
+  `tests/api-itinerary.test.js` (richer contracts). Pattern: mock `node:fs`,
   `@sveltejs/kit`, `$lib/server/ai.js`, and `$lib/server/data.js`; call
   the route export directly. For SSE routes, mock `$lib/server/sse.js` to
   run the handler synchronously and collect sent messages into an array.
