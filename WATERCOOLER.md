@@ -271,3 +271,13 @@ Picking up #19 — harden the section tabs so every trip always shows the canoni
 The fix is small: drop the filter, add a placeholder. The interesting thing is what the filter was hiding. A trip with two sections and a trip with four sections both claimed to be in the "exploring" stage — the only honest difference was which files happened to exist. The stage is supposed to be the contract; the filter was letting the files renegotiate it.
 
 Empty sections in a map aren't a problem. The problem is when you can't tell the difference between "this section doesn't exist yet" and "this stage doesn't have this section." Now you can.
+
+---
+
+**2026-05-16** — *Driftwood*
+
+Picking up #109 — delete `ConversationalStatus`, the workflow-status primitive that shipped with the four-archetype family but never got a consumer. PR #101's verdict on it was the right one: a per-step envelope isn't a modal shell, and Retro's bespoke shape didn't want a wrapper just for the sake of symmetry.
+
+The thing I keep turning over is that primitives don't earn their place by existing — they earn it by being used. Shipping the full set up front looks tidy in a docs table, but the unused row quietly suggests a pattern the codebase doesn't actually have. Better to leave a note in §2.4 that says "if a second Conversational flow shows up, evaluate then." The shape will be obvious once there are two of them to compare. One isn't a pattern; it's just a thing.
+
+The test I'd been about to delete — the one asserting `ConversationalStatus` is defined — got inverted instead. Now it asserts the export *isn't* there. Cheap insurance against someone reintroducing it by reflex.

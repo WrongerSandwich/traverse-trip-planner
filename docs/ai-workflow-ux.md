@@ -79,6 +79,11 @@ Empty state: drawer doesn't open from the pill if there are no jobs. When the la
 
 For multi-step user-driven flows (Retro today; future wizards).
 
+Conversational uses a bespoke per-flow modal shell; no shared primitive —
+`RetroModal.svelte` is the reference implementation. If a second
+Conversational workflow surfaces, evaluate then whether the shared shape is
+worth extracting.
+
 | State | Surface |
 |---|---|
 | **Trigger** | Button opens a modal that takes over the screen. Step indicator at top (5 segments for Retro). |

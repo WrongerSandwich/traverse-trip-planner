@@ -1,10 +1,11 @@
 // Workflow-status core: state model + registry resolution.
 //
 // Used by the per-archetype Svelte wrappers (InstantInlineStatus,
-// StreamBanner, AmbientBackgroundStatus, ConversationalStatus). The
-// archetype wrappers handle layout; this module handles "what sentence and
-// affordances should I show?" given a state, optional error code, and
-// optional override sentence.
+// StreamBanner, AmbientBackgroundStatus). The archetype wrappers handle
+// layout; this module handles "what sentence and affordances should I
+// show?" given a state, optional error code, and optional override
+// sentence. Conversational / Modal flows use a bespoke modal shell
+// (see `RetroModal.svelte`) rather than a shared primitive.
 //
 // See docs/ai-workflow-ux.md §2 (per-archetype envelopes) and §5 (failure
 // recovery contract). Failure rendering MUST consume ERROR_REGISTRY — no
