@@ -1,5 +1,6 @@
+import { join } from 'path';
 import { error } from '@sveltejs/kit';
-import { enrichTrips, getHome, getTripFiles } from '$lib/server/data.js';
+import { enrichTrips, getHome, getTripFiles, isItineraryStale, ROOT } from '$lib/server/data.js';
 import { makeShareToken } from '$lib/server/share.js';
 
 export async function load({ params }) {
@@ -17,6 +18,14 @@ export async function load({ params }) {
   }
 
   const files = getTripFiles(slug);
+  const resolvedStage = files?.stage || trip._stage;
 
-  return { trip, home, files: files?.files || {}, stage: files?.stage || trip._stage };
+  // Compute staleness for planning/completed trips that have an itinerary.
+  let itineraryStale = false;
+  if (resolvedStage === 'planning' || resolvedStage === 'completed') {
+    const tripDir = join(ROOT, resolvedStage, slug);
+    itineraryStale = isItineraryStale(tripDir);
+  }
+
+  return { trip, home, files: files?.files || {}, stage: resolvedStage, itineraryStale };
 }
