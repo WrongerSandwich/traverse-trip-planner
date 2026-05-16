@@ -14,11 +14,11 @@
 
   const trip = $derived(data.trip);
   const files = $derived(data.files || {});
-  const isLocked = $derived(trip?.locked === 'true');
 
-  // If locked, show only the itinerary; otherwise show all sections that have content.
+  // When an itinerary exists it's the canonical view; otherwise show the
+  // planning sections that have content.
   const visibleSections = $derived(
-    isLocked && files.itinerary
+    files.itinerary
       ? ['itinerary']
       : SECTION_ORDER.filter(s => files[s] && files[s].trim())
   );

@@ -18,10 +18,9 @@
   const brochure = $derived(data.brochureData ?? null);
   const isStructured = $derived(!!brochure);
 
-  // Content selection: a locked trip's itinerary.md is the canonical brochure
-  // content. Otherwise fall back to the planning sections in lifecycle order
-  // — preview-brochure mode for trips still being shaped.
-  const isLocked = $derived(trip?.locked === 'true');
+  // Content selection: an itinerary.md is the canonical brochure content
+  // when present. Otherwise fall back to the planning sections in lifecycle
+  // order — preview-brochure mode for trips still being shaped.
   const hasItinerary = $derived(typeof files.itinerary === 'string' && files.itinerary.trim().length > 0);
 
   const SECTION_LABELS = {
@@ -33,7 +32,7 @@
   const SECTION_ORDER = ['overview', 'route', 'stops', 'logistics'];
 
   const sections = $derived.by(() => {
-    if (isLocked && hasItinerary) {
+    if (hasItinerary) {
       return [{ key: 'itinerary', label: 'Itinerary', body: files.itinerary }];
     }
     return SECTION_ORDER

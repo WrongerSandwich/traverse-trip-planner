@@ -56,7 +56,7 @@ export const HAND_DEFAULTS = {
     time_seconds: 10,
     tokens_range: [300, 700],
   },
-  lock: {
+  itinerary: {
     verb: 'Generate itinerary',
     produces: 'A day-by-day itinerary synthesized from your planning sections, streamed in real time.',
     time_seconds: 30,

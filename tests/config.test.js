@@ -23,7 +23,7 @@ const TRAVERSE_KEYS = [
   // Per-feature overrides
   'TRAVERSE_MODEL_SEED_PROVIDER', 'TRAVERSE_MODEL_SEED',
   'TRAVERSE_MODEL_ADD_PROVIDER', 'TRAVERSE_MODEL_ADD',
-  'TRAVERSE_MODEL_LOCK_PROVIDER', 'TRAVERSE_MODEL_LOCK',
+  'TRAVERSE_MODEL_ITINERARY_PROVIDER', 'TRAVERSE_MODEL_ITINERARY',
   'TRAVERSE_MODEL_CHAT_PROVIDER', 'TRAVERSE_MODEL_CHAT',
   'TRAVERSE_MODEL_DEEPEN_PROVIDER', 'TRAVERSE_MODEL_DEEPEN',
   'TRAVERSE_SHARE_SECRET',
@@ -110,14 +110,14 @@ describe('getFeatureAvailability', () => {
   it('disables every feature when no keys are set', async () => {
     const { getFeatureAvailability } = await loadConfig();
     expect(getFeatureAvailability()).toEqual({
-      seed: false, add: false, lock: false, chat: false, retro: false, receipts: false, deepen: false, share: false,
+      seed: false, add: false, itinerary: false, chat: false, retro: false, receipts: false, deepen: false, share: false,
     });
   });
 
   it('enables all features with anthropic + builtin search', async () => {
     const { getFeatureAvailability } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
     expect(getFeatureAvailability()).toEqual({
-      seed: true, add: true, lock: true, chat: true, retro: true, receipts: true, deepen: true, share: false,
+      seed: true, add: true, itinerary: true, chat: true, retro: true, receipts: true, deepen: true, share: false,
     });
   });
 
@@ -176,11 +176,11 @@ describe('describeConfig', () => {
   it('flags overridden features in the snapshot', async () => {
     const { describeConfig } = await loadConfig({
       ANTHROPIC_API_KEY: 'sk-ant-test',
-      TRAVERSE_MODEL_LOCK: 'claude-haiku-4-5',
+      TRAVERSE_MODEL_ITINERARY: 'claude-haiku-4-5',
     });
     const d = describeConfig();
-    expect(d.features.lock.overridden).toBe(true);
-    expect(d.features.lock.model).toBe('claude-haiku-4-5');
+    expect(d.features.itinerary.overridden).toBe(true);
+    expect(d.features.itinerary.model).toBe('claude-haiku-4-5');
     expect(d.features.seed.overridden).toBe(false);
   });
 });
@@ -230,17 +230,17 @@ describe('per-feature model overrides', () => {
     const { config } = await loadConfig();
     expect(config.features.seed).toEqual(config.modelDefault);
     expect(config.features.add).toEqual(config.modelDefault);
-    expect(config.features.lock).toEqual(config.modelDefault);
+    expect(config.features.itinerary).toEqual(config.modelDefault);
     expect(config.features.chat).toEqual(config.modelDefault);
     expect(config.features.deepen).toEqual(config.modelResearch);
   });
 
   it('TRAVERSE_MODEL_LOCK overrides only the lock feature', async () => {
     const { config } = await loadConfig({
-      TRAVERSE_MODEL_LOCK: 'claude-haiku-4-5',
+      TRAVERSE_MODEL_ITINERARY: 'claude-haiku-4-5',
     });
-    expect(config.features.lock.model).toBe('claude-haiku-4-5');
-    expect(config.features.lock.provider).toBe('anthropic'); // inherits slot's provider
+    expect(config.features.itinerary.model).toBe('claude-haiku-4-5');
+    expect(config.features.itinerary.provider).toBe('anthropic'); // inherits slot's provider
     expect(config.features.seed.model).toBe('claude-sonnet-4-6'); // others untouched
   });
 
@@ -258,13 +258,13 @@ describe('per-feature model overrides', () => {
   it('disables only the overridden feature when its provider key is missing', async () => {
     const { getFeatureAvailability } = await loadConfig({
       ANTHROPIC_API_KEY: 'sk-ant-test',
-      TRAVERSE_MODEL_LOCK_PROVIDER: 'openai',
+      TRAVERSE_MODEL_ITINERARY_PROVIDER: 'openai',
       // OPENAI_API_KEY missing
     });
     const f = getFeatureAvailability();
     expect(f.seed).toBe(true);
     expect(f.add).toBe(true);
-    expect(f.lock).toBe(false); // override breaks only lock
+    expect(f.itinerary).toBe(false); // override breaks only itinerary
     expect(f.chat).toBe(true);
     expect(f.deepen).toBe(true);
   });
@@ -272,9 +272,9 @@ describe('per-feature model overrides', () => {
   it('flags missing provider key for an overridden feature in validateConfig', async () => {
     const { validateConfig } = await loadConfig({
       ANTHROPIC_API_KEY: 'sk-ant-test',
-      TRAVERSE_MODEL_LOCK_PROVIDER: 'openai',
+      TRAVERSE_MODEL_ITINERARY_PROVIDER: 'openai',
     });
     const issues = validateConfig();
-    expect(issues.some(i => i.includes('Feature lock') && i.includes('OPENAI_API_KEY'))).toBe(true);
+    expect(issues.some(i => i.includes('Feature itinerary') && i.includes('OPENAI_API_KEY'))).toBe(true);
   });
 });

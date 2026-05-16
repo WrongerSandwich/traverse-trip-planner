@@ -9,7 +9,7 @@ function env(envObj, name, fallback) {
 const FEATURE_SLOT = {
   seed: 'modelDefault',
   add: 'modelDefault',
-  lock: 'modelDefault',
+  itinerary: 'modelDefault',
   chat: 'modelDefault',
   retro: 'modelDefault',
   receipts: 'modelDefault',
