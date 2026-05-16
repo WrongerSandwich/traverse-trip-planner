@@ -23,6 +23,21 @@ describe('jobLabel', () => {
   it('falls back gracefully for an empty string', () => {
     expect(jobLabel('')).toBe('…');
   });
+
+  // ── Multi-instance workflows (job-key convention) ──
+  // Multi-instance workflows arrive as '<workflow>:<discriminator>'
+  // (e.g. 'deepen-section:stops'); jobLabel strips the suffix so the badge
+  // resolves to the bare-workflow label. See src/lib/server/jobs.js header.
+
+  it('strips :<discriminator> suffix before lookup for multi-instance workflows', () => {
+    expect(jobLabel('deepen-section:stops')).toBe('Deepening stops…');
+    expect(jobLabel('deepen-section:route')).toBe('Deepening stops…');
+    expect(jobLabel('deepen-section:logistics')).toBe('Deepening stops…');
+  });
+
+  it('falls back to "{bare-workflow}…" when the bare workflow is unknown', () => {
+    expect(jobLabel('some-future:variant')).toBe('some-future…');
+  });
 });
 
 // ─── filterJobsForSlug ────────────────────────────────────────────────────────

@@ -7,6 +7,11 @@
   // filtered subset here as `jobs`. This avoids N independent fetches across N
   // visible cards.
   //
+  // Multi-instance workflows (deepen-section, etc.) encode their discriminator
+  // in the workflow string, not the slug — so the parent's exact-match filter
+  // (filterJobsForSlug in $lib/utils/jobLabels.js) still surfaces every
+  // concurrent job for one trip. See src/lib/server/jobs.js header.
+  //
   // See docs/ai-workflow-ux.md §6.2 and §2.3.
 
   import { jobLabel } from '$lib/utils/jobLabels.js';

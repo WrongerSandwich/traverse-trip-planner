@@ -237,6 +237,39 @@ Drawer auto-closes when the last job finishes.
 
 The pill, badges, and drawer all read from the same server-state source: an in-memory job registry on the SvelteKit server, mirrored to frontmatter flags (e.g. `running: 'brochure'`) for survival across server restart (see §8). The frontend polls on a slow interval (10s) and on navigation; SSE updates from a running job push state synchronously when the user has the relevant page open.
 
+### 6.4 Job-key convention (multi-instance workflows)
+
+The in-memory registry in `src/lib/server/jobs.js` keys live jobs as `${workflow}:${slug}`. Both args are opaque — the only invariant is that the pair is unique per concurrent job. Two patterns:
+
+**Single-instance** (one job of this type per trip at a time):
+
+```js
+// Brochure prepare — at most one in flight per trip.
+startJob('brochure', slug);                      // key: 'brochure:<slug>'
+assertNotRunning('brochure', slug);
+```
+
+**Multi-instance** (multiple concurrent jobs of this type per trip):
+
+Encode the discriminator in the **workflow** arg as `'<workflow>:<discriminator>'`. Leave the slug arg clean. Example: deepen-section runs one job per section, so route, stops, and logistics for one trip can stream simultaneously.
+
+```js
+// Deepen-section — one job per (trip, section) tuple.
+const workflow = `deepen-section:${section}`;    // e.g. 'deepen-section:stops'
+startJob(workflow, slug);                        // key: 'deepen-section:stops:<slug>'
+assertNotRunning(workflow, slug);
+```
+
+**Why discriminator-in-workflow, not in-slug:**
+
+- `TripJobBadge`'s filter (`filterJobsForSlug` in `src/lib/utils/jobLabels.js`) does an exact `j.slug === slug` match. Keeping the slug clean means the per-trip badge surfaces every concurrent job for a trip without prefix-handling.
+- The frontmatter `running:` flag carries the full workflow string (e.g. `running: 'deepen-section:stops'`), which the restart sweep and out-of-band debugging can read directly.
+- `/api/jobs` and `/api/jobs/cancel` accept the composite workflow string without API changes.
+
+**Label rendering** in `jobLabel()` (`src/lib/utils/jobLabels.js`) and `BackgroundJobsIndicator`'s `WORKFLOW_LABELS` strip a `:<discriminator>` suffix before lookup, so `'deepen-section:stops'` resolves to the same label and time estimate as `'deepen-section'`. New multi-instance workflows register their bare-workflow label once.
+
+The discriminator format is the caller's choice (section name, stop index, etc.); pick something stable and human-readable so the frontmatter `running:` flag and any debug logs stay legible. **Do not** invert this and pack the discriminator into the slug arg — that would break `filterJobsForSlug` silently.
+
 ---
 
 ## 7. Inventory mapping
