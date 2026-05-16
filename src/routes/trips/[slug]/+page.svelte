@@ -992,7 +992,7 @@
     </main>
   </div>
 
-  {#if isPlanning && !isLocked && data.features?.chat}
+  {#if !isLocked && !isCompleted && data.features?.chat}
     <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask {data.assistantName}">
       {#if chatOpen}
         ✕
