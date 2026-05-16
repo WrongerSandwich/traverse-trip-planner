@@ -131,17 +131,20 @@ describe('workflow-status core', () => {
   });
 
   describe('barrel exports', () => {
-    it('exposes the four archetype wrappers + AffordanceButtons + core helpers', () => {
+    it('exposes the three archetype wrappers + AffordanceButtons + core helpers', () => {
       expect(WorkflowStatus.InstantInlineStatus).toBeDefined();
       expect(WorkflowStatus.StreamBanner).toBeDefined();
       expect(WorkflowStatus.AmbientBackgroundStatus).toBeDefined();
-      expect(WorkflowStatus.ConversationalStatus).toBeDefined();
       expect(WorkflowStatus.AffordanceButtons).toBeDefined();
       expect(WorkflowStatus.STATES).toEqual(STATES);
       expect(typeof WorkflowStatus.resolveStatus).toBe('function');
       expect(typeof WorkflowStatus.resolveSentence).toBe('function');
       expect(typeof WorkflowStatus.resolveAffordances).toBe('function');
       expect(typeof WorkflowStatus.formatTokens).toBe('function');
+    });
+
+    it('does not expose ConversationalStatus — Conversational flows use bespoke modal shells', () => {
+      expect(WorkflowStatus.ConversationalStatus).toBeUndefined();
     });
   });
 

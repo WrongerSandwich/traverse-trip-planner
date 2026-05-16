@@ -274,6 +274,46 @@ Empty sections in a map aren't a problem. The problem is when you can't tell the
 
 ---
 
+**2026-05-16** — *Drift*
+
+Picking up #108 — removing the inlined `formatTokens` workaround in `+page.svelte` that PR #100 added to dodge a server-boundary import. The bug it dodged got fixed an hour later in PRs #99 and #101, but the workaround stuck around like a sandbag left on a beach after the tide went out.
+
+There's a small thing I like about these cleanup tickets: they exist because the codebase has memory. Someone noticed the duplicated function, traced the history, and wrote down what should be true now versus what was true then. The comment above the inlined copy was honest — it said exactly why the workaround existed — and that honesty is what made the cleanup safe. Comments that say "yes, I know this is wrong, here's why" are the comments that get to retire gracefully.
+
+---
+
+**2026-05-16** — *Conformance*
+
+Picking up #67 — dispatch tests for `ai.js`, plus a conformance suite that walks `PROVIDERS` and pins down the `supportsImages` contract per adapter.
+
+The fun part of this ticket isn't the dispatch tests, it's the per-adapter conformance suite. Convention-as-contract feels fine when the convention is in your head and there are three of something. It starts wobbling at five. The contract from #60 — "if you set `supportsImages: true`, you'd better translate image blocks" — was previously enforced by code review and a hopeful comment in `providers.js`. The suite turns that into a build break with a useful error message: not "test failed" but "openrouter image block type: expected 'image_url' to be 'image'." The next contributor doesn't have to read three adapters to learn the contract; they read one assertion.
+
+Two small things I noticed but left alone. The log line in `ai.js` says `1 turns` when `usage` is undefined — the pluralization branch checks `u.turns === 1` against an undefined value. Cosmetic, never reached in production, tests-only territory. And the dispatch test for the "adapter not imported" invariant needed `vi.resetModules()` to actually re-evaluate `ai.js` with a stubbed `providers.js`; the first attempt silently passed because module caching made the original import win. If you're testing a module-load-time invariant, the module cache is the enemy.
+
+---
+
+**2026-05-16** — *Driftwood*
+
+Picking up #109 — delete `ConversationalStatus`, the workflow-status primitive that shipped with the four-archetype family but never got a consumer. PR #101's verdict on it was the right one: a per-step envelope isn't a modal shell, and Retro's bespoke shape didn't want a wrapper just for the sake of symmetry.
+
+The thing I keep turning over is that primitives don't earn their place by existing — they earn it by being used. Shipping the full set up front looks tidy in a docs table, but the unused row quietly suggests a pattern the codebase doesn't actually have. Better to leave a note in §2.4 that says "if a second Conversational flow shows up, evaluate then." The shape will be obvious once there are two of them to compare. One isn't a pattern; it's just a thing.
+
+The test I'd been about to delete — the one asserting `ConversationalStatus` is defined — got inverted instead. Now it asserts the export *isn't* there. Cheap insurance against someone reintroducing it by reflex.
+
+---
+
+**2026-05-16** — *Tessera*
+
+Picking up #110 — codify the Ambient Background job-key convention.
+
+The interesting thing here is that the ticket's framing was *almost* right and *exactly* wrong. It described the deepen-section route as packing the discriminator into the slug arg (`startJob('deepen-section', `${slug}:${section}`)`) and asked me to document that. The actual code does the opposite: discriminator-in-workflow (`startJob('deepen-section:stops', slug)`), slug stays clean. Both shapes produce the same in-memory key — the registry only cares about uniqueness — but they have very different downstream consequences. With the slug clean, `TripJobBadge`'s exact-match filter surfaces every concurrent section job for a trip without any prefix logic. Pack the discriminator into the slug and that filter silently breaks; you'd never see the badge.
+
+So the convention I codified is the one that's actually in the code, not the one the ticket described. The label-lookup helpers needed a small adjustment — `'deepen-section:stops'` was falling through to the generic `"{workflow}…"` fallback instead of mapping to "Deepening stops…" — and the per-trip badge filter was already correct by happy accident of how the deepen-section author chose to encode things. Tightened both with comments so the next agent doesn't have to derive the invariant from grep.
+
+A convention you can't see in the code is just folklore. A convention with a comment pointing at it is a contract.
+
+---
+
 **2026-05-16** — *Plumbline*
 
 Picking up #111 — telemetry-driven calibration for the `_promise` estimates.

@@ -11,21 +11,7 @@
   import { browser } from '$app/environment';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { failureSentence } from '$lib/errors-registry.js';
-
-  // Local copy of formatTokens — avoids pulling workflow-status/core.js into
-  // the page bundle (which transitively imports $lib/server/errors.js and
-  // triggers SvelteKit's server-boundary guard). The canonical implementation
-  // lives in src/lib/workflow-status/core.js.
-  function formatTokens(count) {
-    if (count == null) return null;
-    if (typeof count !== 'number' || !Number.isFinite(count)) return null;
-    if (count <= 0) return null;
-    if (count < 1000) return `${Math.round(count)} tokens`;
-    const k = count / 1000;
-    const rounded = Math.round(k * 10) / 10;
-    const label = Number.isInteger(rounded) ? `${rounded}k` : `${rounded.toFixed(1)}k`;
-    return `${label} tokens`;
-  }
+  import { formatTokens } from '$lib/utils/formatTokens.js';
 
   let { data } = $props();
 

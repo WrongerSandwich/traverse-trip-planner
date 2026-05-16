@@ -146,6 +146,13 @@ well-understood reasons.
 - **AI adapter test** → `tests/ai-anthropic.test.js` — `vi.hoisted` +
   class-as-constructor mock for the SDK; covers tool loops and error
   paths.
+- **AI adapter conformance** → `tests/ai-conformance.test.js` — data-driven
+  `describe.each` over `PROVIDERS` that pins the `supportsImages` contract.
+  Any new adapter under `src/lib/server/ai/` must either pass the conformance
+  suite (with `supportsImages: true` and a matching wire-format translator) or
+  ship with `supportsImages: false` in `providers.js`. Add a harness entry
+  alongside the new adapter; the coverage tripwire at the top of the file will
+  fail otherwise.
 - **Endpoint test** → `tests/api-settings.test.js` (POST-only route) or
   `tests/api-deepen.test.js` / `tests/api-receipts.test.js` /
   `tests/api-lock.test.js` (richer contracts). Pattern: mock `node:fs`,
