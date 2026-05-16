@@ -1,0 +1,36 @@
+# Build artifacts
+node_modules
+build
+.svelte-kit
+
+# Secrets and personal config (provided at runtime via bind mounts or env_file)
+.env
+.env.example
+home.md
+settings.json
+
+# Runtime cache files (provided at runtime via bind mounts)
+.geocode-cache.json
+.image-cache.json
+.route-cache.json
+.workflow-stats.json
+
+# User trip data (provided at runtime via bind mounts)
+ideas
+planning
+completed
+archived
+
+# Tooling, tests, docs — not needed in the runtime image
+.claude
+.git
+.gitignore
+.github
+tests
+docs
+*.log
+/tmp
+.DS_Store
+
+# This file itself
+.dockerignore
