@@ -27,6 +27,9 @@ const TRAVERSE_KEYS = [
   'TRAVERSE_MODEL_CHAT_PROVIDER', 'TRAVERSE_MODEL_CHAT',
   'TRAVERSE_MODEL_DEEPEN_PROVIDER', 'TRAVERSE_MODEL_DEEPEN',
   'TRAVERSE_SHARE_SECRET',
+  // Deprecated names (cleared so tests don't leak state)
+  'TRAVERSE_MODEL_LOCK',
+  'TRAVERSE_MODEL_LOCK_PROVIDER',
 ];
 
 function clearEnv() {
@@ -222,6 +225,46 @@ describe('OpenRouter provider', () => {
       TAVILY_API_KEY: 'tvly-test',
     });
     expect(getFeatureAvailability().deepen).toBe(true);
+  });
+});
+
+describe('warnOnDeprecatedEnv', () => {
+  it('warns when TRAVERSE_MODEL_LOCK is set', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await loadConfig({ TRAVERSE_MODEL_LOCK: 'claude-haiku-4-5' });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('TRAVERSE_MODEL_LOCK')
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('TRAVERSE_MODEL_ITINERARY')
+    );
+    warn.mockRestore();
+  });
+
+  it('warns when TRAVERSE_MODEL_LOCK_PROVIDER is set', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await loadConfig({ TRAVERSE_MODEL_LOCK_PROVIDER: 'openai' });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('TRAVERSE_MODEL_LOCK_PROVIDER')
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('TRAVERSE_MODEL_ITINERARY_PROVIDER')
+    );
+    warn.mockRestore();
+  });
+
+  it('does not warn when only new env vars are set', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await loadConfig({ TRAVERSE_MODEL_ITINERARY: 'claude-haiku-4-5' });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('does not warn when neither old nor new env vars are set', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await loadConfig({});
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 
