@@ -2,6 +2,7 @@ import { join } from 'path';
 import { error } from '@sveltejs/kit';
 import { enrichTrips, getHome, getTripFiles, isItineraryStale, isBrochureStale, ROOT } from '$lib/server/data.js';
 import { makeShareToken } from '$lib/server/share.js';
+import { readBrochure } from '$lib/server/brochure.js';
 
 export async function load({ params }) {
   const { slug } = params;
@@ -29,5 +30,17 @@ export async function load({ params }) {
     brochureStale = isBrochureStale(tripDir);
   }
 
-  return { trip, home, files: files?.files || {}, stage: resolvedStage, itineraryStale, brochureStale };
+  // Load brochure structured data so the detail page can render brochure.days
+  // in the itinerary slot when available. Returns null when brochure.md is
+  // absent or the YAML is invalid — the legacy itinerary.md fallback handles
+  // both cases gracefully.
+  let brochureData = null;
+  try {
+    const parsed = readBrochure(slug);
+    brochureData = parsed?.data ?? null;
+  } catch {
+    // Malformed brochure.md — fall through to itinerary.md legacy rendering.
+  }
+
+  return { trip, home, files: files?.files || {}, stage: resolvedStage, itineraryStale, brochureStale, brochureData };
 }

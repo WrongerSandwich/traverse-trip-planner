@@ -19,6 +19,7 @@
   import { streamAction } from '$lib/utils/action.js';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { browser } from '$app/environment';
+  import BrochureDayView from '$lib/components/BrochureDayView.svelte';
 
   let { data } = $props();
 
@@ -857,7 +858,16 @@
         </div>
       {/if}
 
-      {#if sections.itinerary}
+      {#if data.brochureData?.days}
+        <div class="itinerary-view">
+          <div class="itinerary-toolbar no-print">
+            <button class="btn btn-secondary btn-compact" onclick={() => window.print()}>
+              Print / Save PDF
+            </button>
+          </div>
+          <BrochureDayView days={data.brochureData.days} />
+        </div>
+      {:else if sections.itinerary}
         {#if data.itineraryStale && isPlanning}
           <div class="itinerary-stale-notice">
             <span>Sections have changed — regenerate?</span>
@@ -875,6 +885,9 @@
             </button>
           </div>
           {@html marked.parse(sections.itinerary || '')}
+          <p class="itinerary-legacy-cta no-print">
+            <a href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Prepare brochure to enable editing</a>
+          </p>
         </div>
       {/if}
 
@@ -1728,6 +1741,13 @@
   }
   .itinerary-view :global(li:last-child) { border-bottom: none; }
   .itinerary-view :global(strong) { font-weight: 700; color: var(--text-primary); }
+
+  /* ── Legacy itinerary CTA (shown below prose itinerary when no brochure exists) ── */
+  .itinerary-legacy-cta {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #64748b);
+  }
 
   /* ── Itinerary staleness notice ── */
   .itinerary-stale-notice {
