@@ -25,7 +25,7 @@ services:
       - ./.route-cache.json:/app/.route-cache.json
       - ./.workflow-stats.json:/app/.workflow-stats.json
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3456/"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3456/"]
       interval: 30s
       timeout: 5s
       retries: 3
