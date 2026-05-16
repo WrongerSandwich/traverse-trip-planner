@@ -427,6 +427,35 @@ export async function getTripRoute(slug) {
 // ── Planning section utilities ──
 export const PLANNING_SECTIONS = ['overview', 'route', 'stops', 'logistics'];
 
+/**
+ * Returns true when itinerary.md exists AND at least one source section
+ * (overview / route / stops / logistics) has been modified more recently
+ * than the itinerary — i.e. the itinerary is stale.
+ *
+ * Accepts an optional `stat` callback so tests can inject synthetic mtimes
+ * without touching the filesystem.
+ *
+ * @param {string} dir  - Absolute path to the trip folder.
+ * @param {(path: string) => { mtimeMs: number } | null} [stat]
+ *   - Defaults to `fs.statSync` with a null-returning catch.
+ * @returns {boolean}
+ */
+export function isItineraryStale(dir, stat) {
+  const safeStat = stat ?? ((p) => { try { return statSync(p); } catch { return null; } });
+
+  const itineraryPath = join(dir, 'itinerary.md');
+  const itineraryStat = safeStat(itineraryPath);
+  if (!itineraryStat) return false; // no itinerary — nothing to be stale
+
+  const itineraryMtime = itineraryStat.mtimeMs;
+
+  for (const section of PLANNING_SECTIONS) {
+    const sectionStat = safeStat(join(dir, `${section}.md`));
+    if (sectionStat && sectionStat.mtimeMs > itineraryMtime) return true;
+  }
+  return false;
+}
+
 // Returns { dir, frontmatter, sections } for a trip in the planning stage,
 // or null if the directory doesn't exist. `frontmatter` is the raw YAML block
 // from overview.md (with trailing newline); `sections` maps section name →

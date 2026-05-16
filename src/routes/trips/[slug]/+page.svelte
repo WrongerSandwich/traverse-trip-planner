@@ -858,6 +858,16 @@
       {/if}
 
       {#if sections.itinerary}
+        {#if data.itineraryStale && isPlanning}
+          <div class="itinerary-stale-notice">
+            <span>Sections have changed — regenerate?</span>
+            <button
+              class="btn btn-secondary btn-compact"
+              onclick={generateItinerary}
+              disabled={generating || !data.features?.itinerary}
+            >Regenerate itinerary</button>
+          </div>
+        {/if}
         <div class="itinerary-view">
           {@html marked.parse(sections.itinerary || '')}
         </div>
@@ -1700,6 +1710,21 @@
   }
   .itinerary-view :global(li:last-child) { border-bottom: none; }
   .itinerary-view :global(strong) { font-weight: 700; color: var(--text-primary); }
+
+  /* ── Itinerary staleness notice ── */
+  .itinerary-stale-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: var(--amber-50, #fffbeb);
+    border: 1px solid var(--amber-300, #fcd34d);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: var(--amber-800, #92400e);
+    margin-bottom: 0.5rem;
+  }
+  .itinerary-stale-notice span { flex: 1; }
 
   /* ── Print styles ── */
   @media print {
