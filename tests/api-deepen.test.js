@@ -186,7 +186,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(mockCompleteJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({ tokens: 300 }));
   });
 
-  it('fire-and-forget success path: writes to exploring/ and unlinks the idea file', async () => {
+  it('fire-and-forget success path: writes to planning/ and unlinks the idea file', async () => {
     mockExistsSync.mockReturnValue(true);
     mockChat.mockResolvedValue({
       text: '<overview_prose>prose</overview_prose><route_md>route</route_md>',
@@ -197,7 +197,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
     await new Promise(r => setTimeout(r, 50));
 
     expect(mockMkdirSync).toHaveBeenCalledWith(
-      expect.stringContaining('exploring/test-trip'),
+      expect.stringContaining('planning/test-trip'),
       { recursive: true }
     );
     expect(mockWriteFileSync).toHaveBeenCalledWith(

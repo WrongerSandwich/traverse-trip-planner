@@ -370,28 +370,6 @@
     }
   }
 
-  async function promoteToPlanning(trip, e) {
-    e?.stopPropagation?.();
-    const ok = await showConfirm({
-      title:        `Move to planning?`,
-      body:         `"${trip.title || trip._slug}" will move from exploring to planning.`,
-      confirmLabel: 'Move to planning',
-      danger:       false,
-    });
-    if (!ok) return;
-    const slug = trip._slug;
-    try {
-      const res = await fetch(`/api/promote/${encodeURIComponent(slug)}`, { method: 'POST' });
-      if (!res.ok) throw new Error(`Promote failed: ${res.status}`);
-      // Close any open detail panel and navigate to the dedicated planning page
-      selectedTrip = null;
-      await goto(`/trips/${encodeURIComponent(slug)}`, { invalidateAll: true });
-    } catch (err) {
-      console.error(err);
-      alert("Couldn't move that one into planning. The server log may have more detail.");
-    }
-  }
-
   function openTrip(trip) {
     const stage = trip._stage || trip.status;
     if (stage === 'planning') {
@@ -678,7 +656,7 @@
       <!-- Stage tabs + filter toggle + sort -->
       <div class="controls-wrap">
         <div class="controls">
-          {#each ['all','idea','exploring','planning','completed'] as f}
+          {#each ['all','idea','planning','completed'] as f}
             <button class="tab" class:active={activeFilter === f} onclick={() => activeFilter = f}>
               {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
@@ -778,7 +756,6 @@
               onleave={() => hoveredSlug = null}
               onbookmark={(e) => toggleBookmark(trip, e)}
               ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
-              onpromote={(e) => promoteToPlanning(trip, e)}
               oncancel={null}
             />
           {:else}
@@ -799,7 +776,6 @@
   trip={selectedTrip}
   starred={selectedTrip ? isStarred(selectedTrip) : false}
   onbookmark={(e) => selectedTrip && toggleBookmark(selectedTrip, e)}
-  onpromote={(e) => selectedTrip && promoteToPlanning(selectedTrip, e)}
   onarchive={(e) => selectedTrip && archiveTrip(selectedTrip, e)}
   onclose={() => selectedTrip = null}
 />

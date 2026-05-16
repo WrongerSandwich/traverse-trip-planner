@@ -4,10 +4,9 @@
   import TripJobBadge from './TripJobBadge.svelte';
   import { tripColor } from '$lib/utils/colors.js';
 
-  let { trip, starred = false, jobs = [], onclick, onhover, onleave, onbookmark, ondeepen, onpromote, oncancel } = $props();
+  let { trip, starred = false, jobs = [], onclick, onhover, onleave, onbookmark, ondeepen, oncancel } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
-  const isExploring = $derived((trip.status || trip._stage) === 'exploring');
 
   const status  = $derived(trip.status || trip._stage || 'idea');
   const color   = $derived(tripColor(trip));
@@ -108,10 +107,6 @@
         title={ondeepen ? 'Look into this trip with web search' : 'Research is offline — research model or search backend not configured'}
       >
         Research →
-      </button>
-    {:else if isExploring && onpromote}
-      <button class="btn btn-secondary btn-compact card-cta" onclick={onpromote} title="Move into Planning">
-        Start planning →
       </button>
     {/if}
 
@@ -345,7 +340,7 @@
     white-space: nowrap;
   }
 
-  /* Card-level secondary CTA — small inline action button on idea/exploring cards. */
+  /* Card-level secondary CTA — small inline action button on idea cards. */
   .card-cta { position: relative; z-index: 2; align-self: flex-start; }
 
   /* Per-trip job badge container — sits above the footer, below CTAs. */

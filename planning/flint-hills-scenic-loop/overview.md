@@ -1,6 +1,6 @@
 ---
 title: Flint Hills Tallgrass Prairie Loop
-status: exploring
+status: planning
 destination: Cottonwood Falls, KS
 pitch: Highway 177 through the Flint Hills is the closest genuine scenic drive to Kansas City — rolling tallgrass prairie that survived the plow because the limestone soil couldn't be farmed. Cottonwood Falls has the oldest functioning courthouse west of the Mississippi and a small but solid main street. The Tallgrass Prairie National Preserve near Strong City adds a few miles and a proper walk through unbroken prairie.
 created: 2026-04-24

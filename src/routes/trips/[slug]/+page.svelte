@@ -55,7 +55,6 @@
 
   // Canonical section sets per stage (itinerary handled separately above the list)
   const STAGE_SECTIONS = {
-    exploring: ['overview', 'route', 'stops', 'logistics'],
     planning:  ['overview', 'route', 'stops', 'logistics'],
     completed: ['overview', 'route', 'stops', 'logistics', 'notes'],
   };
@@ -116,13 +115,13 @@
       : null
   );
 
-  const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.exploring);
+  const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
 
   // Show the "Research this section →" button only when the feature is enabled,
   // the trip is not locked/completed, and the section is a researchable type.
   const RESEARCHABLE = new Set(['route', 'stops', 'logistics']);
   const canResearchSection = $derived(
-    (stage === 'exploring' || (stage === 'planning' && !isLocked)) &&
+    stage === 'planning' && !isLocked &&
     Boolean(data.features?.deepen)
   );
 

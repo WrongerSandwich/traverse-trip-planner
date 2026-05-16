@@ -1,4 +1,4 @@
-// Ambient Background workflow: Deepen (research an idea into exploring stage).
+// Ambient Background workflow: Deepen (research an idea into planning stage).
 //
 // Contract (docs/ai-workflow-ux.md §2.3, §6):
 // - assertNotRunning('deepen', slug) → 409 Conflict if already in flight.
@@ -138,7 +138,7 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
   const merged = {
     ...existingFm,
     ...researchFm,
-    status: 'exploring',
+    status: 'planning',
     travelers: homeFm.travelers ?? '[you]',
     pet_sitter_needed: String(homeFm.pets_need_sitter ?? 'false'),
   };
@@ -148,7 +148,7 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
     .join('\n');
   const overviewContent = `---\n${fmLines}\n---\n\n${prose}\n`;
 
-  const dir = join(ROOT, 'exploring', slug);
+  const dir = join(ROOT, 'planning', slug);
   mkdirSync(dir, { recursive: true });
 
   writeFileSync(join(dir, 'overview.md'), overviewContent);

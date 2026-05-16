@@ -19,27 +19,28 @@ traverse/
 │   └── agents/        # subagents (researcher) — for ad-hoc Claude Code use
 ├── src/               # SvelteKit frontend (npm run dev -- --port 3456)
 ├── ideas/             # parked, lightly sketched (single .md files)
-├── exploring/         # being researched (folders with overview.md)
-├── planning/          # actively becoming reality (folders)
+├── planning/          # researched and actively becoming reality (folders)
 ├── completed/         # archive with retrospectives
 └── archived/          # hidden from frontend; structure mirrors source stage
     ├── ideas/
-    ├── exploring/
     ├── planning/
     └── completed/
 ```
 
+(Legacy `archived/exploring/` may exist for trips archived before the
+exploring stage was retired — `collectExistingDestinations()` still
+scans it so those destinations stay in the seed-avoidance list.)
+
 ## Lifecycle
 
-Trips progress through four stages. Earlier-stage fields are never removed — structure accrues as a trip matures.
+Trips progress through three stages. Earlier-stage fields are never removed — structure accrues as a trip matures.
 
 1. **idea** — single `.md` file in `ideas/`. Fields: `title`, `status`, `destination`, `pitch`, `created`, `vibe`. Target: <30 seconds to create.
-2. **exploring** — promoted to a folder. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out.
-3. **planning** — concrete dates, lodging, reservations. The frontend's planning page enables in-place editing of any section + an "Ask Field guide" chat that writes section updates back to disk.
-4. **completed** — moved to `completed/`. The Mark-as-completed action offers an AI-prompted retro flow that writes `notes.md` (skippable; available later via an "Add retro" button on the completed view).
+2. **planning** — promoted to a folder by the Research action. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out. Concrete dates, lodging, and reservations accrue here as the trip firms up. The frontend's planning page enables in-place editing of any section + an "Ask Field guide" chat that writes section updates back to disk.
+3. **completed** — moved to `completed/`. The Mark-as-completed action offers an AI-prompted retro flow that writes `notes.md` (skippable; available later via an "Add retro" button on the completed view).
 
 **Canonical section sets per stage:** The detail view always renders a fixed tab set regardless of which files actually exist on disk. Missing files show an empty-state placeholder — producers (deepen, chat) are not required to write every section. The canonical sets are:
-- exploring / planning: `overview`, `route`, `stops`, `logistics`
+- planning: `overview`, `route`, `stops`, `logistics`
 - locked planning: same as above, plus `itinerary` (shown above the others)
 - completed: `overview`, `route`, `stops`, `logistics`, `notes` (plus `itinerary` if present)
 
@@ -52,19 +53,15 @@ Trips progress through four stages. Earlier-stage fields are never removed — s
 title, status, destination, pitch, created, vibe
 ```
 
-**Added at exploring:**
+**Added at planning (set by Research, accrue as the trip firms up):**
 ```
 region, home_distance_mi, driving_hours, duration_days, weekend_viable,
 best_seasons, avoid_months, travelers, pet_sitter_needed, ev_friendly,
-vehicle (optional override), tags, vibe, cost_tier, waypoints
-```
-Optional flags: `national_park: true` (for NPS units), `starred: true` (bookmarked)
-
-**Added at planning:**
-```
+vehicle (optional override), tags, vibe, cost_tier, waypoints,
 target_date, pet_sitter, lodging, reservations_needed,
 charging_stops (EV trips), cost_estimate_usd
 ```
+Optional flags: `national_park: true` (for NPS units), `starred: true` (bookmarked)
 Optional planning flag: `locked: true` (trip is frozen; itinerary has been generated)
 
 ### Field notes
@@ -86,8 +83,7 @@ All lifecycle operations live in the SvelteKit app — the browser is the canoni
 
 - **Seed** (`+` button on the home page) — generates 5 new idea files using `home.md` preferences. Optional steering prompt to focus the batch (e.g. "fall colors within 4 hours", "scenic byways with quirky small towns"). Instant Inline.
 - **Add destination** (pin button on the home page) — generates a single idea file for a specific destination you name. Includes a semantic duplicate check against existing trips. Instant Inline.
-- **Research →** (button on idea cards) — promotes an idea into an exploring-stage folder with web-searched details: hours, prices, lodging, route highlights, logistics. Adds `waypoints` so the OSRM route line draws on the map. Ambient Background: 60–120s, navigate away while it runs; cancel from the jobs drawer.
-- **Start Planning** (exploring trips) — promotes `exploring/<slug>/` → `planning/<slug>/` and rewrites the status frontmatter.
+- **Research →** (button on idea cards) — promotes an idea into a planning-stage folder with web-searched details: hours, prices, lodging, route highlights, logistics. Adds `waypoints` so the OSRM route line draws on the map. Ambient Background: 60–120s, navigate away while it runs; cancel from the jobs drawer.
 - **Bookmark** (star icon) — toggles `starred: true|false` in the trip's frontmatter.
 - **Prepare brochure** (planning detail view) — Ambient Background. Confirm modal carries the promise sentence ("~45s, ~2–5k tokens"). After confirming, runs AI extraction over the planning sections in the background; you can navigate away. The global indicator surfaces progress; success toast links to the review form, which opens `brochure.md` (`days` / `stops` / `lodging` / `field_guide_notes` / `gotchas`) so you can edit before saving. Stops carry an enum `category` (`historic | food | lodging | outdoors | view | entertainment | misc`).
 - **Re-geocode stops** (button on the prepare form) — re-runs Nominatim against each stop with fallback queries (address → name + destination context → name) to fill in missing pin coords without re-extracting from the planning text. Useful when the first pass leaves stops unmapped. Instant Inline.
