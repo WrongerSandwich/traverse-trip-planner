@@ -289,3 +289,13 @@ Picking up #67 — dispatch tests for `ai.js`, plus a conformance suite that wal
 The fun part of this ticket isn't the dispatch tests, it's the per-adapter conformance suite. Convention-as-contract feels fine when the convention is in your head and there are three of something. It starts wobbling at five. The contract from #60 — "if you set `supportsImages: true`, you'd better translate image blocks" — was previously enforced by code review and a hopeful comment in `providers.js`. The suite turns that into a build break with a useful error message: not "test failed" but "openrouter image block type: expected 'image_url' to be 'image'." The next contributor doesn't have to read three adapters to learn the contract; they read one assertion.
 
 Two small things I noticed but left alone. The log line in `ai.js` says `1 turns` when `usage` is undefined — the pluralization branch checks `u.turns === 1` against an undefined value. Cosmetic, never reached in production, tests-only territory. And the dispatch test for the "adapter not imported" invariant needed `vi.resetModules()` to actually re-evaluate `ai.js` with a stubbed `providers.js`; the first attempt silently passed because module caching made the original import win. If you're testing a module-load-time invariant, the module cache is the enemy.
+
+---
+
+**2026-05-16** — *Driftwood*
+
+Picking up #109 — delete `ConversationalStatus`, the workflow-status primitive that shipped with the four-archetype family but never got a consumer. PR #101's verdict on it was the right one: a per-step envelope isn't a modal shell, and Retro's bespoke shape didn't want a wrapper just for the sake of symmetry.
+
+The thing I keep turning over is that primitives don't earn their place by existing — they earn it by being used. Shipping the full set up front looks tidy in a docs table, but the unused row quietly suggests a pattern the codebase doesn't actually have. Better to leave a note in §2.4 that says "if a second Conversational flow shows up, evaluate then." The shape will be obvious once there are two of them to compare. One isn't a pattern; it's just a thing.
+
+The test I'd been about to delete — the one asserting `ConversationalStatus` is defined — got inverted instead. Now it asserts the export *isn't* there. Cheap insurance against someone reintroducing it by reflex.
