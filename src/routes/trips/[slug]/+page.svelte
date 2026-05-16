@@ -18,6 +18,7 @@
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { browser } from '$app/environment';
   import BrochureDayView from '$lib/components/BrochureDayView.svelte';
+  import KebabMenu from '$lib/components/KebabMenu.svelte';
 
   let { data } = $props();
 
@@ -598,7 +599,97 @@
     }
   }
 
+  // ── ⋯ menu groups (computed from stage + feature flags + share state) ──
+  const kebabGroups = $derived.by(() => {
+    const slug = trip?._slug ?? '';
+    const brochureHref = `/trips/${encodeURIComponent(slug)}/brochure`;
 
+    // Output group — always present
+    const outputItems = [
+      {
+        type: 'link',
+        label: '↗ View full brochure',
+        href: brochureHref,
+        target: '_blank',
+        rel: 'noopener',
+      },
+    ];
+
+    if (data.features?.share) {
+      if (shareUrl) {
+        // Share is active — show the URL as read-only text, then Copy + Disable
+        outputItems.push({
+          type: 'text',
+          value: shareUrl,
+        });
+        outputItems.push({
+          type: 'button',
+          label: '📋 Copy share link',
+          onclick: copyShareUrl,
+        });
+        outputItems.push({
+          type: 'button',
+          label: '🔗 Disable share',
+          onclick: disableShare,
+          disabled: shareBusy,
+          danger: false,
+        });
+      } else {
+        outputItems.push({
+          type: 'button',
+          label: shareBusy ? 'Generating…' : '🔗 Generate share link',
+          onclick: enableShare,
+          disabled: shareBusy,
+        });
+      }
+    }
+
+    const groups = [{ label: 'Output', items: outputItems }];
+
+    if (isCompleted) {
+      // Activity group (completed trips only) — only render when at least one applies
+      const activityItems = [];
+      if (!hasNotes && data.features?.retro) {
+        activityItems.push({
+          type: 'button',
+          label: '📝 Add retro',
+          onclick: () => { retroOpen = true; },
+        });
+      }
+      if (data.features?.receipts) {
+        activityItems.push({
+          type: 'button',
+          label: receiptsStatus === 'uploading' ? 'Parsing receipts…' : '🧾 Add receipts',
+          onclick: openReceiptPicker,
+          disabled: receiptsStatus === 'uploading',
+        });
+      }
+      if (activityItems.length > 0) {
+        groups.push({ label: 'Activity', items: activityItems });
+      }
+    }
+
+    // Lifecycle group
+    const lifecycleItems = [];
+    if (isPlanning) {
+      lifecycleItems.push({
+        type: 'button',
+        label: completing ? 'Completing…' : '✓ Mark as completed',
+        onclick: completeTrip,
+        disabled: completing,
+      });
+    }
+    lifecycleItems.push({
+      type: 'button',
+      label: '🗑 Archive',
+      onclick: archiveTrip,
+      danger: true,
+    });
+
+    groups.push({ label: 'Lifecycle', items: lifecycleItems });
+
+    return groups;
+  });
 </script>
 
 <svelte:head>
@@ -628,6 +719,7 @@
         {editMode ? '✓ Editing' : '✎ Edit'}
       </button>
     {/if}
+    <KebabMenu groups={kebabGroups} />
     {#if tripJobs.length > 0}
       <div class="header-job-badge">
         <TripJobBadge jobs={tripJobs} />
@@ -654,50 +746,11 @@
         <div class="callout">
           <strong>Planning mode.</strong>
           Edit any section below, or tap <em>Ask {data.assistantName}</em> to describe a change in plain English — updates are written straight to the markdown.
-          <div class="callout-actions">
-            <a class="btn btn-secondary" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">Preview brochure</a>
-            <button class="btn btn-secondary" onclick={completeTrip} disabled={completing}>
-              {completing ? 'Completing…' : 'Mark as completed'}
-            </button>
-          </div>
         </div>
       {:else if isCompleted}
         <div class="callout completed-callout">
           <strong>Completed.</strong>
           This trip is done. All sections are preserved below.
-          {#if (!hasNotes && data.features?.retro) || data.features?.receipts}
-            <div class="callout-actions">
-              {#if !hasNotes && data.features?.retro}
-                <button class="btn btn-secondary" onclick={() => retroOpen = true}>
-                  Add retro
-                </button>
-              {/if}
-              {#if data.features?.receipts}
-                <PromiseTooltip promise={RECEIPTS_PROMISE}>
-                  <button
-                    class="btn btn-secondary"
-                    onclick={openReceiptPicker}
-                    disabled={receiptsStatus === 'uploading'}
-                  >
-                    {#if receiptsStatus === 'uploading'}
-                      <span class="btn-spinner" aria-hidden="true"></span>
-                      Parsing receipts…
-                    {:else}
-                      Add receipts
-                    {/if}
-                  </button>
-                </PromiseTooltip>
-                <input
-                  bind:this={receiptsInput}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  style="display:none"
-                  onchange={uploadReceipts}
-                />
-              {/if}
-            </div>
-          {/if}
           {#if receiptsSuccessVisible && receiptsStatus === 'done'}
             <div class="receipts-success" role="status">
               ✓ Parsed {receiptsLines.length} receipt{receiptsLines.length === 1 ? '' : 's'}{receiptsTokens ? ` · ${formatTokens(receiptsTokens)}` : ''}
@@ -722,6 +775,14 @@
             </div>
           {/if}
         </div>
+        <input
+          bind:this={receiptsInput}
+          type="file"
+          accept="image/*"
+          multiple
+          style="display:none"
+          onchange={uploadReceipts}
+        />
       {:else}
         <div class="callout warn">
           This trip is in <strong>{stage}</strong>. Move it to Planning from the cards view to enable editing.
@@ -804,66 +865,23 @@
         </section>
       {/each}
 
-      {#if data.features?.share}
-        <div class="share-zone">
-          {#if shareUrl}
-            <div class="share-active">
-              <input class="share-url" type="text" readonly value={shareUrl} onfocus={(e) => e.target.select()} />
-              <button class="share-copy" onclick={copyShareUrl} type="button">Copy</button>
-              <button class="share-disable" onclick={disableShare} disabled={shareBusy}>Disable</button>
-            </div>
-            <span class="share-hint">Anyone with this link can view the trip read-only. Disabling revokes access immediately.</span>
-          {:else}
-            <button class="share-enable" onclick={enableShare} disabled={shareBusy}>
-              {shareBusy ? 'Generating…' : 'Generate share link'}
-            </button>
-            <span class="share-hint">Creates a public read-only URL anyone can view (no Traverse account needed).</span>
-          {/if}
-        </div>
-      {/if}
-
       {#if deepenSectionError}
         <div class="deepen-section-error" role="alert">{deepenSectionError}</div>
       {/if}
 
-      <div class="brochure-zone">
-        <div class="brochure-row">
-          <a class="btn btn-secondary btn-compact" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`} target="_blank" rel="noopener">View brochure</a>
-          <a class="btn btn-secondary btn-compact" href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Open prepare form</a>
+      {#if brochureError}
+        <div class="brochure-error-banner" role="alert">{brochureError}</div>
+      {/if}
+
+      {#if editMode && data.brochureStale && !brochureRunning}
+        <div class="brochure-stale-notice">
+          <span>Sections have changed — re-prepare?</span>
           <PromiseTooltip promise={BROCHURE_PROMISE}>
-            <button
-              type="button"
-              class="btn btn-primary btn-compact"
-              onclick={prepareBrochure}
-              disabled={brochureRunning}
-              title={brochureRunning ? 'Already running — see indicator' : undefined}
-            >
-              {brochureRunning ? 'Preparing…' : 'Prepare brochure'}
-            </button>
-          </PromiseTooltip>
-        </div>
-        {#if editMode && data.brochureStale && !brochureRunning}
-          <div class="brochure-stale-notice">
-            <span>Sections have changed — re-prepare?</span>
             <button
               class="btn btn-secondary btn-compact"
               onclick={prepareBrochure}
             >Re-prepare brochure</button>
-          </div>
-        {/if}
-        {#if brochureError}
-          <span class="brochure-error">{brochureError}</span>
-        {:else if !data.brochureStale}
-          <span class="archive-hint">
-            The Field guide reads your notes and proposes a structured set of stops, lodging, and notes for the brochure. The job runs in the background — the indicator at the top of the page will tell you when it's ready.
-          </span>
-        {/if}
-      </div>
-
-      {#if !isCompleted}
-        <div class="danger-zone">
-          <button class="btn btn-danger btn-compact" onclick={archiveTrip}>Archive trip</button>
-          <span class="archive-hint">Hides it from view but keeps the file so it won't be re-suggested.</span>
+          </PromiseTooltip>
         </div>
       {/if}
     </main>
@@ -1158,12 +1176,6 @@
     color: var(--sunset-800);
     border-left-color: var(--sunset-600);
   }
-  .callout-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    margin-top: 0.65rem;
-  }
   .callout.completed-callout {
     background: var(--bark-50);
     color: var(--bark-600);
@@ -1200,20 +1212,6 @@
     color: var(--text-primary);
     line-height: 1.4;
   }
-  /* Spinner inside a standard btn (matches Instant Inline shape) */
-  @keyframes btn-spin { to { transform: rotate(360deg); } }
-  .btn-spinner {
-    display: inline-block;
-    width: 11px;
-    height: 11px;
-    border: 1.5px solid rgba(0, 0, 0, 0.2);
-    border-top-color: currentColor;
-    border-radius: 50%;
-    animation: btn-spin 0.8s linear infinite;
-    vertical-align: middle;
-    flex-shrink: 0;
-  }
-
   .map-strip {
     height: 220px;
     border-radius: 6px;
@@ -1299,71 +1297,13 @@
   .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--bone-200); vertical-align: top; }
   .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--forest-50); color: var(--forest-800); padding: 0.1em 0.4em; border-radius: 3px; }
 
-  /* ── Danger zone (archive) ── */
-  .share-zone {
-    margin-top: 1.25rem;
-    padding: 1rem 0 0;
-    border-top: 1px dashed var(--bone-400);
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.45rem;
-  }
-  .share-active { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; width: 100%; }
-  .share-url {
-    flex: 1; min-width: 220px;
-    font-family: var(--font-sans);
-    font-size: 0.78rem;
-    padding: 0.4rem 0.6rem;
-    border: 1px solid var(--bone-400);
-    border-radius: 3px;
-    background: var(--surface-page);
-    color: var(--text-secondary);
-  }
-  .share-enable, .share-copy, .share-disable {
-    background: none;
-    border: 1px solid var(--bone-400);
-    color: var(--text-secondary);
-    font-family: var(--font-sans);
-    font-size: 0.74rem;
-    font-weight: 600;
-    padding: 0.32rem 0.7rem;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: border-color 0.12s, color 0.12s, background 0.12s;
-  }
-  .share-enable:hover:not(:disabled),
-  .share-copy:hover:not(:disabled) {
-    border-color: var(--forest-200);
-    color: var(--forest-800);
-    background: var(--forest-50);
-  }
-  .share-disable:hover:not(:disabled) {
-    border-color: var(--embers-600);
-    color: var(--embers-600);
+  /* ── Brochure error banner (replaces .brochure-error inside old brochure-zone) ── */
+  .brochure-error-banner {
+    padding: 0.55rem 0.85rem;
     background: var(--sunset-50);
-  }
-  .share-enable:disabled, .share-copy:disabled, .share-disable:disabled { opacity: 0.5; cursor: not-allowed; }
-  .share-hint { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.45; }
-
-  .brochure-zone,
-  .danger-zone {
-    margin-top: 1rem;
-    padding: 1.1rem 0 0;
-    border-top: 1px dashed var(--bone-400);
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.4rem;
-  }
-  .brochure-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  .archive-hint { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.45; }
-  .brochure-error {
-    font-size: 0.78rem;
+    border: 1px solid var(--embers-600);
+    border-radius: 4px;
+    font-size: 0.82rem;
     color: var(--embers-600);
     line-height: 1.45;
   }
@@ -1654,7 +1594,6 @@
     .chat-backdrop,
     .chat,
     .callout,
-    .danger-zone,
     .map-strip,
     .hero,
     .no-print { display: none !important; }
