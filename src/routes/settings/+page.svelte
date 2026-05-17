@@ -296,6 +296,16 @@
   let removeOpen = $state(false);
   let removeTargetKey = $state('');
 
+  // Editable prose: the body of home.md, split on ## headings.
+  // - homePreamble: everything before the first ## heading (typically the
+  //   "# Personal context for trip planning" intro). Collapsed by default
+  //   behind an "Advanced" toggle since most users won't touch it.
+  // - homeSections: array of { heading, body }; headings are read-only,
+  //   bodies are editable per textarea.
+  let homePreamble = $state('');
+  let homeSections = $state(/** @type {Array<{heading: string, body: string}>} */ ([]));
+  let showPreambleEditor = $state(false);
+
   // Track the "pristine" snapshot as serialized JSON so we can disable Save
   // while nothing has changed.
   let homePristine = $state('');
@@ -309,6 +319,8 @@
     homePetsNeedSitter,
     homeDistanceUnit,
     homeVehicles,
+    homePreamble,
+    homeSections,
   }));
 
   let homeIsPristine = $derived(homePristine !== '' && homeCurrentJson === homePristine);
@@ -339,6 +351,10 @@
       homeDistanceUnit = fm.units?.distance ?? 'mi';
       // Deep-copy vehicles so reactive edits don't mutate the snapshot.
       homeVehicles = JSON.parse(JSON.stringify(fm.vehicles ?? {}));
+      // Pull prose into editable state. Deep-copy sections so per-textarea
+      // edits don't mutate the snapshot.
+      homePreamble = body.prose?.preamble ?? '';
+      homeSections = JSON.parse(JSON.stringify(body.prose?.sections ?? []));
 
       // Snapshot the initial state so Save is disabled until something changes.
       homePristine = JSON.stringify({
@@ -350,6 +366,8 @@
         homePetsNeedSitter,
         homeDistanceUnit,
         homeVehicles,
+        homePreamble,
+        homeSections,
       });
     } catch (e) {
       homeLoadError = e.message;
@@ -433,7 +451,10 @@
 
     const payload = {
       frontmatter: updatedFrontmatter,
-      prose: homeSnapshot.prose,
+      prose: {
+        preamble: homePreamble,
+        sections: homeSections,
+      },
     };
 
     try {
@@ -456,8 +477,12 @@
       } else {
         homeSavedOk = true;
         // Update the snapshot so subsequent saves see the new pristine state.
-        homeSnapshot = { ...homeSnapshot, frontmatter: updatedFrontmatter };
-        // Re-derive pristine from the current form state (all strings at this point).
+        homeSnapshot = {
+          ...homeSnapshot,
+          frontmatter: updatedFrontmatter,
+          prose: { preamble: homePreamble, sections: homeSections },
+        };
+        // Re-derive pristine from the current form state.
         homePristine = homeCurrentJson;
       }
     } catch (e) {
@@ -684,7 +709,7 @@
 
     <section class="settings-section home-section">
       <h2>Home base</h2>
-      <p class="section-desc">Structured fields from <code>home.md</code> — used when seeding trip ideas, computing drive times, and filtering by radius. Prose sections are edited separately.</p>
+      <p class="section-desc">Everything in <code>home.md</code> — structured fields (location, vehicles, travelers, preferences) plus the prose sections that get fed to the LLM as context on every seed, research, and chat call. One Save button covers all of it.</p>
 
       {#if homeLoadError}
         <p class="field-warn">{homeLoadError}</p>
@@ -919,6 +944,41 @@
                 {/each}
               </ul>
             {/if}
+          </div>
+
+          <div class="prose-block">
+            <div class="prose-header">
+              <span class="field-label">Personal context</span>
+              <p class="field-hint">Prose sections from <code>home.md</code> — these get fed to the LLM as context on every seed, research, and chat call. Headings are fixed; bodies are free-form markdown.</p>
+            </div>
+
+            {#if homeSections.length === 0}
+              <p class="field-warn">No prose sections in this <code>home.md</code> yet — add some <code>##&nbsp;Heading</code> blocks below the frontmatter to see them here.</p>
+            {/if}
+
+            {#each homeSections as section, i (section.heading + '::' + i)}
+              <div class="prose-section">
+                <label class="prose-heading" for="prose-section-{i}">## {section.heading}</label>
+                <textarea
+                  id="prose-section-{i}"
+                  class="field-input prose-textarea"
+                  rows="6"
+                  bind:value={homeSections[i].body}
+                  oninput={() => { homeSavedOk = false; }}
+                ></textarea>
+              </div>
+            {/each}
+
+            <details class="prose-advanced" bind:open={showPreambleEditor}>
+              <summary>Advanced: file intro (text before the first <code>##</code> heading)</summary>
+              <textarea
+                class="field-input prose-textarea"
+                rows="4"
+                bind:value={homePreamble}
+                oninput={() => { homeSavedOk = false; }}
+              ></textarea>
+              <p class="field-hint">Most users won't touch this. The default is a one-line "# Personal context for trip planning" title plus a sentence of context.</p>
+            </details>
           </div>
         </div>
 
@@ -1478,5 +1538,56 @@
 
   .field-error-list li {
     line-height: 1.5;
+  }
+
+  /* ── Prose editor ─────────────────────────────────────────── */
+
+  .prose-block {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .prose-header .field-label {
+    margin-bottom: 4px;
+  }
+
+  .prose-section {
+    margin-top: 14px;
+  }
+
+  .prose-heading {
+    display: block;
+    font-family: var(--font-mono, monospace);
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+  }
+
+  .prose-textarea {
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+    line-height: 1.55;
+    resize: vertical;
+    min-height: 90px;
+  }
+
+  .prose-advanced {
+    margin-top: 18px;
+    padding: 10px 12px;
+    border: 1px dashed var(--border-default);
+    border-radius: 4px;
+    background: var(--surface-page);
+  }
+
+  .prose-advanced summary {
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .prose-advanced[open] summary {
+    margin-bottom: 10px;
   }
 </style>
