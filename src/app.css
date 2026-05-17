@@ -93,6 +93,9 @@
 
   /* Map tile placeholder bg — used by MiniMap before tiles load */
   --map-tile-bg: #E8E4DE;
+
+  /* RGB triples for use in rgba() gradients that fade to a surface color */
+  --surface-raised-rgb: 246, 241, 229; /* matches --bone-100 / --surface-raised */
 }
 
 /* ── Dark theme ──────────────────────────────────────────────────────────
@@ -154,6 +157,9 @@
 
   /* Map tile placeholder bg — dark counterpart */
   --map-tile-bg: #1A1A1A;
+
+  /* RGB triples for use in rgba() gradients that fade to a surface color */
+  --surface-raised-rgb: 34, 28, 20; /* matches --bone-100 / --surface-raised in dark */
 }
 
 body {
