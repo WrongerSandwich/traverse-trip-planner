@@ -2,8 +2,16 @@
   import { onMount, untrack } from 'svelte';
   import Logo from '$lib/components/Logo.svelte';
   import LocationPicker from '$lib/components/LocationPicker.svelte';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import { getStoredTheme, setTheme } from '$lib/theme.js';
   import { travelersToString, stringToTravelers } from '$lib/utils/homeForm.js';
+  import {
+    setDefaultVehicle,
+    addVehicle,
+    removeVehicle,
+    updateVehicleField,
+    validateVehicles,
+  } from '$lib/utils/vehicleHelpers.js';
 
   // Local reactive copy of the stored preference. Initialized from
   // localStorage on mount (SSR has no localStorage). Default 'system'
@@ -272,6 +280,22 @@
   let homeSavedOk  = $state(false);
   let homeSaveError = $state('');
 
+  // Editable vehicles map. Initialized in onMount from the GET snapshot.
+  let homeVehicles = $state(/** @type {Record<string, object>} */ ({}));
+
+  // New-vehicle UI state: separate row at the bottom of the list for entering
+  // a new key. The key is locked once added (renaming would break per-trip
+  // `vehicle: bolt` frontmatter overrides on existing planning files).
+  let newVehicleKey = $state('');
+  let newVehicleType = $state('gas');
+
+  // Per-vehicle structural errors surfaced before save.
+  let vehicleErrors = $state(/** @type {string[]} */ ([]));
+
+  // Confirm-modal state for vehicle removal.
+  let removeOpen = $state(false);
+  let removeTargetKey = $state('');
+
   // Track the "pristine" snapshot as serialized JSON so we can disable Save
   // while nothing has changed.
   let homePristine = $state('');
@@ -284,6 +308,7 @@
     homeTravelersStr,
     homePetsNeedSitter,
     homeDistanceUnit,
+    homeVehicles,
   }));
 
   let homeIsPristine = $derived(homePristine !== '' && homeCurrentJson === homePristine);
@@ -312,6 +337,8 @@
       homeTravelersStr = travelersToString(fm.travelers ?? []);
       homePetsNeedSitter = fm.pets_need_sitter ?? false;
       homeDistanceUnit = fm.units?.distance ?? 'mi';
+      // Deep-copy vehicles so reactive edits don't mutate the snapshot.
+      homeVehicles = JSON.parse(JSON.stringify(fm.vehicles ?? {}));
 
       // Snapshot the initial state so Save is disabled until something changes.
       homePristine = JSON.stringify({
@@ -322,20 +349,68 @@
         homeTravelersStr,
         homePetsNeedSitter,
         homeDistanceUnit,
+        homeVehicles,
       });
     } catch (e) {
       homeLoadError = e.message;
     }
   });
 
+  // ── Vehicle handlers ────────────────────────────────────────────────────────
+
+  function handleVehicleField(key, field, value) {
+    homeVehicles = updateVehicleField(homeVehicles, key, field, value);
+    homeSavedOk = false;
+    vehicleErrors = [];
+  }
+
+  function handleSetDefault(key) {
+    homeVehicles = setDefaultVehicle(homeVehicles, key);
+    homeSavedOk = false;
+    vehicleErrors = [];
+  }
+
+  function handleAddVehicle() {
+    const key = newVehicleKey.trim().toLowerCase();
+    if (!key || !/^[a-z0-9][a-z0-9-]*$/.test(key) || key in homeVehicles) return;
+    homeVehicles = addVehicle(homeVehicles, key, { type: newVehicleType });
+    newVehicleKey = '';
+    newVehicleType = 'gas';
+    homeSavedOk = false;
+    vehicleErrors = [];
+  }
+
+  function openRemoveConfirm(key) {
+    removeTargetKey = key;
+    removeOpen = true;
+  }
+
+  function confirmRemoveVehicle() {
+    if (removeTargetKey) {
+      homeVehicles = removeVehicle(homeVehicles, removeTargetKey);
+      homeSavedOk = false;
+      vehicleErrors = [];
+    }
+    removeTargetKey = '';
+  }
+
   async function saveHome() {
     if (homeBusy || !homeSnapshot) return;
+
+    // Front-load vehicle validation so the server doesn't get garbage.
+    const vErrors = validateVehicles(homeVehicles);
+    if (vErrors.length > 0) {
+      vehicleErrors = vErrors;
+      return;
+    }
+    vehicleErrors = [];
+
     homeBusy = true;
     homeSavedOk = false;
     homeSaveError = '';
     homeFieldErrors = {};
 
-    // Build the updated frontmatter, preserving vehicles + all other fields
+    // Build the updated frontmatter, preserving prose + all other fields
     // from the original GET so we don't drop them on write.
     const updatedFrontmatter = {
       ...homeSnapshot.frontmatter,
@@ -343,6 +418,7 @@
       home_coords: [Number(homeLat), Number(homeLon)],
       default_radius_mi: homeRadius === '' ? undefined : Number(homeRadius),
       travelers: stringToTravelers(homeTravelersStr),
+      vehicles: homeVehicles,
       pets_need_sitter: homePetsNeedSitter,
       units: {
         ...(homeSnapshot.frontmatter.units ?? {}),
@@ -608,7 +684,7 @@
 
     <section class="settings-section home-section">
       <h2>Home base</h2>
-      <p class="section-desc">Structured fields from <code>home.md</code> — used when seeding trip ideas, computing drive times, and filtering by radius. Vehicles and prose sections are edited separately.</p>
+      <p class="section-desc">Structured fields from <code>home.md</code> — used when seeding trip ideas, computing drive times, and filtering by radius. Prose sections are edited separately.</p>
 
       {#if homeLoadError}
         <p class="field-warn">{homeLoadError}</p>
@@ -700,6 +776,150 @@
               {/each}
             </div>
           </div>
+
+          <div class="field vehicles-block">
+            <span class="field-label">Vehicles</span>
+            <p class="field-hint">Each trip uses the default unless overridden with <code>vehicle: &lt;key&gt;</code> in its frontmatter. EV trips use <code>range_mi</code> and <code>dc_fast_charge_kw</code> to plan charging stops.</p>
+
+            {#if Object.keys(homeVehicles).length === 0}
+              <p class="field-warn">No vehicles configured — add at least one below.</p>
+            {/if}
+
+            {#each Object.entries(homeVehicles) as [key, v] (key)}
+              <div class="vehicle-card">
+                <div class="vehicle-header">
+                  <span class="vehicle-key" title="Slug can't be renamed — it's referenced by per-trip vehicle: {key} overrides.">{key}</span>
+                  <label class="default-radio" class:default-radio-active={v.default}>
+                    <input
+                      type="radio"
+                      name="default-vehicle"
+                      checked={v.default}
+                      onchange={() => handleSetDefault(key)}
+                    />
+                    <span>Default</span>
+                  </label>
+                  <button
+                    type="button"
+                    class="btn-icon btn-remove"
+                    aria-label="Remove vehicle {key}"
+                    onclick={() => openRemoveConfirm(key)}
+                  >×</button>
+                </div>
+
+                <div class="vehicle-fields">
+                  <div class="field">
+                    <label for="vehicle-model-{key}" class="field-label-sub">Model</label>
+                    <input
+                      id="vehicle-model-{key}"
+                      type="text"
+                      class="field-input"
+                      placeholder="e.g. 2019 Toyota RAV4"
+                      value={v.model ?? ''}
+                      oninput={(e) => handleVehicleField(key, 'model', e.currentTarget.value)}
+                    />
+                  </div>
+
+                  <div class="field">
+                    <span class="field-label-sub">Type</span>
+                    <div class="radio-row" role="radiogroup" aria-label="Vehicle type">
+                      {#each [['gas', 'Gas'], ['ev', 'Electric']] as [value, label]}
+                        <label class="radio-option" class:radio-option-active={v.type === value}>
+                          <input
+                            type="radio"
+                            name="vehicle-type-{key}"
+                            {value}
+                            checked={v.type === value}
+                            onchange={() => handleVehicleField(key, 'type', value)}
+                          />
+                          <span>{label}</span>
+                        </label>
+                      {/each}
+                    </div>
+                  </div>
+
+                  {#if v.type === 'ev'}
+                    <div class="ev-row">
+                      <div class="field">
+                        <label for="vehicle-range-{key}" class="field-label-sub">EPA range (mi)</label>
+                        <input
+                          id="vehicle-range-{key}"
+                          type="number"
+                          min="0"
+                          step="1"
+                          class="field-input field-input-narrow"
+                          placeholder="247"
+                          value={v.range_mi ?? ''}
+                          oninput={(e) => handleVehicleField(key, 'range_mi', e.currentTarget.value === '' ? null : Number(e.currentTarget.value))}
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="vehicle-kw-{key}" class="field-label-sub">DC fast-charge (kW)</label>
+                        <input
+                          id="vehicle-kw-{key}"
+                          type="number"
+                          min="0"
+                          step="1"
+                          class="field-input field-input-narrow"
+                          placeholder="55"
+                          value={v.dc_fast_charge_kw ?? ''}
+                          oninput={(e) => handleVehicleField(key, 'dc_fast_charge_kw', e.currentTarget.value === '' ? null : Number(e.currentTarget.value))}
+                        />
+                      </div>
+                    </div>
+                  {/if}
+
+                  <div class="field">
+                    <label for="vehicle-notes-{key}" class="field-label-sub">Notes</label>
+                    <textarea
+                      id="vehicle-notes-{key}"
+                      class="field-input"
+                      rows="2"
+                      placeholder="Anything trip-relevant — cargo, towing, charging quirks"
+                      value={v.notes ?? ''}
+                      oninput={(e) => handleVehicleField(key, 'notes', e.currentTarget.value)}
+                    ></textarea>
+                  </div>
+                </div>
+              </div>
+            {/each}
+
+            <div class="vehicle-add">
+              <input
+                type="text"
+                class="field-input field-input-narrow"
+                placeholder="key (e.g. rav4)"
+                bind:value={newVehicleKey}
+              />
+              <div class="radio-row" role="radiogroup" aria-label="New vehicle type">
+                {#each [['gas', 'Gas'], ['ev', 'Electric']] as [value, label]}
+                  <label class="radio-option" class:radio-option-active={newVehicleType === value}>
+                    <input
+                      type="radio"
+                      name="new-vehicle-type"
+                      {value}
+                      checked={newVehicleType === value}
+                      onchange={() => { newVehicleType = value; }}
+                    />
+                    <span>{label}</span>
+                  </label>
+                {/each}
+              </div>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                disabled={!newVehicleKey.trim() || !/^[a-z0-9][a-z0-9-]*$/.test(newVehicleKey.trim().toLowerCase()) || (newVehicleKey.trim().toLowerCase() in homeVehicles)}
+                onclick={handleAddVehicle}
+              >Add vehicle</button>
+            </div>
+
+            {#if vehicleErrors.length > 0}
+              <ul class="field-error-list">
+                {#each vehicleErrors as err}
+                  <li>{err}</li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
         </div>
 
         <div class="actions home-actions">
@@ -721,6 +941,15 @@
     </section>
   </main>
 </div>
+
+<ConfirmModal
+  bind:open={removeOpen}
+  title="Remove vehicle?"
+  body={`The “${removeTargetKey}” entry will be deleted from home.md. Any planning trips that override with \`vehicle: ${removeTargetKey}\` will fall back to the default vehicle on the next read.`}
+  confirmLabel="Remove"
+  danger
+  onconfirm={confirmRemoveVehicle}
+/>
 
 <style>
   .page {
@@ -1133,5 +1362,121 @@
   .radio-option input[type="radio"] {
     accent-color: var(--forest-600);
     margin: 0;
+  }
+
+  /* ── Vehicles editor ─────────────────────────────────────────── */
+
+  .vehicles-block {
+    margin-top: 6px;
+  }
+
+  .vehicle-card {
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-top: 10px;
+    background: var(--surface-page);
+  }
+
+  .vehicle-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .vehicle-key {
+    font-family: var(--font-mono, monospace);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--surface-raised);
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: help;
+  }
+
+  .default-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  }
+
+  .default-radio:hover {
+    border-color: var(--forest-400);
+  }
+
+  .default-radio-active {
+    border-color: var(--forest-600);
+    color: var(--text-primary);
+    background: var(--surface-raised);
+  }
+
+  .default-radio input[type="radio"] {
+    accent-color: var(--forest-600);
+    margin: 0;
+  }
+
+  .btn-icon {
+    margin-left: auto;
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-tertiary);
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .btn-remove:hover {
+    color: var(--state-danger);
+    border-color: var(--state-danger);
+  }
+
+  .vehicle-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .ev-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .vehicle-add {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .field-warn {
+    font-size: 12px;
+    color: var(--state-warning, var(--text-tertiary));
+    margin: 4px 0 0;
+  }
+
+  .field-error-list {
+    list-style: disc inside;
+    padding: 0;
+    margin: 10px 0 0;
+    font-size: 11px;
+    color: var(--state-danger);
+  }
+
+  .field-error-list li {
+    line-height: 1.5;
   }
 </style>
