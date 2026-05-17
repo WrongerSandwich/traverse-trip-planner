@@ -1,0 +1,13 @@
+{
+  "name": "Traverse",
+  "short_name": "Traverse",
+  "description": "Self-hosted road trip planning with AI-assisted routing.",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#1F4332",
+  "background_color": "#FCFAF5",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
