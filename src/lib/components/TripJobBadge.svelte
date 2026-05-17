@@ -50,9 +50,9 @@
     font-size: 0.68rem;
     font-weight: 500;
     letter-spacing: 0.04em;
-    color: var(--amber-700, #b45309);
-    background: var(--amber-50, #fffbeb);
-    border: 1px solid var(--amber-200, #fde68a);
+    color: var(--state-warning);
+    background: var(--state-warning-surface);
+    border: 1px solid var(--state-warning);
     border-radius: 3px;
     padding: 0.18rem 0.5rem;
     white-space: nowrap;

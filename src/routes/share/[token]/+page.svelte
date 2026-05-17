@@ -96,14 +96,14 @@
     font-size: 0.85rem;
     color: var(--text-secondary);
   }
-  .meta .date { color: var(--forest-800); font-weight: 600; }
+  .meta .date { color: var(--text-primary); font-weight: 600; }
 
   .hero {
     margin: 1rem 0 1.5rem;
     border-radius: 8px;
     overflow: hidden;
     background: var(--surface-raised);
-    border: 1px solid var(--bone-200);
+    border: 1px solid var(--border-subtle);
   }
   .hero img { width: 100%; height: auto; display: block; }
   .credit {
@@ -111,7 +111,7 @@
     font-size: 0.7rem;
     color: var(--text-tertiary);
     background: var(--surface-page);
-    border-top: 1px solid var(--bone-200);
+    border-top: 1px solid var(--border-subtle);
   }
   .credit a { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; }
 
@@ -125,7 +125,7 @@
   main { display: flex; flex-direction: column; gap: 2rem; }
   section {
     background: var(--surface-raised);
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     border-radius: 8px;
     padding: 1.25rem 1.4rem;
   }
@@ -150,10 +150,10 @@
   .md :global(li) { margin: 0.2rem 0; line-height: 1.5; }
   .md :global(table) { border-collapse: collapse; width: 100%; font-size: 0.9rem; margin: 0.75rem 0; }
   .md :global(th), .md :global(td) {
-    border: 1px solid var(--bone-200);
+    border: 1px solid var(--border-subtle);
     padding: 0.4rem 0.6rem; text-align: left;
   }
-  .md :global(a) { color: var(--forest-800); text-decoration: underline; text-underline-offset: 2px; }
+  .md :global(a) { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
 
   .empty {
     color: var(--text-tertiary);
@@ -165,7 +165,7 @@
   footer {
     margin-top: 3rem;
     padding-top: 1.5rem;
-    border-top: 1px solid var(--bone-200);
+    border-top: 1px solid var(--border-subtle);
     text-align: center;
     color: var(--text-tertiary);
     font-size: 0.78rem;
@@ -178,8 +178,8 @@
   .brochure-link {
     display: inline-block;
     padding: 10px 18px;
-    background: var(--forest-800);
-    color: var(--bone-200);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
     border-radius: 4px;
     font-family: var(--font-sans);
     font-size: 13px;
@@ -188,5 +188,5 @@
     text-decoration: none;
     transition: background 0.15s ease;
   }
-  .brochure-link:hover { background: var(--forest-900); }
+  .brochure-link:hover { background: var(--surface-raised); color: var(--text-primary); }
 </style>

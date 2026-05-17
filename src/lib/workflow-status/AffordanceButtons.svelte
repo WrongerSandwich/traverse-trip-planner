@@ -63,7 +63,7 @@
 
   .affordance-btn {
     background: var(--surface-raised);
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     color: var(--text-primary);
     font-family: var(--font-sans);
     font-size: 0.78rem;
@@ -75,16 +75,17 @@
     transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
   .affordance-btn:hover {
-    background: var(--bone-100);
-    border-color: var(--bark-600);
+    background: var(--surface-sunken);
+    border-color: var(--border-strong);
   }
   .affordance-btn.primary {
-    background: var(--forest-600);
-    border-color: var(--forest-800);
-    color: var(--text-inverse, #fff);
+    background: var(--surface-invert);
+    border-color: var(--border-strong);
+    color: var(--text-inverse);
   }
   .affordance-btn.primary:hover {
-    background: var(--forest-800);
+    background: var(--surface-raised);
+    color: var(--text-primary);
   }
 
   .sm .affordance-btn {

@@ -13,7 +13,7 @@
 
 export const THEME_KEY = 'traverse-theme';
 export const THEME_COLOR_LIGHT = '#1F4332';
-export const THEME_COLOR_DARK  = '#0D1A12';
+export const THEME_COLOR_DARK  = '#14201A';
 
 const VALID = new Set(['system', 'light', 'dark']);
 

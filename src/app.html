@@ -23,7 +23,7 @@
           }
           document.documentElement.dataset.theme = resolved;
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0D1A12' : '#1F4332');
+          if (meta) meta.setAttribute('content', resolved === 'dark' ? '#14201A' : '#1F4332');
         } catch (e) {
           // localStorage denied or matchMedia missing — leave default (light).
         }

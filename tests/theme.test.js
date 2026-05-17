@@ -92,7 +92,7 @@ describe('theme.js', () => {
     it('updates meta theme-color when present', () => {
       const doc = makeDoc();
       applyTheme('dark', doc);
-      expect(doc._meta.setAttribute).toHaveBeenCalledWith('content', '#0D1A12');
+      expect(doc._meta.setAttribute).toHaveBeenCalledWith('content', '#14201A');
       applyTheme('light', doc);
       expect(doc._meta.setAttribute).toHaveBeenCalledWith('content', '#1F4332');
     });

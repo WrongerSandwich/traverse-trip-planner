@@ -109,9 +109,9 @@
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    background: var(--forest-600);
-    color: var(--text-inverse, #fff);
-    border: 1px solid var(--forest-800);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 0.5rem 0.9rem;
     font-family: var(--font-sans);
@@ -120,10 +120,10 @@
     cursor: pointer;
     transition: background 0.12s, opacity 0.12s;
   }
-  .trigger:hover:not(:disabled) { background: var(--forest-800); }
+  .trigger:hover:not(:disabled) { background: var(--surface-raised); color: var(--text-primary); }
   .trigger:disabled { cursor: not-allowed; opacity: 0.7; }
-  .trigger.is-busy { background: var(--forest-800); }
-  .trigger.is-failure { background: var(--embers-600); border-color: var(--embers-600); }
+  .trigger.is-busy { opacity: 0.8; }
+  .trigger.is-failure { background: var(--state-danger-surface); color: var(--state-danger); border-color: var(--state-danger); }
 
   .label { line-height: 1; }
   .tokens {
@@ -137,8 +137,8 @@
     flex-direction: column;
     gap: 0.4rem;
     padding: 0.55rem 0.7rem;
-    background: var(--sunset-50, #fff5f0);
-    border: 1px solid var(--embers-600);
+    background: var(--state-danger-surface);
+    border: 1px solid var(--state-danger);
     border-radius: 4px;
     max-width: 28rem;
   }

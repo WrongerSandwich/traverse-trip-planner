@@ -275,7 +275,7 @@
     width: min(640px, calc(100vw - 2rem));
     max-height: calc(100vh - 4rem);
     display: flex; flex-direction: column;
-    background: var(--surface-raised);
+    background: var(--surface-overlay);
     color: var(--text-primary);
     border-radius: 10px;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
@@ -294,7 +294,7 @@
     font-size: 1.2rem;
     font-weight: 500;
     margin: 0;
-    color: var(--forest-800);
+    color: var(--text-primary);
   }
   .close {
     background: none; border: none;
@@ -318,8 +318,8 @@
     background: var(--surface-sunken);
     transition: background 0.2s;
   }
-  .step-seg.complete { background: var(--forest-600); }
-  .step-seg.current  { background: var(--sunset-400); }
+  .step-seg.complete { background: var(--state-success); }
+  .step-seg.current  { background: var(--accent-text); }
 
   .modal-body {
     padding: 1rem 1.2rem 1.2rem;
@@ -368,7 +368,7 @@
   }
   .qa textarea:focus {
     outline: none;
-    border-color: var(--forest-600);
+    border-color: var(--focus-ring);
   }
 
   .structured {
@@ -396,8 +396,8 @@
     padding: 0.1rem 0.15rem;
     transition: color 0.1s;
   }
-  .star.active { color: var(--sunset-400); }
-  .star:hover { color: var(--sunset-400); }
+  .star.active { color: var(--accent-text); }
+  .star:hover { color: var(--accent-text); }
 
   .repeat {
     display: flex; align-items: center; gap: 0.4rem;
@@ -424,7 +424,7 @@
     color: var(--text-primary);
   }
   .status.success {
-    color: var(--forest-700);
+    color: var(--state-success);
   }
 
   .error-sentence {
@@ -439,7 +439,7 @@
   }
 
   .success-icon {
-    color: var(--forest-600);
+    color: var(--state-success);
     font-weight: 700;
     font-size: 1rem;
   }
@@ -447,8 +447,8 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner {
     width: 14px; height: 14px;
-    border: 1.5px solid var(--surface-sunken);
-    border-top-color: var(--forest-600);
+    border: 1.5px solid var(--border-subtle);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     flex-shrink: 0;

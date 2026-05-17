@@ -135,7 +135,7 @@
     background: var(--surface-raised);
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid var(--bone-200);
+    border: 1px solid var(--border-subtle);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 3px 10px rgba(0, 0, 0, 0.05);
     display: flex;
     flex-direction: column;
@@ -160,26 +160,26 @@
     padding: 0;
   }
   .card-overlay:focus-visible {
-    outline: 2px solid var(--forest-800);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
   .card:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05);
-    border-color: var(--forest-200);
+    border-color: var(--border-default);
   }
   .card:active {
     transform: scale(0.985);
-    border-color: var(--forest-800);
+    border-color: var(--border-strong);
     transition-duration: 0.05s;
   }
-  .card:global(.highlight) { outline: 2px solid var(--forest-800); outline-offset: 2px; }
+  .card:global(.highlight) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
   /* ── Thumbnail ── */
   .thumb {
     height: var(--thumb-h, 220px);
     flex-shrink: 0;
-    background: var(--bone-400);
+    background: var(--border-default);
     overflow: hidden;
     position: relative;
   }
@@ -248,7 +248,7 @@
     flex: 1;
     transition: background 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .card:hover .body { background: var(--forest-50); }
+  .card:hover .body { background: var(--surface-sunken); }
 
   .top-row {
     display: flex;
@@ -280,9 +280,9 @@
     position: absolute;
     inset: -10px;
   }
-  .bookmark:hover  { color: var(--forest-800); transform: scale(1.1); }
-  .bookmark:active { color: var(--forest-800); transform: scale(0.92); }
-  .bookmark.active { color: var(--forest-800); }
+  .bookmark:hover  { color: var(--text-primary); transform: scale(1.1); }
+  .bookmark:active { color: var(--text-primary); transform: scale(0.92); }
+  .bookmark.active { color: var(--accent); }
 
   .eyebrow {
     align-self: flex-start;
@@ -290,7 +290,7 @@
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.18em;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     margin-bottom: 2px;
   }
 
@@ -320,12 +320,12 @@
     gap: 0.5rem;
     flex-wrap: wrap;
     padding-top: 0.55rem;
-    border-top: 1px solid var(--bone-200);
+    border-top: 1px solid var(--border-subtle);
     margin-top: auto;
     font-family: var(--font-mono);
     font-size: 11px;
     line-height: 1;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
   }
   .footer .meta {
     display: flex;
@@ -333,7 +333,7 @@
     gap: 0.4rem;
     flex-wrap: wrap;
   }
-  .footer .sep { color: var(--bone-400); }
+  .footer .sep { color: var(--border-default); }
   .footer .cost {
     color: var(--text-primary);
     font-weight: 500;

@@ -1023,8 +1023,9 @@
   }
 
   .page > header {
-    background: var(--surface-invert);
-    color: var(--text-inverse);
+    background: var(--forest-800);
+    color: var(--bone-200);
+    border-bottom: 1px solid var(--border-default);
     padding: 1.1rem 1.75rem;
     display: flex;
     align-items: center;
@@ -1042,7 +1043,7 @@
   .edit-mode-toggle {
     background: none;
     border: 1.5px solid var(--forest-600);
-    color: var(--bone-400);
+    color: var(--bone-200);
     padding: 0.35rem 0.75rem;
     border-radius: 4px;
     cursor: pointer;
@@ -1081,7 +1082,7 @@
   .back {
     background: none;
     border: 1.5px solid var(--forest-600);
-    color: var(--bone-400);
+    color: var(--bone-200);
     padding: 0.35rem 0.75rem;
     border-radius: 4px;
     cursor: pointer;
@@ -1122,7 +1123,7 @@
     align-items: center;
     gap: 0.55rem;
     font-size: 0.78rem;
-    color: var(--bone-400);
+    color: var(--bone-200);
   }
   .meta .mode {
     font-size: 0.62rem;
@@ -1133,13 +1134,13 @@
     border-radius: 2px;
   }
   .meta .mode.drive { background: var(--forest-100); color: var(--forest-800); }
-  .meta .cost { font-weight: 700; color: var(--bone-100); }
+  .meta .cost { font-weight: 700; color: var(--bone-200); }
 
   .hero {
     position: relative;
     height: 280px;
     overflow: hidden;
-    background: var(--bone-400);
+    background: var(--surface-sunken);
   }
   .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .hero .vibe {
@@ -1223,12 +1224,12 @@
     height: 220px;
     border-radius: 6px;
     overflow: hidden;
-    background: var(--bone-400);
+    background: var(--surface-sunken);
   }
 
   .section {
     background: var(--surface-raised);
-    border: 1px solid var(--bone-200);
+    border: 1px solid var(--border-subtle);
     border-radius: 6px;
     padding: 1.25rem 1.4rem 1.5rem;
   }
@@ -1238,7 +1239,7 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 0.75rem;
-    border-bottom: 1px solid var(--bone-200);
+    border-bottom: 1px solid var(--border-subtle);
     padding-bottom: 0.55rem;
   }
   .section-header h2 {
@@ -1257,7 +1258,7 @@
     line-height: 1.6;
     color: var(--text-primary);
     background: var(--surface-page);
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     padding: 0.7rem 0.85rem;
     resize: vertical;
@@ -1300,8 +1301,8 @@
   .prose :global(a) { color: var(--forest-600); text-decoration: none; }
   .prose :global(a:hover) { text-decoration: underline; }
   .prose :global(table) { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin: 0 0 1rem; }
-  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.4rem 0.6rem; border-bottom: 2px solid var(--bone-400); color: var(--text-primary); }
-  .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--bone-200); vertical-align: top; }
+  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.4rem 0.6rem; border-bottom: 2px solid var(--border-default); color: var(--text-primary); }
+  .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
   .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--forest-50); color: var(--forest-800); padding: 0.1em 0.4em; border-radius: 3px; }
 
   /* ── Brochure error banner (replaces .brochure-error inside old brochure-zone) ── */
@@ -1371,8 +1372,8 @@
   .chat.open { transform: translateX(0); }
 
   .chat-header {
-    background: var(--surface-invert);
-    color: var(--text-inverse);
+    background: var(--forest-800);
+    color: var(--bone-200);
     padding: 0.85rem 1.1rem;
     display: flex;
     align-items: center;
@@ -1386,13 +1387,13 @@
     cursor: pointer; font-size: 1rem; line-height: 1;
     padding: 0.2rem 0.35rem; border-radius: 3px;
   }
-  .chat-close:hover { color: var(--text-inverse); background: rgba(255, 255, 255, 0.08); }
+  .chat-close:hover { color: var(--bone-200); background: rgba(255, 255, 255, 0.08); }
   .chat-clear {
     background: none; border: 1px solid rgba(255, 255, 255, 0.18); color: var(--bone-400);
     cursor: pointer; font-size: 0.7rem; font-weight: 500; line-height: 1;
     padding: 0.3rem 0.55rem; border-radius: 3px; letter-spacing: 0.04em; text-transform: uppercase;
   }
-  .chat-clear:hover:not(:disabled) { color: var(--text-inverse); background: rgba(255, 255, 255, 0.08); }
+  .chat-clear:hover:not(:disabled) { color: var(--bone-200); background: rgba(255, 255, 255, 0.08); }
   .chat-clear:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .chat-log {
@@ -1408,7 +1409,7 @@
   .chat-empty .assistant-card__body ul { margin: 0.4rem 0 0.5rem 1.2rem; padding: 0; }
   .chat-empty .assistant-card__body li { margin-bottom: 0.25rem; }
   .chat-empty .assistant-card__body .hint {
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     font-size: 0.78rem;
     margin-top: 0.5rem;
   }
@@ -1453,7 +1454,7 @@
   @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
 
   .chat-input {
-    border-top: 1px solid var(--bone-400);
+    border-top: 1px solid var(--border-default);
     padding: 0.75rem 0.9rem;
     display: flex;
     gap: 0.5rem;
@@ -1462,7 +1463,7 @@
   }
   .chat-input textarea {
     flex: 1;
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     padding: 0.5rem 0.65rem;
     font-family: var(--font-sans);
@@ -1567,7 +1568,7 @@
     line-height: 1.55;
     color: var(--text-secondary);
     padding: 0.22rem 0;
-    border-bottom: 1px solid var(--bone-200);
+    border-bottom: 1px solid var(--border-subtle);
   }
   .itinerary-view :global(li:last-child) { border-bottom: none; }
   .itinerary-view :global(strong) { font-weight: 700; color: var(--text-primary); }

@@ -473,13 +473,14 @@
   }
 
   header {
-    background: var(--surface-invert);
-    color: var(--text-inverse);
+    background: var(--forest-800);
+    color: var(--bone-200);
     padding: 0 24px;
     height: 52px;
     display: flex;
     align-items: center;
     gap: 16px;
+    border-bottom: 1px solid var(--border-default);
   }
 
   .wordmark {
@@ -523,7 +524,7 @@
     font-size: 18px;
     font-weight: 400;
     font-style: italic;
-    color: var(--forest-800);
+    color: var(--text-primary);
     margin: 0 0 6px;
   }
 
@@ -575,7 +576,7 @@
 
   .field-warn {
     font-size: 11px;
-    color: var(--sunset-800);
+    color: var(--state-warning);
     margin: 10px 0 0;
     line-height: 1.5;
   }
@@ -597,7 +598,7 @@
     padding: 6px 10px;
     border-radius: 4px;
     background: var(--surface-raised);
-    border: 1px solid var(--bone-200);
+    border: 1px solid var(--border-subtle);
   }
 
   .health-ok  { border-color: var(--forest-200); }
@@ -609,8 +610,8 @@
     text-align: center;
     line-height: 1;
   }
-  .health-ok  .health-mark { color: var(--forest-600); }
-  .health-bad .health-mark { color: var(--sunset-700); }
+  .health-ok  .health-mark { color: var(--state-success); }
+  .health-bad .health-mark { color: var(--state-danger); }
 
   .health-label {
     font-size: 12px;
@@ -634,19 +635,19 @@
   }
 
   .badge-set {
-    background: var(--forest-100);
-    color: var(--forest-600);
+    background: var(--state-success-surface);
+    color: var(--state-success);
   }
 
   .badge-unset {
-    background: var(--bone-200);
-    color: var(--bone-800);
+    background: var(--surface-sunken);
+    color: var(--text-tertiary);
   }
 
   .field-input,
   .field-select {
     background: var(--surface-raised);
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     padding: 8px 10px;
     font-family: var(--font-mono);
@@ -678,7 +679,7 @@
     color: var(--text-secondary);
     margin-bottom: 8px;
     padding-bottom: 6px;
-    border-bottom: 1px solid var(--bone-200);
+    border-bottom: 1px solid var(--border-subtle);
   }
 
   .slot-fields {
@@ -700,14 +701,14 @@
   }
 
   .feedback-ok  { color: var(--state-success); }
-  .feedback-err { color: var(--sunset-800); }
+  .feedback-err { color: var(--state-danger); }
 
   .btn-remove {
     font-size: 10px;
     font-family: var(--font-mono);
     padding: 1px 6px;
     border-radius: 3px;
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     background: transparent;
     color: var(--text-tertiary);
     cursor: pointer;
@@ -715,8 +716,8 @@
     transition: border-color 0.15s, color 0.15s;
   }
   .btn-remove:hover {
-    border-color: var(--sunset-600);
-    color: var(--sunset-700);
+    border-color: var(--state-danger);
+    color: var(--state-danger);
   }
 
   .remove-confirm {
@@ -752,11 +753,11 @@
   }
   .btn-confirm-cancel {
     background: transparent;
-    border-color: var(--bone-400);
+    border-color: var(--border-default);
     color: var(--text-tertiary);
   }
   .btn-confirm-cancel:hover {
-    border-color: var(--bone-600);
+    border-color: var(--border-strong);
     color: var(--text-secondary);
   }
 
@@ -771,7 +772,7 @@
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
