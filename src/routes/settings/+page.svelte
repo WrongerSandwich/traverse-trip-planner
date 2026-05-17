@@ -1,6 +1,7 @@
 <script>
   import { onMount, untrack } from 'svelte';
   import Logo from '$lib/components/Logo.svelte';
+  import LocationPicker from '$lib/components/LocationPicker.svelte';
   import { getStoredTheme, setTheme } from '$lib/theme.js';
   import { travelersToString, stringToTravelers } from '$lib/utils/homeForm.js';
 
@@ -632,43 +633,15 @@
           </div>
 
           <div class="field">
-            <span class="field-label">Home coordinates</span>
-            <div class="coords-row">
-              <div class="field coords-field">
-                <label for="home-lat" class="field-label-sub">Latitude</label>
-                <input
-                  id="home-lat"
-                  type="number"
-                  step="any"
-                  min="-90"
-                  max="90"
-                  class="field-input"
-                  class:field-input-error={!!homeFieldErrors.home_coords}
-                  placeholder="38.98"
-                  bind:value={homeLat}
-                  oninput={() => { homeFieldErrors = { ...homeFieldErrors, home_coords: '' }; homeSavedOk = false; }}
-                />
-              </div>
-              <div class="field coords-field">
-                <label for="home-lon" class="field-label-sub">Longitude</label>
-                <input
-                  id="home-lon"
-                  type="number"
-                  step="any"
-                  min="-180"
-                  max="180"
-                  class="field-input"
-                  class:field-input-error={!!homeFieldErrors.home_coords}
-                  placeholder="-94.67"
-                  bind:value={homeLon}
-                  oninput={() => { homeFieldErrors = { ...homeFieldErrors, home_coords: '' }; homeSavedOk = false; }}
-                />
-              </div>
-            </div>
+            <LocationPicker
+              bind:city={homeCity}
+              bind:lat={homeLat}
+              bind:lon={homeLon}
+              label="Home coordinates"
+            />
             {#if homeFieldErrors.home_coords}
               <p class="field-error">{homeFieldErrors.home_coords}</p>
             {/if}
-            <p class="field-hint">A geocoder-backed picker is coming in a follow-up ticket — use decimal degrees for now.</p>
           </div>
 
           <div class="field">
@@ -1089,24 +1062,6 @@
 
   .home-actions {
     margin-top: 24px;
-  }
-
-  .field-label-sub {
-    font-size: 11px;
-    font-weight: 400;
-    color: var(--text-tertiary);
-    margin-bottom: 3px;
-    display: block;
-  }
-
-  .coords-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .coords-field {
-    gap: 3px;
   }
 
   .field-input-narrow {
