@@ -281,6 +281,136 @@ export function readHomeMd() {
   return readFileSync(p, 'utf8');
 }
 
+/**
+ * Split markdown body text into a preamble and named sections.
+ * Preamble is everything before the first `## ` heading.
+ * Exported so it can be unit-tested independently.
+ *
+ * @param {string} body - Markdown text with frontmatter already stripped.
+ * @returns {{ preamble: string, sections: Array<{ heading: string, body: string }> }}
+ */
+export function splitHomeBody(body) {
+  const lines = body.split('\n');
+  const sections = [];
+  let preambleLines = [];
+  let current = null;
+
+  for (const line of lines) {
+    if (line.startsWith('## ')) {
+      if (current !== null) {
+        sections.push({ heading: current.heading, body: current.lines.join('\n').trim() });
+      } else {
+        preambleLines = preambleLines; // nothing to finalize — just fall through
+      }
+      current = { heading: line.slice(3).trim(), lines: [] };
+    } else if (current === null) {
+      preambleLines.push(line);
+    } else {
+      current.lines.push(line);
+    }
+  }
+  if (current !== null) {
+    sections.push({ heading: current.heading, body: current.lines.join('\n').trim() });
+  }
+
+  return { preamble: preambleLines.join('\n').trim(), sections };
+}
+
+/**
+ * Parse home.md into a structured object.
+ *
+ * Note: `parseFrontmatter()` is a simple line-by-line parser — nested YAML
+ * blocks (e.g. `vehicles:`) appear as flat keys or empty strings. For complex
+ * nested blocks, callers that need round-trip fidelity should use the raw
+ * `_rawFrontmatter` field returned here.
+ *
+ * @returns {{ frontmatter: object, prose: { preamble: string, sections: Array<{heading, body}> }, _rawFrontmatter: string } | null}
+ */
+export function parseHomeMd() {
+  const p = join(ROOT, 'home.md');
+  if (!existsSync(p)) return null;
+
+  const content = readFileSync(p, 'utf8');
+  const fenceMatch = content.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!fenceMatch) return null;
+
+  const rawFm = fenceMatch[1];
+  const frontmatter = parseFrontmatterFields(rawFm);
+  const bodyStart = fenceMatch[0].length;
+  const body = content.slice(bodyStart);
+  const prose = splitHomeBody(body);
+
+  return { frontmatter, prose, _rawFrontmatter: rawFm };
+}
+
+/**
+ * Serialize a flat frontmatter object back to YAML-like lines.
+ *
+ * Supports:
+ *   - Scalar strings:  `key: value`
+ *   - Arrays:          `key: [a, b, c]`
+ *   - Objects:         serialized as nested `key:\n  subkey: value` lines
+ *   - Booleans/numbers: coerced to string
+ *
+ * This is intentionally minimal — it handles the fields that
+ * `parseFrontmatterFields` can read back. Nested object values that cannot
+ * survive the round-trip through `parseFrontmatterFields` are preserved
+ * verbatim only when the caller passes `rawOverride` lines.
+ *
+ * @param {object} obj
+ * @returns {string} YAML lines (no fences, no trailing newline)
+ */
+export function serializeFrontmatter(obj) {
+  const lines = [];
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value)) {
+      lines.push(`${key}: [${value.join(', ')}]`);
+    } else if (typeof value === 'object') {
+      lines.push(`${key}:`);
+      for (const [sk, sv] of Object.entries(value)) {
+        if (sv === null || sv === undefined) continue;
+        if (typeof sv === 'object' && !Array.isArray(sv)) {
+          lines.push(`  ${sk}:`);
+          for (const [ssk, ssv] of Object.entries(sv)) {
+            if (ssv !== null && ssv !== undefined) {
+              lines.push(`    ${ssk}: ${ssv}`);
+            }
+          }
+        } else if (Array.isArray(sv)) {
+          lines.push(`  ${sk}: [${sv.join(', ')}]`);
+        } else {
+          lines.push(`  ${sk}: ${sv}`);
+        }
+      }
+    } else {
+      lines.push(`${key}: ${value}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Write home.md atomically from a structured payload.
+ * Reconstructs `---\nYAML\n---\n\nbody\n` on disk.
+ *
+ * @param {{ frontmatter: object, prose: { preamble: string, sections: Array<{heading, body}> } }} payload
+ */
+export function writeHomeMd({ frontmatter, prose }) {
+  const yamlBlock = serializeFrontmatter(frontmatter);
+  const { preamble, sections } = prose;
+  const sectionText = sections
+    .map(({ heading, body }) => `## ${heading}\n\n${body}`)
+    .join('\n\n');
+  const bodyParts = [preamble, sectionText].filter(Boolean);
+  const body = bodyParts.join('\n\n');
+  const final = `---\n${yamlBlock}\n---\n\n${body}\n`;
+
+  const p = join(ROOT, 'home.md');
+  writeFileSync(p, final);
+  invalidateEnrichCache();
+}
+
 export function getHome() {
   const p = join(ROOT, 'home.md');
   if (!existsSync(p)) return null;
