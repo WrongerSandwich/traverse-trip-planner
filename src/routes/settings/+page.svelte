@@ -1,6 +1,12 @@
 <script>
   import { onMount, untrack } from 'svelte';
   import Logo from '$lib/components/Logo.svelte';
+  import { getStoredTheme, setTheme } from '$lib/theme.js';
+
+  // Local reactive copy of the stored preference. Initialized from
+  // localStorage on mount (SSR has no localStorage). Default 'system'
+  // until we hydrate.
+  let theme = $state('system');
 
   // The home page sets `:global(html, body) { height: 100%; overflow: hidden }`
   // in its route stylesheet. SvelteKit doesn't unload route stylesheets on
@@ -28,6 +34,15 @@
       body.style.height = prev.bodyHeight;
     };
   });
+
+  onMount(() => {
+    theme = getStoredTheme();
+  });
+
+  function chooseTheme(next) {
+    theme = next;
+    setTheme(next);
+  }
 
   let { data } = $props();
 
@@ -248,6 +263,26 @@
   </header>
 
   <main>
+    <section class="settings-section">
+      <h2>Appearance</h2>
+      <p class="section-desc">Theme preference is stored on this device. "Match system" follows your OS dark-mode setting. Brochures always render in light mode for printing.</p>
+
+      <div class="theme-options" role="radiogroup" aria-label="Theme">
+        {#each [['system', 'Match system'], ['light', 'Light'], ['dark', 'Dark']] as [value, label]}
+          <label class="theme-option" class:theme-option-active={theme === value}>
+            <input
+              type="radio"
+              name="theme"
+              value={value}
+              checked={theme === value}
+              onchange={() => chooseTheme(value)}
+            />
+            <span>{label}</span>
+          </label>
+        {/each}
+      </div>
+    </section>
+
     <section class="settings-section">
       <h2>Feature health</h2>
       <p class="section-desc">Live status for each feature based on the keys, slots, and search backend currently in effect. ✓ means the feature should work; ✗ means it's missing a key or has a mismatched configuration.</p>
@@ -723,5 +758,39 @@
   .btn-confirm-cancel:hover {
     border-color: var(--bone-600);
     color: var(--text-secondary);
+  }
+
+  .theme-options {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .theme-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--bone-400);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  }
+
+  .theme-option:hover {
+    border-color: var(--forest-400);
+  }
+
+  .theme-option-active {
+    border-color: var(--forest-600);
+    color: var(--text-primary);
+    background: var(--surface-raised);
+  }
+
+  .theme-option input[type="radio"] {
+    accent-color: var(--forest-600);
+    margin: 0;
   }
 </style>
