@@ -86,8 +86,10 @@
 
   function makeIcon(color, hovered) {
     const size = hovered ? 20 : 12;
+    // Hovered marker gets an outer stage-color halo (40% alpha) beyond the
+    // white ring — so the stage reads from a distance even when zoomed out.
     const shadow = hovered
-      ? '0 0 0 3px rgba(255,255,255,0.85), 0 2px 10px rgba(0,0,0,0.45)'
+      ? `0 0 0 3px rgba(255,255,255,0.85), 0 0 0 5px ${color}66, 0 2px 10px rgba(0,0,0,0.45)`
       : '0 1px 4px rgba(0,0,0,.4)';
     return L.divIcon({
       className: '',
