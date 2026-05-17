@@ -2,6 +2,7 @@
   import { onMount, untrack } from 'svelte';
   import Logo from '$lib/components/Logo.svelte';
   import { getStoredTheme, setTheme } from '$lib/theme.js';
+  import { travelersToString, stringToTravelers } from '$lib/utils/homeForm.js';
 
   // Local reactive copy of the stored preference. Initialized from
   // localStorage on mount (SSR has no localStorage). Default 'system'
@@ -247,6 +248,148 @@
     }
   }
 
+  // ── Home base panel ───────────────────────────────────────────────────────────
+
+  // The full GET response is stashed so we can round-trip prose + vehicles
+  // back unchanged when saving the structured fields.
+  let homeSnapshot = $state(/** @type {null | {frontmatter: object, prose: object}} */ (null));
+  let homeLoadError = $state('');
+
+  // Editable fields — initialized to blanks; populated in onMount from GET.
+  let homeCity = $state('');
+  let homeLat  = $state('');
+  let homeLon  = $state('');
+  let homeRadius = $state('');
+  let homeTravelersStr = $state('');   // comma-separated display value
+  let homePetsNeedSitter = $state(false);
+  let homeDistanceUnit = $state('mi'); // 'mi' | 'km'
+
+  // Per-field validation messages returned by the server.
+  let homeFieldErrors = $state(/** @type {Record<string, string>} */ ({}));
+
+  let homeBusy     = $state(false);
+  let homeSavedOk  = $state(false);
+  let homeSaveError = $state('');
+
+  // Track the "pristine" snapshot as serialized JSON so we can disable Save
+  // while nothing has changed.
+  let homePristine = $state('');
+
+  let homeCurrentJson = $derived(JSON.stringify({
+    homeCity,
+    homeLat,
+    homeLon,
+    homeRadius,
+    homeTravelersStr,
+    homePetsNeedSitter,
+    homeDistanceUnit,
+  }));
+
+  let homeIsPristine = $derived(homePristine !== '' && homeCurrentJson === homePristine);
+
+  onMount(async () => {
+    try {
+      const res = await fetch('/api/home');
+      if (!res.ok) {
+        if (res.status === 404) {
+          homeLoadError = 'home.md not found — create it to enable editing.';
+        } else {
+          const body = await res.json().catch(() => ({}));
+          homeLoadError = body.error ?? `Server error ${res.status}`;
+        }
+        return;
+      }
+      const body = await res.json();
+      homeSnapshot = body;
+
+      const fm = body.frontmatter ?? {};
+      homeCity = fm.home_city ?? '';
+      // Store coords and radius as strings — input[type=number] bind:value produces strings.
+      homeLat  = fm.home_coords?.[0] != null ? String(fm.home_coords[0]) : '';
+      homeLon  = fm.home_coords?.[1] != null ? String(fm.home_coords[1]) : '';
+      homeRadius = fm.default_radius_mi != null ? String(fm.default_radius_mi) : '';
+      homeTravelersStr = travelersToString(fm.travelers ?? []);
+      homePetsNeedSitter = fm.pets_need_sitter ?? false;
+      homeDistanceUnit = fm.units?.distance ?? 'mi';
+
+      // Snapshot the initial state so Save is disabled until something changes.
+      homePristine = JSON.stringify({
+        homeCity,
+        homeLat,
+        homeLon,
+        homeRadius,
+        homeTravelersStr,
+        homePetsNeedSitter,
+        homeDistanceUnit,
+      });
+    } catch (e) {
+      homeLoadError = e.message;
+    }
+  });
+
+  async function saveHome() {
+    if (homeBusy || !homeSnapshot) return;
+    homeBusy = true;
+    homeSavedOk = false;
+    homeSaveError = '';
+    homeFieldErrors = {};
+
+    // Build the updated frontmatter, preserving vehicles + all other fields
+    // from the original GET so we don't drop them on write.
+    const updatedFrontmatter = {
+      ...homeSnapshot.frontmatter,
+      home_city: homeCity.trim(),
+      home_coords: [Number(homeLat), Number(homeLon)],
+      default_radius_mi: homeRadius === '' ? undefined : Number(homeRadius),
+      travelers: stringToTravelers(homeTravelersStr),
+      pets_need_sitter: homePetsNeedSitter,
+      units: {
+        ...(homeSnapshot.frontmatter.units ?? {}),
+        distance: homeDistanceUnit,
+      },
+    };
+
+    // Remove undefined values so we don't serialize `undefined` to YAML
+    if (updatedFrontmatter.default_radius_mi === undefined) {
+      delete updatedFrontmatter.default_radius_mi;
+    }
+
+    const payload = {
+      frontmatter: updatedFrontmatter,
+      prose: homeSnapshot.prose,
+    };
+
+    try {
+      const res = await fetch('/api/home', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const respBody = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = respBody.error ?? `Server error ${res.status}`;
+        // Map known field-level error messages to their inputs.
+        if (msg.toLowerCase().includes('home_city')) {
+          homeFieldErrors = { ...homeFieldErrors, home_city: msg };
+        } else if (msg.toLowerCase().includes('home_coords')) {
+          homeFieldErrors = { ...homeFieldErrors, home_coords: msg };
+        } else {
+          homeSaveError = msg;
+        }
+      } else {
+        homeSavedOk = true;
+        // Update the snapshot so subsequent saves see the new pristine state.
+        homeSnapshot = { ...homeSnapshot, frontmatter: updatedFrontmatter };
+        // Re-derive pristine from the current form state (all strings at this point).
+        homePristine = homeCurrentJson;
+      }
+    } catch (e) {
+      homeSaveError = e.message;
+    } finally {
+      homeBusy = false;
+    }
+  }
+
 
 </script>
 
@@ -461,6 +604,148 @@
         <span class="feedback feedback-err">{saveError}</span>
       {/if}
     </div>
+
+    <section class="settings-section home-section">
+      <h2>Home base</h2>
+      <p class="section-desc">Structured fields from <code>home.md</code> — used when seeding trip ideas, computing drive times, and filtering by radius. Vehicles and prose sections are edited separately.</p>
+
+      {#if homeLoadError}
+        <p class="field-warn">{homeLoadError}</p>
+      {:else if !homeSnapshot}
+        <p class="field-hint">Loading…</p>
+      {:else}
+        <div class="field-group">
+          <div class="field">
+            <label for="home-city" class="field-label">Home city</label>
+            <input
+              id="home-city"
+              type="text"
+              class="field-input"
+              class:field-input-error={!!homeFieldErrors.home_city}
+              placeholder="e.g. Overland Park, KS"
+              bind:value={homeCity}
+              oninput={() => { homeFieldErrors = { ...homeFieldErrors, home_city: '' }; homeSavedOk = false; }}
+            />
+            {#if homeFieldErrors.home_city}
+              <p class="field-error">{homeFieldErrors.home_city}</p>
+            {/if}
+          </div>
+
+          <div class="field">
+            <span class="field-label">Home coordinates</span>
+            <div class="coords-row">
+              <div class="field coords-field">
+                <label for="home-lat" class="field-label-sub">Latitude</label>
+                <input
+                  id="home-lat"
+                  type="number"
+                  step="any"
+                  min="-90"
+                  max="90"
+                  class="field-input"
+                  class:field-input-error={!!homeFieldErrors.home_coords}
+                  placeholder="38.98"
+                  bind:value={homeLat}
+                  oninput={() => { homeFieldErrors = { ...homeFieldErrors, home_coords: '' }; homeSavedOk = false; }}
+                />
+              </div>
+              <div class="field coords-field">
+                <label for="home-lon" class="field-label-sub">Longitude</label>
+                <input
+                  id="home-lon"
+                  type="number"
+                  step="any"
+                  min="-180"
+                  max="180"
+                  class="field-input"
+                  class:field-input-error={!!homeFieldErrors.home_coords}
+                  placeholder="-94.67"
+                  bind:value={homeLon}
+                  oninput={() => { homeFieldErrors = { ...homeFieldErrors, home_coords: '' }; homeSavedOk = false; }}
+                />
+              </div>
+            </div>
+            {#if homeFieldErrors.home_coords}
+              <p class="field-error">{homeFieldErrors.home_coords}</p>
+            {/if}
+            <p class="field-hint">A geocoder-backed picker is coming in a follow-up ticket — use decimal degrees for now.</p>
+          </div>
+
+          <div class="field">
+            <label for="home-radius" class="field-label">Default radius (mi)</label>
+            <input
+              id="home-radius"
+              type="number"
+              min="0"
+              step="1"
+              class="field-input field-input-narrow"
+              placeholder="450"
+              bind:value={homeRadius}
+              oninput={() => { homeSavedOk = false; }}
+            />
+          </div>
+
+          <div class="field">
+            <label for="home-travelers" class="field-label">Travelers</label>
+            <input
+              id="home-travelers"
+              type="text"
+              class="field-input"
+              placeholder="evan, erika"
+              bind:value={homeTravelersStr}
+              oninput={() => { homeSavedOk = false; }}
+            />
+            <p class="field-hint">Comma-separated names. Used when seeding ideas and checking logistics.</p>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Pets need a sitter?</span>
+            <label class="checkbox-row">
+              <input
+                type="checkbox"
+                bind:checked={homePetsNeedSitter}
+                onchange={() => { homeSavedOk = false; }}
+              />
+              <span class="checkbox-label">Yes — pets need a sitter for overnight trips</span>
+            </label>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Distance units</span>
+            <div class="radio-row" role="radiogroup" aria-label="Distance units">
+              {#each [['mi', 'Miles (mi)'], ['km', 'Kilometers (km)']] as [value, label]}
+                <label class="radio-option" class:radio-option-active={homeDistanceUnit === value}>
+                  <input
+                    type="radio"
+                    name="home-distance-unit"
+                    {value}
+                    checked={homeDistanceUnit === value}
+                    onchange={() => { homeDistanceUnit = value; homeSavedOk = false; }}
+                  />
+                  <span>{label}</span>
+                </label>
+              {/each}
+            </div>
+          </div>
+        </div>
+
+        <div class="actions home-actions">
+          <button
+            class="btn btn-primary"
+            onclick={saveHome}
+            disabled={homeBusy || homeIsPristine}
+          >
+            {homeBusy ? 'Saving…' : 'Save home base'}
+          </button>
+          {#if homeSavedOk}
+            <span class="feedback feedback-ok">Saved.</span>
+          {/if}
+          {#if homeSaveError}
+            <span class="feedback feedback-err">{homeSaveError}</span>
+          {/if}
+        </div>
+      {/if}
+    </section>
   </main>
 </div>
 
@@ -791,6 +1076,106 @@
   }
 
   .theme-option input[type="radio"] {
+    accent-color: var(--forest-600);
+    margin: 0;
+  }
+
+  /* ── Home base panel ─────────────────────────────────────── */
+
+  .home-section {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 48px;
+  }
+
+  .home-actions {
+    margin-top: 24px;
+  }
+
+  .field-label-sub {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-tertiary);
+    margin-bottom: 3px;
+    display: block;
+  }
+
+  .coords-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .coords-field {
+    gap: 3px;
+  }
+
+  .field-input-narrow {
+    max-width: 160px;
+  }
+
+  .field-input-error {
+    border-color: var(--state-danger);
+  }
+
+  .field-error {
+    font-size: 11px;
+    color: var(--state-danger);
+    margin: 2px 0 0;
+    line-height: 1.5;
+  }
+
+  .checkbox-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    margin-top: 2px;
+  }
+
+  .checkbox-row input[type="checkbox"] {
+    accent-color: var(--forest-600);
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .checkbox-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .radio-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  .radio-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  }
+
+  .radio-option:hover {
+    border-color: var(--forest-400);
+  }
+
+  .radio-option-active {
+    border-color: var(--forest-600);
+    color: var(--text-primary);
+    background: var(--surface-raised);
+  }
+
+  .radio-option input[type="radio"] {
     accent-color: var(--forest-600);
     margin: 0;
   }
