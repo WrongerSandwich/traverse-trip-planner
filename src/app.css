@@ -1,7 +1,11 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root, [data-theme="light"] {
-  /* ── Brand palette ───────────────────────────────────────────────────── */
+  /* ── Brand palette ───────────────────────────────────────────────────────
+     Fixed across modes. Components should not reference these directly for
+     surface/text/border — use the semantic tokens below. Raw refs are only
+     appropriate for mode-invariant brand elements (logo, route lines, pin
+     fills, badges that always read the same color). */
 
   /* Forest — primary */
   --forest-50:  #E6EFE9;
@@ -48,25 +52,53 @@
   --bark-800: #3C2922;
   --bark-900: #211611;
 
-  /* Embers — semantic-only (danger) */
+  /* Embers — danger ramp */
+  --embers-50:  #FBEAE7;
+  --embers-200: #ECA897;
+  --embers-400: #D9694F;
   --embers-600: #A82F1F;
+  --embers-800: #6E1F13;
 
-  /* ── Semantic tokens (preferred by new code) ─────────────────────────── */
+  /* ── Semantic tokens ─────────────────────────────────────────────────────
+     Everything mode-dependent lives here. Light values; dark theme block
+     below redefines them with re-mapped (not inverted) values. */
 
-  --text-primary:   var(--forest-900);
-  --text-secondary: var(--forest-600);
-  --text-tertiary:  var(--bone-600);
-  --text-inverse:   var(--bone-200);
+  /* Surfaces — light is cream, with elevation conveyed by getting lighter */
+  --surface-page:    #FCFAF5;
+  --surface-raised:  #F6F1E5;
+  --surface-sunken:  #EBE0C9;
+  --surface-overlay: #FCFAF5;
+  --surface-invert:  #1F4332;
 
-  --surface-page:   var(--bone-50);
-  --surface-raised: var(--bone-100);
-  --surface-sunken: var(--bone-200);
-  --surface-invert: var(--forest-800);
+  /* Text — warm dark inks */
+  --text-primary:   #112619;
+  --text-secondary: #2D5840;
+  --text-tertiary:  #9A8A6F;
+  --text-inverse:   #FCFAF5;
 
-  --state-success: var(--forest-600);
-  --state-danger:  var(--embers-600);
-  --state-info:    var(--sky-600);
-  --state-warning: var(--sunset-400);
+  /* Borders — warm tan solids on cream */
+  --border-subtle:  #DCD2BC;
+  --border-default: #C9B695;
+  --border-strong:  #9A8A6F;
+
+  /* State — foreground (text/icon) colors */
+  --state-success: #2D5840;
+  --state-danger:  #A82F1F;
+  --state-info:    #3D5A6E;
+  --state-warning: #E0884F;
+
+  /* State — surface tints (filled banners/badges) */
+  --state-success-surface: #E6EFE9;
+  --state-danger-surface:  #FBEAE7;
+  --state-info-surface:    #E8EEF2;
+  --state-warning-surface: #FCEEE2;
+
+  /* Accent — sunset, the unchanging element of "Dusk" */
+  --accent:      #D87B3F;
+  --accent-text: #8D4C24;
+
+  /* Focus — accent-toned outline for keyboard nav */
+  --focus-ring: #D87B3F;
 
   /* ── Status pills ────────────────────────────────────────────────────── */
   /* Stage-specific composite tokens used by lifecycle badges. Agreed mapping:
@@ -95,79 +127,76 @@
   --map-tile-bg: #E8E4DE;
 
   /* RGB triples for use in rgba() gradients that fade to a surface color */
-  --surface-raised-rgb: 246, 241, 229; /* matches --bone-100 / --surface-raised */
+  --surface-raised-rgb: 246, 241, 229;
 }
 
-/* ── Dark theme ──────────────────────────────────────────────────────────
-   Inverts each palette family's luminance ramp while holding middle shades
-   (-400, -600) stable so accent contrast remains predictable. Semantic
-   tokens are not re-declared — they reference these raw tokens by var()
-   and cascade automatically.
+/* ── Dark theme — "Dusk" ─────────────────────────────────────────────────
+   Re-mapped values, not inverted. Deep warm forest-charcoal surfaces with
+   warm pale ink, faint translucent borders, lighter state stops, and an
+   unchanged sunset accent. See docs/traverse-dark-mode-spec.md for the
+   full design rationale.
+
+   Note: raw brand palette tokens above are intentionally NOT redefined
+   here. Mode-dependent color flows through the semantic tokens only.
+   Components that still reference raw tokens for surface/text/border
+   need to migrate — they'll render the same in both modes until they do.
 
    Brochure routes opt out of dark mode by setting data-theme="light" on
    their root container, which scopes the cascade back to :root values. */
 [data-theme="dark"] {
-  /* Forest — primary */
-  --forest-50:  #0D1A12;
-  --forest-100: #132719;
-  --forest-200: #1F3F2A;
-  --forest-400: #4D8067;
-  --forest-600: #85B89D;
-  --forest-800: #C0DBCB;
-  --forest-900: #DCEAE2;
+  /* Surfaces — deep warm forest, elevation by lightness (raised > page > sunken) */
+  --surface-page:    #14201A;
+  --surface-raised:  #1E2C24;
+  --surface-sunken:  #0E1813;
+  --surface-overlay: #29382F;
+  --surface-invert:  #F6F1E5;
 
-  /* Bone — surface/neutral */
-  --bone-50:  #1A1611;
-  --bone-100: #221C14;
-  --bone-200: #3D3527;
-  --bone-400: #9A8A6F;
-  --bone-600: #C9B695;
-  --bone-800: #E8DCC4;
-  --bone-900: #F6EFE0;
+  /* Text — warm pale ink fading to sage */
+  --text-primary:   #F1ECDF;
+  --text-secondary: #B4C2B3;
+  --text-tertiary:  #7C8A7B;
+  --text-inverse:   #15211B;
 
-  /* Sunset — accent */
-  --sunset-50:  #1F1108;
-  --sunset-100: #2F1A0E;
-  --sunset-200: #5C2F14;
-  --sunset-400: #E0884F;
-  --sunset-600: #ECA976;
-  --sunset-800: #F5C9A5;
-  --sunset-900: #FBE3CB;
+  /* Borders — low-alpha warm-white overlays, work on any surface */
+  --border-subtle:  rgba(241, 236, 223, 0.10);
+  --border-default: rgba(241, 236, 223, 0.16);
+  --border-strong:  rgba(241, 236, 223, 0.30);
 
-  /* Sky — info/navy */
-  --sky-50:  #0B141B;
-  --sky-100: #112029;
-  --sky-200: #25394A;
-  --sky-400: #5B7E92;
-  --sky-600: #95ABBA;
-  --sky-800: #C5D2DC;
-  --sky-900: #DCE5EB;
+  /* State — lighter foreground stops so they read on dark surfaces */
+  --state-success: #95B8A2;
+  --state-danger:  #D9694F;
+  --state-info:    #95ABBA;
+  --state-warning: #E0884F;
 
-  /* Bark — deep accent */
-  --bark-50:  #110A07;
-  --bark-100: #1E1410;
-  --bark-200: #3C2922;
-  --bark-400: #876248;
-  --bark-600: #B19785;
-  --bark-800: #D5C0AE;
-  --bark-900: #E8DACA;
+  /* State — dark surface tints with foreground value as the text on top */
+  --state-success-surface: #1B3327;
+  --state-danger-surface:  #3A1C16;
+  --state-info-surface:    #1E2E39;
+  --state-warning-surface: #3A2A18;
 
-  /* Embers — bumped slightly for contrast on dark surfaces */
-  --embers-600: #D14C3A;
+  /* Accent — sunset holds; accent-text shifts to a lighter sunset for
+     small text legibility on the dark surface */
+  --accent:      #D87B3F;
+  --accent-text: #E0884F;
+
+  /* Focus — slightly lighter sunset for visibility against dark UI */
+  --focus-ring: #E0884F;
 
   /* Map tile placeholder bg — dark counterpart */
   --map-tile-bg: #1A1A1A;
 
-  /* RGB triples for use in rgba() gradients that fade to a surface color */
-  --surface-raised-rgb: 34, 28, 20; /* matches --bone-100 / --surface-raised in dark */
+  /* RGB triple matching the dark --surface-raised */
+  --surface-raised-rgb: 30, 44, 36;
 
-  /* On-brand semantic overrides — the bone family reads too "browny" as a
-     page bg in dark mode; lean into forest. Header (surface-invert) uses
-     a mid-dark forest rather than the cascade-flipped forest-800 so it
-     stays recognizably brand-forest, with cream text-inverse on top. */
-  --surface-page:   #0F1B14;
-  --surface-invert: var(--forest-200);
-  --text-inverse:   var(--bone-800);
+  /* ── Status pills — dark-tinted bg with lighter accent text ────────────
+     Status pills in dark mode use the state-surface family so they
+     don't carry over the bright light-mode tints. */
+  --idea-bg:        var(--state-info-surface);
+  --idea-text:      var(--state-info);
+  --planning-bg:    var(--state-success-surface);
+  --planning-text:  var(--state-success);
+  --completed-bg:   #2A211B;
+  --completed-text: #B19785;
 }
 
 body {
@@ -176,6 +205,15 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Photos / trip imagery — dim slightly in dark mode so they don't glare. */
+[data-theme="dark"] img:not([data-theme-invariant]) {
+  filter: brightness(0.92);
+}
+
+::selection {
+  background: rgba(216, 123, 63, 0.25);
 }
 
 /* ── Button utilities ────────────────────────────────────────────────── */
@@ -199,50 +237,66 @@ body {
 }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Primary — dark forest fill with cream text in light mode. In dark mode
+   the same fill nearly disappears on the dark page, so we invert to a
+   light fill with dark text (the highest-affordance treatment per spec §6). */
 .btn-primary {
   background: var(--forest-800);
-  color: var(--bone-200);
+  color: var(--text-inverse);
   border-color: var(--forest-800);
 }
 .btn-primary:hover:not(:disabled)  { background: var(--forest-900); border-color: var(--forest-900); }
 .btn-primary:active:not(:disabled) { transform: scale(0.98); }
 
+[data-theme="dark"] .btn-primary {
+  background: #F6F1E5;
+  color: #112619;
+  border-color: #F6F1E5;
+}
+[data-theme="dark"] .btn-primary:hover:not(:disabled) {
+  background: #EBE0C9;
+  border-color: #EBE0C9;
+}
+
 .btn-secondary {
   background: transparent;
-  color: var(--bark-600);
-  border: 0.5px solid var(--bark-600);
+  color: var(--text-secondary);
+  border: 0.5px solid var(--border-default);
 }
-.btn-secondary:hover:not(:disabled)  { background: var(--bone-100); }
+.btn-secondary:hover:not(:disabled)  { background: var(--surface-raised); }
 .btn-secondary:active:not(:disabled) { transform: scale(0.98); }
 
 .btn-tertiary {
   background: transparent;
-  color: var(--bone-600);
+  color: var(--text-tertiary);
   border-color: transparent;
   padding: 8px 12px;
 }
-.btn-tertiary:hover:not(:disabled) { color: var(--forest-800); }
+.btn-tertiary:hover:not(:disabled) { color: var(--text-primary); }
 
 .btn-compact { padding: 8px 14px; font-size: 12px; }
 
-/* Danger — destructive confirmations. Reserved for embers (the spec's only
-   non-brand semantic color). */
+/* Danger — destructive confirmations. */
 .btn-danger {
   background: transparent;
-  color: var(--embers-600);
-  border: 0.5px solid var(--embers-600);
+  color: var(--state-danger);
+  border: 0.5px solid var(--state-danger);
 }
-.btn-danger:hover:not(:disabled)  { background: var(--sunset-50); }
+.btn-danger:hover:not(:disabled)  { background: var(--state-danger-surface); }
 .btn-danger:active:not(:disabled) { transform: scale(0.98); }
 
 /* ── AI assistant card ───────────────────────────────────────────────── */
-/* "Field guide says…" pattern from spec §7. Bone-200 surface with the badge
-   mark + italic Fraunces label, then a body paragraph in bark-800 and an
-   optional action row. Used wherever the assistant speaks to the user. */
+/* "Field guide says…" pattern. Bone-200 surface (inset cream) in light mode;
+   in dark mode the "inset" concept doesn't translate — a darker-than-page
+   card would recede when it should feel present. Swap to surface-overlay
+   (lighter than page, reads as elevated). */
 .assistant-card {
   background: var(--surface-sunken);
   border-radius: 12px;
   padding: 20px 22px;
+}
+[data-theme="dark"] .assistant-card {
+  background: var(--surface-overlay);
 }
 .assistant-card__header {
   display: flex;
@@ -255,13 +309,13 @@ body {
   font-size: 15px;
   font-style: italic;
   font-weight: 500;
-  color: var(--forest-800);
+  color: var(--text-secondary);
 }
 .assistant-card__body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.6;
-  color: var(--bark-800);
+  color: var(--text-primary);
 }
 .assistant-card__actions {
   display: flex;
@@ -288,6 +342,11 @@ body {
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   padding: 0;
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+.leaflet-popup-tip {
+  background: var(--surface-overlay);
 }
 .leaflet-popup-content { margin: 0; font-family: var(--font-sans); }
 .map-popup { padding: 0.65rem 0.9rem; min-width: 140px; }
@@ -308,9 +367,9 @@ body {
   font-family: var(--font-sans);
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--forest-800);
-  background: var(--forest-50);
-  border: 1px solid var(--forest-200);
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
   border-radius: 3px;
   cursor: pointer;
   width: 100%;
@@ -318,6 +377,6 @@ body {
   transition: background 0.12s, color 0.12s;
 }
 .map-popup-open:hover, .map-popup-open:active {
-  background: var(--forest-800);
+  background: var(--surface-invert);
   color: var(--text-inverse);
 }
