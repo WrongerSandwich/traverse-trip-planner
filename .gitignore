@@ -13,14 +13,21 @@ settings.json
 # (Anchored to repo root so sample-data/home.md still tracks.)
 /home.md
 
-# Personal trip data — managed via the app, not committed.
-# (See sample-data/ for the bundled demo dataset and `npm run seed-sample`
-# to populate these directories on a fresh clone. Anchored to repo root
-# so sample-data/ideas/ etc. still track.)
-/ideas/
-/planning/
-/completed/
-/archived/
+# Personal trip data — managed via the app, not committed. Each dir keeps a
+# tracked `.gitkeep` so `git clone` produces the dirs as the cloning user;
+# this matters for Docker, where any missing bind-mount target would otherwise
+# be auto-created by dockerd as root and break writes from the container's
+# non-root uid. (See sample-data/ for the bundled demo dataset and `npm run
+# seed-sample` to populate these dirs.) Patterns anchored to repo root so
+# sample-data/ideas/ etc. still track normally.
+/ideas/*
+!/ideas/.gitkeep
+/planning/*
+!/planning/.gitkeep
+/completed/*
+!/completed/.gitkeep
+/archived/*
+!/archived/.gitkeep
 
 # Runtime caches — generated at startup and written on every lookup; not for VCS
 .geocode-cache.json

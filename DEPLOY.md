@@ -91,9 +91,10 @@ cp .env.example .env
 
 # 3. Initialize on-disk state files that Compose will bind-mount
 # (Docker would otherwise create these as directories on first run.)
+# Stage dirs (ideas/ planning/ completed/ archived/) already exist from
+# `git clone` via tracked .gitkeep files — no mkdir needed.
 touch settings.json .geocode-cache.json .image-cache.json \
       .route-cache.json .workflow-stats.json
-mkdir -p ideas planning completed archived
 
 # 4. Build the image and start the container
 docker compose up -d --build
