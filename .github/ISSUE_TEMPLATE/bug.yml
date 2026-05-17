@@ -1,0 +1,90 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Fill out as much as you can — the more detail, the faster it gets fixed.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug you encountered.
+      placeholder: When I click "Research →" on an idea card, the spinner never stops and no planning folder is created.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      description: What should have happened instead?
+      placeholder: The Research action should complete and redirect me to the planning view.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Step-by-step instructions to reproduce the bug.
+      placeholder: |
+        1. Open Traverse at http://localhost:3456
+        2. Click "Research →" on any idea card
+        3. Wait 60 seconds
+        4. See error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Run `node --version` to find this.
+      placeholder: "v20.11.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: AI provider
+      description: Which provider is configured in your `.env`?
+      options:
+        - Anthropic
+        - OpenAI
+        - OpenRouter
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: The model name from your `.env` (e.g. `claude-sonnet-4-6`, `gpt-4o`). Do NOT include your API key.
+      placeholder: claude-sonnet-4-6
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: |
+        Paste any relevant server logs or browser console output. The startup banner (`Traverse — provider configuration`) is safe to share — it shows providers/models but never key material. Do NOT paste your `.env` contents.
+      render: shell

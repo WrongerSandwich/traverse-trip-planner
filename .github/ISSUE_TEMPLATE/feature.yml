@@ -1,0 +1,75 @@
+name: Feature / fix ticket
+description: A well-defined work item suitable for implementation or async agent handoff
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for feature requests and well-scoped fixes. Read [AGENTS.md](../AGENTS.md) if you're an agent picking this up.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: |
+        One paragraph. What user-visible behavior changes after this ticket ships? Describe the outcome, not the implementation.
+      placeholder: When a trip has no waypoints, the brochure route-inset section should show a clear empty state instead of a blank white box.
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Why does this matter? Who runs into it and when?
+      placeholder: Self-hosters who haven't run Research yet see a broken-looking brochure with no explanation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, and why you prefer this one.
+      placeholder: Hiding the section entirely — but that breaks the printed layout's page flow.
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: Concrete artifacts. Use a checklist so progress is trackable.
+      value: |
+        - [ ]
+        - [ ]
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Files likely touched
+      description: Best-effort list of paths. Not binding — the implementer may find more, but a wildly different file set should be flagged in the PR.
+      placeholder: |
+        - src/routes/trips/[slug]/brochure/+page.svelte
+
+  - type: textarea
+    id: success-criteria
+    attributes:
+      label: Success criteria
+      description: |
+        How will we know it works? Be specific — avoid "looks good" or "feels better" (those can't be verified).
+      placeholder: |
+        - `/trips/[slug]/brochure` renders without the route-inset section when the trip has no waypoints
+        - The empty-state message reads "No route — add waypoints to enable the map inset"
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: Anything related an implementer might be tempted to also fix. Listing it keeps the diff focused.
+      placeholder: |
+        - Automatically back-filling waypoints via geocode
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / references
+      description: Links to prior PRs, upstream docs, screenshots, or related issues.

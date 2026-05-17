@@ -1,6 +1,6 @@
 # Contributing to Traverse
 
-Traverse is a personal road-trip filing cabinet that's also designed to be self-hosted by anyone who wants to manage their own trips through markdown + an LLM. Contributions are welcome.
+Traverse is a personal road-trip filing cabinet that's also designed to be self-hosted by anyone who wants to manage their own trips through markdown + an LLM. Contributions are welcome. Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 
 ## Quick start for development
 
@@ -34,7 +34,7 @@ If you're picking up an existing issue — particularly as an async agent in a c
 
 Two conventions worth knowing up front:
 
-- **Issue template.** New tickets use `.github/ISSUE_TEMPLATE/feature.md` and have sections for goal, deliverables, files likely touched, success criteria, verification, and out-of-scope. If you're filing an issue, fleshing those out makes the ticket pickup-ready.
+- **Issue template.** New tickets use `.github/ISSUE_TEMPLATE/feature.yml` (YAML form) and have fields for goal, problem, deliverables, files likely touched, success criteria, and out-of-scope. If you're filing an issue, fleshing those out makes the ticket pickup-ready.
 - **`design` label.** Issues tagged `design` are exploration tickets meant for collaborative work with a human in the loop — not safe for autonomous implementation. The deliverable is usually a written design doc and a set of follow-up tickets.
 
 ## Code conventions
