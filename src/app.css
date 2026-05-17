@@ -90,6 +90,70 @@
   --thumb-h: 220px;
   --map-h-mobile: 28vh;
   --tap-min: 44px;
+
+  /* Map tile placeholder bg — used by MiniMap before tiles load */
+  --map-tile-bg: #E8E4DE;
+}
+
+/* ── Dark theme ──────────────────────────────────────────────────────────
+   Inverts each palette family's luminance ramp while holding middle shades
+   (-400, -600) stable so accent contrast remains predictable. Semantic
+   tokens are not re-declared — they reference these raw tokens by var()
+   and cascade automatically.
+
+   Brochure routes opt out of dark mode by setting data-theme="light" on
+   their root container, which scopes the cascade back to :root values. */
+[data-theme="dark"] {
+  /* Forest — primary */
+  --forest-50:  #0D1A12;
+  --forest-100: #132719;
+  --forest-200: #1F3F2A;
+  --forest-400: #4D8067;
+  --forest-600: #85B89D;
+  --forest-800: #C0DBCB;
+  --forest-900: #DCEAE2;
+
+  /* Bone — surface/neutral */
+  --bone-50:  #1A1611;
+  --bone-100: #221C14;
+  --bone-200: #3D3527;
+  --bone-400: #9A8A6F;
+  --bone-600: #C9B695;
+  --bone-800: #E8DCC4;
+  --bone-900: #F6EFE0;
+
+  /* Sunset — accent */
+  --sunset-50:  #1F1108;
+  --sunset-100: #2F1A0E;
+  --sunset-200: #5C2F14;
+  --sunset-400: #E0884F;
+  --sunset-600: #ECA976;
+  --sunset-800: #F5C9A5;
+  --sunset-900: #FBE3CB;
+
+  /* Sky — info/navy */
+  --sky-50:  #0B141B;
+  --sky-100: #112029;
+  --sky-200: #25394A;
+  --sky-400: #5B7E92;
+  --sky-600: #95ABBA;
+  --sky-800: #C5D2DC;
+  --sky-900: #DCE5EB;
+
+  /* Bark — deep accent */
+  --bark-50:  #110A07;
+  --bark-100: #1E1410;
+  --bark-200: #3C2922;
+  --bark-400: #876248;
+  --bark-600: #B19785;
+  --bark-800: #D5C0AE;
+  --bark-900: #E8DACA;
+
+  /* Embers — bumped slightly for contrast on dark surfaces */
+  --embers-600: #D14C3A;
+
+  /* Map tile placeholder bg — dark counterpart */
+  --map-tile-bg: #1A1A1A;
 }
 
 body {
