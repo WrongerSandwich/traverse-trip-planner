@@ -183,11 +183,28 @@ async function fetchRoute(geocodedCoords) {
   }
 }
 
-function imageQuery(trip) {
-  return (trip.title || '')
+// Build the query string sent to Pexels for the trip's hero photo.
+//
+// Precedence:
+//   1. `image_query` frontmatter field — authored by the seed/add LLM as a
+//      deliberate stock-photo search ("Chicago skyline downtown"). This is
+//      the source of truth for new trips.
+//   2. Title with English stopwords stripped — legacy path for ideas that
+//      predate the field; kept so old cached entries still resolve.
+//   3. Destination — last-ditch fallback.
+//
+// Pexels keyword search rewards concrete visual nouns and punishes
+// atmospheric phrases ("intellectual", "centennial"); letting the LLM
+// pick the query directly produces far better matches than scraping
+// the human-readable title.
+export function imageQuery(trip) {
+  if (typeof trip.image_query === 'string' && trip.image_query.trim()) {
+    return trip.image_query.trim();
+  }
+  const titleQuery = (trip.title || '')
     .replace(/\b(and|the|a|an|or|of|in|at|for)\b/gi, ' ')
-    .replace(/\s+/g, ' ').trim()
-    || trip.destination || '';
+    .replace(/\s+/g, ' ').trim();
+  return titleQuery || trip.destination || '';
 }
 
 // ── Cost estimation ──

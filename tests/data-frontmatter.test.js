@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFrontmatter, parseFrontmatterFields, setFrontmatterField, removeFrontmatterField } from '../src/lib/server/data.js';
+import { parseFrontmatter, parseFrontmatterFields, setFrontmatterField, removeFrontmatterField, imageQuery } from '../src/lib/server/data.js';
 
 describe('parseFrontmatter', () => {
   it('parses a standard idea-stage frontmatter', () => {
@@ -194,5 +194,47 @@ describe('removeFrontmatterField', () => {
     const withoutFlag = removeFrontmatterField(withFlag, 'researching');
     expect(parseFrontmatter(withoutFlag)?.researching).toBeUndefined();
     expect(parseFrontmatter(withoutFlag)?.title).toBe('Test');
+  });
+});
+
+describe('imageQuery', () => {
+  it('prefers the explicit image_query field when present', () => {
+    expect(imageQuery({
+      title: 'Chicago: Architectural Landmarks and Rare Books',
+      destination: 'Chicago, IL',
+      image_query: 'Chicago skyline downtown',
+    })).toBe('Chicago skyline downtown');
+  });
+
+  it('trims whitespace from image_query', () => {
+    expect(imageQuery({ title: 'X', image_query: '  Asheville Blue Ridge  ' }))
+      .toBe('Asheville Blue Ridge');
+  });
+
+  it('ignores an empty/whitespace image_query and falls back to title', () => {
+    expect(imageQuery({ title: 'Marfa Texas Desert', image_query: '   ' }))
+      .toBe('Marfa Texas Desert');
+  });
+
+  it('falls back to the title with stopwords stripped when image_query is absent', () => {
+    expect(imageQuery({
+      title: 'The Heart of the Ozarks',
+      destination: 'Eureka Springs, AR',
+    })).toBe('Heart Ozarks');
+  });
+
+  it('falls back to destination when neither image_query nor title is set', () => {
+    expect(imageQuery({ destination: 'Marfa, TX' })).toBe('Marfa, TX');
+  });
+
+  it('returns an empty string when nothing is set', () => {
+    expect(imageQuery({})).toBe('');
+  });
+
+  it('does not match image_query when it is a non-string truthy value', () => {
+    // YAML coerces some values to booleans/numbers; only honour real strings
+    // so we never feed something like `true` into a Pexels query string.
+    expect(imageQuery({ title: 'Marfa', image_query: true }))
+      .toBe('Marfa');
   });
 });

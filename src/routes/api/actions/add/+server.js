@@ -74,6 +74,7 @@ destination: [Town, State]
 pitch: [2–3 sentences naming the specific draw. Concrete, not generic.]
 created: ${today}
 vibe: [short phrase like "quirky mountain town" or "prairie scenic drive"]
+image_query: [2–4 concrete words for a Pexels stock-photo search. Name the place + one visual scene noun: "Chicago skyline downtown", "Glacier National Park mountains", "Asheville Blue Ridge". Avoid abstract terms like "intellectual", "historic", "vibes" — they don't match photos. The card uses this image, so picture what should be on it.]
 ---
 </file>`;
 
