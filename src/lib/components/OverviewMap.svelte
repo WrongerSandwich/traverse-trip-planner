@@ -1,6 +1,5 @@
 <script>
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
   import { tripColor } from '$lib/utils/colors.js';
 
   let { trips = [], home = null, hoveredSlug = null, selectedSlug = null, onTripClick } = $props();
@@ -11,28 +10,7 @@
   let L;
   let map;
   let spokesGroup;   // LayerGroup — remove()/addTo() hides/shows all spokes atomically
-  let tileLayer;     // swap between light/dark providers on theme change
-  let themeObserver; // MutationObserver on <html data-theme>
   let mapReady = $state(false);
-
-  // Tile providers:
-  // - Light: OpenStreetMap default
-  // - Dark: Stadia alidade_smooth_dark when STADIA_API_KEY is configured
-  //   (softer warm-gray with visible roads/labels), CartoDB Dark Matter
-  //   otherwise (near-black). The URL template is built server-side in
-  //   src/lib/server/stadia.js and passed through layout data.
-  // Both providers require attribution; we omit attribution UI to match
-  // the rest of the app.
-  const TILES_LIGHT = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-  const FALLBACK_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-
-  function applyTiles() {
-    if (!map || !L) return;
-    const dark = document.documentElement.dataset.theme === 'dark';
-    const darkUrl = $page.data.darkTileUrl || FALLBACK_DARK;
-    if (tileLayer) map.removeLayer(tileLayer);
-    tileLayer = L.tileLayer(dark ? darkUrl : TILES_LIGHT, { maxZoom: 19 }).addTo(map);
-  }
 
   // Per-session route coords cache. Server ships only `_has_route: bool` to
   // avoid 40 KB-per-route SSR bloat; we fetch the actual geometry on hover.
@@ -125,9 +103,7 @@
       if (destroyed) return;
 
       map = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false, attributionControl: false });
-      applyTiles();
-      themeObserver = new MutationObserver(applyTiles);
-      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
       spokesGroup = L.layerGroup().addTo(map);
 
@@ -165,7 +141,7 @@
 
       mapReady = true;
     })();
-    return () => { destroyed = true; themeObserver?.disconnect(); map?.remove(); };
+    return () => { destroyed = true; map?.remove(); };
   });
 
   // Rebuild markers + spokes whenever trips change.
