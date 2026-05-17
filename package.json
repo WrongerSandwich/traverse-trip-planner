@@ -28,6 +28,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "smoke": "node scripts/smoke.js",
+    "seed-sample": "node scripts/seed-sample.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "svelte-check --fail-on-warnings",

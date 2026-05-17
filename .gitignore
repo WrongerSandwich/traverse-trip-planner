@@ -10,7 +10,17 @@ build/
 settings.json
 
 # Personal preferences — copy home.example.md to home.md and edit it
-home.md
+# (Anchored to repo root so sample-data/home.md still tracks.)
+/home.md
+
+# Personal trip data — managed via the app, not committed.
+# (See sample-data/ for the bundled demo dataset and `npm run seed-sample`
+# to populate these directories on a fresh clone. Anchored to repo root
+# so sample-data/ideas/ etc. still track.)
+/ideas/
+/planning/
+/completed/
+/archived/
 
 # Runtime caches — generated at startup and written on every lookup; not for VCS
 .geocode-cache.json
