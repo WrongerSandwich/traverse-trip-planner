@@ -11,7 +11,7 @@ For lower-severity concerns (suspicious dependency, stale recommendation, mislea
 ## What's in scope
 
 - Anything that exposes API keys (Anthropic, OpenAI, Pexels, Tavily) beyond the local `.env`.
-- LLM-content injection paths that escape into file-system writes outside `ideas/`, `exploring/`, `planning/`, `completed/`, or `archived/`.
+- LLM-content injection paths that escape into file-system writes outside `ideas/`, `planning/`, `completed/`, or `archived/`.
 - Authentication bypass on the planning chat or lock endpoints (currently single-user; the assumption is the deployment has its own network-level access control).
 - Server-side request forgery via configured search backends.
 
