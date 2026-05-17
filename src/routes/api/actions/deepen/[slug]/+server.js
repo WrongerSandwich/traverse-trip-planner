@@ -131,7 +131,15 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
   const stopsMd = parseSection(text, 'stops_md');
   const logisticsMd = parseSection(text, 'logistics_md');
 
-  if (!prose) throw new Error('No overview prose returned — try again.');
+  if (!prose) {
+    // Some models (notably reasoning/preview ones) occasionally drop or
+    // truncate the XML tags. Log the raw response so the failure is
+    // debuggable without re-running the call.
+    console.warn(
+      `[deepen] ${slug}: no <overview_prose> tag in model response (${text.length} chars). Raw text follows:\n---\n${text}\n---`
+    );
+    throw new Error('No overview prose returned — try again.');
+  }
 
   const existingFm = parseFrontmatter(ideaContent) || {};
   const researchFm = fmRaw ? parseFrontmatterFields(fmRaw) : {};

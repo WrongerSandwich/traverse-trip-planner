@@ -186,6 +186,40 @@ describe('describeConfig', () => {
     expect(d.features.chat.model).toBe('claude-haiku-4-5');
     expect(d.features.seed.overridden).toBe(false);
   });
+
+  it('reflects the settings.json overlay, not just the module-load snapshot', async () => {
+    // Module load has `TRAVERSE_MODEL_RESEARCH=claude-opus-4-7` (the default).
+    // settings.json overlays research → openrouter/google/gemini-3.1-pro-preview.
+    // The banner must show the overlay, since that's what live requests use.
+    clearEnv();
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    vi.resetModules();
+    vi.doMock('node:fs', () => ({
+      readFileSync: () => JSON.stringify({
+        keys: { openrouter: 'sk-or-test' },
+        services: { tavily: 'tvly-test' },
+        slots: {
+          research: { provider: 'openrouter', model: 'google/gemini-3.1-pro-preview' },
+        },
+        search: { provider: 'tavily' },
+      }),
+      writeFileSync: () => {},
+      existsSync: () => false,
+    }));
+    const { describeConfig } = await import('../src/lib/server/config.js');
+    const d = describeConfig();
+    expect(d.modelResearch.provider).toBe('openrouter');
+    expect(d.modelResearch.model).toBe('google/gemini-3.1-pro-preview');
+    expect(d.features.deepen.provider).toBe('openrouter');
+    expect(d.search.provider).toBe('tavily');
+
+    // Reset the fs mock so other tests don't see this overlay.
+    vi.doMock('node:fs', () => ({
+      readFileSync: () => { throw new Error('ENOENT'); },
+      writeFileSync: () => {},
+      existsSync: () => false,
+    }));
+  });
 });
 
 describe('OpenRouter provider', () => {

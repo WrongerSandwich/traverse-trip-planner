@@ -135,21 +135,26 @@ export function getFeatureAvailability() {
   return result;
 }
 
+// Both functions below describe the *live* config — process.env merged with
+// the settings.json overlay — not the module-load snapshot. The startup banner
+// is printed once on first request, by which point a user may already have
+// saved settings via the UI; reading the overlay keeps the banner truthful.
 export function describeConfig() {
   const overlay = settingsToEnv(readSettings());
   const effectiveEnv = { ...process.env, ...overlay };
+  const effective = buildConfig(effectiveEnv);
   const featureDetails = {};
-  const slotForFeature = (f) => config[FEATURE_SLOT[f]];
-  for (const [feature, info] of Object.entries(config.features)) {
+  const slotForFeature = (f) => effective[FEATURE_SLOT[f]];
+  for (const [feature, info] of Object.entries(effective.features)) {
     const slot = slotForFeature(feature);
     const overridden = info.provider !== slot.provider || info.model !== slot.model;
-    const ok = providerKeyOkIn(effectiveEnv, info.provider) && (feature === 'deepen' ? searchOkIn(config, effectiveEnv) : true);
+    const ok = providerKeyOkIn(effectiveEnv, info.provider) && (feature === 'deepen' ? searchOkIn(effective, effectiveEnv) : true);
     featureDetails[feature] = { ...info, ok, overridden };
   }
   return {
-    modelDefault: { ...config.modelDefault, ok: providerKeyOkIn(effectiveEnv, config.modelDefault.provider) },
-    modelResearch: { ...config.modelResearch, ok: providerKeyOkIn(effectiveEnv, config.modelResearch.provider) },
-    search: { provider: config.search.provider, ok: searchOkIn(config, effectiveEnv) },
+    modelDefault: { ...effective.modelDefault, ok: providerKeyOkIn(effectiveEnv, effective.modelDefault.provider) },
+    modelResearch: { ...effective.modelResearch, ok: providerKeyOkIn(effectiveEnv, effective.modelResearch.provider) },
+    search: { provider: effective.search.provider, ok: searchOkIn(effective, effectiveEnv) },
     features: featureDetails,
     issues: validateConfig(),
   };
@@ -158,11 +163,12 @@ export function describeConfig() {
 export function validateConfig() {
   const overlay = settingsToEnv(readSettings());
   const effectiveEnv = { ...process.env, ...overlay };
+  const effective = buildConfig(effectiveEnv);
   const issues = [];
   const seenProviders = new Set();
 
   for (const slot of ['modelDefault', 'modelResearch']) {
-    const { provider } = config[slot];
+    const { provider } = effective[slot];
     seenProviders.add(provider);
     const keyName = PROVIDER_KEYS[provider];
     if (keyName === undefined) {
@@ -172,7 +178,7 @@ export function validateConfig() {
     }
   }
 
-  for (const [feature, info] of Object.entries(config.features)) {
+  for (const [feature, info] of Object.entries(effective.features)) {
     if (seenProviders.has(info.provider)) continue;
     seenProviders.add(info.provider);
     const keyName = PROVIDER_KEYS[info.provider];
@@ -183,7 +189,7 @@ export function validateConfig() {
     }
   }
 
-  const sp = config.search.provider;
+  const sp = effective.search.provider;
   if (!(sp in SEARCH_KEYS)) {
     issues.push(`Unknown search provider: "${sp}". Supported: ${Object.keys(SEARCH_KEYS).join(', ')}.`);
   } else {
@@ -191,7 +197,7 @@ export function validateConfig() {
     if (keyName && !effectiveEnv[keyName]) {
       issues.push(`Search provider "${sp}" requires ${keyName} in env.`);
     }
-    if (sp === 'anthropic-builtin' && config.features.deepen.provider !== 'anthropic') {
+    if (sp === 'anthropic-builtin' && effective.features.deepen.provider !== 'anthropic') {
       issues.push(`Search provider "anthropic-builtin" requires the deepen feature to use the anthropic provider.`);
     }
   }

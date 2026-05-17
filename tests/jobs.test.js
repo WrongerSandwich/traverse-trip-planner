@@ -223,6 +223,44 @@ describe('failJob', () => {
     expect(listJobs()).toHaveLength(0);
     expect(readIdeaFm('marfa-tx').running).toBeUndefined();
   });
+
+  it('persists last_run_message to frontmatter so failures are debuggable', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+
+    failJob('deepen', 'marfa-tx', {
+      code: 'unknown',
+      message: 'No overview prose returned — try again.',
+    });
+
+    const fm = readIdeaFm('marfa-tx');
+    expect(fm.last_run_error).toBe('unknown');
+    expect(fm.last_run_message).toBe('No overview prose returned — try again.');
+  });
+
+  it('collapses newlines and caps long messages so frontmatter stays one line', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+
+    const long = 'first line\nsecond line\n' + 'x'.repeat(500);
+    failJob('deepen', 'marfa-tx', { code: 'unknown', message: long });
+
+    const fm = readIdeaFm('marfa-tx');
+    expect(fm.last_run_message).not.toMatch(/\n/);
+    expect(fm.last_run_message.length).toBeLessThanOrEqual(301);
+    expect(fm.last_run_message.startsWith('first line second line')).toBe(true);
+  });
+
+  it('omits last_run_message when no message is given', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+
+    failJob('deepen', 'marfa-tx', { code: 'cancelled' });
+
+    const fm = readIdeaFm('marfa-tx');
+    expect(fm.last_run_error).toBe('cancelled');
+    expect(fm.last_run_message).toBeUndefined();
+  });
 });
 
 describe('cancelJob', () => {

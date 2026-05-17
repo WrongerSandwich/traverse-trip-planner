@@ -220,17 +220,32 @@ export function failJob(workflow, slug, error = {}) {
   jobs.delete(key);
 
   const code = error?.code || 'unknown';
-  clearRunningFlag(slug, {
+  const extras = {
     last_run_error: code,
     last_run_error_at: new Date().toISOString(),
-  });
+  };
+  const message = sanitizeFrontmatterMessage(error?.message);
+  if (message) extras.last_run_message = message;
+  clearRunningFlag(slug, extras);
 
   pushEvent({
     workflow,
     slug,
     outcome: 'failure',
     code,
+    ...(message ? { message } : {}),
   });
+}
+
+// Frontmatter is single-line `key: value` YAML — collapse newlines, avoid the
+// `[...]` array form, and cap length so an unbounded provider error message
+// can't blow out the file.
+function sanitizeFrontmatterMessage(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  let s = raw.replace(/[\r\n]+/g, ' ').trim();
+  if (!s) return null;
+  if (s.startsWith('[')) s = ' ' + s;
+  return s.length > 300 ? s.slice(0, 300) + '…' : s;
 }
 
 /**

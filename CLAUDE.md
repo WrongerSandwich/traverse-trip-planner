@@ -105,7 +105,7 @@ All lifecycle operations live in the SvelteKit app — the browser is the canoni
 The SvelteKit app in `src/` is the primary interface. Two ways to run it:
 
 - **Dev:** `npm run dev -- --port 3456` (hot reload)
-- **Prod:** `npm run build && pm2 restart traverse` (or `node build/index.js`) — what runs on the home server
+- **Prod:** Docker (`docker compose up -d` / `docker compose logs -f traverse`) — the home server runs the `traverse` container, port 3456. PM2 / `node build/index.js` are legacy paths, no longer in use.
 
 The frontend reads trip data from the markdown files on each page load. All three external lookups are disk-backed and persist across restarts:
 
