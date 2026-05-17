@@ -42,3 +42,21 @@ export function stadiaStaticMapUrl({ centerLat, centerLon, zoom, width, height, 
 export function stadiaEnabled() {
   return Boolean(resolveEnv('STADIA_API_KEY'));
 }
+
+// Tile URL template for Leaflet's `L.tileLayer()`. Stadia's
+// `alidade_smooth_dark` is a softer dark style than CartoDB Dark Matter —
+// warm grays with visible roads and labels rather than near-black canvas.
+// Falls back to CartoDB Dark Matter (no API key needed) when Stadia
+// isn't configured.
+//
+// Note: this URL is rendered into client-side HTML, so the API key
+// reaches the browser. Stadia supports domain-restricted keys via their
+// dashboard for self-hosted apps; on a personal home server the risk
+// of key leakage is low.
+export function darkTileUrlTemplate() {
+  const apiKey = resolveEnv('STADIA_API_KEY');
+  if (apiKey) {
+    return `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${apiKey}`;
+  }
+  return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+}

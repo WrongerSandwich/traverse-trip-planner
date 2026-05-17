@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { page } from '$app/stores';
   import { tripColor } from '$lib/utils/colors.js';
 
   let { trips = [], home = null, hoveredSlug = null, selectedSlug = null, onTripClick } = $props();
@@ -14,17 +15,23 @@
   let themeObserver; // MutationObserver on <html data-theme>
   let mapReady = $state(false);
 
-  // OSM tiles are light-mode-only; CartoDB Dark Matter is the free dark
-  // counterpart with a similar minimal aesthetic. Both require attribution
-  // per their terms; we omit attribution UI to match the rest of the app.
+  // Tile providers:
+  // - Light: OpenStreetMap default
+  // - Dark: Stadia alidade_smooth_dark when STADIA_API_KEY is configured
+  //   (softer warm-gray with visible roads/labels), CartoDB Dark Matter
+  //   otherwise (near-black). The URL template is built server-side in
+  //   src/lib/server/stadia.js and passed through layout data.
+  // Both providers require attribution; we omit attribution UI to match
+  // the rest of the app.
   const TILES_LIGHT = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-  const TILES_DARK  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const FALLBACK_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
   function applyTiles() {
     if (!map || !L) return;
     const dark = document.documentElement.dataset.theme === 'dark';
+    const darkUrl = $page.data.darkTileUrl || FALLBACK_DARK;
     if (tileLayer) map.removeLayer(tileLayer);
-    tileLayer = L.tileLayer(dark ? TILES_DARK : TILES_LIGHT, { maxZoom: 19 }).addTo(map);
+    tileLayer = L.tileLayer(dark ? darkUrl : TILES_LIGHT, { maxZoom: 19 }).addTo(map);
   }
 
   // Per-session route coords cache. Server ships only `_has_route: bool` to
