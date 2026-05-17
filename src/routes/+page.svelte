@@ -801,8 +801,9 @@
   }
 
   header {
-    background: var(--surface-invert);
-    color: var(--text-inverse);
+    background: var(--forest-800);
+    border-bottom: 1px solid var(--border-default);
+    color: var(--bone-200);
     padding: 1.1rem 1.75rem;
     display: flex;
     align-items: center;
@@ -878,7 +879,7 @@
   .seed-btn.seed-running { border-color: var(--forest-400); opacity: 1; }
 
   .pin-btn svg { transform: none !important; }
-  .pin-btn { color: var(--sunset-600); border-color: var(--sunset-800); }
+  .pin-btn { color: var(--accent-text); border-color: var(--sunset-800); }
   .pin-btn:hover:not(:disabled) { border-color: var(--sunset-600); color: var(--sunset-200); background: var(--sunset-800); }
   .pin-btn.open { background: var(--sunset-800); border-color: var(--sunset-600); color: var(--sunset-200); }
   .pin-btn.add-running { border-color: var(--sunset-600); opacity: 1; }
@@ -896,7 +897,7 @@
     width: 360px;
     max-width: calc(100vw - 1rem);
     background: var(--surface-raised);
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     border-radius: 8px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
     padding: 0.9rem 1rem 0.85rem;
@@ -916,7 +917,7 @@
   }
   .seed-popover textarea {
     width: 100%;
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     padding: 0.55rem 0.7rem;
     font-family: var(--font-sans);
@@ -930,7 +931,7 @@
   .seed-popover textarea:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
   .pin-input {
     width: 100%;
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     padding: 0.55rem 0.7rem;
     font-family: var(--font-sans);
@@ -982,7 +983,7 @@
     overflow-y: auto;
     padding: 0.35rem 0.5rem;
     background: var(--surface-page);
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
   }
   .seed-log-line { line-height: 1.45; }
@@ -991,8 +992,8 @@
   .seed-error {
     margin-top: 0.4rem;
     padding: 0.5rem 0.65rem;
-    background: var(--sunset-50, #fff5f0);
-    border: 1px solid var(--embers-600, #c0392b);
+    background: var(--state-danger-surface);
+    border: 1px solid var(--state-danger);
     border-radius: 4px;
     display: flex;
     flex-direction: column;
@@ -1081,7 +1082,7 @@
   .controls-wrap {
     flex-shrink: 0;
     background: var(--surface-raised);
-    border-bottom: 1px solid var(--bone-400);
+    border-bottom: 1px solid var(--border-default);
     position: relative;
   }
 
@@ -1105,9 +1106,9 @@
     white-space: nowrap;
   }
   .tab:hover  { color: var(--text-primary); }
-  .tab:active { color: var(--forest-800); background: var(--forest-50); }
+  .tab:active { color: var(--text-secondary); background: var(--forest-50); }
   .tab.active {
-    color: var(--forest-800);
+    color: var(--text-secondary);
     border-bottom-color: var(--forest-800);
     font-weight: 600;
   }
@@ -1119,7 +1120,7 @@
     align-items: center;
   }
 
-  .divider { width: 1px; background: var(--bone-400); margin: 0.65rem 0.35rem; flex-shrink: 0; }
+  .divider { width: 1px; background: var(--border-default); margin: 0.65rem 0.35rem; flex-shrink: 0; }
 
   .filter-toggle {
     border: none;
@@ -1139,10 +1140,10 @@
   }
   .filter-toggle:hover { color: var(--text-primary); }
   .filter-toggle.active {
-    color: var(--forest-800);
+    color: var(--text-secondary);
     border-bottom-color: var(--forest-800);
   }
-  .filter-toggle.has-filters { color: var(--forest-800); font-weight: 600; }
+  .filter-toggle.has-filters { color: var(--text-secondary); font-weight: 600; }
 
   .chevron {
     transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
@@ -1178,7 +1179,7 @@
 
   .filter-groups {
     padding: 0.7rem 1.5rem 0.8rem;
-    border-top: 1px solid var(--bone-200);
+    border-top: 1px solid var(--border-subtle);
     display: flex;
     align-items: flex-end;
     gap: 1.75rem;
@@ -1202,7 +1203,7 @@
   .chips { display: flex; gap: 0.2rem; }
 
   .chip {
-    border: 1.5px solid var(--bone-400);
+    border: 1.5px solid var(--border-default);
     background: none;
     padding: 0.2rem 0.55rem;
     border-radius: 3px;
@@ -1214,8 +1215,8 @@
     transition: border-color 0.1s, background 0.1s, color 0.1s;
     white-space: nowrap;
   }
-  .chip:hover  { border-color: var(--forest-200); color: var(--forest-800); }
-  .chip:active { background: var(--forest-50); border-color: var(--forest-800); color: var(--forest-800); }
+  .chip:hover  { border-color: var(--forest-200); color: var(--text-secondary); }
+  .chip:active { background: var(--forest-50); border-color: var(--forest-800); color: var(--text-secondary); }
   .chip.active {
     background: var(--forest-800);
     border-color: var(--forest-800);
