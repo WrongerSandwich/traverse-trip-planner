@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, renameSync } from 'fs';
 import { join } from 'path';
+import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { resolveEnv } from './settings.js';
 import { TraverseError } from './errors.js';
 
@@ -319,12 +320,12 @@ export function splitHomeBody(body) {
 /**
  * Parse home.md into a structured object.
  *
- * Note: `parseFrontmatter()` is a simple line-by-line parser — nested YAML
- * blocks (e.g. `vehicles:`) appear as flat keys or empty strings. For complex
- * nested blocks, callers that need round-trip fidelity should use the raw
- * `_rawFrontmatter` field returned here.
+ * Uses the `yaml` package (eemeli/yaml v2) for the frontmatter block, which
+ * preserves nested objects, arrays, numbers, and booleans as their native types.
+ * (The simpler `parseFrontmatter` used for trip files stays as-is — trip
+ * frontmatter is flat and the line-by-line parser is fine for it.)
  *
- * @returns {{ frontmatter: object, prose: { preamble: string, sections: Array<{heading, body}> }, _rawFrontmatter: string } | null}
+ * @returns {{ frontmatter: object, prose: { preamble: string, sections: Array<{heading, body}> } } | null}
  */
 export function parseHomeMd() {
   const p = join(ROOT, 'home.md');
@@ -334,60 +335,36 @@ export function parseHomeMd() {
   const fenceMatch = content.match(/^---\n([\s\S]*?)\n---\n?/);
   if (!fenceMatch) return null;
 
-  const rawFm = fenceMatch[1];
-  const frontmatter = parseFrontmatterFields(rawFm);
+  let frontmatter;
+  try {
+    frontmatter = yamlParse(fenceMatch[1]) || {};
+  } catch (err) {
+    throw new Error(`home.md YAML parse failed: ${err.message}`);
+  }
   const bodyStart = fenceMatch[0].length;
   const body = content.slice(bodyStart);
   const prose = splitHomeBody(body);
 
-  return { frontmatter, prose, _rawFrontmatter: rawFm };
+  return { frontmatter, prose };
 }
 
 /**
- * Serialize a flat frontmatter object back to YAML-like lines.
+ * Serialize a frontmatter object to a YAML block (no `---` fences).
  *
- * Supports:
- *   - Scalar strings:  `key: value`
- *   - Arrays:          `key: [a, b, c]`
- *   - Objects:         serialized as nested `key:\n  subkey: value` lines
- *   - Booleans/numbers: coerced to string
- *
- * This is intentionally minimal — it handles the fields that
- * `parseFrontmatterFields` can read back. Nested object values that cannot
- * survive the round-trip through `parseFrontmatterFields` are preserved
- * verbatim only when the caller passes `rawOverride` lines.
+ * Uses the `yaml` package with options chosen to match the existing
+ * `home.md` file style: predictable line-by-line output, no auto-wrapping,
+ * preserved key insertion order, native types for numbers/booleans.
  *
  * @param {object} obj
- * @returns {string} YAML lines (no fences, no trailing newline)
+ * @returns {string} YAML block (no fences, no trailing newline)
  */
 export function serializeFrontmatter(obj) {
-  const lines = [];
-  for (const [key, value] of Object.entries(obj)) {
-    if (value === null || value === undefined) continue;
-    if (Array.isArray(value)) {
-      lines.push(`${key}: [${value.join(', ')}]`);
-    } else if (typeof value === 'object') {
-      lines.push(`${key}:`);
-      for (const [sk, sv] of Object.entries(value)) {
-        if (sv === null || sv === undefined) continue;
-        if (typeof sv === 'object' && !Array.isArray(sv)) {
-          lines.push(`  ${sk}:`);
-          for (const [ssk, ssv] of Object.entries(sv)) {
-            if (ssv !== null && ssv !== undefined) {
-              lines.push(`    ${ssk}: ${ssv}`);
-            }
-          }
-        } else if (Array.isArray(sv)) {
-          lines.push(`  ${sk}: [${sv.join(', ')}]`);
-        } else {
-          lines.push(`  ${sk}: ${sv}`);
-        }
-      }
-    } else {
-      lines.push(`${key}: ${value}`);
-    }
-  }
-  return lines.join('\n');
+  return yamlStringify(obj, {
+    lineWidth: 0,                 // never line-wrap
+    defaultStringType: 'PLAIN',   // bare strings where possible
+    blockQuote: 'literal',
+    sortMapEntries: false,        // preserve insertion order
+  }).trimEnd();
 }
 
 /**

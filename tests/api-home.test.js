@@ -24,6 +24,12 @@ const SAMPLE_HOME_MD = `---
 home_city: Test City, ST
 home_coords: [40.0, -90.0]
 travelers: [alice, bob]
+vehicles:
+  sedan:
+    model: 2020 Honda Accord
+    type: gas
+    default: true
+    notes: Reliable daily driver.
 pets_need_sitter: false
 default_radius_mi: 400
 units:
@@ -123,9 +129,33 @@ describe('GET /api/home', () => {
     const res = await GET();
     expect(res._status).toBe(200);
     expect(res._body.frontmatter.home_city).toBe('Test City, ST');
-    expect(res._body.frontmatter.home_coords).toEqual(['40.0', '-90.0']);
+    expect(res._body.frontmatter.home_coords).toEqual([40.0, -90.0]);
     expect(res._body.prose.sections).toBeDefined();
     expect(Array.isArray(res._body.prose.sections)).toBe(true);
+  });
+
+  it('returns numbers as numbers, booleans as booleans, arrays as arrays', async () => {
+    const res = await GET();
+    expect(typeof res._body.frontmatter.home_coords[0]).toBe('number');
+    expect(typeof res._body.frontmatter.home_coords[1]).toBe('number');
+    expect(typeof res._body.frontmatter.default_radius_mi).toBe('number');
+    expect(res._body.frontmatter.default_radius_mi).toBe(400);
+    expect(typeof res._body.frontmatter.pets_need_sitter).toBe('boolean');
+    expect(res._body.frontmatter.pets_need_sitter).toBe(false);
+    expect(res._body.frontmatter.travelers).toEqual(['alice', 'bob']);
+  });
+
+  it('preserves nested objects (vehicles, units)', async () => {
+    const res = await GET();
+    expect(res._body.frontmatter.vehicles).toEqual({
+      sedan: {
+        model: '2020 Honda Accord',
+        type: 'gas',
+        default: true,
+        notes: 'Reliable daily driver.',
+      },
+    });
+    expect(res._body.frontmatter.units).toEqual({ distance: 'mi' });
   });
 
   it('returns sections in document order', async () => {
@@ -341,7 +371,28 @@ describe('PUT /api/home — success', () => {
     }
   });
 
-  it('accepts string coords (as parseFrontmatter returns them) and coerces to numbers', async () => {
+  it('round-trip: nested vehicles map survives GET → PUT → re-parse', async () => {
+    const getRes = await GET();
+    await PUT(makeRequest(getRes._body));
+    const [, written] = writeFileSync.mock.calls[0];
+
+    // Written file should contain the nested vehicles structure
+    expect(written).toMatch(/vehicles:\s*\n\s+sedan:/);
+    expect(written).toContain('model: 2020 Honda Accord');
+    expect(written).toContain('type: gas');
+    expect(written).toContain('default: true');
+  });
+
+  it('round-trip: numbers and booleans preserved on write', async () => {
+    await PUT(makeRequest(validPayload));
+    const [, written] = writeFileSync.mock.calls[0];
+    // Numbers serialize without quotes
+    expect(written).toMatch(/home_coords:\s*\[\s*40,\s*-90\s*\]|home_coords:\s*\n\s*-\s*40\s*\n\s*-\s*-90/);
+    expect(written).toMatch(/pets_need_sitter:\s*false/);
+    expect(written).toMatch(/default_radius_mi:\s*400/);
+  });
+
+  it('accepts stringified coords (defensive) and coerces on validation', async () => {
     const payload = {
       ...validPayload,
       frontmatter: {

@@ -9,18 +9,21 @@ import { ROOT } from '$lib/server/data.js';
  *
  * Returns home.md parsed into a structured object.
  *
- * Response shape:
+ * Response shape (numbers stay numbers, booleans stay booleans, nested
+ * objects like `vehicles:` / `units:` keep their structure — backed by the
+ * `yaml` package, same as the brochure pipeline):
  * ```json
  * {
  *   "frontmatter": {
  *     "home_city": "Overland Park, KS",
- *     "home_coords": ["38.98", "-94.67"],
+ *     "home_coords": [38.98, -94.67],
  *     "travelers": ["evan", "erika"],
- *     "vehicles": "",
- *     "pets_need_sitter": "true",
- *     "default_radius_mi": "450",
- *     "units": "",
- *     "distance": "mi"
+ *     "vehicles": {
+ *       "rav4": { "model": "2019 Toyota RAV4", "type": "gas", "default": true }
+ *     },
+ *     "pets_need_sitter": true,
+ *     "default_radius_mi": 450,
+ *     "units": { "distance": "mi" }
  *   },
  *   "prose": {
  *     "preamble": "# Personal context for trip planning\n\n...",
