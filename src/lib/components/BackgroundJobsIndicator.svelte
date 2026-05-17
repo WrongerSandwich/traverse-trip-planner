@@ -305,13 +305,17 @@
 {/if}
 
 <style>
+  /* Bottom-right so the indicator never collides with page header chrome
+     (e.g. the home page's seed/pin buttons in the top-right). `column-reverse`
+     keeps the pill anchored at the corner and stacks drawer + toasts upward
+     above it. */
   .indicator-root {
     position: fixed;
-    top: 0.7rem;
+    bottom: 0.7rem;
     right: 0.9rem;
     z-index: 1100;
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     align-items: flex-end;
     gap: 0.5rem;
     pointer-events: none;

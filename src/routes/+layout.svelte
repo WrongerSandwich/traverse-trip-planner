@@ -22,6 +22,13 @@
 </script>
 
 <svelte:head>
+  <!--
+    Default <title>. Pages that set their own (settings, trip detail, etc.)
+    win via Svelte's last-writer-wins ordering. Without a layout-level
+    default, navigating to a page that doesn't set a title leaves the
+    previous page's title stuck in the browser tab.
+  -->
+  <title>Traverse</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">

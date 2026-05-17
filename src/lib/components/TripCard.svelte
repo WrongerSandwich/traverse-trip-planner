@@ -8,6 +8,13 @@
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
 
+  // Disable the Research CTA while a deepen job is in flight for this trip.
+  // The TripJobBadge below already surfaces the "Researching…" status, so we
+  // gate the button instead of duplicating the spinner inline.
+  const deepenRunning = $derived(
+    jobs.some(j => (typeof j.workflow === 'string' ? j.workflow.split(':')[0] : j.workflow) === 'deepen')
+  );
+
   const status  = $derived(trip.status || trip._stage || 'idea');
   const color   = $derived(tripColor(trip));
   const date    = $derived(trip.created ? new Date(trip.created).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '');
@@ -103,8 +110,14 @@
       <button
         class="btn btn-secondary btn-compact card-cta"
         onclick={ondeepen}
-        disabled={!ondeepen}
-        title={ondeepen ? 'Look into this trip with web search' : 'Research is offline — research model or search backend not configured'}
+        disabled={!ondeepen || deepenRunning}
+        title={
+          deepenRunning
+            ? 'Research already in progress — see the badge below'
+            : ondeepen
+              ? 'Look into this trip with web search'
+              : 'Research is offline — research model or search backend not configured'
+        }
       >
         Research →
       </button>
