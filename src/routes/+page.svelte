@@ -471,7 +471,7 @@
         {/if}
       </div>
       {#if data.features?.homeMdReady === false}
-        <a href="/settings" class="home-setup-cta" title="Set up your home base to enable AI features">
+        <a href="/onboarding" class="home-setup-cta" title="Set up your home base to enable AI features">
           Set up home base
         </a>
       {:else}
