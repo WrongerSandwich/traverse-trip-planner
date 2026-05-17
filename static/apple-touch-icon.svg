@@ -1,8 +1,0 @@
-<svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Traverse">
-  <rect width="180" height="180" fill="#1F4332"/>
-  <g transform="translate(50 50)">
-    <circle cx="40" cy="40" r="34" fill="none" stroke="#EBE0C9" stroke-width="3.5"/>
-    <circle cx="52" cy="36" r="9" fill="#D87B3F"/>
-    <path d="M 12,54 L 24,38 L 32,44 L 42,20 L 56,40 L 68,54 Z" fill="#EBE0C9"/>
-  </g>
-</svg>
