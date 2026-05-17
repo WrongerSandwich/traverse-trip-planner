@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml/badge.svg)](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml)
 
-A personal road-trip filing cabinet — managed through a web UI and an LLM. Trips live as markdown files that progress through a lifecycle: **idea → exploring → planning → completed**.
+A personal road-trip filing cabinet — managed through a web UI and an LLM. Trips live as markdown files that progress through a lifecycle: **idea → planning → completed**.
 
 ## What it does
 
@@ -35,6 +35,7 @@ git clone <repo-url> traverse && cd traverse
 cp home.example.md home.md   # edit with your home city, vehicles, taste
 cp .env.example .env         # edit with your API keys
 npm install
+npm run seed-sample          # optional: load the bundled demo dataset
 npm run smoke                # optional: 1-token round-trip per provider
 npm run build
 node build/index.js
@@ -50,13 +51,14 @@ Trips are markdown files organized by stage:
 
 ```
 ideas/          # single .md files — lightly sketched
-exploring/      # folders with overview.md + research files
-planning/       # concrete dates, lodging, edits in progress
-completed/      # archived with itinerary intact
+planning/       # folders with overview.md + research files; dates, lodging, edits
+completed/      # archive with retrospective in notes.md
 archived/       # hidden from UI; excluded from re-suggestion
 ```
 
-Your personal preferences live in `home.md` (gitignored — see `home.example.md`). This file drives all AI prompts: home location, vehicle specs, taste profile, seasonal constraints.
+These directories are **gitignored** — they hold your personal trips, not the project's source. A bundled demo dataset under `sample-data/` is available via `npm run seed-sample`; see [sample-data/README.md](sample-data/README.md) for details.
+
+Your personal preferences live in `home.md` (also gitignored — see `home.example.md`). This file drives all AI prompts: home location, vehicle specs, taste profile, seasonal constraints.
 
 ## Tech
 
