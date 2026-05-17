@@ -1,8 +1,28 @@
 {
   "name": "traverse",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
+  "description": "A self-hosted road-trip filing cabinet: trips as markdown, LLM as assistant.",
+  "author": "Evan Trout",
   "license": "MIT",
+  "private": true,
+  "homepage": "https://github.com/WrongerSandwich/traverse#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WrongerSandwich/traverse.git"
+  },
+  "bugs": {
+    "url": "https://github.com/WrongerSandwich/traverse/issues"
+  },
+  "keywords": [
+    "road-trip",
+    "travel-planning",
+    "self-hosted",
+    "sveltekit",
+    "llm",
+    "anthropic",
+    "openai",
+    "markdown"
+  ],
   "scripts": {
     "dev": "vite dev --port 3456",
     "build": "vite build",
