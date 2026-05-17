@@ -1,8 +1,24 @@
 <script>
   import 'leaflet/dist/leaflet.css';
   import '../app.css';
+  import { onMount } from 'svelte';
   import BackgroundJobsIndicator from '$lib/components/BackgroundJobsIndicator.svelte';
+  import {
+    getStoredTheme,
+    applyTheme,
+    subscribeToSystemTheme,
+  } from '$lib/theme.js';
+
   let { children } = $props();
+
+  onMount(() => {
+    // Bootstrap script in app.html already applied the initial theme. We
+    // only need to keep it in sync when the OS preference changes and the
+    // user is in "system" mode.
+    return subscribeToSystemTheme((resolved) => {
+      if (getStoredTheme() === 'system') applyTheme(resolved);
+    });
+  });
 </script>
 
 <svelte:head>

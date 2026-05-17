@@ -1338,7 +1338,7 @@
       position: absolute;
       top: 0; right: 0;
       width: 28px; height: var(--tap-min);
-      background: linear-gradient(to right, rgba(252, 250, 245, 0), var(--surface-raised));
+      background: linear-gradient(to right, rgba(var(--surface-raised-rgb), 0), var(--surface-raised));
       pointer-events: none;
       z-index: 1;
     }

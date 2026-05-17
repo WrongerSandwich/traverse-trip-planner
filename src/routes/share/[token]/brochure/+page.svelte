@@ -3,4 +3,6 @@
   let { data } = $props();
 </script>
 
-<Brochure {data} />
+<div data-theme="light">
+  <Brochure {data} />
+</div>
