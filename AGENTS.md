@@ -39,10 +39,11 @@ the source. Knowing these up front saves debugging time.
 
 - **Disk-backed caches at repo root.** `.geocode-cache.json`,
   `.image-cache.json`, `.route-cache.json`, and `.workflow-stats.json`
-  persist across restarts. If your tests exercise code that reads or
-  writes them, clean up after yourself or stub at the boundary.
-  `.workflow-stats.json` is the rolling-p50 telemetry that calibrates
-  the `_promise` time/token estimates (see
+  persist across restarts and are **gitignored** — they're runtime state
+  that grows with user activity and must not be committed. If your tests
+  exercise code that reads or writes them, clean up after yourself or
+  stub at the boundary. `.workflow-stats.json` is the rolling-p50
+  telemetry that calibrates the `_promise` time/token estimates (see
   `src/lib/server/workflow-stats.js`); it's written from `chat()` on
   every AI call and read at load time by `getResolvedPromises()`.
 - **`chat()` requires a `label`.** Token-usage logs group costs by it,
@@ -111,7 +112,8 @@ These are load-bearing. Violations should fail review.
   guess.
 - **Caches:** `.geocode-cache.json`, `.image-cache.json`,
   `.route-cache.json` live at the repo root and persist across
-  restarts. `enrichTrips()` GCs orphaned entries on each request.
+  restarts (all three are gitignored). `enrichTrips()` GCs orphaned
+  entries on each request.
 
 ## Writing tests
 

@@ -12,6 +12,12 @@ settings.json
 # Personal preferences — copy home.example.md to home.md and edit it
 home.md
 
+# Runtime caches — generated at startup and written on every lookup; not for VCS
+.geocode-cache.json
+.image-cache.json
+.route-cache.json
+.workflow-stats.json
+
 # Vite/dev logs
 *.log
 /tmp/
