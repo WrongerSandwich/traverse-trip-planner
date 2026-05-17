@@ -2,7 +2,15 @@
 
 [![CI](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml/badge.svg)](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml)
 
-A personal road-trip filing cabinet — managed through a web UI and an LLM. Trips live as markdown files that progress through a lifecycle: **idea → planning → completed**.
+A self-hosted road-trip filing cabinet. Trips live as plain markdown files, progressing through a lifecycle: **idea → planning → completed**. An LLM helps generate, research, and reflect on them — but the data is yours, on your disk, in a format you can read and grep without the app running.
+
+> Built to be lived in, not to be sold. Stable enough for daily personal use, rough enough that you'll want to be the kind of person who's comfortable editing the markdown directly when something gets weird.
+
+## Why this exists
+
+There are plenty of fancier travel apps. Almost all of them treat your trips as rows in their database, your photos as content for their feed, and your destination history as something to monetize. Traverse takes the opposite bet: trips are markdown, your `home.md` is your taste preferences in plain English, and AI is a useful tool wired into the workflow — not the workflow itself.
+
+The mental model is closer to a personal wiki than a SaaS app. The LLM is fast at generating regional ideas, fleshing out routes, and parsing a long planning thread into a printable brochure; you stay in control of what actually goes into the file. See [PRODUCT.md](PRODUCT.md) for the longer design rationale.
 
 ## What it does
 
@@ -63,6 +71,10 @@ Your personal preferences live in `home.md` (also gitignored — see `home.examp
 ## Tech
 
 SvelteKit · Leaflet · OSRM (routing) · Nominatim (geocoding) · Pexels (photos). AI calls go through a provider-agnostic adapter — Anthropic and OpenAI are supported out of the box. See [DEPLOY.md](DEPLOY.md#provider-configuration-byok).
+
+## Status
+
+Used daily by the original author; published as open source for anyone who wants the same approach for their own trips. The single-user, self-hosted shape is the design center — multi-user accounts, hosted plans, and integrations beyond the listed providers are explicit non-goals. Expect rough edges and `home.md`-heavy assumptions; PRs that respect the philosophy are welcome.
 
 ## Contributing
 
