@@ -5,8 +5,9 @@ import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
-import { getEffectiveConfig } from '$lib/server/config.js';
+import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { json } from '@sveltejs/kit';
 
 export const _promise = HAND_DEFAULTS.add;
 
@@ -14,6 +15,9 @@ export const _promise = HAND_DEFAULTS.add;
 // TODO: extract readSections() shared by lock/+server.js and trip/[slug]/chat/+server.js
 
 export async function POST({ request }) {
+  if (!getFeatureAvailability().homeMdReady) {
+    return json({ code: 'home_not_configured' }, { status: 412 });
+  }
   const NAME = getEffectiveConfig().assistantName;
   let destination = '';
   try {

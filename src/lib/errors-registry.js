@@ -83,6 +83,10 @@ export const ERROR_REGISTRY = {
     sentence: 'This action is already running for that trip. Wait for it to finish or cancel from the jobs drawer.',
     affordances: ['dismiss'],
   },
+  home_not_configured: {
+    sentence: 'home.md is not set up. Add your home base details before using AI features.',
+    affordances: ['dismiss'],
+  },
 };
 
 /**

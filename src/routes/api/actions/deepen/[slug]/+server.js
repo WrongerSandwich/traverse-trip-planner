@@ -29,7 +29,7 @@ import {
 } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
-import { getEffectiveConfig } from '$lib/server/config.js';
+import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
@@ -171,6 +171,9 @@ export function GET({ params }) {
 }
 
 export async function POST({ params }) {
+  if (!getFeatureAvailability().homeMdReady) {
+    return json({ code: 'home_not_configured' }, { status: 412 });
+  }
   const { slug } = params;
   const ideaPath = findIdeaFile(slug);
   if (!ideaPath) return new Response('Not found', { status: 404 });

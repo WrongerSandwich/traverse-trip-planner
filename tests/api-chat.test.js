@@ -22,6 +22,7 @@ vi.mock('$lib/server/config.js', () => ({
   getEffectiveConfig: () => ({
     features: { chat: { model: 'test-model' } },
   }),
+  getFeatureAvailability: () => ({ homeMdReady: true }),
 }));
 
 const VALID_MESSAGES = [{ role: 'user', content: 'What should I know about parking?' }];

@@ -118,7 +118,8 @@
   const canResearchSection = $derived(
     editMode &&
     stage === 'planning' &&
-    Boolean(data.features?.deepen)
+    Boolean(data.features?.deepen) &&
+    data.features?.homeMdReady !== false
   );
 
   // Mirror of src/routes/api/actions/deepen-section/.../+server.js _promise
@@ -650,7 +651,7 @@
     if (isCompleted) {
       // Activity group (completed trips only) — only render when at least one applies
       const activityItems = [];
-      if (!hasNotes && data.features?.retro) {
+      if (!hasNotes && data.features?.retro && data.features?.homeMdReady !== false) {
         activityItems.push({
           type: 'button',
           label: '📝 Add retro',
@@ -817,7 +818,7 @@
             <a href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Prepare brochure to enable editing</a>
           </p>
         </div>
-      {:else if isPlanning}
+      {:else if isPlanning && data.features?.homeMdReady !== false}
         <EmptyItineraryCTA
           onprepare={prepareBrochure}
           busy={brochureRunning}
@@ -880,7 +881,7 @@
         <div class="brochure-error-banner" role="alert">{brochureError}</div>
       {/if}
 
-      {#if editMode && data.brochureStale && !brochureRunning}
+      {#if editMode && data.brochureStale && !brochureRunning && data.features?.homeMdReady !== false}
         <div class="brochure-stale-notice">
           <span>Sections have changed — re-prepare?</span>
           <PromiseTooltip promise={BROCHURE_PROMISE}>
@@ -894,7 +895,7 @@
     </main>
   </div>
 
-  {#if !isCompleted && data.features?.chat}
+  {#if !isCompleted && data.features?.chat && data.features?.homeMdReady !== false}
     <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask {data.assistantName}">
       {#if chatOpen}
         ✕

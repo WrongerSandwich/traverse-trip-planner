@@ -470,49 +470,55 @@
           <span class="count-label">destination{data.trips.length !== 1 ? 's' : ''}</span>
         {/if}
       </div>
-      <PromiseTooltip promise={SEED_PROMISE}>
-        <button
-          class="seed-btn"
-          class:open={seedFormOpen}
-          class:seed-running={seedStatus === 'in_progress'}
-          onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
-          disabled={seedStatus === 'in_progress' || !data.features?.seed}
-          title={data.features?.seed ? null : 'No default model configured — edit your .env to enable this'}
-          aria-label={seedStatus === 'in_progress' ? 'Generating ideas…' : 'Add trips'}
-          aria-expanded={seedFormOpen}
-          aria-busy={seedStatus === 'in_progress'}
-        >
-          {#if seedStatus === 'in_progress'}
-            <span class="seed-spinner" aria-hidden="true"></span>
-          {:else}
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-          {/if}
-        </button>
-      </PromiseTooltip>
-      <PromiseTooltip promise={ADD_PROMISE}>
-        <button
-          class="seed-btn pin-btn"
-          class:open={pinFormOpen}
-          class:add-running={addStatus === 'in_progress'}
-          onclick={() => { if (addStatus !== 'in_progress') { pinFormOpen = !pinFormOpen; seedFormOpen = false; } }}
-          disabled={addStatus === 'in_progress' || !data.features?.add}
-          title={data.features?.add ? null : 'No default model configured — edit your .env to enable this'}
-          aria-label={addStatus === 'in_progress' ? 'Adding…' : 'Add destination'}
-          aria-expanded={pinFormOpen}
-          aria-busy={addStatus === 'in_progress'}
-        >
-          {#if addStatus === 'in_progress'}
-            <span class="seed-spinner" aria-hidden="true"></span>
-          {:else}
-            <svg width="12" height="15" viewBox="0 0 12 15" aria-hidden="true">
-              <path d="M6 0C3.24 0 1 2.24 1 5c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5z" fill="currentColor" opacity="0.85"/>
-              <circle cx="6" cy="5" r="1.8" fill="var(--surface-raised)"/>
-            </svg>
-          {/if}
-        </button>
-      </PromiseTooltip>
+      {#if data.features?.homeMdReady === false}
+        <a href="/settings" class="home-setup-cta" title="Set up your home base to enable AI features">
+          Set up home base
+        </a>
+      {:else}
+        <PromiseTooltip promise={SEED_PROMISE}>
+          <button
+            class="seed-btn"
+            class:open={seedFormOpen}
+            class:seed-running={seedStatus === 'in_progress'}
+            onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
+            disabled={seedStatus === 'in_progress' || !data.features?.seed}
+            title={data.features?.seed ? null : 'No default model configured — edit your .env to enable this'}
+            aria-label={seedStatus === 'in_progress' ? 'Generating ideas…' : 'Add trips'}
+            aria-expanded={seedFormOpen}
+            aria-busy={seedStatus === 'in_progress'}
+          >
+            {#if seedStatus === 'in_progress'}
+              <span class="seed-spinner" aria-hidden="true"></span>
+            {:else}
+              <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            {/if}
+          </button>
+        </PromiseTooltip>
+        <PromiseTooltip promise={ADD_PROMISE}>
+          <button
+            class="seed-btn pin-btn"
+            class:open={pinFormOpen}
+            class:add-running={addStatus === 'in_progress'}
+            onclick={() => { if (addStatus !== 'in_progress') { pinFormOpen = !pinFormOpen; seedFormOpen = false; } }}
+            disabled={addStatus === 'in_progress' || !data.features?.add}
+            title={data.features?.add ? null : 'No default model configured — edit your .env to enable this'}
+            aria-label={addStatus === 'in_progress' ? 'Adding…' : 'Add destination'}
+            aria-expanded={pinFormOpen}
+            aria-busy={addStatus === 'in_progress'}
+          >
+            {#if addStatus === 'in_progress'}
+              <span class="seed-spinner" aria-hidden="true"></span>
+            {:else}
+              <svg width="12" height="15" viewBox="0 0 12 15" aria-hidden="true">
+                <path d="M6 0C3.24 0 1 2.24 1 5c0 3.75 5 9 5 9s5-5.25 5-9c0-2.76-2.24-5-5-5z" fill="currentColor" opacity="0.85"/>
+                <circle cx="6" cy="5" r="1.8" fill="var(--surface-raised)"/>
+              </svg>
+            {/if}
+          </button>
+        </PromiseTooltip>
+      {/if}
     </div>
   </header>
 
@@ -883,6 +889,22 @@
   .pin-btn:hover:not(:disabled) { border-color: var(--sunset-600); color: var(--sunset-200); background: var(--sunset-800); }
   .pin-btn.open { background: var(--sunset-800); border-color: var(--sunset-600); color: var(--sunset-200); }
   .pin-btn.add-running { border-color: var(--sunset-600); opacity: 1; }
+
+  .home-setup-cta {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 6px;
+    border: 1px solid var(--forest-600);
+    color: var(--forest-200);
+    background: var(--forest-900);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .home-setup-cta:hover {
+    background: var(--forest-800);
+    border-color: var(--forest-400);
+    color: var(--forest-100);
+  }
 
   /* ── Seed prompt popover ── */
   .seed-backdrop {

@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
-import { getEffectiveConfig } from '$lib/server/config.js';
+import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { assertNotRunning, startJob, completeJob, failJob } from '$lib/server/jobs.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
@@ -64,6 +64,9 @@ function tokensFromUsage(usage) {
 }
 
 export async function POST({ params }) {
+  if (!getFeatureAvailability().homeMdReady) {
+    return json({ code: 'home_not_configured' }, { status: 412 });
+  }
   const { slug, section } = params;
 
   if (!VALID_SECTIONS.includes(section)) {
