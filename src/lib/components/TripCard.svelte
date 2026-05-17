@@ -55,7 +55,7 @@
         alt={trip.title || trip.destination}
         loading="lazy"
       />
-      <span class="badge">{status}</span>
+      <span class="badge" style="--stage-color: {color}">{status}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
       <div class="credit">
         <a href={trip._image.photographer_url} target="_blank" rel="noopener">{trip._image.photographer}</a> / Pexels
@@ -64,13 +64,13 @@
   {:else if Array.isArray(trip._coords)}
     <div class="thumb">
       <MiniMap coords={trip._coords} {color} />
-      <span class="badge">{status}</span>
+      <span class="badge" style="--stage-color: {color}">{status}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
     </div>
   {:else}
     <div class="thumb placeholder">
       <Logo variant="mono-dark" size={48} class="placeholder-mark" />
-      <span class="badge">{status}</span>
+      <span class="badge" style="--stage-color: {color}">{status}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
     </div>
   {/if}
@@ -194,7 +194,9 @@
   }
   .thumb.placeholder :global(.placeholder-mark) { opacity: 0.22; }
 
-  /* Badge as photo overlay — bottom-left */
+  /* Badge as photo overlay — bottom-left.
+     Left stripe carries the stage color so readers don't have to parse the
+     word to tell idea / planning / completed apart. */
   .badge {
     position: absolute;
     bottom: 0.6rem;
@@ -203,8 +205,9 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    padding: 0.18rem 0.5rem;
+    padding: 0.18rem 0.5rem 0.18rem 0.4rem;
     border-radius: 2px;
+    border-left: 3px solid var(--stage-color, var(--bone-100));
     background: rgba(31, 25, 14, 0.72);
     color: var(--bone-100);
     backdrop-filter: blur(4px);
