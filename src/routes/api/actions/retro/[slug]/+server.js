@@ -4,7 +4,7 @@ import { join } from 'path';
 import { ROOT, readHomeMd, getTripFiles, invalidateEnrichCache } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
-import { getEffectiveConfig } from '$lib/server/config.js';
+import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
 export const _promise = HAND_DEFAULTS['retro-questions'];
@@ -28,6 +28,9 @@ function tripContextDump(files) {
 
 // POST — generate trip-specific retro questions.
 export async function POST({ params }) {
+  if (!getFeatureAvailability().homeMdReady) {
+    return json({ code: 'home_not_configured' }, { status: 412 });
+  }
   const { slug } = params;
   const trip = loadCompletedTrip(slug);
   if (!trip) return new Response('Trip not in completed stage', { status: 404 });

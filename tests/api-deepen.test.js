@@ -62,6 +62,7 @@ vi.mock('$lib/server/config.js', () => ({
   getEffectiveConfig: () => ({
     features: { deepen: { provider: 'anthropic', model: 'claude-test' } },
   }),
+  getFeatureAvailability: () => ({ homeMdReady: true }),
 }));
 
 // --- jobs mock (standardized Ambient Background registry) ---

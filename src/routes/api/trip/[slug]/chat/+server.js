@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
-import { getEffectiveConfig } from '$lib/server/config.js';
+import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { TraverseError, AdapterError } from '$lib/server/errors.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
@@ -28,6 +28,9 @@ function parseReply(text) {
 }
 
 export async function POST({ params, request }) {
+  if (!getFeatureAvailability().homeMdReady) {
+    return json({ code: 'home_not_configured' }, { status: 412 });
+  }
   const { slug } = params;
   const trip = readPlanningTrip(slug);
   if (!trip) return new Response('Trip not in planning stage', { status: 404 });

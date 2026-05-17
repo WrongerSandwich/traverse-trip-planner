@@ -1,5 +1,7 @@
 import { readSettings, settingsToEnv } from './settings.js';
 import { PROVIDERS } from './providers.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 function env(envObj, name, fallback) {
   const v = envObj[name];
@@ -84,6 +86,40 @@ function searchOkIn(cfg, envObj) {
   return Boolean(envObj[keyName]);
 }
 
+/**
+ * Returns true iff home.md exists at the repo root, has a non-empty
+ * home_city field, and has a valid home_coords array (2 finite numbers).
+ * Used to gate AI features that require the traveler's home context.
+ */
+function isHomeMdReady() {
+  try {
+    const p = join(process.cwd(), 'home.md');
+    if (!existsSync(p)) return false;
+    const content = readFileSync(p, 'utf8');
+    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!match) return false;
+    const fm = {};
+    for (const line of match[1].split('\n')) {
+      const colon = line.indexOf(':');
+      if (colon < 1) continue;
+      const key = line.slice(0, colon).trim();
+      const raw = line.slice(colon + 1).trim();
+      fm[key] = raw.startsWith('[') && raw.endsWith(']')
+        ? raw.slice(1, -1).split(',').map(s => s.trim())
+        : raw;
+    }
+    if (!fm.home_city || typeof fm.home_city !== 'string' || !fm.home_city.trim()) return false;
+    const coords = Array.isArray(fm.home_coords)
+      ? fm.home_coords.map(Number)
+      : null;
+    if (!coords || coords.length !== 2) return false;
+    if (!isFinite(coords[0]) || !isFinite(coords[1])) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getFeatureAvailability() {
   const overlay = settingsToEnv(readSettings());
   const effectiveEnv = { ...process.env, ...overlay };
@@ -95,6 +131,7 @@ export function getFeatureAvailability() {
     result[feature] = feature === 'deepen' ? (ok && search) : ok;
   }
   result.share = Boolean(cfg.shareSecret);
+  result.homeMdReady = isHomeMdReady();
   return result;
 }
 

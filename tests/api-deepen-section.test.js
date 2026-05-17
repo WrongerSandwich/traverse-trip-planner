@@ -73,6 +73,7 @@ vi.mock('$lib/server/config.js', () => ({
   getEffectiveConfig: () => ({
     features: { deepen: { provider: 'anthropic', model: 'claude-test' } },
   }),
+  getFeatureAvailability: () => ({ homeMdReady: true }),
 }));
 
 // ── Imports under test ─────────────────────────────────────────────────────

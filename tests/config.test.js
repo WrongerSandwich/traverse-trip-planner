@@ -4,9 +4,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // readSettings() (used by getFeatureAvailability and getEffectiveConfig)
 // reads settings.json from the repo root, and a real one with provider keys
 // would flip feature flags on even though the test sets no env values.
+// existsSync returns false by default — home.md treated as absent (homeMdReady: false).
 vi.mock('node:fs', () => ({
   readFileSync: () => { throw new Error('ENOENT'); },
   writeFileSync: () => {},
+  existsSync: () => false,
 }));
 
 const TRAVERSE_KEYS = [
@@ -110,6 +112,7 @@ describe('getFeatureAvailability', () => {
     const { getFeatureAvailability } = await loadConfig();
     expect(getFeatureAvailability()).toEqual({
       seed: false, add: false, chat: false, retro: false, receipts: false, deepen: false, share: false,
+      homeMdReady: false,
     });
   });
 
@@ -117,6 +120,7 @@ describe('getFeatureAvailability', () => {
     const { getFeatureAvailability } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
     expect(getFeatureAvailability()).toEqual({
       seed: true, add: true, chat: true, retro: true, receipts: true, deepen: true, share: false,
+      homeMdReady: false,
     });
   });
 
@@ -264,5 +268,88 @@ describe('per-feature model overrides', () => {
     });
     const issues = validateConfig();
     expect(issues.some(i => i.includes('Feature chat') && i.includes('OPENAI_API_KEY'))).toBe(true);
+  });
+});
+
+describe('homeMdReady', () => {
+  const VALID_HOME_MD = `---
+home_city: Kansas City
+home_coords: [39.0997, -94.5786]
+---
+
+Some prose here.
+`;
+
+  // Helper that re-imports config.js with a custom fs mock for this test only.
+  async function loadConfigWithFs(fsMock, env = { ANTHROPIC_API_KEY: 'sk-ant-test' }) {
+    clearEnv();
+    for (const [k, v] of Object.entries(env)) process.env[k] = v;
+    vi.resetModules();
+    vi.doMock('node:fs', () => fsMock);
+    const mod = await import('../src/lib/server/config.js');
+    vi.doMock('node:fs', () => ({
+      readFileSync: () => { throw new Error('ENOENT'); },
+      writeFileSync: () => {},
+      existsSync: () => false,
+    }));
+    return mod;
+  }
+
+  it('returns homeMdReady: true for a valid home.md', async () => {
+    const { getFeatureAvailability } = await loadConfigWithFs({
+      existsSync: () => true,
+      readFileSync: () => VALID_HOME_MD,
+      writeFileSync: () => {},
+    });
+    expect(getFeatureAvailability().homeMdReady).toBe(true);
+  });
+
+  it('returns homeMdReady: false when home.md does not exist', async () => {
+    const { getFeatureAvailability } = await loadConfigWithFs({
+      existsSync: () => false,
+      readFileSync: () => { throw new Error('ENOENT'); },
+      writeFileSync: () => {},
+    });
+    expect(getFeatureAvailability().homeMdReady).toBe(false);
+  });
+
+  it('returns homeMdReady: false when home_city is missing', async () => {
+    const noCity = `---
+home_coords: [39.0997, -94.5786]
+---
+`;
+    const { getFeatureAvailability } = await loadConfigWithFs({
+      existsSync: () => true,
+      readFileSync: () => noCity,
+      writeFileSync: () => {},
+    });
+    expect(getFeatureAvailability().homeMdReady).toBe(false);
+  });
+
+  it('returns homeMdReady: false when home_coords is missing', async () => {
+    const noCoords = `---
+home_city: Kansas City
+---
+`;
+    const { getFeatureAvailability } = await loadConfigWithFs({
+      existsSync: () => true,
+      readFileSync: () => noCoords,
+      writeFileSync: () => {},
+    });
+    expect(getFeatureAvailability().homeMdReady).toBe(false);
+  });
+
+  it('returns homeMdReady: false when home_coords contains non-finite values', async () => {
+    const badCoords = `---
+home_city: Kansas City
+home_coords: [NaN, -94.5786]
+---
+`;
+    const { getFeatureAvailability } = await loadConfigWithFs({
+      existsSync: () => true,
+      readFileSync: () => badCoords,
+      writeFileSync: () => {},
+    });
+    expect(getFeatureAvailability().homeMdReady).toBe(false);
   });
 });
