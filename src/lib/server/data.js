@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, renameSync } from 'fs';
 import { join } from 'path';
+import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { resolveEnv } from './settings.js';
 import { TraverseError } from './errors.js';
 
@@ -279,6 +280,112 @@ export function readHomeMd() {
     throw new Error('home.md not found — copy home.example.md to home.md and fill in your details.');
   }
   return readFileSync(p, 'utf8');
+}
+
+/**
+ * Split markdown body text into a preamble and named sections.
+ * Preamble is everything before the first `## ` heading.
+ * Exported so it can be unit-tested independently.
+ *
+ * @param {string} body - Markdown text with frontmatter already stripped.
+ * @returns {{ preamble: string, sections: Array<{ heading: string, body: string }> }}
+ */
+export function splitHomeBody(body) {
+  const lines = body.split('\n');
+  const sections = [];
+  let preambleLines = [];
+  let current = null;
+
+  for (const line of lines) {
+    if (line.startsWith('## ')) {
+      if (current !== null) {
+        sections.push({ heading: current.heading, body: current.lines.join('\n').trim() });
+      } else {
+        preambleLines = preambleLines; // nothing to finalize — just fall through
+      }
+      current = { heading: line.slice(3).trim(), lines: [] };
+    } else if (current === null) {
+      preambleLines.push(line);
+    } else {
+      current.lines.push(line);
+    }
+  }
+  if (current !== null) {
+    sections.push({ heading: current.heading, body: current.lines.join('\n').trim() });
+  }
+
+  return { preamble: preambleLines.join('\n').trim(), sections };
+}
+
+/**
+ * Parse home.md into a structured object.
+ *
+ * Uses the `yaml` package (eemeli/yaml v2) for the frontmatter block, which
+ * preserves nested objects, arrays, numbers, and booleans as their native types.
+ * (The simpler `parseFrontmatter` used for trip files stays as-is — trip
+ * frontmatter is flat and the line-by-line parser is fine for it.)
+ *
+ * @returns {{ frontmatter: object, prose: { preamble: string, sections: Array<{heading, body}> } } | null}
+ */
+export function parseHomeMd() {
+  const p = join(ROOT, 'home.md');
+  if (!existsSync(p)) return null;
+
+  const content = readFileSync(p, 'utf8');
+  const fenceMatch = content.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!fenceMatch) return null;
+
+  let frontmatter;
+  try {
+    frontmatter = yamlParse(fenceMatch[1]) || {};
+  } catch (err) {
+    throw new Error(`home.md YAML parse failed: ${err.message}`);
+  }
+  const bodyStart = fenceMatch[0].length;
+  const body = content.slice(bodyStart);
+  const prose = splitHomeBody(body);
+
+  return { frontmatter, prose };
+}
+
+/**
+ * Serialize a frontmatter object to a YAML block (no `---` fences).
+ *
+ * Uses the `yaml` package with options chosen to match the existing
+ * `home.md` file style: predictable line-by-line output, no auto-wrapping,
+ * preserved key insertion order, native types for numbers/booleans.
+ *
+ * @param {object} obj
+ * @returns {string} YAML block (no fences, no trailing newline)
+ */
+export function serializeFrontmatter(obj) {
+  return yamlStringify(obj, {
+    lineWidth: 0,                 // never line-wrap
+    defaultStringType: 'PLAIN',   // bare strings where possible
+    blockQuote: 'literal',
+    sortMapEntries: false,        // preserve insertion order
+  }).trimEnd();
+}
+
+/**
+ * Write home.md atomically from a structured payload.
+ * Reconstructs `---\nYAML\n---\n\nbody\n` on disk.
+ *
+ * @param {{ frontmatter: object, prose: { preamble: string, sections: Array<{heading, body}> } }} payload
+ */
+export function writeHomeMd({ frontmatter, prose }) {
+  const yamlBlock = serializeFrontmatter(frontmatter);
+  const { preamble, sections } = prose;
+  const sectionText = sections
+    .map(({ heading, body }) => `## ${heading}\n\n${body}`)
+    .join('\n\n');
+  const bodyParts = [preamble, sectionText].filter(Boolean);
+  const body = bodyParts.join('\n\n');
+  const final = `---\n${yamlBlock}\n---\n\n${body}\n`;
+
+  const p = join(ROOT, 'home.md');
+  writeFileSync(p, final);
+  invalidateEnrichCache();
 }
 
 export function getHome() {
