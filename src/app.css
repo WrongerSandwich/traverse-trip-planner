@@ -182,8 +182,10 @@
   /* Focus — slightly lighter sunset for visibility against dark UI */
   --focus-ring: #E0884F;
 
-  /* Map tile placeholder bg — dark counterpart */
-  --map-tile-bg: #1A1A1A;
+  /* --map-tile-bg is intentionally NOT overridden in dark mode — Leaflet
+     maps always use light-mode OSM tiles (we don't ship a dark tile
+     provider to avoid hidden third-party dependencies and attribution
+     burden), so the placeholder bg behind the tiles stays light. */
 
   /* RGB triple matching the dark --surface-raised */
   --surface-raised-rgb: 30, 44, 36;
