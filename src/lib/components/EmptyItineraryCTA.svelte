@@ -63,7 +63,7 @@
     gap: 0.65rem;
     padding: 2rem 1.5rem;
     background: var(--surface-raised);
-    border: 1px solid var(--bone-200);
+    border: 1px solid var(--border-subtle);
     border-radius: 6px;
   }
 

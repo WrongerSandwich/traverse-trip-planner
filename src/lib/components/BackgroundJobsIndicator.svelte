@@ -333,25 +333,25 @@
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
   }
   .pill.running {
-    background: var(--sunset-100);
-    color: var(--sunset-900);
-    border-color: var(--sunset-200);
+    background: var(--state-warning-surface);
+    color: var(--state-warning);
+    border-color: var(--state-warning);
   }
   .pill.failed {
-    background: #fbe3df;
-    color: #6e1d11;
-    border-color: var(--embers-600);
+    background: var(--state-danger-surface);
+    color: var(--state-danger);
+    border-color: var(--state-danger);
   }
   .pill .dot {
     width: 8px; height: 8px; border-radius: 50%;
     display: inline-block;
   }
   .pill.running .dot {
-    background: var(--sunset-600);
+    background: var(--state-warning);
     animation: pulse 1.2s ease-in-out infinite;
   }
   .pill.failed .dot {
-    background: var(--embers-600);
+    background: var(--state-danger);
   }
   @keyframes pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
@@ -361,8 +361,8 @@
   /* ── Drawer ────────────────────────────────────────────────────────────── */
   .drawer {
     width: min(360px, calc(100vw - 1.8rem));
-    background: var(--surface-raised, #fff);
-    color: var(--text-primary, #112619);
+    background: var(--surface-overlay);
+    color: var(--text-primary);
     border-radius: 10px;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
     overflow: hidden;
@@ -373,8 +373,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.65rem 0.85rem;
-    background: var(--forest-50, #E6EFE9);
-    color: var(--forest-900, #112619);
+    background: var(--state-success-surface);
+    color: var(--text-primary);
     font-size: 0.82rem;
     font-weight: 500;
   }
@@ -389,7 +389,7 @@
   }
   .drawer-empty {
     padding: 0.95rem 1rem;
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
     font-size: 0.82rem;
   }
   .job-list {
@@ -405,23 +405,23 @@
     border-top: 1px solid rgba(0, 0, 0, 0.06);
   }
   .job-row:first-child { border-top: none; }
-  .job-row.failed { background: #fdf3f1; }
+  .job-row.failed { background: var(--state-danger-surface); }
   .job-row-main { flex: 1; min-width: 0; }
   .job-title {
     font-size: 0.86rem;
     font-weight: 500;
-    color: var(--text-primary, #112619);
+    color: var(--text-primary);
   }
   .workflow-name {
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
     font-weight: 400;
   }
   .job-meta {
     margin-top: 0.18rem;
     font-size: 0.74rem;
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
   }
-  .failure-sentence { color: #6e1d11; }
+  .failure-sentence { color: var(--state-danger); }
   .meta-sep { margin: 0 0.3rem; }
   .job-actions {
     display: flex;
@@ -457,16 +457,16 @@
     gap: 0.55rem;
     padding: 0.5rem 0.6rem 0.5rem 0.7rem;
     border-radius: 8px;
-    background: var(--surface-raised, #fff);
-    color: var(--text-primary, #112619);
+    background: var(--surface-overlay);
+    color: var(--text-primary);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
     font-size: 0.78rem;
     min-width: 220px;
     max-width: min(360px, calc(100vw - 1.8rem));
   }
-  .toast.success { border-left: 3px solid var(--forest-400, #4D8067); }
+  .toast.success { border-left: 3px solid var(--state-success); }
   .toast-icon {
-    color: var(--forest-600);
+    color: var(--state-success);
     font-weight: 600;
   }
   .toast-body {
@@ -477,7 +477,7 @@
   }
   .toast-title { font-weight: 500; }
   .toast-sub {
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
     font-size: 0.72rem;
     white-space: nowrap;
     overflow: hidden;
@@ -502,7 +502,7 @@
   .toast-dismiss {
     background: none;
     border: none;
-    color: var(--text-secondary, #777);
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 0.9rem;
     line-height: 1;

@@ -109,7 +109,7 @@
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     width: min(420px, calc(100vw - 2rem));
-    background: var(--surface-raised);
+    background: var(--surface-overlay);
     color: var(--text-primary);
     border-radius: 10px;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
@@ -127,10 +127,10 @@
     font-size: 1.1rem;
     font-weight: 500;
     margin: 0 0 0.35rem;
-    color: var(--forest-800);
+    color: var(--text-primary);
     line-height: 1.3;
   }
-  .modal-title.danger { color: var(--sunset-800); }
+  .modal-title.danger { color: var(--state-danger); }
 
   .modal-desc {
     font-size: 0.87rem;

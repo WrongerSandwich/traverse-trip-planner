@@ -51,7 +51,7 @@
     font-weight: 600;
     margin: 0 0 0.75rem;
     padding-bottom: 0.35rem;
-    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    border-bottom: 1px solid var(--border-subtle);
   }
 
   .day-period {
@@ -67,7 +67,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--color-muted, #64748b);
+    color: var(--text-secondary);
     margin: 0 0 0.4rem;
   }
 
@@ -84,11 +84,11 @@
 
   .item-time {
     font-variant-numeric: tabular-nums;
-    color: var(--color-muted, #64748b);
+    color: var(--text-tertiary);
     font-size: 0.875rem;
   }
 
   .item-sep {
-    color: var(--color-muted, #64748b);
+    color: var(--text-tertiary);
   }
 </style>

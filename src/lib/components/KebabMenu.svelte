@@ -125,8 +125,8 @@
 
   .kebab-trigger {
     background: none;
-    border: 1.5px solid var(--forest-600);
-    color: var(--bone-400);
+    border: 1.5px solid var(--border-default);
+    color: var(--text-secondary);
     padding: 0.35rem 0.65rem;
     border-radius: 4px;
     cursor: pointer;
@@ -143,15 +143,15 @@
   }
 
   .kebab-trigger:hover {
-    background: var(--forest-800);
-    border-color: var(--forest-400);
-    color: var(--bone-100);
+    background: var(--surface-raised);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
   }
 
   .kebab-trigger[aria-expanded="true"] {
-    background: var(--forest-800);
-    border-color: var(--forest-400);
-    color: var(--bone-100);
+    background: var(--surface-raised);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
   }
 
   .kebab-panel {
@@ -159,8 +159,8 @@
     top: calc(100% + 6px);
     right: 0;
     min-width: 200px;
-    background: var(--surface-raised);
-    border: 1px solid var(--bone-400);
+    background: var(--surface-overlay);
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
     z-index: 800;
@@ -171,7 +171,7 @@
 
   .kebab-divider {
     height: 1px;
-    background: var(--bone-200);
+    background: var(--border-subtle);
     margin: 0.3rem 0;
   }
 
@@ -203,7 +203,7 @@
   }
 
   .kebab-item:hover:not(:disabled) {
-    background: var(--bone-100);
+    background: var(--surface-raised);
     color: var(--text-primary);
   }
 
@@ -213,12 +213,12 @@
   }
 
   .kebab-item.danger {
-    color: var(--embers-600);
+    color: var(--state-danger);
   }
 
   .kebab-item.danger:hover:not(:disabled) {
-    background: var(--sunset-50);
-    color: var(--embers-600);
+    background: var(--state-danger-surface);
+    color: var(--state-danger);
   }
 
   .kebab-text {

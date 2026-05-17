@@ -130,20 +130,20 @@
   }
   .ambient[data-layout="toast"] {
     padding: 0.6rem 0.8rem;
-    background: var(--surface-raised);
+    background: var(--surface-overlay);
     border-radius: 6px;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-    border-left: 4px solid var(--bone-400);
+    border-left: 4px solid var(--border-default);
     min-width: 16rem;
     max-width: 24rem;
   }
-  .ambient[data-layout="toast"][data-tone="success"] { border-left-color: var(--forest-600); }
-  .ambient[data-layout="toast"][data-tone="failure"] { border-left-color: var(--embers-600); }
-  .ambient[data-layout="toast"][data-tone="cancelled"] { border-left-color: var(--bark-600); }
+  .ambient[data-layout="toast"][data-tone="success"] { border-left-color: var(--state-success); }
+  .ambient[data-layout="toast"][data-tone="failure"] { border-left-color: var(--state-danger); }
+  .ambient[data-layout="toast"][data-tone="cancelled"] { border-left-color: var(--border-strong); }
 
   .ambient[data-layout="row"] {
     padding: 0.6rem 0.7rem;
-    border-bottom: 1px solid var(--bone-200);
+    border-bottom: 1px solid var(--border-subtle);
   }
 
   .ambient-main {
@@ -178,12 +178,12 @@
   .ambient[data-layout="badge"] .ambient-body { flex-direction: row; gap: 0.3rem; }
 
   .ambient-icon { flex-shrink: 0; display: inline-flex; align-items: center; }
-  .ambient[data-tone="success"] .ambient-icon { color: var(--forest-600); }
-  .ambient[data-tone="failure"] .ambient-icon { color: var(--embers-600); }
+  .ambient[data-tone="success"] .ambient-icon { color: var(--state-success); }
+  .ambient[data-tone="failure"] .ambient-icon { color: var(--state-danger); }
 
   .row-cancel, .row-open {
     background: var(--surface-raised);
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     color: var(--text-primary);
     font-family: var(--font-sans);
     font-size: 0.72rem;
@@ -193,19 +193,19 @@
     cursor: pointer;
     transition: background 0.12s;
   }
-  .row-cancel:hover, .row-open:hover { background: var(--bone-100); }
+  .row-cancel:hover, .row-open:hover { background: var(--surface-sunken); }
   .row-open {
-    background: var(--forest-600);
-    color: var(--text-inverse, #fff);
-    border-color: var(--forest-800);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
+    border-color: var(--border-default);
   }
-  .row-open:hover { background: var(--forest-800); }
+  .row-open:hover { background: var(--surface-raised); }
 
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner {
     width: 10px; height: 10px;
-    border: 1.5px solid var(--bone-400);
-    border-top-color: var(--sunset-600);
+    border: 1.5px solid var(--border-default);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     display: inline-block;

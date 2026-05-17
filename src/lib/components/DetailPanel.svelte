@@ -169,7 +169,7 @@
     height: 240px;
     flex-shrink: 0;
     overflow: hidden;
-    background: var(--bone-400);
+    background: var(--border-default);
   }
   .hero img {
     width: 100%; height: 100%;
@@ -219,7 +219,7 @@
     padding: 0.15rem 0.45rem;
     border-radius: 2px;
   }
-  .hero-mode.drive { background: var(--forest-100); color: var(--forest-800); }
+  .hero-mode.drive { background: var(--surface-raised); color: var(--text-primary); }
 
   .hero-nps {
     position: absolute;
@@ -266,9 +266,9 @@
     background: none; border: none; cursor: pointer; line-height: 1;
     padding: 0.3rem; border-radius: 3px;
     transition: background 0.12s, color 0.12s;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
   }
-  .close.dark:hover  { color: var(--text-inverse); background: rgba(255, 255, 255, 0.08); }
+  .close.dark:hover  { color: var(--text-primary); background: rgba(255, 255, 255, 0.08); }
 
   /* ── Dark fallback header (no photo) ── */
   .header-dark {
@@ -283,23 +283,23 @@
     display: inline-block;
     font-size: 0.6rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     margin-bottom: 0.35rem;
   }
   .header-dark h2 {
     font-family: var(--font-serif);
     font-size: 1.4rem; font-weight: 500; line-height: 1.2;
-    color: var(--text-inverse); letter-spacing: 0.005em;
+    color: var(--text-primary); letter-spacing: 0.005em;
     margin: 0;
   }
-  .dark-dest { font-size: 0.78rem; color: var(--bone-600); margin-top: 0.3rem; }
+  .dark-dest { font-size: 0.78rem; color: var(--text-tertiary); margin-top: 0.3rem; }
 
   /* ── Map ── */
-  .panel-map { height: 140px; flex-shrink: 0; background: var(--bone-400); }
+  .panel-map { height: 140px; flex-shrink: 0; background: var(--border-default); }
 
   /* ── Tabs ── */
   .tabs {
-    display: flex; border-bottom: 1px solid var(--bone-200);
+    display: flex; border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0; overflow-x: auto;
     background: var(--surface-raised);
   }
@@ -311,7 +311,7 @@
     font-family: var(--font-sans);
   }
   .tab:hover { color: var(--text-primary); }
-  .tab.active { color: var(--forest-800); border-bottom-color: var(--forest-800); font-weight: 600; }
+  .tab.active { color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 600; }
 
   /* ── Body ── */
   .body { flex: 1; overflow-y: auto; padding: 1.5rem 1.75rem 3rem; }
@@ -329,7 +329,7 @@
   .danger-zone {
     margin-top: 2.25rem;
     padding-top: 1.1rem;
-    border-top: 1px dashed var(--bone-400);
+    border-top: 1px dashed var(--border-default);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -352,13 +352,13 @@
   .prose :global(ul), .prose :global(ol) { margin: 0 0 0.9rem 1.3rem; }
   .prose :global(li) { margin-bottom: 0.35rem; }
   .prose :global(strong) { font-weight: 700; color: var(--text-primary); }
-  .prose :global(a) { color: var(--forest-600); text-decoration: none; }
+  .prose :global(a) { color: var(--accent-text); text-decoration: none; }
   .prose :global(a:hover) { text-decoration: underline; }
-  .prose :global(hr) { border: none; border-top: 1px solid var(--bone-200); margin: 1.5rem 0; }
-  .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--forest-50); color: var(--forest-800); padding: 0.1em 0.4em; border-radius: 3px; }
+  .prose :global(hr) { border: none; border-top: 1px solid var(--border-subtle); margin: 1.5rem 0; }
+  .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--surface-sunken); color: var(--text-primary); padding: 0.1em 0.4em; border-radius: 3px; }
   .prose :global(table) { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin: 0 0 1.1rem; }
-  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.45rem 0.65rem; border-bottom: 2px solid var(--bone-400); color: var(--text-primary); }
-  .prose :global(td) { padding: 0.4rem 0.65rem; border-bottom: 1px solid var(--bone-200); vertical-align: top; }
+  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.45rem 0.65rem; border-bottom: 2px solid var(--border-default); color: var(--text-primary); }
+  .prose :global(td) { padding: 0.4rem 0.65rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
   .prose :global(tr:last-child td) { border-bottom: none; }
 
   @media (max-width: 768px) {

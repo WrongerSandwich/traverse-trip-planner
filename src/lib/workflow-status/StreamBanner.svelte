@@ -113,25 +113,25 @@
     gap: 0.55rem;
     padding: 0.7rem 0.9rem;
     border-radius: 6px;
-    border: 1px solid var(--bone-400);
+    border: 1px solid var(--border-default);
     background: var(--surface-raised);
     font-family: var(--font-sans);
   }
   .banner[data-tone="progress"] {
-    border-left: 4px solid var(--sunset-600);
-    background: var(--sunset-50, #fff8f0);
+    border-left: 4px solid var(--accent);
+    background: var(--state-warning-surface);
   }
   .banner[data-tone="success"] {
-    border-left: 4px solid var(--forest-600);
-    background: var(--forest-50, #f0f8f2);
+    border-left: 4px solid var(--state-success);
+    background: var(--state-success-surface);
   }
   .banner[data-tone="failure"] {
-    border-left: 4px solid var(--embers-600);
-    background: var(--sunset-50, #fff4ed);
+    border-left: 4px solid var(--state-danger);
+    background: var(--state-danger-surface);
   }
   .banner[data-tone="cancelled"] {
-    border-left: 4px solid var(--bark-600);
-    background: var(--bone-100);
+    border-left: 4px solid var(--border-strong);
+    background: var(--surface-sunken);
   }
 
   .banner-main {
@@ -167,13 +167,13 @@
     font-size: 0.9rem;
     flex-shrink: 0;
   }
-  .banner[data-tone="success"] .banner-icon { color: var(--forest-600); }
-  .banner[data-tone="failure"] .banner-icon { color: var(--embers-600); }
-  .banner[data-tone="cancelled"] .banner-icon { color: var(--bark-600); }
+  .banner[data-tone="success"] .banner-icon { color: var(--state-success); }
+  .banner[data-tone="failure"] .banner-icon { color: var(--state-danger); }
+  .banner[data-tone="cancelled"] .banner-icon { color: var(--text-secondary); }
 
   .cancel-btn {
     background: var(--surface-raised);
-    border: 1px solid var(--bark-600);
+    border: 1px solid var(--border-default);
     color: var(--text-primary);
     font-family: var(--font-sans);
     font-size: 0.75rem;
@@ -183,13 +183,13 @@
     cursor: pointer;
     transition: background 0.12s, color 0.12s;
   }
-  .cancel-btn:hover { background: var(--bone-100); }
+  .cancel-btn:hover { background: var(--surface-sunken); }
 
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner {
     width: 12px; height: 12px;
-    border: 1.5px solid var(--bone-400);
-    border-top-color: var(--sunset-600);
+    border: 1.5px solid var(--border-default);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     display: inline-block;
