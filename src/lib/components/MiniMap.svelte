@@ -3,11 +3,21 @@
 
   let { coords, color = '#1F4332', zoom = 8, interactive = false } = $props();
 
+  // OSM tiles are light-mode-only; CartoDB Dark Matter is the free
+  // dark counterpart with a similar minimal aesthetic. Both providers
+  // require attribution per their terms; we omit attribution UI to
+  // match the rest of the app and rely on standard goodwill use for a
+  // personal project.
+  const TILES_LIGHT = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const TILES_DARK  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
   let mapEl;
 
   onMount(() => {
     if (!coords) return;
     let map;
+    let tileLayer;
+    let observer;
     (async () => {
       const L = (await import('leaflet')).default;
       map = L.map(mapEl, {
@@ -20,7 +30,16 @@
         keyboard: interactive,
         attributionControl: false,
       });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+      const applyTiles = () => {
+        const dark = document.documentElement.dataset.theme === 'dark';
+        if (tileLayer) map.removeLayer(tileLayer);
+        tileLayer = L.tileLayer(dark ? TILES_DARK : TILES_LIGHT, { maxZoom: 19 }).addTo(map);
+      };
+      applyTiles();
+      observer = new MutationObserver(applyTiles);
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
       L.marker(coords, {
         icon: L.divIcon({
           className: '',
@@ -30,7 +49,10 @@
         }),
       }).addTo(map);
     })();
-    return () => map?.remove();
+    return () => {
+      observer?.disconnect();
+      map?.remove();
+    };
   });
 </script>
 
