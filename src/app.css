@@ -160,6 +160,14 @@
 
   /* RGB triples for use in rgba() gradients that fade to a surface color */
   --surface-raised-rgb: 34, 28, 20; /* matches --bone-100 / --surface-raised in dark */
+
+  /* On-brand semantic overrides — the bone family reads too "browny" as a
+     page bg in dark mode; lean into forest. Header (surface-invert) uses
+     a mid-dark forest rather than the cascade-flipped forest-800 so it
+     stays recognizably brand-forest, with cream text-inverse on top. */
+  --surface-page:   #0F1B14;
+  --surface-invert: var(--forest-200);
+  --text-inverse:   var(--bone-800);
 }
 
 body {
