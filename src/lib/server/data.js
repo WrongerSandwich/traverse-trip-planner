@@ -145,6 +145,25 @@ export async function fetchImage(query) {
   }
 }
 
+// Apply a frontmatter `image_pick` to a Pexels result. Returns the same
+// shape as `fetchImage()` with `photos` reordered so the picked photo
+// sits at index 0, and the top-level medium/large/photographer fields
+// point at the picked photo. This keeps brochure atmosphere slots
+// (photos[1], photos[2]) from accidentally showing the new cover.
+//
+// Frontmatter values arrive as strings, so accept either; clamp to a
+// valid index, and short-circuit on the trivial cases.
+export function applyImagePick(image, pick) {
+  if (!image) return null;
+  const photos = image.photos;
+  if (!Array.isArray(photos) || photos.length < 2) return image;
+  const raw = typeof pick === 'string' ? Number(pick) : pick;
+  if (!Number.isInteger(raw) || raw <= 0) return image;
+  const idx = Math.min(raw, photos.length - 1);
+  const reordered = [photos[idx], ...photos.slice(0, idx), ...photos.slice(idx + 1)];
+  return { ...reordered[0], photos: reordered };
+}
+
 // ── OSRM road routing ──
 function routeCacheKey(geocodedCoords) {
   return geocodedCoords.map(c => c.join(',')).join(';');
