@@ -11,7 +11,7 @@
   {#each flatDays as day}
     <div class="brochure-day">
       <h2 class="day-heading">
-        Day {day.n}{day.theme ? ` — ${day.theme}` : ''}
+        Day {day.n}{day.theme ? `: ${day.theme}` : ''}
       </h2>
       {#each day.periods as period}
         <div class="day-period">
@@ -21,7 +21,7 @@
               <li class="period-item">
                 {#if item.time}
                   <span class="item-time">{item.time}</span>
-                  <span class="item-sep"> — </span>
+                  <span class="item-sep"> · </span>
                 {/if}
                 <span class="item-activity">{item.activity}</span>
               </li>

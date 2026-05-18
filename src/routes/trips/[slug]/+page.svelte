@@ -3,7 +3,7 @@
   import { untrack } from 'svelte';
   import { invalidateAll, goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import MiniMap from '$lib/components/MiniMap.svelte';
+  import TripDetailMap from '$lib/components/TripDetailMap.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import RetroModal from '$lib/components/RetroModal.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
@@ -118,12 +118,13 @@
 
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
 
-  // Show the "Research this section →" button only when the feature is enabled,
-  // the trip is in planning, the section is a researchable type, and Edit mode
-  // is active.
+  // Show the "Research this section →" button when the feature is enabled,
+  // the trip is in planning, and the section is a researchable type. Not
+  // gated to Edit mode: researching a section produces content; it isn't
+  // an authoring affordance, so a casual reader who notices an empty
+  // section should still have a path forward.
   const RESEARCHABLE = new Set(['route', 'stops', 'logistics']);
   const canResearchSection = $derived(
-    editMode &&
     stage === 'planning' &&
     Boolean(data.features?.deepen) &&
     data.features?.homeMdReady !== false
@@ -150,6 +151,13 @@
 
   let deepenSectionError = $state(/** @type {string|null} */ (null));
 
+  // Generic action-error banner for handlers that don't own a per-section
+  // surface (section save, mark completed, share enable/disable, archive).
+  // Shape: { code: string, ctx?: object } or null. Routes through
+  // failureSentence() per the project convention (no inline catch strings).
+  let actionError = $state(/** @type {null | {code: string, ctx?: object}} */ (null));
+  function dismissActionError() { actionError = null; }
+
   async function researchSection(section) {
     if (deepenSectionRunning) return;
     const ok = await showConfirm({
@@ -165,7 +173,7 @@
         { method: 'POST' },
       );
       if (res.status === 409) {
-        deepenSectionError = 'Already researching a section for this trip — see the jobs indicator at the top of the page.';
+        deepenSectionError = 'Already researching a section for this trip. See the jobs indicator at the top of the page.';
         return;
       }
       if (!res.ok && res.status !== 202) {
@@ -211,7 +219,8 @@
       editing[section] = false;
       delete drafts[section];
     } catch (err) {
-      alert(`Couldn't save those edits — ${err.message}`);
+      console.error(err);
+      actionError = { code: 'save_failed' };
     } finally {
       saving[section] = false;
     }
@@ -355,7 +364,7 @@
       await goto(`/trips/${encodeURIComponent(trip._slug)}?just-completed=1`, { invalidateAll: true });
     } catch (err) {
       console.error(err);
-      alert("Couldn't mark the trip as completed. The server log may have more detail.");
+      actionError = { code: 'action_failed', ctx: { action: 'mark the trip as completed' } };
     } finally {
       completing = false;
     }
@@ -484,7 +493,7 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert("Couldn't enable sharing. The server log may have more detail.");
+      actionError = { code: 'action_failed', ctx: { action: 'enable sharing' } };
     } finally {
       shareBusy = false;
     }
@@ -507,7 +516,7 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert("Couldn't disable sharing. The server log may have more detail.");
+      actionError = { code: 'action_failed', ctx: { action: 'disable sharing' } };
     } finally {
       shareBusy = false;
     }
@@ -538,7 +547,7 @@
   // before the server-load round-trip completes.
   const BROCHURE_FALLBACK = {
     verb: 'Prepare brochure',
-    produces: 'A structured brochure draft — stops with map pins, lodging, field guide notes, and gotchas — ready to review before saving.',
+    produces: 'A structured brochure draft (stops with map pins, lodging, field guide notes, gotchas), ready to review before saving.',
     time_seconds: 45,
     tokens_range: [2000, 5000],
   };
@@ -566,7 +575,7 @@
     try {
       const res = await fetch(`/api/brochure/prepare/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (res.status === 409) {
-        brochureError = 'Already preparing this brochure — see the jobs indicator at the top of the page.';
+        brochureError = 'Already preparing this brochure. See the jobs indicator at the top of the page.';
         return;
       }
       if (!res.ok && res.status !== 202) {
@@ -604,7 +613,7 @@
       await goto('/', { invalidateAll: true });
     } catch (err) {
       console.error(err);
-      alert("Couldn't archive that one. The server log may have more detail.");
+      actionError = { code: 'action_failed', ctx: { action: 'archive this trip' } };
     }
   }
 
@@ -702,7 +711,7 @@
 </script>
 
 <svelte:head>
-  <title>{trip?.title || trip?._slug} — Traverse</title>
+  <title>{trip?.title || trip?._slug} · Traverse</title>
 </svelte:head>
 
 <div class="page">
@@ -801,8 +810,14 @@
       {/if}
 
       {#if Array.isArray(trip?._coords)}
-        <div class="map-strip">
-          <MiniMap coords={trip._coords} color={markerColor} zoom={9} interactive={true} />
+        <div class="map-section">
+          <TripDetailMap
+            {trip}
+            home={data.home?.coords}
+            stops={data.brochureData?.stops}
+            color={markerColor}
+            interactive={true}
+          />
         </div>
       {/if}
 
@@ -854,7 +869,7 @@
                     class="btn btn-secondary btn-compact"
                     onclick={() => researchSection(section)}
                     disabled={deepenSectionRunning}
-                    title={deepenSectionRunning ? 'Already running — see indicator' : undefined}
+                    title={deepenSectionRunning ? 'Already running; see indicator' : undefined}
                   >
                     {deepenSectionRunning ? 'Researching…' : 'Research this section →'}
                   </button>
@@ -890,9 +905,19 @@
         <div class="brochure-error-banner" role="alert">{brochureError}</div>
       {/if}
 
-      {#if editMode && data.brochureStale && !brochureRunning && data.features?.homeMdReady !== false}
+      {#if actionError}
+        <div class="action-error-banner" role="alert" aria-live="polite">
+          <span class="action-error-text">{failureSentence(actionError.code, actionError.ctx ?? {})}</span>
+          <button class="action-error-dismiss" onclick={dismissActionError} aria-label="Dismiss">Dismiss</button>
+        </div>
+      {/if}
+
+      <!-- Brochure-stale notice is no longer Edit-mode-gated; staleness is a
+           correctness signal for any reader, and the Re-prepare action is a
+           content-producing workflow rather than authoring. -->
+      {#if data.brochureStale && !brochureRunning && data.features?.homeMdReady !== false}
         <div class="brochure-stale-notice">
-          <span>Sections have changed — re-prepare?</span>
+          <span>Sections have changed. Re-prepare?</span>
           <PromiseTooltip promise={BROCHURE_PROMISE}>
             <button
               class="btn btn-secondary btn-compact"
@@ -965,7 +990,7 @@
               <li>"Trim the route down to one direct option."</li>
               <li>"Suggest a vegetarian-friendly dinner spot in Atchison."</li>
             </ul>
-            <p class="hint">I can edit your section files directly — changes apply on save.</p>
+            <p class="hint">I can edit your section files directly. Changes apply on save.</p>
           </div>
         </div>
       {:else}
@@ -1054,7 +1079,8 @@
     background: none;
     border: 1.5px solid var(--forest-600);
     color: var(--bone-200);
-    padding: 0.35rem 0.75rem;
+    padding: 0.45rem 0.85rem;
+    min-height: var(--tap-min);
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.78rem;
@@ -1067,25 +1093,28 @@
     border-color: var(--forest-400);
     color: var(--bone-100);
   }
+  /* Active state uses the project sunset palette (the amber tokens these
+     CSS lines previously referenced don't exist in app.css, so the page
+     was stuck on the hex fallbacks regardless of theme). */
   .edit-mode-toggle.active {
-    background: var(--amber-50, #fffbeb);
-    border-color: var(--amber-300, #fcd34d);
-    color: var(--amber-800, #92400e);
+    background: var(--sunset-50);
+    border-color: var(--sunset-200);
+    color: var(--sunset-800);
   }
   .edit-mode-toggle.active:hover {
-    background: var(--amber-100, #fef3c7);
-    border-color: var(--amber-400, #f59e0b);
-    color: var(--amber-900, #78350f);
+    background: var(--sunset-100);
+    border-color: var(--sunset-400);
+    color: var(--sunset-900);
   }
 
   /* ── Editing banner ── */
   .editing-banner {
     padding: 0.55rem 0.95rem;
-    background: var(--amber-50, #fffbeb);
-    border: 1px solid var(--amber-300, #fcd34d);
+    background: var(--sunset-50);
+    border: 1px solid var(--sunset-200);
     border-radius: 4px;
     font-size: 0.82rem;
-    color: var(--amber-800, #92400e);
+    color: var(--sunset-800);
     line-height: 1.45;
   }
 
@@ -1120,7 +1149,7 @@
 
   .page > header h1 {
     font-family: var(--font-serif);
-    font-size: 1.4rem;
+    font-size: 1.6rem;
     font-weight: 500;
     line-height: 1.1;
     letter-spacing: 0.005em;
@@ -1175,16 +1204,19 @@
 
   .content {
     width: 100%;
-    max-width: 760px;
+    max-width: 680px;
     display: flex;
     flex-direction: column;
     gap: 1.4rem;
   }
 
+  /* Full-border callouts; the side-stripe variant tripped the absolute ban
+     and the background tint + matching border already carry the affordance. */
   .callout {
     background: var(--forest-50);
     color: var(--forest-800);
-    border-left: 3px solid var(--forest-800);
+    border: 1px solid var(--forest-100);
+    border-radius: 4px;
     padding: 0.7rem 0.95rem;
     font-size: 0.84rem;
     line-height: 1.55;
@@ -1192,12 +1224,12 @@
   .callout.warn {
     background: var(--sunset-50);
     color: var(--sunset-800);
-    border-left-color: var(--sunset-600);
+    border-color: var(--sunset-100);
   }
   .callout.completed-callout {
     background: var(--bark-50);
     color: var(--bark-600);
-    border-left-color: var(--bark-400);
+    border-color: var(--bark-100);
   }
   /* ── Receipts inline result / error ── */
   .receipts-success {
@@ -1230,10 +1262,17 @@
     color: var(--text-primary);
     line-height: 1.4;
   }
-  .map-strip {
-    height: 220px;
+  /* The map now carries route geometry, home + destination markers, and
+     numbered stop pins when a brochure exists. Claiming ~40vh on desktop
+     gives the route enough room to read; the parent height clamps prevent
+     it from dominating short viewports. */
+  .map-section {
+    height: 40vh;
+    min-height: 280px;
+    max-height: 480px;
     border-radius: 6px;
     overflow: hidden;
+    border: 1px solid var(--border-default);
     background: var(--surface-sunken);
   }
 
@@ -1253,7 +1292,7 @@
     padding-bottom: 0.55rem;
   }
   .section-header h2 {
-    font-size: 1.05rem;
+    font-size: 1.2rem;
     font-weight: 700;
     letter-spacing: -0.015em;
     color: var(--text-primary);
@@ -1295,12 +1334,16 @@
     margin: 0;
   }
 
-  .prose { font-size: 0.92rem; line-height: 1.75; color: var(--text-secondary); }
+  /* Prose: 1rem body with 1.75 line-height at 680px column yields ~78-82ch,
+     a touch above the 65-75 ideal but well within readable range and a
+     real improvement from the previous ~94-97ch. Heading scale opens to
+     ~1.1× steps so a reader can tell at a glance which level they're on. */
+  .prose { font-size: 1rem; line-height: 1.75; color: var(--text-secondary); }
   .prose :global(h1), .prose :global(h2) {
-    font-size: 1rem; font-weight: 700; margin: 1.4rem 0 0.5rem;
+    font-size: 1.1rem; font-weight: 700; margin: 1.4rem 0 0.5rem;
     color: var(--text-primary); letter-spacing: -0.015em;
   }
-  .prose :global(h3) { font-size: 0.92rem; font-weight: 700; margin: 1.1rem 0 0.35rem; color: var(--text-primary); }
+  .prose :global(h3) { font-size: 0.95rem; font-weight: 700; margin: 1.1rem 0 0.35rem; color: var(--text-primary); }
   .prose :global(h1:first-child),
   .prose :global(h2:first-child),
   .prose :global(h3:first-child) { margin-top: 0; }
@@ -1333,6 +1376,41 @@
     margin-top: 0.25rem;
   }
 
+  .action-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.7rem 0.55rem 0.85rem;
+    background: var(--state-danger-surface);
+    border: 1px solid var(--state-danger);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    margin-top: 0.5rem;
+  }
+  .action-error-text { flex: 1; line-height: 1.45; }
+  .action-error-dismiss {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--state-danger);
+    font-family: var(--font-sans);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.35rem 0.6rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .action-error-dismiss:hover {
+    background: rgba(168, 47, 31, 0.08);
+    border-color: var(--state-danger);
+  }
+  .action-error-dismiss:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
   /* ── AI chat ── */
   .chat-fab {
     position: fixed;
@@ -1342,6 +1420,7 @@
     color: var(--bone-50);
     border: none;
     padding: 0.85rem 1.2rem;
+    min-height: var(--tap-min);
     border-radius: 999px;
     font-size: 0.86rem;
     font-weight: 700;
@@ -1452,16 +1531,19 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
   }
-  .typing { display: inline-flex; gap: 4px; }
+  /* Opacity-pulse instead of the previous translateY hop; the bounce read
+     as a dated chat-bubble loader. Staggered phases preserve the
+     "something's being typed" cadence without any vertical motion. */
+  .typing { display: inline-flex; gap: 4px; align-items: center; }
   .typing span {
     width: 6px; height: 6px;
     background: var(--text-tertiary);
     border-radius: 50%;
-    animation: bounce 1s infinite ease-in-out;
+    animation: typing-pulse 1.2s infinite ease-in-out;
   }
-  .typing span:nth-child(2) { animation-delay: 0.12s; }
-  .typing span:nth-child(3) { animation-delay: 0.24s; }
-  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typing-pulse { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
 
   .chat-input {
     border-top: 1px solid var(--border-default);
@@ -1546,6 +1628,9 @@
     flex-direction: column;
     gap: 0.85rem;
   }
+  /* Day-heading band. Background carries the day-separator affordance;
+     the previous 3px sunset stripe stacked one per day and tripped the
+     absolute ban. Bottom border keeps the seam visible. */
   .itinerary-view :global(h2) {
     font-size: 1rem;
     font-weight: 800;
@@ -1554,7 +1639,8 @@
     margin: 0;
     padding: 0.7rem 1.1rem 0.6rem;
     background: var(--sunset-50);
-    border-left: 3px solid var(--sunset-800);
+    border-radius: 4px 4px 0 0;
+    border-bottom: 1px solid var(--sunset-200);
   }
   .itinerary-view :global(h3) {
     font-size: 0.64rem;
@@ -1596,11 +1682,11 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.6rem 1rem;
-    background: var(--amber-50, #fffbeb);
-    border: 1px solid var(--amber-300, #fcd34d);
+    background: var(--sunset-50);
+    border: 1px solid var(--sunset-200);
     border-radius: 6px;
     font-size: 0.85rem;
-    color: var(--amber-800, #92400e);
+    color: var(--sunset-800);
     margin-top: 0.5rem;
   }
   .brochure-stale-notice span { flex: 1; }
@@ -1612,7 +1698,7 @@
     .chat-backdrop,
     .chat,
     .callout,
-    .map-strip,
+    .map-section,
     .hero,
     .no-print { display: none !important; }
 
@@ -1622,7 +1708,7 @@
 
     .itinerary-view :global(h2) {
       background: #f5f0e8;
-      border-left-color: #92400e;
+      border-bottom-color: #92400e;
       color: #1a1a1a;
       page-break-after: avoid;
     }
@@ -1637,6 +1723,7 @@
     .page > header h1 { font-size: 1.05rem; }
     .meta { width: 100%; margin-left: 0; }
     .hero { height: 200px; }
+    .map-section { height: 30vh; min-height: 220px; max-height: 320px; }
     .layout { padding: 1rem 0.85rem 6rem; }
     .section { padding: 1rem 1.1rem 1.2rem; }
     .chat { width: 100vw; }
