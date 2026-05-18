@@ -157,7 +157,7 @@
   .kebab-panel {
     position: absolute;
     top: calc(100% + 6px);
-    right: 0;
+    left: 0;
     min-width: 200px;
     background: var(--surface-overlay);
     border: 1px solid var(--border-default);

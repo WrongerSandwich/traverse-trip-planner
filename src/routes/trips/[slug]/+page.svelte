@@ -1274,6 +1274,9 @@
     overflow: hidden;
     border: 1px solid var(--border-default);
     background: var(--surface-sunken);
+    /* Contain Leaflet's internal z-index 1000 controls so they can't escape
+       above page-level overlays like the chat panel, kebab menu, or modals. */
+    isolation: isolate;
   }
 
   .section {

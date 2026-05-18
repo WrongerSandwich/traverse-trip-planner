@@ -388,9 +388,13 @@
 </div>
 
 <style>
-  /* Strip the document body to bone — no background colors from the parent. */
+  /* Strip the document body to bone — no background colors from the parent.
+     Uses a literal paper color (not the theme token) so the brochure always
+     renders on cream regardless of the user's color-scheme preference; the
+     wrapping <div data-theme="light"> only affects descendants, and body
+     sits outside that scope. */
   :global(body) {
-    background: var(--surface-page);
+    background: #FCFAF5;
   }
 
   /* Print hint banner — sticky on-screen, gone in print. */
