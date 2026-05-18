@@ -503,12 +503,9 @@ export async function enrichTrips() {
     if (q) liveImageKeys.add(q);
     if (q) {
       const cached = readImageCacheEntry(imageCache, q);
-      if (cached.state === 'hit') {
-        trip._image = cached.value;
-      } else {
-        trip._image = await fetchImage(q);
-        await sleep(50);
-      }
+      const raw = cached.state === 'hit' ? cached.value : await fetchImage(q);
+      if (cached.state !== 'hit') await sleep(50);
+      trip._image = applyImagePick(raw, trip.image_pick);
     } else {
       trip._image = null;
     }
