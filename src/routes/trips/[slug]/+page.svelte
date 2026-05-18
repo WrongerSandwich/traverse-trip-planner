@@ -20,6 +20,7 @@
   import BrochureDayView from '$lib/components/BrochureDayView.svelte';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
   import EmptyItineraryCTA from '$lib/components/EmptyItineraryCTA.svelte';
+  import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
 
   let { data } = $props();
 
@@ -470,6 +471,9 @@
     return ['retry', 'dismiss'];
   }
 
+  // ── Cover photo ──
+  let coverPhotoOpen = $state(false);
+
   // ── Share ──
   let shareUrl = $state('');
   let shareBusy = $state(false);
@@ -632,6 +636,12 @@
         rel: 'noopener',
       },
     ];
+
+    outputItems.push({
+      type: 'button',
+      label: '🖼 Change cover photo…',
+      onclick: () => { coverPhotoOpen = true; },
+    });
 
     if (data.features?.share) {
       if (shareUrl) {
@@ -950,6 +960,12 @@
       onsaved={onRetroSaved}
     />
   {/if}
+
+  <CoverPhotoModal
+    bind:open={coverPhotoOpen}
+    trip={trip}
+    onsaved={() => invalidateAll()}
+  />
 
   <ConfirmModal
     bind:open={confirmOpen}
