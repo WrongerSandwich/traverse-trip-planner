@@ -725,6 +725,49 @@ export function setShared(slug, shared) {
   return { shared };
 }
 
+// ── Image metadata mutation ──
+// Writes image_query and/or image_pick to a trip's frontmatter. Both are
+// optional — caller provides only the fields they want to update.
+//
+// image_pick === 0 (or omitted) is the implicit default, so we remove the
+// field entirely in that case rather than littering frontmatter with zeros.
+//
+// Throws TypeError on invalid inputs so the endpoint can return 400.
+export function updateImageMeta(slug, { image_query, image_pick } = {}) {
+  if (image_query !== undefined) {
+    if (typeof image_query !== 'string' || /[\r\n]/.test(image_query)) {
+      throw new TypeError('image_query must be a single-line string');
+    }
+  }
+  let pick;
+  if (image_pick !== undefined) {
+    const n = typeof image_pick === 'string' ? Number(image_pick) : image_pick;
+    if (!Number.isInteger(n) || n < 0 || n > 2) {
+      throw new TypeError('image_pick must be an integer 0, 1, or 2');
+    }
+    pick = n;
+  }
+
+  const filePath = findTripFile(slug);
+  if (!filePath) return null;
+
+  let content = readFileSync(filePath, 'utf8');
+  if (!parseFrontmatter(content)) return null;
+
+  if (image_query !== undefined) {
+    content = setFrontmatterField(content, 'image_query', image_query);
+  }
+  if (pick !== undefined) {
+    content = pick === 0
+      ? removeFrontmatterField(content, 'image_pick')
+      : setFrontmatterField(content, 'image_pick', pick);
+  }
+
+  writeFileSync(filePath, content);
+  invalidateEnrichCache();
+  return { ok: true };
+}
+
 // ── Trip file content ──
 export function getTripFiles(slug) {
   for (const stage of ['planning', 'completed']) {
