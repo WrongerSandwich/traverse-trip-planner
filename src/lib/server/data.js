@@ -113,6 +113,13 @@ export function writeImageCacheEntry(cache, query, value, now = Date.now()) {
   cache[query] = { value, fetchedAt: now };
 }
 
+// Whether Pexels search is available in this environment. The endpoint
+// distinguishes "search failed" (network/quota) from "search unconfigured"
+// (no API key) so the UI can render the right ERROR_REGISTRY sentence.
+export function isPexelsConfigured() {
+  return !!resolveEnv('PEXELS_API_KEY');
+}
+
 export async function fetchImage(query) {
   const cached = readImageCacheEntry(imageCache, query);
   if (cached.state === 'hit') return cached.value;
