@@ -96,6 +96,18 @@ export const ERROR_REGISTRY = {
     sentence: "Couldn't save. Try again, or check the server log if it keeps happening.",
     affordances: ['retry', 'dismiss'],
   },
+  image_search_failed: {
+    sentence: 'No photos found for that search. Try different words.',
+    affordances: ['retry', 'dismiss'],
+  },
+  image_search_unconfigured: {
+    sentence: 'Image search is not configured. Add a PEXELS_API_KEY to enable it.',
+    affordances: ['dismiss'],
+  },
+  image_save_failed: {
+    sentence: "Couldn't save the cover photo. Try again.",
+    affordances: ['retry', 'dismiss'],
+  },
 };
 
 /**

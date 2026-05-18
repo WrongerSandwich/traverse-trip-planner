@@ -71,3 +71,18 @@ describe('ERROR_REGISTRY', () => {
     expect(bad, `Mismatched interpolate keys:\n${bad.join('\n')}`).toEqual([]);
   });
 });
+
+describe('image cover-photo codes', () => {
+  it('exposes image_search_failed with a retry affordance', () => {
+    expect(ERROR_REGISTRY.image_search_failed).toBeDefined();
+    expect(ERROR_REGISTRY.image_search_failed.affordances).toContain('retry');
+  });
+  it('exposes image_search_unconfigured with a dismiss affordance', () => {
+    expect(ERROR_REGISTRY.image_search_unconfigured).toBeDefined();
+    expect(ERROR_REGISTRY.image_search_unconfigured.affordances).toContain('dismiss');
+  });
+  it('exposes image_save_failed with a retry affordance', () => {
+    expect(ERROR_REGISTRY.image_save_failed).toBeDefined();
+    expect(ERROR_REGISTRY.image_save_failed.affordances).toContain('retry');
+  });
+});
