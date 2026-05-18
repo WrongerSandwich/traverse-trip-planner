@@ -26,11 +26,16 @@ console.log('──────────────────────�
 let passed = 0;
 let failed = 0;
 
+const PROBE_TIMEOUT_MS = 10_000;
+
 async function probe(name, fn) {
   process.stdout.write(`  ${name.padEnd(38)} `);
   const start = Date.now();
   try {
-    await fn();
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`timed out after ${PROBE_TIMEOUT_MS}ms`)), PROBE_TIMEOUT_MS)
+    );
+    await Promise.race([fn(), timeout]);
     const ms = Date.now() - start;
     console.log(`✓ (${ms}ms)`);
     passed++;
