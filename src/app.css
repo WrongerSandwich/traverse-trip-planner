@@ -70,10 +70,13 @@
   --surface-overlay: #FCFAF5;
   --surface-invert:  #1F4332;
 
-  /* Text — warm dark inks */
+  /* Text — warm dark inks.
+     --text-tertiary lifted from #9A8A6F (failed AA at ~3.1:1 on --surface-page)
+     to bone-800 #5F5341 to clear 4.5:1 across page, raised, and sunken surfaces
+     while staying visually subordinate to --text-secondary (forest-600). */
   --text-primary:   #112619;
   --text-secondary: #2D5840;
-  --text-tertiary:  #9A8A6F;
+  --text-tertiary:  #5F5341;
   --text-inverse:   #FCFAF5;
 
   /* Borders — warm tan solids on cream */

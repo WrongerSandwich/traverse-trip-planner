@@ -92,6 +92,10 @@ export const ERROR_REGISTRY = {
     affordances: ['dismiss'],
     interpolate: ['action'],
   },
+  save_failed: {
+    sentence: "Couldn't save. Try again, or check the server log if it keeps happening.",
+    affordances: ['retry', 'dismiss'],
+  },
 };
 
 /**
