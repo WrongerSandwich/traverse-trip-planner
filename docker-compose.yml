@@ -3,6 +3,7 @@ services:
     build: .
     image: traverse:local
     container_name: traverse
+    init: true
     restart: unless-stopped
     ports:
       - "3456:3456"
@@ -18,7 +19,7 @@ services:
       - ./planning:/app/planning
       - ./completed:/app/completed
       - ./archived:/app/archived
-      - ./home.md:/app/home.md:ro
+      - ./home.md:/app/home.md
       - ./settings.json:/app/settings.json
       - ./.geocode-cache.json:/app/.geocode-cache.json
       - ./.image-cache.json:/app/.image-cache.json
