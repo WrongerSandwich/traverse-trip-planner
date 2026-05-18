@@ -719,7 +719,10 @@ export function getTripFiles(slug) {
         const fp = join(dir, `${name}.md`);
         if (!existsSync(fp)) continue;
         let content = readFileSync(fp, 'utf8');
-        if (name === 'overview') content = content.replace(/^---\n[\s\S]*?\n---\n*/, '').trimStart();
+        // Strip leading YAML frontmatter from any section that has it (overview
+        // always does; notes carries retro frontmatter — rating, would_repeat,
+        // highlights — that must not bleed into the rendered body).
+        content = content.replace(/^---\n[\s\S]*?\n---\n*/, '').trimStart();
         files[name] = content;
       }
       return { slug, stage, files };

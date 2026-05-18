@@ -1036,7 +1036,7 @@
   /* Success toast — fixed top-right, auto-dismisses after 4s */
   .seed-toast {
     position: fixed;
-    top: 1rem;
+    top: calc(var(--header-h, 4.5rem) + 0.75rem);
     right: 1.5rem;
     background: var(--forest-800);
     color: var(--bone-200);

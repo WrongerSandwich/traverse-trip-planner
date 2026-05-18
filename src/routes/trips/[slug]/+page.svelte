@@ -54,6 +54,13 @@
     notes: 'Notes',
   };
 
+  // Sections render under an H2 set by the page chrome; strip any leading H1
+  // (e.g. `# Stops`) from the markdown body so the heading isn't shown twice.
+  // Only strips single-# H1 — leaves ## H2 and deeper intact.
+  function stripLeadingH1(md) {
+    return (md || '').replace(/^\s*#(?!#)\s+[^\n]*\n+/, '');
+  }
+
   // Canonical section sets per stage (itinerary handled separately above the list)
   const STAGE_SECTIONS = {
     planning:  ['overview', 'route', 'stops', 'logistics'],
@@ -710,7 +717,7 @@
       {/if}
       {#if trip?._cost}<span class="cost">{trip._cost}</span>{/if}
     </div>
-    {#if !isCompleted}
+    {#if isPlanning}
       <button
         class="edit-mode-toggle"
         class:active={editMode}
@@ -740,15 +747,17 @@
     <main class="content">
       {#if editMode}
         <div class="editing-banner" role="status">
-          You're editing — section actions + brochure controls are visible below.
+          You're editing. Section actions and brochure controls are visible below.
         </div>
       {/if}
 
       {#if isPlanning}
-        <div class="callout">
-          <strong>Planning mode.</strong>
-          Edit any section below, or tap <em>Ask {data.assistantName}</em> to describe a change in plain English — updates are written straight to the markdown.
-        </div>
+        {#if !editMode}
+          <div class="callout">
+            <strong>Planning trip.</strong>
+            Click <em>Edit</em> to modify sections, or tap <em>Ask {data.assistantName}</em> for plain-English updates.
+          </div>
+        {/if}
       {:else if isCompleted}
         <div class="callout completed-callout">
           <strong>Completed.</strong>
@@ -787,7 +796,7 @@
         />
       {:else}
         <div class="callout warn">
-          This trip is in <strong>{stage}</strong>. Move it to Planning from the cards view to enable editing.
+          <strong>Idea.</strong> Click <em>Research →</em> on the card to flesh this out into a planning trip with route, stops, and logistics.
         </div>
       {/if}
 
@@ -868,7 +877,7 @@
               </button>
             </div>
           {:else}
-            <div class="prose">{@html marked.parse(sections[section] || '')}</div>
+            <div class="prose">{@html marked.parse(stripLeadingH1(sections[section]))}</div>
           {/if}
         </section>
       {/each}
@@ -895,7 +904,7 @@
     </main>
   </div>
 
-  {#if !isCompleted && data.features?.chat && data.features?.homeMdReady !== false}
+  {#if isPlanning && data.features?.chat && data.features?.homeMdReady !== false}
     <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask {data.assistantName}">
       {#if chatOpen}
         ✕
