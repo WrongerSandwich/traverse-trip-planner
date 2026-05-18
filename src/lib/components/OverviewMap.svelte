@@ -45,6 +45,11 @@
   let returnArmTimer = null;
   let routeRevealTimer = null; // delayed registration so interrupted-animation moveend fires first
 
+  // Named handlers registered in onMount so they can be removed on teardown.
+  let _onMoveEnd   = /** @type {(() => void) | null} */ (null);
+  let _onMapClick  = /** @type {(() => void) | null} */ (null);
+  let _onPopupOpen = /** @type {((e: any) => void) | null} */ (null);
+
   function armReturn() {
     clearTimeout(returnArmTimer);
     returnArmed = false;
@@ -123,15 +128,18 @@
           .addTo(map);
       }
 
-      map.on('moveend', () => {
+      _onMoveEnd = function onMoveEnd() {
         if (returnArmed) { returnArmed = false; restoreSpokes(); }
-      });
+      };
+      map.on('moveend', _onMoveEnd);
 
       // Click on empty map area unpins (marker clicks don't bubble here).
-      map.on('click', () => { pinnedSlug = null; map.closePopup(); });
+      _onMapClick = function onMapClick() { pinnedSlug = null; map.closePopup(); };
+      map.on('click', _onMapClick);
 
       // Delegated handler for the "Open details →" button rendered inside popups.
-      map.on('popupopen', e => {
+      // Assigns btn.onclick once per open; popupclose cleans it up when the DOM is removed.
+      _onPopupOpen = function onPopupOpen(e) {
         const btn = e.popup.getElement()?.querySelector('.map-popup-open');
         if (!btn) return;
         btn.onclick = ev => {
@@ -139,11 +147,20 @@
           const trip = markers[btn.dataset.slug]?.trip;
           if (trip) onTripClick?.(trip);
         };
-      });
+      };
+      map.on('popupopen', _onPopupOpen);
 
       mapReady = true;
     })();
-    return () => { destroyed = true; map?.remove(); };
+    return () => {
+      destroyed = true;
+      if (map) {
+        if (_onMoveEnd)   map.off('moveend',   _onMoveEnd);
+        if (_onMapClick)  map.off('click',      _onMapClick);
+        if (_onPopupOpen) map.off('popupopen',  _onPopupOpen);
+        map.remove();
+      }
+    };
   });
 
   // Rebuild markers + spokes whenever trips change.
@@ -263,6 +280,8 @@
           { color: markerColor(currEntry.trip), weight: 2, opacity: 0, dashArray: '5, 6', className: 'spoke-highlight' }
         ).addTo(map);
         map.once('moveend', () => {
+          // activeSpokeHighlight is a module-level variable; we read it at call
+          // time so a spoke cleared between hover-start and moveend is never styled.
           if (activeSpokeHighlight) activeSpokeHighlight.setStyle({ opacity: 0.55 });
         });
       }

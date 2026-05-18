@@ -22,6 +22,9 @@
   // Aggregated tokens across POST (question generation) + PUT (note writing).
   let totalTokens = $state(0);
 
+  // AbortController for the current in-flight POST request.
+  let loadController = /** @type {AbortController | null} */ (null);
+
   // Cancel-mid-flow confirmation.
   let showDiscardConfirm = $state(false);
 
@@ -36,12 +39,17 @@
   }
 
   function startLoad() {
+    // Abort any in-flight request before starting a new one.
+    loadController?.abort();
+    loadController = new AbortController();
+    const signal = loadController.signal;
+
     phase = 'loading';
     errorCode = '';
     errorCtx  = {};
     lastFailedAction = 'post';
 
-    fetch(`/api/actions/retro/${encodeURIComponent(slug)}`, { method: 'POST' })
+    fetch(`/api/actions/retro/${encodeURIComponent(slug)}`, { method: 'POST', signal })
       .then(async r => {
         if (!r.ok) {
           const text = await r.text().catch(() => '');
@@ -60,6 +68,8 @@
         phase = 'answering';
       })
       .catch(err => {
+        // Ignore aborts — modal closed or effect re-ran.
+        if (err.name === 'AbortError') return;
         errorCode = err._code || 'network_error';
         errorCtx  = err._ctx  || {};
         lastFailedAction = 'post';
@@ -71,6 +81,8 @@
     if (!slug) return;
     totalTokens = 0;
     startLoad();
+    // Abort the in-flight POST when the slug changes or the component is destroyed.
+    return () => { loadController?.abort(); loadController = null; };
   });
 
   async function save() {

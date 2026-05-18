@@ -18,15 +18,25 @@
   $effect(() => {
     const slug = trip?._slug;
     if (!slug) { tripFiles = null; return; }
+
+    const controller = new AbortController();
     loading = true;
     tripFiles = null;
-    fetch(`/api/trip/${encodeURIComponent(slug)}`)
+
+    fetch(`/api/trip/${encodeURIComponent(slug)}`, { signal: controller.signal })
       .then(r => r.json())
       .then(d => {
         tripFiles = d;
         activeTab = Object.keys(d?.files || {})[0] || 'overview';
       })
-      .finally(() => loading = false);
+      .catch(err => {
+        // Ignore aborts — panel closed or trip changed before fetch completed.
+        if (err.name !== 'AbortError') console.warn('[DetailPanel] fetch error:', err);
+      })
+      .finally(() => { loading = false; });
+
+    // Abort if the slug changes or the component is destroyed.
+    return () => { controller.abort(); };
   });
 
   const tabs = $derived(Object.keys(tripFiles?.files || {}).filter(k => tripFiles.files[k]));
