@@ -20,6 +20,7 @@
     variant = 'primary',
     size = 40,
     'aria-label': ariaLabel = 'Traverse',
+    'aria-hidden': ariaHidden = undefined,
     class: className = '',
   } = $props();
 
@@ -36,8 +37,9 @@
   width={size}
   height={size}
   xmlns="http://www.w3.org/2000/svg"
-  role="img"
-  aria-label={ariaLabel}
+  role={ariaHidden ? undefined : 'img'}
+  aria-label={ariaHidden ? undefined : ariaLabel}
+  aria-hidden={ariaHidden}
   class={className}
 >
   <defs>

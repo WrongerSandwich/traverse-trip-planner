@@ -476,10 +476,10 @@
 
 
   <header bind:this={headerEl}>
-    <div class="wordmark">
-      <Logo variant="inverse" size={28} />
+    <a href="/" class="wordmark" aria-label="Traverse home">
+      <Logo variant="inverse" size={28} aria-hidden="true" />
       <h1>Traverse</h1>
-    </div>
+    </a>
     <button
       class="map-toggle"
       class:map-showing={mapVisible}
@@ -494,12 +494,6 @@
     </button>
 
     <div class="header-right">
-      <a href="/settings" class="settings-link" title="Settings" aria-label="Settings">
-        <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="7.5" cy="7.5" r="2"/>
-          <path d="M7.5 1v1.5M7.5 12.5V14M1 7.5h1.5M12.5 7.5H14M2.9 2.9l1.1 1.1M11 11l1.1 1.1M11 4l-1.1 1.1M4 11l-1.1 1.1"/>
-        </svg>
-      </a>
       <div class="header-count">
         {#if attrFilterCount > 0 || activeFilter !== 'all'}
           <span class="count-num">{trips.length}</span>
@@ -837,6 +831,13 @@
           {/each}
         </div>
       </div>
+
+      <!-- Quiet utility footer. Settings used to live as a gear icon in the
+           header cluster; moving it here gets it out of the primary-action
+           cluster and matches the "rare nav" register it deserves. -->
+      <footer class="page-footer">
+        <a href="/settings" class="footer-link">Settings</a>
+      </footer>
     </div>
   </div>
 </div>
@@ -884,6 +885,13 @@
     display: flex;
     align-items: center;
     gap: 0.55rem;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 4px;
+  }
+  .wordmark:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
   }
 
   .header-right {
@@ -891,22 +899,6 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-  }
-
-  .settings-link {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    color: var(--bone-600);
-    text-decoration: none;
-    transition: color 0.15s, background 0.15s;
-    flex-shrink: 0;
-  }
-  .settings-link:hover {
-    color: var(--bone-400);
-    background: var(--forest-800);
   }
 
   .seed-btn {
@@ -920,14 +912,17 @@
     transition: border-color 0.15s, color 0.15s, background 0.15s;
     flex-shrink: 0;
   }
+  /* Hover and open backgrounds use --forest-600 (one stop lighter than the
+     header's --forest-800) so the fill is actually visible. Using
+     --forest-800 here would equal the header bg and produce a no-op. */
   .seed-btn:hover:not(:disabled) {
     border-color: var(--forest-400);
     color: var(--bone-400);
-    background: var(--forest-800);
+    background: var(--forest-600);
   }
   .seed-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .seed-btn.open {
-    background: var(--forest-800);
+    background: var(--forest-600);
     border-color: var(--forest-400);
     color: var(--bone-400);
   }
@@ -948,7 +943,9 @@
   .seed-btn.seed-running { border-color: var(--forest-400); opacity: 1; }
 
   .pin-btn svg { transform: none !important; }
-  .pin-btn { color: var(--accent-text); border-color: var(--sunset-800); }
+  /* Sunset-400 sits at ~5.7:1 on the forest-800 header in both themes;
+     --accent-text was tuned for small text and only reads ~2.5:1 here. */
+  .pin-btn { color: var(--sunset-400); border-color: var(--sunset-800); }
   .pin-btn:hover:not(:disabled) { border-color: var(--sunset-600); color: var(--sunset-200); background: var(--sunset-800); }
   .pin-btn.open { background: var(--sunset-800); border-color: var(--sunset-600); color: var(--sunset-200); }
   .pin-btn.add-running { border-color: var(--sunset-600); opacity: 1; }
@@ -1197,11 +1194,11 @@
     color: var(--bone-400);
   }
   .count-label {
-    font-size: 0.58rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--bone-600);
+    color: var(--bone-400);
   }
 
   .layout {
@@ -1455,6 +1452,33 @@
     align-items: center;
     gap: 0.75rem;
   }
+
+  /* Quiet utility footer at the bottom of the cards column. On desktop it
+     sits below the scroll area as a fixed-height strip; on mobile the
+     surrounding layout already flows in document order, so the footer
+     lands at the natural end of the page. */
+  .page-footer {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.55rem 1.5rem 0.7rem;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .footer-link {
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    color: var(--text-tertiary);
+    text-decoration: none;
+    padding: 0.35rem 0.55rem;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .footer-link:hover { color: var(--text-primary); background: var(--surface-sunken); }
+  .footer-link:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
   /* ── Mobile map toggle button — hidden on desktop ── */
   .map-toggle { display: none; }
 
@@ -1556,6 +1580,10 @@
     .scroll-area { flex: none; overflow-y: visible; }
     .grid { padding: 1rem 0.85rem 3rem; gap: 0.75rem; }
     .empty { padding: 3rem 1rem; }
+
+    /* Footer at mobile: pull padding back to match the rest of the body. */
+    .page-footer { padding: 0.6rem 1rem 0.8rem; }
+    .footer-link { padding: 0.5rem 0.7rem; font-size: 0.82rem; }
 
     /* ── Seed button ── */
     .seed-btn { width: var(--tap-min); height: var(--tap-min); }
