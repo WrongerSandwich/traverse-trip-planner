@@ -6,6 +6,90 @@ import { describeConfig } from '$lib/server/config.js';
 import { ROOT, parseFrontmatter, removeFrontmatterField } from '$lib/server/data.js';
 import { sweepStaleJobs } from '$lib/server/jobs.js';
 
+// ── Security headers + CSRF Origin check ─────────────────────────────────────
+//
+// External origins required by the app:
+//   connect-src : nominatim.openstreetmap.org (geocoding), router.project-osrm.org (routes),
+//                 api.pexels.com (image search), tiles.stadiamaps.com (static map images),
+//                 api.tavily.com / openrouter.ai / api.openai.com (AI/search — server-side only,
+//                 but listed defensively)
+//   img-src     : images.pexels.com (cover photos), tiles.stadiamaps.com (brochure map),
+//                 *.tile.openstreetmap.org (Leaflet tiles)
+//   font-src    : fonts.gstatic.com
+//   style-src   : fonts.googleapis.com (CSS @import)
+//   frame-src   : 'none' (no iframes)
+//
+// Note: Leaflet injects inline styles at runtime, so style-src needs 'unsafe-inline'.
+// SvelteKit itself also injects inline scripts for hydration, requiring 'unsafe-inline'
+// on script-src — or a nonce approach (not implemented here).
+// To keep the app functional we ship the non-script headers now and leave a
+// proper nonce-based script-src for a follow-up ticket.
+export async function handle({ event, resolve }) {
+  const { request, url } = event;
+
+  // CSRF Origin check: reject cross-origin non-GET/HEAD requests to /api/*
+  if (
+    request.method !== 'GET' &&
+    request.method !== 'HEAD' &&
+    url.pathname.startsWith('/api/')
+  ) {
+    const origin = request.headers.get('origin');
+    if (origin !== null) {
+      let originHost;
+      try {
+        originHost = new URL(origin).host;
+      } catch {
+        return new Response('Forbidden', { status: 403 });
+      }
+      if (originHost !== url.host) {
+        return new Response('Forbidden', { status: 403 });
+      }
+    }
+  }
+
+  const response = await resolve(event);
+
+  // Security headers
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=()'
+  );
+
+  // Content-Security-Policy — permissive enough for Leaflet + Stadia + Pexels + OSRM + Nominatim.
+  // script-src uses 'unsafe-inline' because SvelteKit injects inline hydration scripts;
+  // a nonce-based approach can tighten this in a follow-up.
+  // style-src uses 'unsafe-inline' because Leaflet injects inline styles at runtime.
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    [
+      "img-src 'self' data: blob:",
+      "https://images.pexels.com",
+      "https://*.tile.openstreetmap.org",
+      "https://tiles.stadiamaps.com",
+    ].join(' '),
+    [
+      "connect-src 'self'",
+      "https://nominatim.openstreetmap.org",
+      "https://router.project-osrm.org",
+      "https://api.pexels.com",
+      "https://tiles.stadiamaps.com",
+    ].join(' '),
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join('; ');
+
+  response.headers.set('Content-Security-Policy', csp);
+
+  return response;
+}
+
 let banneredOnce = false;
 
 function printConfigBanner() {

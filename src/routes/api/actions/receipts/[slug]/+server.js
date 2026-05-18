@@ -6,12 +6,17 @@ import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { sniffImageType } from '$lib/utils/sniffImageType.js';
 
 export const _promise = HAND_DEFAULTS.receipts;
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGES = 10;
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB per image
+// Hard cap on the entire request body: 10 files × 5 MB + 64 KB overhead for
+// multipart boundaries and form fields. Checked via Content-Length before
+// formData() materialises the full body into memory.
+const MAX_BODY_BYTES = MAX_IMAGES * MAX_BYTES + 64 * 1024;
 
 // POST — process receipt photos and append parsed lines to notes.md.
 // Body: multipart form data with one or more "image" file fields.
@@ -21,6 +26,15 @@ export async function POST({ params, request }) {
 
   if (!existsSync(join(ROOT, 'completed', slug))) {
     return new Response('Trip not in completed stage', { status: 404 });
+  }
+
+  // Reject oversize bodies before formData() materialises anything.
+  const contentLength = request.headers.get('content-length');
+  if (contentLength !== null && Number(contentLength) > MAX_BODY_BYTES) {
+    return new Response(
+      `Request body too large (max ${MAX_IMAGES} × 5 MB)`,
+      { status: 413 }
+    );
   }
 
   let formData;
@@ -46,6 +60,14 @@ export async function POST({ params, request }) {
     const buf = await file.arrayBuffer();
     if (buf.byteLength > MAX_BYTES) {
       return new Response(`Image too large (max 5 MB): ${file.name}`, { status: 413 });
+    }
+    // Magic-byte sniff: verify actual content matches the claimed MIME type.
+    const detected = sniffImageType(buf);
+    if (detected !== mediaType) {
+      return new Response(
+        `File content does not match declared type ${mediaType}: ${file.name}`,
+        { status: 415 }
+      );
     }
     const data = Buffer.from(buf).toString('base64');
     imageBlocks.push({ type: 'image', mediaType, data });

@@ -35,22 +35,70 @@ vi.mock('@sveltejs/kit', () => ({
 }));
 
 import { POST } from '../src/routes/api/actions/receipts/[slug]/+server.js';
+import { sniffImageType } from '../src/lib/utils/sniffImageType.js';
 
 const MAX_IMAGES = 10;
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_BODY_BYTES = MAX_IMAGES * MAX_BYTES + 64 * 1024;
 
-function makeFile({ type = 'image/jpeg', name = 'receipt.jpg', size = 1000 } = {}) {
+// ── Magic byte headers per MIME type ──────────────────────────────────────────
+
+const MAGIC = {
+  'image/jpeg': [0xff, 0xd8, 0xff, 0xe0],
+  'image/png': [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+  'image/gif': [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], // GIF89a
+  'image/webp': [
+    0x52, 0x49, 0x46, 0x46, // RIFF
+    0x00, 0x00, 0x00, 0x00, // size (dummy)
+    0x57, 0x45, 0x42, 0x50, // WEBP
+  ],
+};
+
+/** Build an ArrayBuffer whose first bytes are the correct magic for `type`. */
+function magicBuf(type, size = 100) {
+  const buf = new ArrayBuffer(Math.max(size, 12));
+  const view = new Uint8Array(buf);
+  const header = MAGIC[type] ?? [];
+  for (let i = 0; i < header.length; i++) view[i] = header[i];
+  return buf;
+}
+
+/** ArrayBuffer filled with HTML bytes — wrong magic for any image type. */
+function htmlBuf(size = 100) {
+  const buf = new ArrayBuffer(size);
+  const view = new Uint8Array(buf);
+  const html = '<html>';
+  for (let i = 0; i < html.length && i < size; i++) {
+    view[i] = html.charCodeAt(i);
+  }
+  return buf;
+}
+
+function makeFile({
+  type = 'image/jpeg',
+  name = 'receipt.jpg',
+  size = 100,
+  buf = null,
+} = {}) {
   return {
     type,
     name,
-    arrayBuffer: async () => new ArrayBuffer(size),
+    arrayBuffer: async () => buf ?? magicBuf(type, size),
   };
 }
 
-function makeRequest({ slug = 'test-trip', files = [], failFormData = false } = {}) {
+function makeRequest({
+  slug = 'test-trip',
+  files = [],
+  failFormData = false,
+  contentLength = null,
+} = {}) {
+  const headers = new Map();
+  if (contentLength !== null) headers.set('content-length', String(contentLength));
   return {
     params: { slug },
     request: {
+      headers: { get: (k) => headers.get(k) ?? null },
       formData: failFormData
         ? async () => { throw new Error('not multipart'); }
         : async () => ({ getAll: (key) => key === 'image' ? files : [] }),
@@ -70,6 +118,34 @@ beforeEach(() => {
   mockAppendToNotes.mockReturnValue(true);
 });
 
+// ── sniffImageType (pure utility) ─────────────────────────────────────────────
+
+describe('sniffImageType', () => {
+  it('detects JPEG from magic bytes', () => {
+    expect(sniffImageType(magicBuf('image/jpeg'))).toBe('image/jpeg');
+  });
+
+  it('detects PNG from magic bytes', () => {
+    expect(sniffImageType(magicBuf('image/png'))).toBe('image/png');
+  });
+
+  it('detects GIF from magic bytes', () => {
+    expect(sniffImageType(magicBuf('image/gif'))).toBe('image/gif');
+  });
+
+  it('detects WebP from magic bytes', () => {
+    expect(sniffImageType(magicBuf('image/webp'))).toBe('image/webp');
+  });
+
+  it('returns null for HTML bytes', () => {
+    expect(sniffImageType(htmlBuf())).toBeNull();
+  });
+
+  it('returns null for an all-zero buffer', () => {
+    expect(sniffImageType(new ArrayBuffer(12))).toBeNull();
+  });
+});
+
 // ── 404 — trip not found ───────────────────────────────────────────────────────
 
 describe('POST /api/actions/receipts/[slug] — trip lookup', () => {
@@ -77,6 +153,40 @@ describe('POST /api/actions/receipts/[slug] — trip lookup', () => {
     mockExistsSync.mockReturnValue(false);
     const res = await POST(makeRequest({ files: [makeFile()] }));
     expect(res.status).toBe(404);
+  });
+});
+
+// ── 413 — oversize Content-Length rejected before formData() ──────────────────
+
+describe('POST /api/actions/receipts/[slug] — Content-Length cap', () => {
+  it('returns 413 when Content-Length exceeds MAX_BODY_BYTES before formData()', async () => {
+    const req = makeRequest({
+      files: [], // formData never called — body rejected first
+      contentLength: MAX_BODY_BYTES + 1,
+      failFormData: false,
+    });
+    // Override formData to throw if called — it must NOT be called.
+    let formDataCalled = false;
+    req.request.formData = async () => { formDataCalled = true; throw new Error('should not be called'); };
+
+    const res = await POST(req);
+    expect(res.status).toBe(413);
+    expect(formDataCalled).toBe(false);
+    expect(await res.text()).toMatch(/too large/i);
+  });
+
+  it('does not reject when Content-Length is exactly at the limit', async () => {
+    const req = makeRequest({ files: [makeFile()], contentLength: MAX_BODY_BYTES });
+    const res = await POST(req);
+    // Should not be 413 from the Content-Length check (may be other statuses)
+    expect(res.status).not.toBe(413);
+  });
+
+  it('does not reject when Content-Length header is absent', async () => {
+    // No content-length header — cannot pre-reject
+    const req = makeRequest({ files: [makeFile()], contentLength: null });
+    const res = await POST(req);
+    expect(res.status).not.toBe(413);
   });
 });
 
@@ -108,7 +218,7 @@ describe('POST /api/actions/receipts/[slug] — form validation', () => {
   });
 });
 
-// ── 415 — unsupported type ─────────────────────────────────────────────────────
+// ── 415 — unsupported MIME type ───────────────────────────────────────────────
 
 describe('POST /api/actions/receipts/[slug] — MIME type allowlist', () => {
   it('returns 415 for an unsupported MIME type', async () => {
@@ -138,11 +248,53 @@ describe('POST /api/actions/receipts/[slug] — MIME type allowlist', () => {
   });
 });
 
-// ── 413 — file too large ───────────────────────────────────────────────────────
+// ── 415 — magic-byte mismatch ─────────────────────────────────────────────────
 
-describe('POST /api/actions/receipts/[slug] — size limit', () => {
+describe('POST /api/actions/receipts/[slug] — magic-byte sniff', () => {
+  it('returns 415 when file claims image/png but contains HTML bytes', async () => {
+    const res = await POST(makeRequest({
+      files: [makeFile({ type: 'image/png', buf: htmlBuf() })],
+    }));
+    expect(res.status).toBe(415);
+    expect(await res.text()).toMatch(/does not match declared type/i);
+  });
+
+  it('returns 415 when file claims image/jpeg but contains PNG bytes', async () => {
+    const res = await POST(makeRequest({
+      files: [makeFile({ type: 'image/jpeg', buf: magicBuf('image/png') })],
+    }));
+    expect(res.status).toBe(415);
+  });
+
+  it('returns 415 when file claims image/gif but contains all-zero bytes', async () => {
+    const res = await POST(makeRequest({
+      files: [makeFile({ type: 'image/gif', buf: new ArrayBuffer(100) })],
+    }));
+    expect(res.status).toBe(415);
+  });
+
+  it('accepts image/png with correct PNG magic bytes', async () => {
+    const res = await POST(makeRequest({
+      files: [makeFile({ type: 'image/png', buf: magicBuf('image/png') })],
+    }));
+    expect(res.status).not.toBe(415);
+  });
+
+  it('accepts image/webp with correct RIFF/WEBP magic bytes', async () => {
+    const res = await POST(makeRequest({
+      files: [makeFile({ type: 'image/webp', buf: magicBuf('image/webp') })],
+    }));
+    expect(res.status).not.toBe(415);
+  });
+});
+
+// ── 413 — file too large (per-file) ───────────────────────────────────────────
+
+describe('POST /api/actions/receipts/[slug] — per-file size limit', () => {
   it('returns 413 when an image exceeds MAX_BYTES (5 MB)', async () => {
-    const res = await POST(makeRequest({ files: [makeFile({ size: MAX_BYTES + 1 })] }));
+    const res = await POST(makeRequest({
+      files: [makeFile({ size: MAX_BYTES + 1 })],
+    }));
     expect(res.status).toBe(413);
     expect(await res.text()).toMatch(/too large/i);
   });
@@ -198,7 +350,7 @@ describe('POST /api/actions/receipts/[slug] — success', () => {
   });
 
   it('passes images to chat() as normalized image blocks', async () => {
-    await POST(makeRequest({ files: [makeFile({ type: 'image/png' })] }));
+    await POST(makeRequest({ files: [makeFile({ type: 'image/png', buf: magicBuf('image/png') })] }));
     const call = mockChat.mock.calls[0][0];
     const userContent = call.messages[0].content;
     const imageBlock = userContent.find(b => b.type === 'image');
