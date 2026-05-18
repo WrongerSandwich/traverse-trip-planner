@@ -151,10 +151,12 @@
   --surface-overlay: #29382F;
   --surface-invert:  #F6F1E5;
 
-  /* Text — warm pale ink fading to sage */
+  /* Text — warm pale ink fading to sage.
+     --text-tertiary lifted from #7C8A7B (failed AA at 4.0:1 on --surface-raised)
+     to #9DAA9C to clear 4.5:1 across raised, page, and overlay surfaces. */
   --text-primary:   #F1ECDF;
   --text-secondary: #B4C2B3;
-  --text-tertiary:  #7C8A7B;
+  --text-tertiary:  #9DAA9C;
   --text-inverse:   #15211B;
 
   /* Borders — low-alpha warm-white overlays, work on any surface */
@@ -338,6 +340,17 @@ body {
 .text-small   { font-family: var(--font-sans);  font-size: 13px; line-height: 20px; font-weight: 400; }
 .text-caption { font-family: var(--font-sans);  font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.18em; }
 .text-mono    { font-family: var(--font-mono);  font-size: 13px; line-height: 20px; font-weight: 400; }
+
+/* Leaflet tile pane — harmonize OSM tiles with the cream/forest palette so
+   the map reads as part of the design rather than a third-party island.
+   Filtering happens in CSS rather than swapping tile providers, so we
+   don't pick up hidden network dependencies or extra attribution surface.
+   Light mode only: dark-mode filtering was tried and washed tile detail
+   out, so dark mode keeps the unaltered light tiles (matching the existing
+   convention noted on --map-tile-bg). */
+.leaflet-tile-pane {
+  filter: sepia(0.18) saturate(0.85) brightness(0.97);
+}
 
 /* Leaflet popup */
 .leaflet-popup-content-wrapper {

@@ -87,6 +87,11 @@ export const ERROR_REGISTRY = {
     sentence: 'home.md is not set up. Add your home base details before using AI features.',
     affordances: ['dismiss'],
   },
+  action_failed: {
+    sentence: "Couldn't {action}. The server log may have more detail.",
+    affordances: ['dismiss'],
+    interpolate: ['action'],
+  },
 };
 
 /**

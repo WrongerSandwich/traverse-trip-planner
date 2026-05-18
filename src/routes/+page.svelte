@@ -119,6 +119,24 @@
     (activeStarred ? 1 : 0)
   );
 
+  // Active-filter pills: render only attribute filters that diverge from
+  // their default. Stage tabs aren't included because there's always a
+  // stage selected; the tab strip already shows which one is active.
+  const distLabels = { u3: '≤3hr', '3-6': '3–6hr', '6plus': '6hr+' };
+  const costLabels = { budget: 'Budget', mid: 'Mid', splurge: 'Splurge' };
+  const activePills = $derived.by(() => {
+    const pills = [];
+    if (activeDist !== 'any')
+      pills.push({ key: 'dist', label: `Drive: ${distLabels[activeDist]}`, clear: () => activeDist = 'any' });
+    if (activeCost !== 'any')
+      pills.push({ key: 'cost', label: `Budget: ${costLabels[activeCost]}`, clear: () => activeCost = 'any' });
+    if (activeNPS)
+      pills.push({ key: 'nps', label: 'NPS only', clear: () => activeNPS = false });
+    if (activeStarred)
+      pills.push({ key: 'starred', label: 'Bookmarked', clear: () => activeStarred = false });
+    return pills;
+  });
+
   // ── Mobile map toggle + header measurement ──
   let mapVisible = $state(true);
   let headerEl  = $state(null);
@@ -216,6 +234,15 @@
   // Pin form — add one specific destination
   let pinFormOpen = $state(false);
   let pinDest     = $state('');
+
+  // Action error toast — used by archive / deepen and any handler that
+  // doesn't have its own popover envelope to render failure into.
+  // Shape: { code: string, ctx?: object } or null.
+  let actionError = $state(null);
+
+  function dismissActionError() {
+    actionError = null;
+  }
 
   async function runSeed() {
     if (seedStatus === 'in_progress') return;
@@ -326,7 +353,7 @@
   async function runDeepen(trip) {
     const ok = await showConfirm({
       title:        `Research "${trip.title || trip._slug}"?`,
-      body:         'Searches the web for hours, prices, lodging, and route highlights. Runs in the background — you can navigate away.',
+      body:         'Searches the web for hours, prices, lodging, and route highlights. Runs in the background; you can navigate away.',
       confirmLabel: 'Start research',
       danger:       false,
     });
@@ -334,17 +361,19 @@
     try {
       const res = await fetch(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (res.status === 409) {
-        alert(`"${trip.title || trip._slug}" is already being researched.`);
+        actionError = { code: 'already_running' };
         return;
       }
       if (!res.ok) {
-        alert(`Couldn't start research (${res.status}). Check the server log.`);
+        console.error(`deepen failed: ${res.status}`);
+        actionError = { code: 'action_failed', ctx: { action: 'start research' } };
         return;
       }
-      // 202 accepted — update the page so the card flips to "Researching…" immediately.
+      // 202 accepted, so the card flips to "Researching…" immediately.
       await invalidateAll();
     } catch (e) {
-      alert(`Couldn't start research: ${e.message}`);
+      console.error(e);
+      actionError = { code: 'network_error' };
     }
   }
 
@@ -366,7 +395,7 @@
       await invalidateAll();
     } catch (err) {
       console.error(err);
-      alert("Couldn't archive that one. The server log may have more detail.");
+      actionError = { code: 'action_failed', ctx: { action: 'archive that trip' } };
     }
   }
 
@@ -424,17 +453,27 @@
 </script>
 
 <div class="page">
-  {#if seedStatus === 'success'}
-    <div class="seed-toast" role="status" aria-live="polite">
-      ✓ 5 ideas added{seedTokens ? ` · ${formatTokens(seedTokens)}` : ''}
-    </div>
-  {/if}
+  <div class="toast-stack">
+    {#if seedStatus === 'success'}
+      <div class="seed-toast" role="status" aria-live="polite">
+        ✓ 5 ideas added{seedTokens ? ` · ${formatTokens(seedTokens)}` : ''}
+      </div>
+    {/if}
 
-  {#if addStatus === 'success'}
-    <div class="seed-toast" role="status" aria-live="polite">
-      ✓ Idea added{addTokens ? ` · ${formatTokens(addTokens)}` : ''}
-    </div>
-  {/if}
+    {#if addStatus === 'success'}
+      <div class="seed-toast" role="status" aria-live="polite">
+        ✓ Idea added{addTokens ? ` · ${formatTokens(addTokens)}` : ''}
+      </div>
+    {/if}
+
+    {#if actionError}
+      <div class="action-error-toast" role="alert" aria-live="polite">
+        <p class="action-error-sentence">{failureSentence(actionError.code, actionError.ctx ?? {})}</p>
+        <button class="action-error-dismiss" onclick={dismissActionError} aria-label="Dismiss">Dismiss</button>
+      </div>
+    {/if}
+  </div>
+
 
   <header bind:this={headerEl}>
     <div class="wordmark">
@@ -451,7 +490,7 @@
         <path d="M0 0l5 2 5-2 5 2v11l-5-2-5 2-5-2V0z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
         <path d="M5 2v11M10 0v11" stroke="currentColor" stroke-width="1.3"/>
       </svg>
-      {mapVisible ? 'Map' : 'Map'}
+      {mapVisible ? 'Hide map' : 'Show map'}
     </button>
 
     <div class="header-right">
@@ -482,7 +521,7 @@
             class:seed-running={seedStatus === 'in_progress'}
             onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
             disabled={seedStatus === 'in_progress' || !data.features?.seed}
-            title={data.features?.seed ? null : 'No default model configured — edit your .env to enable this'}
+            title={data.features?.seed ? null : 'No default model configured. Edit your .env to enable this.'}
             aria-label={seedStatus === 'in_progress' ? 'Generating ideas…' : 'Add trips'}
             aria-expanded={seedFormOpen}
             aria-busy={seedStatus === 'in_progress'}
@@ -503,7 +542,7 @@
             class:add-running={addStatus === 'in_progress'}
             onclick={() => { if (addStatus !== 'in_progress') { pinFormOpen = !pinFormOpen; seedFormOpen = false; } }}
             disabled={addStatus === 'in_progress' || !data.features?.add}
-            title={data.features?.add ? null : 'No default model configured — edit your .env to enable this'}
+            title={data.features?.add ? null : 'No default model configured. Edit your .env to enable this.'}
             aria-label={addStatus === 'in_progress' ? 'Adding…' : 'Add destination'}
             aria-expanded={pinFormOpen}
             aria-busy={addStatus === 'in_progress'}
@@ -527,7 +566,7 @@
     <div class="seed-popover" role="dialog" aria-label="Generate trip ideas">
       <label class="seed-label" for="seed-prompt">
         Generate 5 new ideas
-        <span class="seed-hint">— optional steering, leave blank for general suggestions</span>
+        <span class="seed-hint">Optional steering. Leave blank for general suggestions.</span>
       </label>
       <textarea
         id="seed-prompt"
@@ -591,7 +630,7 @@
     <div class="seed-popover" role="dialog" aria-label="Add specific destination">
       <label class="seed-label" for="pin-dest">
         Add a destination
-        <span class="seed-hint">— name a specific place to add as an idea</span>
+        <span class="seed-hint">Name a specific place to add as an idea.</span>
       </label>
       <input
         id="pin-dest"
@@ -706,6 +745,30 @@
             <option value="az">A–Z</option>
           </select>
         </div>
+
+        <!-- Active-filter pills: visible whenever attribute filters diverge
+             from defaults, so the user can see and clear individual filters
+             without re-opening the panel. -->
+        {#if activePills.length > 0}
+          <div class="active-pills" aria-label="Active filters">
+            {#each activePills as pill (pill.key)}
+              <button
+                type="button"
+                class="active-pill"
+                onclick={pill.clear}
+                aria-label="Remove {pill.label} filter"
+              >
+                <span class="active-pill-label">{pill.label}</span>
+                <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true">
+                  <path d="M1 1l6 6M7 1l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </button>
+            {/each}
+            {#if activePills.length > 1}
+              <button type="button" class="active-pill-clear" onclick={clearAttrs}>Clear all</button>
+            {/if}
+          </div>
+        {/if}
 
         <!-- Extended filter panel -->
         <div class="filter-panel" class:open={filterOpen} aria-hidden={!filterOpen}>
@@ -933,6 +996,8 @@
     line-height: 1.3;
   }
   .seed-hint {
+    display: block;
+    margin-top: 0.2rem;
     font-weight: 400;
     color: var(--text-tertiary);
     font-size: 0.74rem;
@@ -966,12 +1031,14 @@
     display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center;
   }
 
-  /* Instant Inline: spinner inside the Generate 5 button */
+  /* Instant Inline: spinner inside the Generate 5 button. Inherits from
+     currentColor so it tracks .btn-primary's text in both themes (light:
+     near-white on forest, dark: near-black on bone). */
   .btn-spinner {
     display: inline-block;
     width: 10px; height: 10px;
-    border: 1.5px solid rgba(255, 255, 255, 0.4);
-    border-top-color: #fff;
+    border: 1.5px solid color-mix(in srgb, currentColor 40%, transparent);
+    border-top-color: currentColor;
     border-radius: 50%;
     animation: seed-spin 0.8s linear infinite;
     vertical-align: middle;
@@ -1033,11 +1100,22 @@
     gap: 0.4rem;
   }
 
-  /* Success toast — fixed top-right, auto-dismisses after 4s */
-  .seed-toast {
+  /* Toast stack — fixed top-right column. Children handle their own colors
+     and pointer-events; the container handles position and stacking gap. */
+  .toast-stack {
     position: fixed;
     top: calc(var(--header-h, 4.5rem) + 0.75rem);
     right: 1.5rem;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+    pointer-events: none;
+  }
+
+  /* Success toast — auto-dismisses after 4s; no buttons, so non-interactive. */
+  .seed-toast {
     background: var(--forest-800);
     color: var(--bone-200);
     padding: 0.6rem 1rem;
@@ -1045,10 +1123,52 @@
     font-size: 0.82rem;
     font-weight: 600;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-    z-index: 200;
-    pointer-events: none;
     animation: toast-in 0.18s ease;
   }
+
+  /* Error toast — sticks until dismissed. Embers ramp for danger affordance. */
+  .action-error-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: 22rem;
+    padding: 0.6rem 0.7rem 0.6rem 0.95rem;
+    background: var(--state-danger-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--state-danger);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    animation: toast-in 0.18s ease;
+  }
+  .action-error-sentence {
+    flex: 1;
+    font-size: 0.82rem;
+    font-weight: 500;
+    line-height: 1.35;
+  }
+  .action-error-dismiss {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--state-danger);
+    font-family: var(--font-sans);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.3rem 0.55rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .action-error-dismiss:hover {
+    background: rgba(168, 47, 31, 0.08);
+    border-color: var(--state-danger);
+  }
+  .action-error-dismiss:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
   @keyframes toast-in {
     from { opacity: 0; transform: translateY(-6px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -1071,7 +1191,7 @@
   }
   .count-num {
     font-size: 1.75rem;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1;
     letter-spacing: -0.04em;
     color: var(--bone-400);
@@ -1262,6 +1382,59 @@
   }
   .clear-all:hover { color: var(--text-primary); }
 
+  /* Active-filter pills row — sits between the controls row and the filter
+     panel. Visible whenever the user has applied attribute filters, so they
+     can see what's active and remove individual filters without re-opening
+     the panel. */
+  .active-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.5rem 1.5rem 0.6rem;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .active-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.22rem 0.45rem 0.22rem 0.6rem;
+    background: var(--forest-800);
+    border: 1px solid var(--forest-800);
+    border-radius: 3px;
+    font-family: var(--font-sans);
+    font-size: 0.71rem;
+    font-weight: 500;
+    color: var(--bone-50);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .active-pill:hover {
+    background: var(--state-danger);
+    border-color: var(--state-danger);
+  }
+  .active-pill:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+  .active-pill svg { display: block; opacity: 0.85; }
+  .active-pill-label { letter-spacing: 0.01em; }
+
+  .active-pill-clear {
+    border: none;
+    background: none;
+    font-family: var(--font-sans);
+    font-size: 0.71rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 0.22rem 0.4rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    align-self: center;
+    transition: color 0.12s;
+  }
+  .active-pill-clear:hover { color: var(--text-primary); }
+
   /* ── Cards ── */
   .scroll-area { flex: 1; min-height: 0; overflow-y: auto; }
 
@@ -1372,6 +1545,11 @@
     .filter-panel.open { max-height: 200px; }
     .chip { min-height: 36px; padding: 0.35rem 0.7rem; font-size: 0.74rem; }
     .filter-groups { gap: 1.25rem; padding: 0.8rem 1rem; }
+
+    /* Active filter pills wrap below the (scrollable) controls row on mobile;
+       give them generous tap targets and edge padding that matches the panel. */
+    .active-pills { padding: 0.5rem 1rem 0.65rem; gap: 0.5rem; }
+    .active-pill { min-height: 32px; padding: 0.35rem 0.55rem 0.35rem 0.7rem; font-size: 0.74rem; }
 
     /* ── Cards ── */
     /* scroll-area is now just a plain block; body handles scrolling */
