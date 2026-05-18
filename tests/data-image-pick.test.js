@@ -14,6 +14,7 @@ describe('applyImagePick', () => {
 
   it('returns the original shape when pick is 0', () => {
     expect(applyImagePick(image, 0)).toEqual(image);
+    expect(applyImagePick(image, '0')).toEqual(image);
   });
 
   it('returns the original shape when pick is undefined', () => {
