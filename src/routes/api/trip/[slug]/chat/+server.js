@@ -5,7 +5,7 @@ import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { TraverseError, AdapterError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
-import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 
 // Cap on conversation length passed to the model — prevents a chatty client
 // from saturating the context window (and the bill) with a 1000-message thread.
@@ -101,7 +101,7 @@ Your output format:
     const { text, usage } = await chat({
       ...getEffectiveConfig().features.chat,
       label: 'chat',
-      maxTokens: 6000,
+      maxTokens: MAX_TOKENS.chat,
       system,
       messages: apiMessages,
     });

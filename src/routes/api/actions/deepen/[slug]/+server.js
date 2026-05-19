@@ -35,7 +35,9 @@ import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.j
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
-import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
+import { isAbort } from '$lib/utils/abort.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 
 export const _promise = HAND_DEFAULTS.deepen;
 
@@ -47,18 +49,6 @@ function findIdeaFile(slug) {
 function parseSection(text, tag) {
   const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
   return m?.[1]?.trim() ?? null;
-}
-
-function isAbort(err) {
-  if (!err) return false;
-  return err.name === 'AbortError' || err.code === 'ABORT_ERR';
-}
-
-function tokensFromUsage(usage) {
-  if (!usage) return 0;
-  const input = usage.input_tokens ?? usage.input ?? 0;
-  const output = usage.output_tokens ?? usage.output ?? 0;
-  return input + output;
 }
 
 async function doResearch(slug, ideaPath, signal) {
@@ -117,7 +107,7 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.deepen,
     label: 'deepen',
-    maxTokens: 8000,
+    maxTokens: MAX_TOKENS.deepen,
     system,
     messages: [{ role: 'user', content: 'Research this trip thoroughly using web search.' }],
     tools: [searchToolDefinition()],
@@ -221,7 +211,7 @@ export async function POST(event) {
     .then(
       (result) => {
         try {
-          completeJob('deepen', slug, { tokens: tokensFromUsage(result?.usage) });
+          completeJob('deepen', slug, { tokens: usageToTokens(result?.usage) });
         } catch (e) {
           console.error(`[deepen] ${slug}: completeJob threw after success:`, e?.message ?? e);
         }

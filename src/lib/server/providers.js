@@ -15,3 +15,7 @@ export const PROVIDERS = {
   openai:     { envKey: 'OPENAI_API_KEY',      supportsImages: true },
   openrouter: { envKey: 'OPENROUTER_API_KEY',  supportsImages: true },
 };
+
+// Safety cap on agentic tool-use loops. All adapters import this constant so
+// the ceiling stays in sync across providers.
+export const MAX_TOOL_TURNS = 20;

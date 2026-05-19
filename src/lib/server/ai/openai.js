@@ -2,8 +2,8 @@ import { withRetry } from '../retry.js';
 import { adapterErrorFromResponse, logAdapterError } from '../errors.js';
 import { resolveEnv } from '../settings.js';
 import { translateTools, findTool, translateMessages, accumUsage } from './openai-compat.js';
+import { MAX_TOOL_TURNS } from '../providers.js';
 
-const MAX_TOOL_TURNS = 20;
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
 async function callApi({ apiKey, model, maxTokens, tools, messages, signal }) {

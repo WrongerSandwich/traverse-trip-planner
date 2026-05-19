@@ -55,6 +55,14 @@ vi.mock('$lib/server/data.js', () => ({
   // In tests we map it to mockWriteFileSync so file-write assertions continue
   // to work without needing a real rename.
   atomicWrite: mockWriteFileSync,
+  // findTripLocation is used by findTripDir in the route to locate the trip folder.
+  // Return a planning-dir result for any slug that ends with an existing trip;
+  // return null for 'missing-trip' so 404 tests work.
+  findTripLocation: vi.fn((slug) =>
+    slug === 'missing-trip'
+      ? null
+      : { kind: 'dir', path: `/test-root/planning/${slug}`, stage: 'planning' }
+  ),
 }));
 
 const mockChat = vi.hoisted(() => vi.fn());

@@ -11,6 +11,7 @@ export { formatUsage } from '../utils/format.js';
 // before they hit the wire.
 export const MAX_TOKENS_CEILING = 100_000;
 
+
 // Build the adapters map from PROVIDERS so the two stay in sync: if a provider
 // is listed here but its adapter isn't imported above, the lookup below throws
 // at startup rather than silently failing at runtime.

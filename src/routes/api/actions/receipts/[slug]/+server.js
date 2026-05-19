@@ -5,7 +5,7 @@ import { ROOT, appendToNotes, rejectInvalidSlug } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
-import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { sniffImageType } from '$lib/utils/sniffImageType.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 
@@ -103,7 +103,7 @@ Rules:
     const result = await chat({
       ...getEffectiveConfig().features.receipts,
       label: 'receipts',
-      maxTokens: 800,
+      maxTokens: MAX_TOKENS.receipts,
       system,
       messages: [{ role: 'user', content: userContent }],
     });

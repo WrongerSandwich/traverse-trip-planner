@@ -5,7 +5,7 @@ import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
-import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { json } from '@sveltejs/kit';
 
@@ -74,7 +74,7 @@ national_park: true`;
         ...getEffectiveConfig().features.seed,
         label: 'seed',
         system,
-        maxTokens: 3000,
+        maxTokens: MAX_TOKENS.seed,
         messages: [{ role: 'user', content: userMessage }],
       }),
       send,

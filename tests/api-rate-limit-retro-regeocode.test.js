@@ -92,6 +92,7 @@ vi.mock('$lib/utils/formatTokens.js', () => ({
 
 vi.mock('$lib/server/promises.js', () => ({
   HAND_DEFAULTS: { 'retro-questions': {}, regeocode: {} },
+  MAX_TOKENS: { 'retro-questions': 600, 'retro-save': 2000 },
 }));
 
 // ── brochure + sse mocks ──────────────────────────────────────────────────────

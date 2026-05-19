@@ -61,4 +61,12 @@ describe('usageToTokens', () => {
     expect(usageToTokens({ input: 50 })).toBe(50);
     expect(usageToTokens({ output: 75 })).toBe(75);
   });
+
+  it('accepts raw provider shape { input_tokens, output_tokens }', () => {
+    expect(usageToTokens({ input_tokens: 300, output_tokens: 150 })).toBe(450);
+  });
+
+  it('prefers input_tokens over input when both present', () => {
+    expect(usageToTokens({ input_tokens: 300, input: 100, output_tokens: 150, output: 50 })).toBe(450);
+  });
 });

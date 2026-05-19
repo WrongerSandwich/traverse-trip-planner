@@ -16,6 +16,22 @@ import { resolvePromise } from './workflow-stats.js';
 
 /** @typedef {{ verb: string, produces: string, time_seconds: number, tokens_range: [number, number] }} Promise */
 
+/**
+ * Per-call maxTokens budget keyed by the `chat()` label.
+ * Update this table when adding or changing an AI-driven action.
+ */
+export const MAX_TOKENS = {
+  seed: 3000,
+  add: 600,
+  deepen: 8000,
+  'deepen-section': 4000,
+  'brochure-prepare': 4000,
+  chat: 6000,
+  'retro-questions': 600,
+  'retro-save': 2000,
+  receipts: 800,
+};
+
 /** @type {Record<string, Promise>} */
 export const HAND_DEFAULTS = {
   add: {

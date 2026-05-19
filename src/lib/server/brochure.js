@@ -20,6 +20,7 @@ import { findTripLocation, geocode, getTripFiles, readHomeMd, parseFrontmatter, 
 import { chat } from './ai.js';
 import { getEffectiveConfig } from './config.js';
 import { TraverseError } from './errors.js';
+import { MAX_TOKENS } from './promises.js';
 
 const BROCHURE_FILENAME = 'brochure.md';
 
@@ -218,7 +219,7 @@ export async function prepareBrochure(slug, { signal, onActivity } = {}) {
     label: 'brochure-prepare',
     system,
     messages: [{ role: 'user', content: userInput }],
-    maxTokens: 4000,
+    maxTokens: MAX_TOKENS['brochure-prepare'],
     signal,
   });
 

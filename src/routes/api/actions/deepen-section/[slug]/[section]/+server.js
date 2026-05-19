@@ -17,14 +17,16 @@
 import { json } from '@sveltejs/kit';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache, rejectInvalidSlug, atomicWrite } from '$lib/server/data.js';
+import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache, rejectInvalidSlug, atomicWrite, findTripLocation } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { assertNotRunning, startJob, completeJob, failJob } from '$lib/server/jobs.js';
-import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
+import { isAbort } from '$lib/utils/abort.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 
 export const _promise = HAND_DEFAULTS['deepen-section'];
 
@@ -49,19 +51,8 @@ const SECTION_PROMPTS = {
 };
 
 function findTripDir(slug) {
-  const dir = join(ROOT, 'planning', slug);
-  return existsSync(dir) ? dir : null;
-}
-
-function isAbort(err) {
-  if (!err) return false;
-  return err.name === 'AbortError' || err.code === 'ABORT_ERR';
-}
-
-function tokensFromUsage(usage) {
-  if (!usage) return 0;
-  return (usage.input_tokens ?? usage.input ?? 0)
-       + (usage.output_tokens ?? usage.output ?? 0);
+  const loc = findTripLocation(slug);
+  return loc?.kind === 'dir' ? loc.path : null;
 }
 
 export async function POST(event) {
@@ -110,7 +101,7 @@ export async function POST(event) {
     .then(
       (result) => {
         try {
-          completeJob(workflow, slug, { tokens: tokensFromUsage(result?.usage) });
+          completeJob(workflow, slug, { tokens: usageToTokens(result?.usage) });
         } catch (e) {
           console.error(`[deepen-section] ${workflow}:${slug}: completeJob threw after success:`, e?.message ?? e);
         }
@@ -167,7 +158,7 @@ ${guidance}
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.deepen,
     label: 'deepen-section',
-    maxTokens: 4000,
+    maxTokens: MAX_TOKENS['deepen-section'],
     system,
     messages: [{ role: 'user', content: `Research the ${section} section for this trip using web search.` }],
     tools: [searchToolDefinition()],
