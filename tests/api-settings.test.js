@@ -177,3 +177,71 @@ describe('POST /api/settings — keysToClear', () => {
     expect(written.keys?.openai).toBe('sk-openai-existing');
   });
 });
+
+// ── Model field validation ────────────────────────────────────────────────────
+
+describe('POST /api/settings — model field validation', () => {
+  it('returns 400 when model string exceeds 200 characters', async () => {
+    const longModel = 'a'.repeat(201);
+    const res = await POST(makeRequest({ slots: { default: { provider: 'anthropic', model: longModel } } }));
+    expect(res._status).toBe(400);
+    expect(res._body.code).toBe('invalid_input');
+    expect(res._body.error).toMatch(/model/i);
+  });
+
+  it('returns 400 when model string contains disallowed characters (<script>)', async () => {
+    const res = await POST(makeRequest({ slots: { default: { provider: 'anthropic', model: '<script>alert(1)</script>' } } }));
+    expect(res._status).toBe(400);
+    expect(res._body.code).toBe('invalid_input');
+    expect(res._body.error).toMatch(/model/i);
+  });
+
+  it('returns 400 when model string contains disallowed characters (space)', async () => {
+    const res = await POST(makeRequest({ slots: { default: { provider: 'anthropic', model: 'gpt 4o' } } }));
+    expect(res._status).toBe(400);
+    expect(res._body.code).toBe('invalid_input');
+  });
+
+  it('accepts a valid Anthropic model ID (claude-sonnet-4-6)', async () => {
+    readFileSync.mockReturnValue('{}');
+    const res = await POST(makeRequest({ slots: { default: { provider: 'anthropic', model: 'claude-sonnet-4-6' } } }));
+    expect(res._status).toBe(200);
+    expect(res._body.ok).toBe(true);
+  });
+
+  it('accepts a valid OpenAI model ID (gpt-4o)', async () => {
+    readFileSync.mockReturnValue('{}');
+    const res = await POST(makeRequest({ slots: { default: { provider: 'openai', model: 'gpt-4o' } } }));
+    expect(res._status).toBe(200);
+    expect(res._body.ok).toBe(true);
+  });
+
+  it('accepts a valid OpenRouter model ID with slash (anthropic/claude-opus-4-7)', async () => {
+    readFileSync.mockReturnValue('{}');
+    const res = await POST(makeRequest({ slots: { default: { provider: 'openrouter', model: 'anthropic/claude-opus-4-7' } } }));
+    expect(res._status).toBe(200);
+    expect(res._body.ok).toBe(true);
+  });
+
+  it('accepts exactly 200 characters (boundary)', async () => {
+    readFileSync.mockReturnValue('{}');
+    const borderModel = 'a'.repeat(200);
+    const res = await POST(makeRequest({ slots: { default: { provider: 'anthropic', model: borderModel } } }));
+    expect(res._status).toBe(200);
+    expect(res._body.ok).toBe(true);
+  });
+
+  it('accepts model with dots and colons (e.g. versioned IDs)', async () => {
+    readFileSync.mockReturnValue('{}');
+    const res = await POST(makeRequest({ slots: { default: { provider: 'anthropic', model: 'claude-3.5-sonnet:beta' } } }));
+    expect(res._status).toBe(200);
+    expect(res._body.ok).toBe(true);
+  });
+
+  it('does not validate model field when it is absent (blank clears the slot field)', async () => {
+    readFileSync.mockReturnValue('{}');
+    const res = await POST(makeRequest({ slots: { default: { provider: 'anthropic' } } }));
+    expect(res._status).toBe(200);
+    expect(res._body.ok).toBe(true);
+  });
+});
