@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { enrichTrips, getTripFiles } from '$lib/server/data.js';
-import { verifyShareToken, shareEnabled } from '$lib/server/share.js';
+import { verifyShareToken, shareEnabled, projectTripForShare } from '$lib/server/share.js';
 import { brochurePath } from '$lib/server/brochure.js';
 import { existsSync } from 'fs';
 
@@ -18,5 +18,10 @@ export async function load({ params }) {
   const files = getTripFiles(slug);
   const bPath = brochurePath(slug);
   const hasBrochure = !!(bPath && existsSync(bPath));
-  return { trip, files: files?.files || {}, stage: files?.stage || trip._stage, hasBrochure };
+  return {
+    trip: projectTripForShare(trip),
+    files: files?.files || {},
+    stage: files?.stage || trip._stage,
+    hasBrochure,
+  };
 }
