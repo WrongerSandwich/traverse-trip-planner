@@ -2,6 +2,7 @@
   import ConfirmModal from './ConfirmModal.svelte';
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
+  import { focusTrap } from '$lib/actions/focusTrap.js';
 
   let { slug, assistantName = 'Field guide', onclose, onsaved } = $props();
 
@@ -145,9 +146,7 @@
     onclose?.();
   }
 
-  function handleKey(e) {
-    if (e.key === 'Escape') requestClose();
-  }
+  // Escape handling moved into use:focusTrap onEscape on the dialog root (#280).
 
   const hasAnyAnswer = $derived(answers.some(a => a.trim().length > 0));
 
@@ -155,11 +154,15 @@
   const answeredCount = $derived(answers.filter(a => a.trim().length > 0).length);
 </script>
 
-<svelte:window onkeydown={handleKey} />
-
 <div class="backdrop" onclick={requestClose} role="presentation"></div>
 
-<div class="modal" role="dialog" aria-modal="true" aria-labelledby="retro-title">
+<div
+  class="modal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="retro-title"
+  use:focusTrap={{ onEscape: requestClose }}
+>
   <header class="modal-header">
     <h2 id="retro-title">How was the trip?</h2>
     {#if phase !== 'saving'}

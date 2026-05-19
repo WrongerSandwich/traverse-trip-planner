@@ -1,5 +1,6 @@
 <script>
   import { failureSentence } from '$lib/errors-registry.js';
+  import { focusTrap } from '$lib/actions/focusTrap.js';
 
   let {
     open = $bindable(false),
@@ -88,18 +89,19 @@
     onclose?.();
   }
 
-  function handleKey(e) {
-    if (!open) return;
-    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-  }
+  // Escape + focus trap come from use:focusTrap on the dialog root (#280).
 </script>
-
-<svelte:window onkeydown={handleKey} />
 
 {#if open}
   <div class="backdrop" onclick={cancel} role="presentation"></div>
 
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cover-title">
+  <div
+    class="modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="cover-title"
+    use:focusTrap={{ onEscape: cancel }}
+  >
     <div class="modal-body">
       <h2 id="cover-title" class="modal-title">Change cover photo</h2>
 
