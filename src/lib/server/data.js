@@ -475,7 +475,6 @@ export function getHome() {
 
 // ── Enrich trips ──
 // TODO: split into enrichWithGeodata() (geocode/image/route I/O) and enrichWithCalculations() (pure transforms); pruneCaches() can be called explicitly after enrichment
-// TODO: standardize null-check pattern in toggleStarred/setShared — both should assign parseFrontmatter to a variable before checking, not discard the result
 
 async function geocodeWaypoints(waypoints, trackSet = null) {
   const wps = Array.isArray(waypoints) ? waypoints : [waypoints];
@@ -726,14 +725,23 @@ function escapeRegex(s) {
 }
 
 // Sets or inserts a single frontmatter field in markdown content.
-// Returns the updated string; throws if no closing --- fence is found.
+// Scoped to the frontmatter block (mirroring removeFrontmatterField) so a
+// prose line in the body that starts with the field name is never touched.
+// No-op insert if no frontmatter block exists (body-only files are left as-is).
 export function setFrontmatterField(content, field, value) {
   const safeField = escapeRegex(field);
   const line = `${field}: ${value}`;
-  if (new RegExp(`^${safeField}:`, 'm').test(content)) {
-    return content.replace(new RegExp(`^${safeField}:.*$`, 'm'), line);
-  }
-  return content.replace(/(\n---\n)/, `\n${line}$1`);
+  return content.replace(
+    /^---\n([\s\S]*?)\n---/m,
+    (match, block) => {
+      if (new RegExp(`^${safeField}:`, 'm').test(block)) {
+        // Field exists in frontmatter — replace that line only.
+        return `---\n${block.replace(new RegExp(`^${safeField}:.*$`, 'm'), line)}\n---`;
+      }
+      // Field absent — append before the closing fence.
+      return `---\n${block}\n${line}\n---`;
+    },
+  );
 }
 
 // Removes a frontmatter field line from markdown content. No-op if absent.
@@ -838,7 +846,8 @@ export function setShared(slug, shared) {
   if (!filePath) return null;
 
   const content = readFileSync(filePath, 'utf8');
-  if (!parseFrontmatter(content)) return null;
+  const fm = parseFrontmatter(content);
+  if (!fm) return null;
 
   atomicWrite(filePath, setFrontmatterField(content, 'shared', shared));
   invalidateEnrichCache();
