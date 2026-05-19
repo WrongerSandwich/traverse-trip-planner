@@ -77,5 +77,5 @@ console.log('');
 console.log(`Done. ${copied} copied, ${skipped} skipped.`);
 if (copied > 0) {
   console.log('');
-  console.log('Next: `npm run dev` (or `npm run build && node build/index.js`) and open http://localhost:3456.');
+  console.log('Next: `npm run dev` (or `npm run build && PORT=3456 node build/index.js`) and open http://localhost:3456.');
 }
