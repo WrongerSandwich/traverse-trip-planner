@@ -87,11 +87,18 @@ locked: false
     expect(fm.locked).toBe('false');
   });
 
-  it('treats single-bracket values as lists even when empty', () => {
+  it('parses empty inline array [] as []', () => {
     const md = `---
 waypoints: []
 ---`;
-    expect(parseFrontmatter(md).waypoints).toEqual(['']);
+    expect(parseFrontmatter(md).waypoints).toEqual([]);
+  });
+
+  it('filters empty entries from sparse inline arrays', () => {
+    const md = `---
+tags: [a, , b]
+---`;
+    expect(parseFrontmatter(md).tags).toEqual(['a', 'b']);
   });
 });
 

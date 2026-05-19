@@ -306,6 +306,11 @@ function estimateCost(trip, homeCoords) {
  * an object. Inline-list values like `[a, b, c]` become arrays; everything
  * else stays as a string. Use this when you have raw key:value lines without
  * fences (e.g. AI-generated frontmatter inside an XML tag).
+ *
+ * Limitation: quoted commas inside inline arrays are not handled — a value
+ * like `[hiking, "scenic, drive"]` splits into three entries instead of two.
+ * Use YAML multiline block sequences (one item per line with `- ` prefix) for
+ * values that may contain commas.
  */
 export function parseFrontmatterFields(text) {
   const data = {};
@@ -315,7 +320,7 @@ export function parseFrontmatterFields(text) {
     const key = line.slice(0, colon).trim();
     const raw = line.slice(colon + 1).trim();
     data[key] = raw.startsWith('[') && raw.endsWith(']')
-      ? raw.slice(1, -1).split(',').map(s => s.trim())
+      ? raw.slice(1, -1).split(',').map(s => s.trim()).filter(s => s !== '')
       : raw;
   }
   return data;
