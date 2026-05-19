@@ -10,6 +10,8 @@ import {
 
 const SUPPORTED_SLOTS = ['default', 'research'];
 const ASSISTANT_NAME_MAX = 60;
+const MODEL_MAX_LENGTH = 200;
+const MODEL_CHARSET_RE = /^[A-Za-z0-9._:/\-]+$/;
 
 export async function POST({ request }) {
   if (process.env.TRAVERSE_DISABLE_SETTINGS_UI) {
@@ -77,6 +79,15 @@ export async function POST({ request }) {
     const provider = incomingSlots[slot]?.provider;
     if (provider && !SUPPORTED_PROVIDERS.includes(provider)) {
       return json({ error: `Unknown provider for slot "${slot}": "${provider}". Supported: ${SUPPORTED_PROVIDERS.join(', ')}.` }, { status: 400 });
+    }
+    const model = incomingSlots[slot]?.model;
+    if (model) {
+      if (model.length > MODEL_MAX_LENGTH) {
+        return json({ code: 'invalid_input', error: `model for slot "${slot}" must be ≤ ${MODEL_MAX_LENGTH} characters.` }, { status: 400 });
+      }
+      if (!MODEL_CHARSET_RE.test(model)) {
+        return json({ code: 'invalid_input', error: `model for slot "${slot}" contains disallowed characters. Allowed: A-Z a-z 0-9 . _ : / -` }, { status: 400 });
+      }
     }
   }
 
