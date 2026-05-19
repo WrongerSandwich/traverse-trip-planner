@@ -65,6 +65,11 @@ vi.mock('$lib/server/data.js', () => ({
   invalidateEnrichCache: vi.fn(),
   rejectInvalidSlug: () => null,
   atomicWrite: vi.fn(),
+  findTripLocation: vi.fn((slug) =>
+    slug === 'missing-trip'
+      ? null
+      : { kind: 'dir', path: `/test-root/planning/${slug}`, stage: 'planning' }
+  ),
 }));
 
 // AI / search / config mocks

@@ -25,20 +25,10 @@ import { TraverseError } from '$lib/server/errors.js';
 import { rejectInvalidSlug } from '$lib/server/data.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
+import { isAbort } from '$lib/utils/abort.js';
+import { usageToTokens } from '$lib/utils/formatTokens.js';
 
 export const _promise = HAND_DEFAULTS['brochure-prepare'];
-
-function tokensFromUsage(usage) {
-  if (!usage) return 0;
-  const input = usage.input_tokens ?? usage.input ?? 0;
-  const output = usage.output_tokens ?? usage.output ?? 0;
-  return input + output;
-}
-
-function isAbort(err) {
-  if (!err) return false;
-  return err.name === 'AbortError' || err.code === 'ABORT_ERR';
-}
 
 export async function POST(event) {
   const { params } = event;
@@ -75,7 +65,7 @@ export async function POST(event) {
     .then(
       (result) => {
         try {
-          completeJob('brochure', slug, { tokens: tokensFromUsage(result?.usage) });
+          completeJob('brochure', slug, { tokens: usageToTokens(result?.usage) });
         } catch (e) {
           console.error(`[brochure] ${slug}: completeJob threw after success:`, e?.message ?? e);
         }

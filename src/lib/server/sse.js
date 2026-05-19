@@ -1,3 +1,5 @@
+import { isAbort } from '$lib/utils/abort.js';
+
 /**
  * Wraps an async SSE handler in a ReadableStream + Response with correct headers.
  *
@@ -11,10 +13,6 @@
  *     send('Done.', true);
  *   });
  */
-function isAbort(err) {
-  if (!err) return false;
-  return err.name === 'AbortError' || err.code === 'ABORT_ERR' || err === 'AbortError';
-}
 
 /**
  * Runs `fn` while sending periodic heartbeat messages to keep the SSE panel
