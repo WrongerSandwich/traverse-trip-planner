@@ -5,7 +5,7 @@ import { translateTools, findTool, translateMessages, accumUsage } from './opena
 import { MAX_TOOL_TURNS } from '../providers.js';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-const REFERER = 'https://github.com/WrongerSandwich/traverse';
+const REFERER = 'https://github.com/WrongerSandwich/traverse-trip-planner';
 const TITLE = 'Traverse';
 
 function baseHeaders(apiKey) {

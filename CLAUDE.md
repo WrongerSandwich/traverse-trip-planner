@@ -137,4 +137,4 @@ After adding or renaming trips, the next page load picks them up automatically; 
 - For async-agent handoff (cloud sessions picking up issues from GitHub), see [AGENTS.md](AGENTS.md) — it covers the verification flow, ticket conventions, and the `design` label that marks issues unsafe for autonomous pickup.
 - When a module's behavior is unclear, **the test suite is authoritative.** AI adapters (`tests/ai-anthropic.test.js`, `tests/ai-openai.test.js`), brochure extraction (`tests/brochure.test.js`), share-token HMAC (`tests/share.test.js`), and frontmatter parsing (`tests/data-frontmatter.test.js`) document the contract more precisely than reading the implementation.
 - Use CSS custom-property tokens, not raw color literals. Hardcoded `#`/`rgba/hsl` values are acceptable only for (a) shadows or (b) scrims over photographic content. Any other literal should reference a token in `src/app.css` so it adapts in dark mode.
-- After a meaningful unit of work, commit and push — the repo is on GitHub at `WrongerSandwich/traverse`
+- After a meaningful unit of work, commit and push — the repo is on GitHub at `WrongerSandwich/traverse-trip-planner`

@@ -1,6 +1,6 @@
 # Traverse
 
-[![CI](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml/badge.svg)](https://github.com/WrongerSandwich/traverse/actions/workflows/ci.yml)
+[![CI](https://github.com/WrongerSandwich/traverse-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/WrongerSandwich/traverse-trip-planner/actions/workflows/ci.yml)
 
 A self-hosted road-trip filing cabinet. Trips live as plain markdown files, progressing through a lifecycle: **idea → planning → completed**. An LLM helps generate, research, and reflect on them — but the data is yours, on your disk, in a format you can read and grep without the app running.
 
