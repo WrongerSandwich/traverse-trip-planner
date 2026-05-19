@@ -295,8 +295,10 @@
           }
         }
       }, { prompt });
-    } catch (e) {
-      seedLog       = [...seedLog, `Error: ${e.message}`];
+    } catch {
+      // Don't leak err.message into the user-visible log — the failureSentence
+      // for `network_error` is rendered separately (#269).
+      seedLog       = [...seedLog, 'Network error.'];
       seedStatus    = 'failure';
       seedErrorCode = 'network_error';
     }
@@ -349,8 +351,10 @@
           }
         }
       }, { destination: dest });
-    } catch (e) {
-      addLog       = [...addLog, `Error: ${e.message}`];
+    } catch {
+      // Don't leak err.message into the user-visible log — the failureSentence
+      // for `network_error` is rendered separately (#269).
+      addLog       = [...addLog, 'Network error.'];
       addStatus    = 'failure';
       addErrorCode = 'network_error';
     }

@@ -4,6 +4,7 @@
   import LocationPicker from '$lib/components/LocationPicker.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import { stringToTravelers } from '$lib/utils/homeForm.js';
+  import { failureSentence } from '$lib/errors-registry.js';
 
   // Six-step wizard. Step state is an integer 1–6.
   let step = $state(1);
@@ -223,14 +224,18 @@
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        writeError = body.error ?? `Server error ${res.status}`;
+        // Server returns a specific `error` string for validation failures
+        // (e.g. "frontmatter.home_city must be a non-empty string"). Prefer
+        // that since it points at the offending field. Fall back to the
+        // generic action_failed sentence for unexpected statuses.
+        writeError = body.error ?? failureSentence('action_failed');
         return;
       }
       // Successful write — bypass the discard guard and go home.
       skipDiscardOnce = true;
       goto('/');
-    } catch (e) {
-      writeError = e.message;
+    } catch {
+      writeError = failureSentence('network_error');
     } finally {
       writing = false;
     }
