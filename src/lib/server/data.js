@@ -765,9 +765,11 @@ export function setFrontmatterField(content, field, value) {
   return content.replace(
     /^---\n([\s\S]*?)\n---/m,
     (match, block) => {
-      if (new RegExp(`^${safeField}:`, 'm').test(block)) {
-        // Field exists in frontmatter — replace that line only.
-        return `---\n${block.replace(new RegExp(`^${safeField}:.*$`, 'm'), line)}\n---`;
+      const lineRe = new RegExp(`^${safeField}:.*\n?`, 'mg');
+      if (lineRe.test(block)) {
+        // Field exists in frontmatter — collapse all copies to one canonical line.
+        const withoutDup = block.replace(new RegExp(`^${safeField}:.*\n?`, 'mg'), '');
+        return `---\n${withoutDup}${withoutDup.endsWith('\n') ? '' : '\n'}${line}\n---`;
       }
       // Field absent — append before the closing fence.
       return `---\n${block}\n${line}\n---`;
@@ -781,7 +783,7 @@ export function removeFrontmatterField(content, field) {
   const safeField = escapeRegex(field);
   return content.replace(
     /^---\n([\s\S]*?)\n---/m,
-    (_, block) => `---\n${block.replace(new RegExp(`^${safeField}:.*\n?`, 'm'), '')}\n---`,
+    (_, block) => `---\n${block.replace(new RegExp(`^${safeField}:.*\n?`, 'mg'), '')}\n---`,
   );
 }
 
