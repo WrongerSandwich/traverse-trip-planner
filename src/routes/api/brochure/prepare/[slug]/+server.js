@@ -66,18 +66,30 @@ export async function POST(event) {
   // mid-run.
   const job = startJob('brochure', slug, { est_seconds: _promise.time_seconds });
 
-  // Fire-and-forget. Errors that aren't AbortError are recorded via failJob;
-  // an AbortError means cancelJob() already wrote the failure event and we
-  // must not record a second one.
+  // Fire-and-forget. Use the two-callback form of .then() so that a throw
+  // inside completeJob (e.g. disk I/O failure in clearRunningFlag/atomicWrite)
+  // routes to the rejection handler rather than producing an unhandled rejection
+  // that would kill the server under Node 15+. An AbortError means cancelJob()
+  // already wrote the failure event and we must not record a second one.
   prepareBrochure(slug, { signal: job.controller.signal })
-    .then((result) => {
-      completeJob('brochure', slug, { tokens: tokensFromUsage(result?.usage) });
-    })
-    .catch((err) => {
-      if (isAbort(err)) return; // cancelJob() owns the failure event
-      const code = err instanceof TraverseError ? err.code : 'unknown';
-      failJob('brochure', slug, { code, message: err?.message ?? 'Unknown error' });
-    });
+    .then(
+      (result) => {
+        try {
+          completeJob('brochure', slug, { tokens: tokensFromUsage(result?.usage) });
+        } catch (e) {
+          console.error(`[brochure] ${slug}: completeJob threw after success:`, e?.message ?? e);
+        }
+      },
+      (err) => {
+        if (isAbort(err)) return; // cancelJob() owns the failure event
+        const code = err instanceof TraverseError ? err.code : 'unknown';
+        try {
+          failJob('brochure', slug, { code, message: err?.message ?? 'Unknown error' });
+        } catch (e) {
+          console.error(`[brochure] ${slug}: failJob threw after failure:`, e?.message ?? e);
+        }
+      },
+    );
 
   return json({ ok: true, workflow: 'brochure', slug }, { status: 202 });
 }
