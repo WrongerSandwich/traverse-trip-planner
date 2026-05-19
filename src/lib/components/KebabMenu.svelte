@@ -24,6 +24,9 @@
    *   ]} />
    */
 
+  import { tick } from 'svelte';
+  import { nextMenuIndex, collectMenuItems } from '$lib/utils/menuNav.js';
+
   /** @typedef {{ label: string, items: import('./KebabMenu.svelte').MenuItem[] }} MenuGroup */
 
   let { groups = [] } = $props();
@@ -32,32 +35,134 @@
   let triggerEl = $state(null);
   let panelEl = $state(null);
 
-  function toggle() {
-    open = !open;
+  // Index of the currently keyboard-focused menu item (−1 = none).
+  let focusedIndex = $state(-1);
+
+  // Flat list of visible focusable items, recomputed whenever groups or open changes.
+  const focusableItems = $derived(open ? collectMenuItems(groups) : []);
+
+  /**
+   * Focus the item at `idx` in the panel.
+   * We find the rendered [role="menuitem"] elements by querying the panel.
+   */
+  async function focusItemAt(idx) {
+    await tick();
+    if (!panelEl) return;
+    const els = panelEl.querySelectorAll('[role="menuitem"]:not([aria-disabled="true"])');
+    // Map flat focusable index → DOM order index (same order since collectMenuItems mirrors render order).
+    // We need to walk all menuitem elements and match enabled ones.
+    const allItems = panelEl.querySelectorAll('[role="menuitem"]');
+    // Build enabled-only list from DOM in order to align with focusableItems order.
+    const enabledEls = [...allItems].filter(el => el.getAttribute('aria-disabled') !== 'true' && !el.disabled);
+    if (enabledEls[idx]) {
+      enabledEls[idx].focus();
+    }
   }
 
-  function close() {
+  async function openMenu() {
+    open = true;
+    focusedIndex = -1;
+    // Focus the first enabled item
+    await tick();
+    const firstIdx = nextMenuIndex(focusableItems, -1, 'first');
+    if (firstIdx !== -1) {
+      focusedIndex = firstIdx;
+      focusItemAt(firstIdx);
+    } else {
+      // No enabled items — focus the panel itself so Escape still works
+      await tick();
+      panelEl?.focus();
+    }
+  }
+
+  function closeMenu() {
+    if (!open) return;
     open = false;
+    focusedIndex = -1;
+    // Return focus to the trigger
+    triggerEl?.focus();
+  }
+
+  function toggle() {
+    if (open) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
   }
 
   function handleItemClick(item) {
     if (item.onclick) item.onclick();
-    close();
+    closeMenu();
   }
 
-  function handleKeydown(e) {
-    if (e.key === 'Escape') close();
+  function handleMenuKeydown(e) {
+    if (!open) return;
+
+    switch (e.key) {
+      case 'Escape':
+        e.preventDefault();
+        closeMenu();
+        break;
+
+      case 'ArrowDown': {
+        e.preventDefault();
+        const next = nextMenuIndex(focusableItems, focusedIndex, 'down');
+        focusedIndex = next;
+        focusItemAt(next);
+        break;
+      }
+
+      case 'ArrowUp': {
+        e.preventDefault();
+        const prev = nextMenuIndex(focusableItems, focusedIndex, 'up');
+        focusedIndex = prev;
+        focusItemAt(prev);
+        break;
+      }
+
+      case 'Home': {
+        e.preventDefault();
+        const first = nextMenuIndex(focusableItems, focusedIndex, 'first');
+        focusedIndex = first;
+        focusItemAt(first);
+        break;
+      }
+
+      case 'End': {
+        e.preventDefault();
+        const last = nextMenuIndex(focusableItems, focusedIndex, 'last');
+        focusedIndex = last;
+        focusItemAt(last);
+        break;
+      }
+
+      case 'Tab':
+        // Close on Tab — let focus continue naturally to the next element.
+        closeMenu();
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  function handleGlobalKeydown(e) {
+    if (e.key === 'Escape' && open) {
+      e.preventDefault();
+      closeMenu();
+    }
   }
 
   function handlePointerDown(e) {
     if (!open) return;
     if (triggerEl && triggerEl.contains(e.target)) return;
     if (panelEl && panelEl.contains(e.target)) return;
-    close();
+    closeMenu();
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} onpointerdown={handlePointerDown} />
+<svelte:window onkeydown={handleGlobalKeydown} onpointerdown={handlePointerDown} />
 
 <div class="kebab-menu">
   <button
@@ -77,6 +182,8 @@
       bind:this={panelEl}
       class="kebab-panel"
       role="menu"
+      tabindex="-1"
+      onkeydown={handleMenuKeydown}
     >
       {#each groups as group, gi}
         {#if gi > 0}
@@ -95,7 +202,8 @@
                 target={item.target}
                 rel={item.rel}
                 role="menuitem"
-                onclick={close}
+                tabindex="-1"
+                onclick={closeMenu}
               >{item.label}</a>
             {:else if item.type === 'text'}
               <div class="kebab-text" role="presentation">{item.value}</div>
@@ -104,7 +212,9 @@
                 class="kebab-item"
                 class:danger={item.danger}
                 disabled={item.disabled}
+                aria-disabled={item.disabled ? 'true' : undefined}
                 role="menuitem"
+                tabindex="-1"
                 type="button"
                 onclick={() => handleItemClick(item)}
               >{item.label}</button>
@@ -167,6 +277,7 @@
     padding: 0.3rem 0;
     display: flex;
     flex-direction: column;
+    outline: none;
   }
 
   .kebab-divider {
