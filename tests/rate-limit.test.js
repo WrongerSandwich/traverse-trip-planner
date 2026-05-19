@@ -141,3 +141,85 @@ describe('rateLimitResponse — env overrides', () => {
     expect(rateLimitResponse({ event, endpoint: 'seed' })).toBeInstanceOf(Response);
   });
 });
+
+describe('DEFAULT_LIMITS — new explicit entries', () => {
+  it('has an explicit image-search entry', () => {
+    expect(DEFAULT_LIMITS['image-search']).toBeDefined();
+    expect(DEFAULT_LIMITS['image-search'].capacity).toBeGreaterThan(0);
+    expect(DEFAULT_LIMITS['image-search'].refillPerMinute).toBeGreaterThan(0);
+  });
+
+  it('has an explicit geocode entry', () => {
+    expect(DEFAULT_LIMITS['geocode']).toBeDefined();
+    expect(DEFAULT_LIMITS['geocode'].capacity).toBeGreaterThan(0);
+    expect(DEFAULT_LIMITS['geocode'].refillPerMinute).toBeGreaterThan(0);
+  });
+});
+
+describe('rateLimitResponse — brochure endpoint (slugKey isolation)', () => {
+  function makeEvent(ip = '10.1.1.1') {
+    return { getClientAddress: () => ip };
+  }
+
+  it('allows up to brochure capacity then denies for the same slug', () => {
+    const event = makeEvent('10.2.2.2');
+    const cap = DEFAULT_LIMITS.brochure.capacity;
+    for (let i = 0; i < cap; i++) {
+      expect(rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-a' })).toBeNull();
+    }
+    const denied = rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-a' });
+    expect(denied).toBeInstanceOf(Response);
+    expect(denied.status).toBe(429);
+  });
+
+  it('a drained slug bucket does not affect a different slug from the same IP', () => {
+    const event = makeEvent('10.3.3.3');
+    const cap = DEFAULT_LIMITS.brochure.capacity;
+    for (let i = 0; i < cap; i++) {
+      rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-x' });
+    }
+    // slug trip-x is drained; trip-y should still be allowed
+    expect(rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-y' })).toBeNull();
+  });
+
+  it('returns 429 with Retry-After header on denial', async () => {
+    const event = makeEvent('10.4.4.4');
+    const cap = DEFAULT_LIMITS.brochure.capacity;
+    for (let i = 0; i < cap; i++) {
+      rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-b' });
+    }
+    const denied = rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-b' });
+    expect(denied.headers.get('Retry-After')).toMatch(/^\d+$/);
+    const body = await denied.json();
+    expect(body.code).toBe('rate_limited');
+  });
+});
+
+describe('rateLimitResponse — image-search endpoint (per-IP, no slugKey)', () => {
+  function makeEvent(ip = '10.5.5.5') {
+    return { getClientAddress: () => ip };
+  }
+
+  it('allows up to image-search capacity then denies', () => {
+    const event = makeEvent('10.6.6.6');
+    const cap = DEFAULT_LIMITS['image-search'].capacity;
+    for (let i = 0; i < cap; i++) {
+      expect(rateLimitResponse({ event, endpoint: 'image-search' })).toBeNull();
+    }
+    const denied = rateLimitResponse({ event, endpoint: 'image-search' });
+    expect(denied).toBeInstanceOf(Response);
+    expect(denied.status).toBe(429);
+  });
+
+  it('isolates buckets across different IPs', () => {
+    const evA = makeEvent('10.7.7.7');
+    const evB = makeEvent('10.8.8.8');
+    const cap = DEFAULT_LIMITS['image-search'].capacity;
+    for (let i = 0; i < cap; i++) {
+      rateLimitResponse({ event: evA, endpoint: 'image-search' });
+    }
+    // IP A is drained; IP B should still be allowed
+    expect(rateLimitResponse({ event: evB, endpoint: 'image-search' })).toBeNull();
+    expect(rateLimitResponse({ event: evA, endpoint: 'image-search' })).toBeInstanceOf(Response);
+  });
+});
