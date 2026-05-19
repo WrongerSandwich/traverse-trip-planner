@@ -54,6 +54,7 @@ See [CLAUDE.md](CLAUDE.md) for the full set, but the highlights:
 
 - **Bugs:** open a GitHub issue with reproduction steps and your `.env` provider config (without the keys themselves — see SECURITY.md).
 - **Feature ideas:** check the [open issues](https://github.com/WrongerSandwich/traverse-trip-planner/issues) first; many ideas are already captured there with implementation context. If yours isn't, open a discussion or issue and link it to where it'd land.
+- **Before opening, skim [SUPPORT.md](SUPPORT.md)** for the response-time expectations and what's likely `wontfix` (hosted/multi-tenant features, key-less mode, features outside road-trip planning). It saves everyone time.
 
 ## Areas that welcome contribution
 
