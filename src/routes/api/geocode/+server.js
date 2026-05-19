@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { geocode, flushCaches } from '$lib/server/data.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 
 /**
  * GET /api/geocode?q=<query>
@@ -9,8 +10,13 @@ import { geocode, flushCaches } from '$lib/server/data.js';
  * whether the geocoder found a match.
  *
  * Returns 400 with { error, code: 'invalid_input' } for empty/missing q.
+ * Returns 429 when the per-IP geocode bucket is exhausted.
  */
-export async function GET({ url }) {
+export async function GET(event) {
+  const limited = rateLimitResponse({ event, endpoint: 'geocode' });
+  if (limited) return limited;
+
+  const { url } = event;
   const q = (url.searchParams.get('q') ?? '').trim();
 
   if (!q) {
