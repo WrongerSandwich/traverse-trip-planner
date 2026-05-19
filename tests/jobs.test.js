@@ -470,7 +470,7 @@ describe('sweepStaleJobs', () => {
 
     const fm = readIdeaFm('stale-idea');
     expect(fm.running).toBeUndefined();
-    expect(fm.last_run_aborted).toBe('true');
+    expect(fm.last_run_aborted).toBe(true);
     expect(fm.last_run_aborted_at).toBeTruthy();
   });
 
@@ -492,7 +492,7 @@ describe('sweepStaleJobs', () => {
 
     const fm = readPlanningFm('stale-plan');
     expect(fm.running).toBeUndefined();
-    expect(fm.last_run_aborted).toBe('true');
+    expect(fm.last_run_aborted).toBe(true);
   });
 
   it('ignores files without a running flag entirely', () => {
