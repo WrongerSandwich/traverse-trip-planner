@@ -1,6 +1,6 @@
 # Traverse — Dark Mode Specification
 
-A companion to `traverse-design-spec.md`. Hand both files to Claude Code together.
+A companion to [`design-spec.md`](design-spec.md), the source-of-truth design system. Read it first; this file extends the same palette into a dark theme.
 
 This document defines a complete dark mode for Traverse. It is not a lightness inversion of the light theme — it is a deliberately re-mapped set of values built on the same brand palette.
 

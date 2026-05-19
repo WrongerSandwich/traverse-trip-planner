@@ -2,7 +2,7 @@
   // Traverse mark: circular badge with double ring, open road vanishing to a
   // horizon line, sunrise disc above the horizon, and centerline dashes masked
   // as transparent holes through the road fill.
-  // See traverse-design-spec.md §2 for usage rules. Minimum legible size 24px;
+  // See docs/design-spec.md §2 for usage rules. Minimum legible size 24px;
   // below that, the simplified variant drops the inner hairline ring and bumps
   // stroke weights. For truly tiny sizes use static/favicon.svg instead.
 
