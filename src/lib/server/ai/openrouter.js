@@ -2,8 +2,8 @@ import { withRetry } from '../retry.js';
 import { adapterErrorFromResponse, logAdapterError } from '../errors.js';
 import { resolveEnv } from '../settings.js';
 import { translateTools, findTool, translateMessages, accumUsage } from './openai-compat.js';
+import { MAX_TOOL_TURNS } from '../providers.js';
 
-const MAX_TOOL_TURNS = 20;
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 const REFERER = 'https://github.com/WrongerSandwich/traverse';
 const TITLE = 'Traverse';

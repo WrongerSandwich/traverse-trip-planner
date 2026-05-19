@@ -1,8 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AdapterError, formatSummary, logAdapterError } from '../errors.js';
 import { resolveEnv } from '../settings.js';
-
-const MAX_TOOL_TURNS = 20;
+import { MAX_TOOL_TURNS } from '../providers.js';
 
 function translateTools(tools) {
   if (!tools || tools.length === 0) return undefined;
