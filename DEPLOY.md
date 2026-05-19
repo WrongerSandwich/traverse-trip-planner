@@ -2,10 +2,6 @@
 
 **Docker is the canonical deployment path.** It requires no Node.js toolchain on the host and is the path documented in CLAUDE.md.
 
-PM2 (`ecosystem.config.cjs`) is a legacy path kept for existing deployments that predate the Docker switch. New installs should use Docker.
-
-Both reach the same `http://<server-ip>:3456` and read the same on-disk trip data.
-
 ---
 
 ## Docker (canonical)
@@ -72,26 +68,6 @@ docker compose up -d
 
 macOS Docker Desktop translates ownership automatically; you can leave the defaults.
 
-### Migrating from PM2 (legacy) to Docker
-
-PM2 and Docker both bind port 3456. To switch from an existing PM2 deploy:
-
-```bash
-pm2 delete traverse
-docker compose up -d --build
-```
-
-### Migrating from the old `atlas` process name
-
-If you deployed before the brand rename, the PM2 app was called `atlas` and the env vars were `ATLAS_*`. One-time migration:
-
-```bash
-pm2 delete atlas                      # drop the old process
-sed -i 's/^ATLAS_/TRAVERSE_/' .env   # rename env vars in place
-git pull
-docker compose up -d --build          # switch to Docker at the same time
-```
-
 The startup banner lists which providers are wired and which features are available. Each AI call also emits a one-line `[ai] <label> <provider>/<model> — N in / N out (T turns, ms)` log so you can grep for total spend per feature. Transient API failures (network blips, 429 rate limits, 5xx) are retried with exponential backoff (3 attempts, 1s/2s/4s) and logged as `[retry] <label> attempt N/3 …`. Non-retriable errors (4xx other than 429, malformed responses) fail immediately.
 
 ## Notes
@@ -124,7 +100,7 @@ The Settings page (`/settings`) lets you manage API keys and model-slot configur
 
 To revert to `.env`-only behavior, delete `settings.json` or use the **Remove** button next to a stored key on the Settings page. Removing a key deletes only that key's entry from `settings.json`; other stored settings are untouched. Once removed, the corresponding `.env` value (e.g. `ANTHROPIC_API_KEY`) resumes as the active key. If no `.env` fallback exists, the next AI call using that provider will fail with a missing-key error.
 
-> **Note:** The startup banner (printed to the PM2 log on boot) reflects only `.env` state — it reads config before `settings.json` can be overlaid. The Settings page (`/settings`) shows what is actually effective for incoming requests.
+> **Note:** The startup banner (printed to the server log on boot) reflects only `.env` state — it reads config before `settings.json` can be overlaid. The Settings page (`/settings`) shows what is actually effective for incoming requests.
 
 **`TRAVERSE_DISABLE_SETTINGS_UI`** — set to any non-empty value to disable the `/settings` page and `POST /api/settings` entirely (both return 403). Recommended for production deployments where the server is reachable over an untrusted network and you prefer `.env`-only key management.
 

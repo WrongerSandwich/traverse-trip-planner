@@ -60,8 +60,8 @@ the source. Knowing these up front saves debugging time.
 - **`DestinationMap` switches projections** based on whether `baseMapUrl`
   is set: Mercator with a base map, equirectangular without. The native
   terrain/rivers/places code paths run only on the equirectangular branch.
-- **Production mode is `pm2 + a built bundle`.** Source changes don't
-  take effect until `npm run build && pm2 restart traverse`. Easy to be
+- **Production mode is `docker compose + a built image`.** Source changes don't
+  take effect until `docker compose up -d --build`. Easy to be
   misled by stale code when testing in production mode — the inspector
   shows the right source, but the running server doesn't.
 - **The smoke test is gated by env vars.** It silently no-ops for
