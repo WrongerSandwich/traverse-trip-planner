@@ -165,6 +165,27 @@ describe('setFrontmatterField', () => {
     expect(result).toContain('starred: true');
     expect(result).toContain('star_rating: 4');
   });
+
+  it('does not rewrite a body line starting with the field name when field is absent from frontmatter', () => {
+    // A route.md body line like "starred: yes, this is the route…" must not
+    // be mutated when starred is not declared in the frontmatter at all.
+    const md = `---\ntitle: Ozarks\nstatus: planning\n---\n\nstarred: yes, this is the route we've all been waiting for.`;
+    const result = setFrontmatterField(md, 'starred', true);
+    expect(parseFrontmatter(result)?.starred).toBe('true');
+    expect(result).toContain("starred: yes, this is the route we've all been waiting for.");
+  });
+
+  it('does not rewrite a body line starting with the field name when field is present in frontmatter', () => {
+    // Even when frontmatter already has the field, the body prose line must be untouched.
+    const md = `---\ntitle: Ozarks\nstatus: planning\nstarred: false\n---\n\nstarred: yes, this is the route we've all been waiting for.`;
+    const result = setFrontmatterField(md, 'starred', true);
+    expect(parseFrontmatter(result)?.starred).toBe('true');
+    expect(result).toContain("starred: yes, this is the route we've all been waiting for.");
+    // The frontmatter line should appear exactly once
+    const fmMatches = result.match(/^starred:/gm);
+    expect(fmMatches).toHaveLength(2); // one in frontmatter, one in body
+    expect(parseFrontmatter(result)?.starred).toBe('true');
+  });
 });
 
 describe('removeFrontmatterField', () => {
