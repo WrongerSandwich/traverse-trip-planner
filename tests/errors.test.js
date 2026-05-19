@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   TraverseError,
   AdapterError,
   summarizeStatus,
   formatSummary,
   adapterErrorFromResponse,
+  logAdapterError,
 } from '../src/lib/server/errors.js';
 
 describe('TraverseError', () => {
@@ -99,5 +100,54 @@ describe('adapterErrorFromResponse', () => {
     expect(() => {
       throw new AdapterError({ provider: 'p', summary: 'oops' });
     }).toThrow(/oops/);
+  });
+});
+
+describe('logAdapterError', () => {
+  let errorSpy;
+
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  it('logs exactly once — no cause line — even when cause contains request payload', () => {
+    const cause = JSON.stringify({
+      model: 'gpt-4o',
+      messages: [{ role: 'system', content: 'home_coords: [39.0, -94.5]\nThis is private home.md content' }],
+      error: { message: 'invalid_request_error' },
+    });
+    const err = adapterErrorFromResponse({
+      provider: 'openai',
+      model: 'gpt-4o',
+      status: 400,
+      cause,
+    });
+    logAdapterError(err);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const logged = errorSpy.mock.calls[0][0];
+    expect(logged).not.toContain('home_coords');
+    expect(logged).not.toContain('home.md');
+    expect(logged).not.toContain('system');
+  });
+
+  it('logs the provider, status, and summary message', () => {
+    const err = new AdapterError({ provider: 'openai', model: 'gpt-4o', status: 429, summary: 'Rate limited' });
+    logAdapterError(err);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const logged = errorSpy.mock.calls[0][0];
+    expect(logged).toContain('[openai/gpt-4o]');
+    expect(logged).toContain('429');
+    expect(logged).toContain('Rate limited');
+  });
+
+  it('is a no-op for non-AdapterError values', () => {
+    logAdapterError(new Error('plain error'));
+    logAdapterError(null);
+    logAdapterError('string');
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });
