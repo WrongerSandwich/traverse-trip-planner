@@ -46,7 +46,7 @@ npm install
 npm run seed-sample          # optional: load the bundled demo dataset
 npm run smoke                # optional: 1-token round-trip per provider
 npm run build
-node build/index.js
+PORT=3456 node build/index.js
 ```
 
 Open `http://localhost:3456`.
