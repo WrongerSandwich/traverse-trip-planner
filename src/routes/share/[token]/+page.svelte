@@ -1,5 +1,5 @@
 <script>
-  import { marked } from 'marked';
+  import { renderMarkdown } from '$lib/sanitize.js';
 
   let { data } = $props();
 
@@ -57,7 +57,7 @@
     {#each visibleSections as section}
       <section>
         <h2>{SECTION_LABELS[section]}</h2>
-        <div class="md">{@html marked(files[section] || '')}</div>
+        <div class="md">{@html renderMarkdown(files[section])}</div>
       </section>
     {:else}
       <p class="empty">No content shared yet for this trip.</p>

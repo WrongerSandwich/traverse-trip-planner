@@ -1,5 +1,5 @@
 <script>
-  import { marked } from 'marked';
+  import { renderMarkdown } from '$lib/sanitize.js';
   import { untrack } from 'svelte';
   import { invalidateAll, goto } from '$app/navigation';
   import { onMount } from 'svelte';
@@ -847,7 +847,7 @@
               Print / Save PDF
             </button>
           </div>
-          {@html marked.parse(sections.itinerary || '')}
+          {@html renderMarkdown(sections.itinerary)}
           <p class="itinerary-legacy-cta no-print">
             <a href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Prepare brochure to enable editing</a>
           </p>
@@ -902,7 +902,7 @@
               </button>
             </div>
           {:else}
-            <div class="prose">{@html marked.parse(stripLeadingH1(sections[section]))}</div>
+            <div class="prose">{@html renderMarkdown(stripLeadingH1(sections[section]))}</div>
           {/if}
         </section>
       {/each}
