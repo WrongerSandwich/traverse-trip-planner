@@ -170,17 +170,20 @@
       </g>
     {/if}
 
-    <!-- Numbered stop pins (in-viewport) -->
+    <!-- Numbered stop pins (in-viewport). Class hooks let the mobile
+         media query scale up `r` and the inner numeral so pins stay
+         legible at ~360px screen width where the 720-unit viewBox
+         halves on render. -->
     {#each inViewportPins as pin}
       <g transform="translate({pin.xy[0]} {pin.xy[1]})">
         {#if pin.must_see}
-          <circle r="12" fill="var(--sunset-600)" stroke="var(--bone-50)" stroke-width="1.5" />
-          <text y="3.5" text-anchor="middle" font-family="var(--font-mono)" font-size="10" font-weight="500" fill="var(--sunset-50)">
+          <circle class="pin-circle pin-circle--must-see" r="12" fill="var(--sunset-600)" stroke="var(--bone-50)" stroke-width="1.5" />
+          <text class="pin-num pin-num--must-see" y="3.5" text-anchor="middle" font-family="var(--font-mono)" font-size="10" font-weight="500" fill="var(--sunset-50)">
             {pin.n}
           </text>
         {:else}
-          <circle r="10" fill="var(--forest-800)" stroke="var(--bone-50)" stroke-width="1.5" />
-          <text y="3" text-anchor="middle" font-family="var(--font-mono)" font-size="9" font-weight="500" fill="var(--bone-200)">
+          <circle class="pin-circle pin-circle--stop" r="10" fill="var(--forest-800)" stroke="var(--bone-50)" stroke-width="1.5" />
+          <text class="pin-num pin-num--stop" y="3" text-anchor="middle" font-family="var(--font-mono)" font-size="9" font-weight="500" fill="var(--bone-200)">
             {pin.n}
           </text>
         {/if}
@@ -237,13 +240,13 @@
           />
         </g>
         {#if pin.must_see}
-          <circle r="10" fill="var(--sunset-600)" stroke="var(--bone-50)" stroke-width="1.5" />
-          <text y="3.5" text-anchor="middle" font-family="var(--font-mono)" font-size="9" font-weight="500" fill="var(--sunset-50)">
+          <circle class="pin-circle pin-circle--edge-must-see" r="10" fill="var(--sunset-600)" stroke="var(--bone-50)" stroke-width="1.5" />
+          <text class="pin-num pin-num--edge-must-see" y="3.5" text-anchor="middle" font-family="var(--font-mono)" font-size="9" font-weight="500" fill="var(--sunset-50)">
             {pin.n}
           </text>
         {:else}
-          <circle r="9" fill="var(--forest-800)" stroke="var(--bone-50)" stroke-width="1.5" />
-          <text y="3" text-anchor="middle" font-family="var(--font-mono)" font-size="9" font-weight="500" fill="var(--bone-200)">
+          <circle class="pin-circle pin-circle--edge-stop" r="9" fill="var(--forest-800)" stroke="var(--bone-50)" stroke-width="1.5" />
+          <text class="pin-num pin-num--edge-stop" y="3" text-anchor="middle" font-family="var(--font-mono)" font-size="9" font-weight="500" fill="var(--bone-200)">
             {pin.n}
           </text>
         {/if}
@@ -259,5 +262,20 @@
     display: block;
     border: 0.5px solid var(--bark-200);
     border-radius: 4px;
+  }
+
+  /* On narrow viewports the 720x480 viewBox renders at ~0.5x scale, which
+     drops the 9–10pt mono numerals to ~5px. Scale up `r` and inner font
+     so pins remain readable on phone. `r` is a CSS property in modern
+     browsers; falls back to the SVG attribute where unsupported. */
+  @media (max-width: 640px) {
+    .destination-map :global(.pin-circle--must-see) { r: 17; }
+    .destination-map :global(.pin-circle--stop) { r: 15; }
+    .destination-map :global(.pin-circle--edge-must-see) { r: 14; }
+    .destination-map :global(.pin-circle--edge-stop) { r: 13; }
+    .destination-map :global(.pin-num--must-see) { font-size: 14px; }
+    .destination-map :global(.pin-num--stop) { font-size: 13px; }
+    .destination-map :global(.pin-num--edge-must-see) { font-size: 12px; }
+    .destination-map :global(.pin-num--edge-stop) { font-size: 12px; }
   }
 </style>

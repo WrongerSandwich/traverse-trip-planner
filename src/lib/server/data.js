@@ -154,6 +154,7 @@ export async function fetchImage(query) {
     const photos = (data.photos ?? []).slice(0, 3).map(p => ({
       medium: p.src.medium,
       large: p.src.large,
+      large2x: p.src.large2x ?? null,
       photographer: p.photographer,
       photographer_url: p.photographer_url,
     }));
