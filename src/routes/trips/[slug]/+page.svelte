@@ -1,7 +1,7 @@
 <script>
   import { renderMarkdown } from '$lib/sanitize.js';
   import { untrack } from 'svelte';
-  import { invalidateAll, goto } from '$app/navigation';
+  import { invalidateAll, goto, beforeNavigate } from '$app/navigation';
   import { onMount } from 'svelte';
   import TripDetailMap from '$lib/components/TripDetailMap.svelte';
   import Logo from '$lib/components/Logo.svelte';
@@ -16,6 +16,7 @@
   import { tripColor } from '$lib/utils/colors.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
+  import { isSectionsDirty } from '$lib/utils/sectionDirty.js';
   import { browser } from '$app/environment';
   import BrochureDayBlocks from '$lib/components/BrochureDayBlocks.svelte';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
@@ -87,6 +88,57 @@
   let completing = $state(false);
 
   const anySectionEditing = $derived(Object.values(editing).some(v => v));
+
+  // True when any open draft differs from the saved section content.
+  // Cancel explicitly resets the draft to the saved value before exiting,
+  // so this returns false after a clean cancel.
+  const isDirty = $derived(isSectionsDirty(drafts, sections));
+
+  // ── Navigation guard (dirty draft protection) ──
+  let navGuardOpen    = $state(false);
+  let pendingNav      = $state(/** @type {null | (() => void)} */ (null));
+  let skipNavGuardOnce = $state(false);
+
+  beforeNavigate((nav) => {
+    if (skipNavGuardOnce) {
+      skipNavGuardOnce = false;
+      return;
+    }
+    if (!isDirty) return;
+    nav.cancel();
+    pendingNav = () => {
+      skipNavGuardOnce = true;
+      nav.to?.url ? goto(nav.to.url) : history.back();
+    };
+    navGuardOpen = true;
+  });
+
+  function confirmNavDiscard() {
+    const fn = pendingNav;
+    pendingNav = null;
+    navGuardOpen = false;
+    fn?.();
+  }
+  function cancelNavDiscard() {
+    pendingNav = null;
+    navGuardOpen = false;
+  }
+
+  // beforeunload guard: fires on page refresh, tab close, or true exits.
+  // Browsers require a synchronous return value — no async confirm possible.
+  // Only registers the handler while a draft is actually dirty.
+  $effect(() => {
+    if (!browser) return;
+    if (!isDirty) return;
+    function handleBeforeUnload(e) {
+      e.preventDefault();
+      // Modern browsers ignore the string but require returnValue to be set.
+      e.returnValue = 'You have unsaved section edits. Leave anyway?';
+      return e.returnValue;
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  });
 
   // ── Confirm modal ──
   let confirmOpen  = $state(false);
@@ -200,6 +252,9 @@
   }
 
   function cancelEdit(section) {
+    // Reset to saved value before deleting so isDirty goes false cleanly,
+    // preventing the beforeNavigate guard from firing after an explicit cancel.
+    drafts[section] = sections[section] ?? '';
     editing[section] = false;
     delete drafts[section];
   }
@@ -965,6 +1020,16 @@
     bind:open={coverPhotoOpen}
     trip={trip}
     onsaved={() => invalidateAll()}
+  />
+
+  <ConfirmModal
+    bind:open={navGuardOpen}
+    title="Leave without saving?"
+    body="You have unsaved edits in one or more sections. Leaving now will discard them."
+    confirmLabel="Leave anyway"
+    danger={true}
+    onconfirm={confirmNavDiscard}
+    oncancel={cancelNavDiscard}
   />
 
   <ConfirmModal
