@@ -45,7 +45,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
     "dotenv": "^17.4.2",
-    "isomorphic-dompurify": "^3.13.0",
+    "isomorphic-dompurify": "^3.14.0",
     "leaflet": "^1.9.4",
     "marked": "^18.0.3",
     "yaml": "^2.9.0"
