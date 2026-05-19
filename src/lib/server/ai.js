@@ -3,7 +3,13 @@ import * as anthropic from './ai/anthropic.js';
 import * as openai from './ai/openai.js';
 import * as openrouter from './ai/openrouter.js';
 import { recordInvocation } from './workflow-stats.js';
+import { TraverseError } from './errors.js';
 export { formatUsage } from '../utils/format.js';
+
+// Hard ceiling on maxTokens. Provider APIs cap at 128–200k, but a buggy caller
+// requesting 1M is still a cost-DoS — this catches typos and runaway loops
+// before they hit the wire.
+export const MAX_TOKENS_CEILING = 100_000;
 
 // Build the adapters map from PROVIDERS so the two stay in sync: if a provider
 // is listed here but its adapter isn't imported above, the lookup below throws
@@ -22,6 +28,9 @@ function hasImages(messages) {
 }
 
 export async function chat({ provider, model, system, messages, maxTokens, tools, onToolCall, onActivity, label, signal, onText }) {
+  if (typeof maxTokens === 'number' && maxTokens > MAX_TOKENS_CEILING) {
+    throw new TraverseError('max_tokens_exceeded', `maxTokens=${maxTokens} exceeds ceiling=${MAX_TOKENS_CEILING}`);
+  }
   const providerMeta = PROVIDERS[provider];
   if (!providerMeta) throw new Error(`No AI adapter registered for provider "${provider}".`);
   if (hasImages(messages) && !providerMeta.supportsImages) {

@@ -22,6 +22,7 @@ import { chat } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { TraverseError } from '$lib/server/errors.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { assertNotRunning, startJob, completeJob, failJob } from '$lib/server/jobs.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
@@ -63,7 +64,8 @@ function tokensFromUsage(usage) {
        + (usage.output_tokens ?? usage.output ?? 0);
 }
 
-export async function POST({ params }) {
+export async function POST(event) {
+  const { params } = event;
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
@@ -79,6 +81,9 @@ export async function POST({ params }) {
   if (!tripDir) {
     return json({ code: 'trip_not_found', message: `Trip "${slug}" not found` }, { status: 404 });
   }
+
+  const limited = rateLimitResponse({ event, endpoint: 'deepen-section', slugKey: `${slug}:${section}` });
+  if (limited) return limited;
 
   // Per-section workflow key so route + stops can run concurrently for one trip.
   const workflow = `deepen-section:${section}`;

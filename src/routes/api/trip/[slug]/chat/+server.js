@@ -4,7 +4,12 @@ import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { TraverseError, AdapterError } from '$lib/server/errors.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
+
+// Cap on conversation length passed to the model — prevents a chatty client
+// from saturating the context window (and the bill) with a 1000-message thread.
+const MAX_CHAT_MESSAGES = 50;
 
 export const _promise = HAND_DEFAULTS.chat;
 
@@ -27,7 +32,8 @@ function parseReply(text) {
   return text.replace(/<update[\s\S]*?<\/update>/g, '').trim();
 }
 
-export async function POST({ params, request }) {
+export async function POST(event) {
+  const { params, request } = event;
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
@@ -37,9 +43,18 @@ export async function POST({ params, request }) {
   const trip = readPlanningTrip(slug);
   if (!trip) return new Response('Trip not in planning stage', { status: 404 });
 
+  const limited = rateLimitResponse({ event, endpoint: 'chat', slugKey: slug });
+  if (limited) return limited;
+
   const body = await request.json().catch(() => ({}));
   const messages = Array.isArray(body?.messages) ? body.messages : [];
   if (messages.length === 0) return new Response('No messages', { status: 400 });
+  if (messages.length > MAX_CHAT_MESSAGES) {
+    return json(
+      { code: 'invalid_input', error: `Conversation is too long (max ${MAX_CHAT_MESSAGES} messages). Start a new thread.` },
+      { status: 400 }
+    );
+  }
 
   const homeMd = readHomeMd();
 

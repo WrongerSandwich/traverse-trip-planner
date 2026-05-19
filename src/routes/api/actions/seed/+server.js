@@ -7,14 +7,18 @@ import { chat, formatUsage } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { json } from '@sveltejs/kit';
 
 export const _promise = HAND_DEFAULTS.seed;
 
-export async function POST({ request }) {
+export async function POST(event) {
+  const { request } = event;
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
+  const limited = rateLimitResponse({ event, endpoint: 'seed' });
+  if (limited) return limited;
   const NAME = getEffectiveConfig().assistantName;
   // Optional user-supplied steering prompt. Body is JSON; absence is fine.
   let userPrompt = '';
