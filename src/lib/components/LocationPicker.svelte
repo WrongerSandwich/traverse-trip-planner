@@ -30,6 +30,11 @@
 
   let debounceTimer = /** @type {ReturnType<typeof setTimeout> | null} */ (null);
 
+  // Monotonically-increasing counter; each debounced fetch captures its own
+  // copy. Results are applied only if the copy still matches the latest value,
+  // preventing a slow earlier response from overwriting a faster later one.
+  let latestRequestId = 0;
+
   /**
    * Called on every keystroke in the address input.
    * Debounces 400ms before hitting the geocode endpoint.
@@ -50,8 +55,11 @@
 
     loading = true;
     debounceTimer = setTimeout(async () => {
+      const requestId = ++latestRequestId;
       try {
         const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+        // Discard if a newer request has already been dispatched.
+        if (requestId !== latestRequestId) return;
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           networkError = body.error ?? `Geocoder error ${res.status}`;
@@ -61,12 +69,15 @@
           results = (data.results ?? []).slice(0, 5);
         }
       } catch (e) {
+        if (requestId !== latestRequestId) return;
         networkError = e.message ?? 'Network error — could not reach geocoder.';
         results = [];
       } finally {
-        loading = false;
-        searched = true;
-        showDropdown = true;
+        if (requestId === latestRequestId) {
+          loading = false;
+          searched = true;
+          showDropdown = true;
+        }
       }
     }, 400);
   }
