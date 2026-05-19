@@ -1,5 +1,5 @@
 <script>
-  // Inline-SVG paper-map illustration per traverse-design-spec.md §7.
+  // Inline-SVG paper-map illustration per docs/design-spec.md §7.
   // Used in two roles in the brochure:
   //   1. Cover-inset: small route overview from home to destination
   //   2. (Destination map uses DestinationMap.svelte — different shape)

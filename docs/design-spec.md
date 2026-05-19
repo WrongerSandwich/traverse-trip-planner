@@ -1,10 +1,10 @@
 # Traverse — Design Specification
 
-A complete design system for **Traverse**, a self-hosted road trip planning tool with AI-assisted route building. Hand this to Claude Code for a full redesign of the existing implementation.
+The source-of-truth design system for **Traverse**. This spec defined the brand mark, the paper-map illustration system, and the visual language; the SvelteKit components in `src/lib/components/` reference it for layout and color rules (see `Logo.svelte` §2, `PaperMap.svelte` §7, and the companion [`traverse-dark-mode-spec.md`](traverse-dark-mode-spec.md)).
 
 **Brand direction:** Park service — boutique outdoor catalog meets National Park Service signage. Forest greens, cream paper backgrounds, sunset orange accents, vintage paper-map aesthetic.
 
-**Stack assumption:** React + TypeScript + Tailwind CSS. Both CSS custom properties and Tailwind theme extensions are provided — use whichever fits the project.
+**Stack:** SvelteKit with CSS custom properties declared in `src/app.css`.
 
 ---
 

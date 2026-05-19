@@ -35,7 +35,7 @@ References: AllTrails, Komoot — tools that make you feel like you're already o
 
 1. **The map is the interface.** Spatial context is primary, not supplemental. Every interaction that involves a destination should ground it geographically.
 2. **Anticipation over administration.** The design should evoke the feeling of looking at a map before a trip, not managing a to-do list. Data serves the mood; the mood isn't incidental.
-3. **Earn every pixel of complexity.** This is a personal tool with ~30 trips. It doesn't need the density of a professional tool. Restraint is credibility.
+3. **Earn every pixel of complexity.** This is a personal-scale tool, not a professional dataset manager. It doesn't need that density. Restraint is credibility.
 4. **Motion as geography.** Animations should feel like travel — the map flies, routes appear — not like software responding to clicks.
 5. **Depth without friction.** The filing-cabinet metaphor means there's always more to explore (stops, logistics, routes) but the surface should never feel like work to navigate.
 6. **Mobile as a first-class context, not an afterthought.** The phone version should be immediately useful, not a degraded experience. Cards scroll well, the detail panel opens cleanly, the map is present but not dominant.
