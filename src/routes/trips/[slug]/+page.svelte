@@ -782,7 +782,7 @@
   <title>{trip?.title || trip?._slug} · Traverse</title>
 </svelte:head>
 
-<div class="page">
+<div class="page" class:has-brochure-days={!!data.brochureData?.days}>
   <header>
     <button class="back" onclick={() => goto('/')} aria-label="Back to all trips">← All trips</button>
     <span class="stage-pill">{stage || 'planning'}</span>
@@ -1789,19 +1789,25 @@
     .hero,
     .no-print { display: none !important; }
 
-    .page { background: #fff; color: #111; }
+    /* When a brochure day-by-day exists, the canonical sections (overview,
+       route, stops, logistics, notes) print as duplicate content alongside
+       the day-by-day. Hide them in that case (#268). Without a brochure
+       the sections ARE the printable content, so they stay visible. */
+    .page.has-brochure-days .section { display: none !important; }
+
+    .page { background: var(--bone-50); color: var(--bark-900); }
     .layout { padding: 0; }
     .content { max-width: 100%; }
 
     .itinerary-view :global(h2) {
-      background: #f5f0e8;
-      border-bottom-color: #92400e;
-      color: #1a1a1a;
+      background: var(--bone-100);
+      border-bottom-color: var(--sunset-800);
+      color: var(--bark-900);
       page-break-after: avoid;
     }
-    .itinerary-view :global(h3) { color: #666; }
+    .itinerary-view :global(h3) { color: var(--bone-600); }
     .itinerary-view :global(p),
-    .itinerary-view :global(li) { color: #333; font-size: 10pt; }
+    .itinerary-view :global(li) { color: var(--bark-600); font-size: 10pt; }
     .itinerary-view { page-break-inside: avoid; }
   }
 
