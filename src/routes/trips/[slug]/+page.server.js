@@ -14,7 +14,7 @@ export async function load({ params }) {
 
   // If sharing is enabled and the trip is opted in, compute the public share URL
   // for the UI to display. Token is deterministic from slug + TRAVERSE_SHARE_SECRET.
-  if (trip.shared === 'true') {
+  if (trip.shared === true || trip.shared === 'true') {
     const token = makeShareToken(slug);
     if (token) trip._shareUrl = `/share/${token}`;
   }

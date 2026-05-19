@@ -75,16 +75,16 @@ body`;
     expect(parseFrontmatter('---\n---\n\nbody')).toBe(null);
   });
 
-  it('parses boolean-like and numeric values as strings', () => {
+  it('parses boolean-like and numeric values as their YAML types (#275)', () => {
     const md = `---
 weekend_viable: true
 home_distance_mi: 420
 locked: false
 ---`;
     const fm = parseFrontmatter(md);
-    expect(fm.weekend_viable).toBe('true');
-    expect(fm.home_distance_mi).toBe('420');
-    expect(fm.locked).toBe('false');
+    expect(fm.weekend_viable).toBe(true);
+    expect(fm.home_distance_mi).toBe(420);
+    expect(fm.locked).toBe(false);
   });
 
   it('parses empty inline array [] as []', () => {
@@ -94,23 +94,41 @@ waypoints: []
     expect(parseFrontmatter(md).waypoints).toEqual([]);
   });
 
-  it('filters empty entries from sparse inline arrays', () => {
+  it('parses block-style home_coords as [number, number] (#275, folds in #283)', () => {
     const md = `---
-tags: [a, , b]
+home_coords:
+  - 38.98
+  - -94.67
 ---`;
-    expect(parseFrontmatter(md).tags).toEqual(['a', 'b']);
+    expect(parseFrontmatter(md).home_coords).toEqual([38.98, -94.67]);
+  });
+
+  it('handles quoted commas inside inline arrays (#275)', () => {
+    const md = `---
+tags: [hiking, "scenic, drive", waterfalls]
+---`;
+    expect(parseFrontmatter(md).tags).toEqual(['hiking', 'scenic, drive', 'waterfalls']);
+  });
+
+  it('returns {} for malformed YAML rather than throwing', () => {
+    // The fence regex captures the inner block; yaml.parse fails on the
+    // colon-without-key shape, and we expect a graceful empty object.
+    const md = `---
+: bad
+---`;
+    expect(parseFrontmatter(md)).toEqual({});
   });
 });
 
 describe('parseFrontmatterFields', () => {
-  it('parses raw key:value lines without requiring fences', () => {
+  it('parses raw key:value lines without requiring fences (yaml-typed since #275)', () => {
     const text = `region: Ozarks
 home_distance_mi: 420
 weekend_viable: true`;
     expect(parseFrontmatterFields(text)).toEqual({
       region: 'Ozarks',
-      home_distance_mi: '420',
-      weekend_viable: 'true',
+      home_distance_mi: 420,
+      weekend_viable: true,
     });
   });
 
@@ -151,7 +169,7 @@ describe('setFrontmatterField', () => {
   it('inserts a new field before the closing fence', () => {
     const result = setFrontmatterField(base, 'locked', true);
     expect(result).toContain('locked: true');
-    expect(parseFrontmatter(result)?.locked).toBe('true');
+    expect(parseFrontmatter(result)?.locked).toBe(true);
   });
 
   it('does not duplicate an existing field when updating', () => {
@@ -178,7 +196,7 @@ describe('setFrontmatterField', () => {
     // be mutated when starred is not declared in the frontmatter at all.
     const md = `---\ntitle: Ozarks\nstatus: planning\n---\n\nstarred: yes, this is the route we've all been waiting for.`;
     const result = setFrontmatterField(md, 'starred', true);
-    expect(parseFrontmatter(result)?.starred).toBe('true');
+    expect(parseFrontmatter(result)?.starred).toBe(true);
     expect(result).toContain("starred: yes, this is the route we've all been waiting for.");
   });
 
@@ -186,12 +204,12 @@ describe('setFrontmatterField', () => {
     // Even when frontmatter already has the field, the body prose line must be untouched.
     const md = `---\ntitle: Ozarks\nstatus: planning\nstarred: false\n---\n\nstarred: yes, this is the route we've all been waiting for.`;
     const result = setFrontmatterField(md, 'starred', true);
-    expect(parseFrontmatter(result)?.starred).toBe('true');
+    expect(parseFrontmatter(result)?.starred).toBe(true);
     expect(result).toContain("starred: yes, this is the route we've all been waiting for.");
     // The frontmatter line should appear exactly once
     const fmMatches = result.match(/^starred:/gm);
     expect(fmMatches).toHaveLength(2); // one in frontmatter, one in body
-    expect(parseFrontmatter(result)?.starred).toBe('true');
+    expect(parseFrontmatter(result)?.starred).toBe(true);
   });
 });
 

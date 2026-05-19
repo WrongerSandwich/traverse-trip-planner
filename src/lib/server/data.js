@@ -298,27 +298,58 @@ function estimateCost(trip, homeCoords) {
 
 /**
  * Parse the body of a frontmatter block (the lines between `---` fences) into
- * an object. Inline-list values like `[a, b, c]` become arrays; everything
- * else stays as a string. Use this when you have raw key:value lines without
- * fences (e.g. AI-generated frontmatter inside an XML tag).
+ * an object via the real YAML parser (#275). Use this when you have raw
+ * key:value lines without fences (e.g. AI-generated frontmatter inside an
+ * XML tag).
  *
- * Limitation: quoted commas inside inline arrays are not handled — a value
- * like `[hiking, "scenic, drive"]` splits into three entries instead of two.
- * Use YAML multiline block sequences (one item per line with `- ` prefix) for
- * values that may contain commas.
+ * Values come back as their YAML-typed primitives: booleans as boolean,
+ * integers/floats as number, inline arrays as real arrays (including
+ * proper handling of quoted commas like `[hiking, "scenic, drive"]`).
+ * Dates stay as strings under the YAML 1.2 core schema.
+ *
+ * Permissive about malformed input: lines without a colon are stripped
+ * before parsing (preserving the legacy parser's behavior), and a YAML
+ * parse failure returns `{}` rather than throwing.
  */
 export function parseFrontmatterFields(text) {
-  const data = {};
-  for (const line of text.split('\n')) {
+  if (!text || !text.trim()) return {};
+  // Pre-process the block so it parses cleanly under yaml.parse while
+  // preserving the legacy line-parser's permissiveness:
+  //   - drop lines without a colon at column ≥1 (legacy `continue`)
+  //   - drop lines with a leading `:` (no key)
+  //   - leave indented and `- `-prefixed lines alone (block sequences)
+  //   - quote scalar values that contain an internal colon, so YAML doesn't
+  //     try to interpret them as nested mappings (e.g. `pitch: Three: more`).
+  const lines = text.split('\n').map((line) => {
+    if (!line.trim()) return line;
+    if (/^[\s-]/.test(line)) return line;            // indented / block-list / leading dash
+    if (line.startsWith('#')) return line;            // comment
     const colon = line.indexOf(':');
-    if (colon < 1) continue;
-    const key = line.slice(0, colon).trim();
-    const raw = line.slice(colon + 1).trim();
-    data[key] = raw.startsWith('[') && raw.endsWith(']')
-      ? raw.slice(1, -1).split(',').map(s => s.trim()).filter(s => s !== '')
-      : raw;
+    if (colon < 1) return '';                         // no key or empty key
+    const key = line.slice(0, colon);
+    const val = line.slice(colon + 1).trim();
+    if (!val) return line;
+    if (/^["'[{|>]/.test(val)) return line;           // already quoted/flow/folded
+    if (val.includes(':')) {
+      return `${key}: "${val.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    }
+    return line;
+  });
+  const cleaned = lines.filter((line, i, arr) => {
+    // Drop blank lines we emitted from invalid input; keep blanks that were
+    // already in the source (yaml tolerates them fine).
+    if (line === '' && arr[i] === '' && (text.split('\n')[i] ?? '').trim() !== '') return false;
+    return true;
+  }).join('\n');
+  if (!cleaned.trim()) return {};
+  try {
+    const obj = yamlParse(cleaned);
+    if (obj === null || obj === undefined) return {};
+    if (typeof obj !== 'object' || Array.isArray(obj)) return {};
+    return obj;
+  } catch {
+    return {};
   }
-  return data;
 }
 
 export function parseFrontmatter(content) {

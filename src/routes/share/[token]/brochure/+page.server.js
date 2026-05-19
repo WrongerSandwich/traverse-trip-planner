@@ -49,7 +49,7 @@ export async function load({ params }) {
   const trips = await enrichTrips();
   const trip = trips.find(t => t._slug === slug);
   if (!trip) throw error(404, 'Trip not found');
-  if (trip.shared !== 'true') throw error(404, 'Trip not shared');
+  if (trip.shared !== true && trip.shared !== 'true') throw error(404, 'Trip not shared');
 
   const files = getTripFiles(slug);
 
