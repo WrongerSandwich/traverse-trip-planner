@@ -87,7 +87,7 @@
 
   let busy = $state(false);
   let statusLog = $state([]);
-  let error = $state(null);
+  let error = $state(/** @type {{code: string, ctx?: object}|null} */ (null));
 
   // ── Regeocode — Instant Inline (docs/ai-workflow-ux.md §2.1) ─────────────
   let regeoStatus        = $state('idle');   // 'idle' | 'in_progress' | 'success' | 'failure'
@@ -160,19 +160,19 @@
     try {
       const res = await fetch(`/api/brochure/prepare/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (res.status === 409) {
-        error = 'Already preparing this brochure — watch the indicator at the top of the page.';
+        error = { code: 'already_running' };
         return;
       }
       if (!res.ok && res.status !== 202) {
-        error = `Couldn't start brochure prep (${res.status}).`;
+        error = { code: 'action_failed' };
         return;
       }
       statusLog = [
         ...statusLog,
         'Brochure prep is running in the background — the indicator at the top of the page will tell you when the draft is ready. You can navigate away.',
       ];
-    } catch (e) {
-      error = e.message;
+    } catch {
+      error = { code: 'network_error' };
     } finally {
       busy = false;
     }
@@ -209,11 +209,15 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: toSave }),
       });
-      if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+      if (!res.ok) {
+        error = { code: 'save_failed' };
+        busy = false;
+        return;
+      }
       // Land on the rendered brochure
       goto(`/trips/${encodeURIComponent(trip._slug)}/brochure`);
-    } catch (e) {
-      error = e.message;
+    } catch {
+      error = { code: 'network_error' };
       busy = false;
     }
   }
@@ -286,7 +290,7 @@
   </header>
 
   {#if error}
-    <div class="error-banner">Error: {error}</div>
+    <div class="error-banner" role="alert">{failureSentence(error.code, error.ctx ?? {})}</div>
   {/if}
 
   {#if data.brochureStale && proposal}

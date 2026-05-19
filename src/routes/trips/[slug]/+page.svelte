@@ -202,7 +202,7 @@
     tripJobs.some(j => j.workflow?.startsWith('deepen-section:')),
   );
 
-  let deepenSectionError = $state(/** @type {string|null} */ (null));
+  let deepenSectionError = $state(/** @type {{code: string, ctx?: object}|null} */ (null));
 
   // Generic action-error banner for handlers that don't own a per-section
   // surface (section save, mark completed, share enable/disable, archive).
@@ -226,11 +226,11 @@
         { method: 'POST' },
       );
       if (res.status === 409) {
-        deepenSectionError = 'Already researching a section for this trip. See the jobs indicator at the top of the page.';
+        deepenSectionError = { code: 'already_running' };
         return;
       }
       if (!res.ok && res.status !== 202) {
-        deepenSectionError = `Couldn't start section research (${res.status}).`;
+        deepenSectionError = { code: 'action_failed' };
         return;
       }
       // 202 Accepted — refresh jobs poll immediately so the per-trip badge appears.
@@ -241,8 +241,8 @@
           allJobs = body.jobs ?? [];
         }
       } catch { /* the 10s poll will pick it up */ }
-    } catch (err) {
-      deepenSectionError = `Network error: ${err.message}`;
+    } catch {
+      deepenSectionError = { code: 'network_error' };
     }
   }
 
@@ -623,7 +623,7 @@
     tripJobs.some(j => j.workflow === 'brochure'),
   );
 
-  let brochureError = $state(null);
+  let brochureError = $state(/** @type {{code: string, ctx?: object}|null} */ (null));
 
   async function prepareBrochure() {
     if (!trip || brochureRunning) return;
@@ -637,11 +637,11 @@
     try {
       const res = await fetch(`/api/brochure/prepare/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (res.status === 409) {
-        brochureError = 'Already preparing this brochure. See the jobs indicator at the top of the page.';
+        brochureError = { code: 'already_running' };
         return;
       }
       if (!res.ok && res.status !== 202) {
-        brochureError = `Couldn't start brochure prep (${res.status}).`;
+        brochureError = { code: 'action_failed' };
         return;
       }
       // 202 Accepted — the global indicator takes over from here. Refresh the
@@ -654,8 +654,8 @@
           allJobs = body.jobs ?? [];
         }
       } catch { /* the 10s poll will pick it up */ }
-    } catch (err) {
-      brochureError = `Network error: ${err.message}`;
+    } catch {
+      brochureError = { code: 'network_error' };
     }
   }
 
@@ -966,11 +966,11 @@
       {/each}
 
       {#if deepenSectionError}
-        <div class="deepen-section-error" role="alert">{deepenSectionError}</div>
+        <div class="deepen-section-error" role="alert">{failureSentence(deepenSectionError.code, deepenSectionError.ctx ?? {})}</div>
       {/if}
 
       {#if brochureError}
-        <div class="brochure-error-banner" role="alert">{brochureError}</div>
+        <div class="brochure-error-banner" role="alert">{failureSentence(brochureError.code, brochureError.ctx ?? {})}</div>
       {/if}
 
       {#if actionError}
