@@ -1,13 +1,13 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/WrongerSandwich/traverse/security/advisories/new
+    url: https://github.com/WrongerSandwich/traverse-trip-planner/security/advisories/new
     about: >
       Please report credential leaks, code-execution paths, or authentication
       bypasses via GitHub's private security advisories — not a public issue.
       See SECURITY.md for scope and guidance.
   - name: Code of Conduct report
-    url: https://github.com/WrongerSandwich/traverse/blob/main/CODE_OF_CONDUCT.md#enforcement
+    url: https://github.com/WrongerSandwich/traverse-trip-planner/blob/main/CODE_OF_CONDUCT.md#enforcement
     about: >
       Conduct concerns (harassment, abusive behavior) go to the private
       maintainer alias in the Code of Conduct's Enforcement section —

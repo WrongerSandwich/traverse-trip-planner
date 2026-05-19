@@ -5,13 +5,13 @@
   "author": "Evan Trout",
   "license": "MIT",
   "private": true,
-  "homepage": "https://github.com/WrongerSandwich/traverse#readme",
+  "homepage": "https://github.com/WrongerSandwich/traverse-trip-planner#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/WrongerSandwich/traverse.git"
+    "url": "https://github.com/WrongerSandwich/traverse-trip-planner.git"
   },
   "bugs": {
-    "url": "https://github.com/WrongerSandwich/traverse/issues"
+    "url": "https://github.com/WrongerSandwich/traverse-trip-planner/issues"
   },
   "keywords": [
     "road-trip",
