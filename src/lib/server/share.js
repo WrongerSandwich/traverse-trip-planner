@@ -2,6 +2,45 @@ import { createHmac, timingSafeEqual } from 'crypto';
 
 const SIG_LEN = 16; // first 16 chars of base64url HMAC — ~96 bits, plenty for personal use
 
+// Fields safe to include in the JSON payload shipped to /share/<token> and
+// /share/<token>/brochure (#274). The full enriched trip object includes
+// private planning fields (lodging, reservations_needed, pet_sitter,
+// cost_estimate_usd, home_distance_mi, driving_hours) plus arbitrary
+// user-added frontmatter that the share UI never renders. Anything not on
+// this list stays on the server.
+//
+// Standard tier: planning context the recipient needs to understand the
+// trip + retro impressions for show-and-tell sharing. Cost is tier-only,
+// not dollars. Home-proximity fields stay private.
+const SHARE_PUBLIC_FIELDS = [
+  // Identity / display
+  'title', 'destination', 'pitch', 'vibe', 'image_query', 'image_pick',
+  // Planning context
+  'region', 'duration_days', 'target_date',
+  'best_seasons', 'avoid_months', 'weekend_viable',
+  'tags', 'waypoints', 'national_park', 'cost_tier',
+  // Retro (only present on completed trips)
+  'rating', 'would_repeat', 'date_completed', 'highlights',
+  // Status flags the renderer reads
+  'status', 'shared',
+  // Enrichment fields (synthetic, prefixed with `_`)
+  '_slug', '_stage', '_coords', '_image', '_has_route', '_drive_hours',
+];
+
+/**
+ * Project a fully-enriched trip object to the allowlisted public shape.
+ * Use at every share-page server-load return so private frontmatter never
+ * reaches the JSON payload shipped to the client.
+ */
+export function projectTripForShare(trip) {
+  if (!trip || typeof trip !== 'object') return trip;
+  const out = {};
+  for (const k of SHARE_PUBLIC_FIELDS) {
+    if (trip[k] !== undefined) out[k] = trip[k];
+  }
+  return out;
+}
+
 function getSecret() {
   return process.env.TRAVERSE_SHARE_SECRET || '';
 }

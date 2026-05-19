@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { enrichTrips, getTripFiles, getTripRoute, geocode } from '$lib/server/data.js';
-import { verifyShareToken, shareEnabled } from '$lib/server/share.js';
+import { verifyShareToken, shareEnabled, projectTripForShare } from '$lib/server/share.js';
 import { readBrochure } from '$lib/server/brochure.js';
 import { stadiaStaticMapUrl } from '$lib/server/stadia.js';
 import { chooseZoomForBbox } from '$lib/utils/projection.js';
@@ -79,7 +79,7 @@ export async function load({ params }) {
   const destinationBaseMap = buildDestinationBaseMap(brochureData);
 
   return {
-    trip,
+    trip: projectTripForShare(trip),
     files: files?.files || {},
     stage: files?.stage || trip._stage,
     route,
