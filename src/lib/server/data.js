@@ -407,8 +407,6 @@ export function splitHomeBody(body) {
     if (line.startsWith('## ')) {
       if (current !== null) {
         sections.push({ heading: current.heading, body: current.lines.join('\n').trim() });
-      } else {
-        preambleLines = preambleLines; // nothing to finalize — just fall through
       }
       current = { heading: line.slice(3).trim(), lines: [] };
     } else if (current === null) {
