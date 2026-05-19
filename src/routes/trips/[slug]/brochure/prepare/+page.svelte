@@ -4,6 +4,7 @@
   import { streamAction } from '$lib/utils/action.js';
   import { parseCoordInput } from '$lib/utils/coords.js';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import { failureSentence } from '$lib/errors-registry.js';
 
   let { data } = $props();
@@ -45,6 +46,44 @@
     keepNotes = (proposal?.field_guide_notes ?? []).map(() => true);
     keepGotchas = (proposal?.gotchas ?? []).map(() => true);
   });
+
+  // ── Manual coord entry ──────────────────────────────────────────────────
+  // Declared early so isDirty can reference coordInputs in its $derived.by.
+  // Input text and error messages indexed as 's{i}' (stop) or 'l{i}' (lodge).
+  // editingCoord tracks which already-mapped rows have their input open.
+  let coordInputs = $state({});
+  let coordErrors = $state({});
+  let editingCoord = $state({});
+
+  // ── Dirty-state tracking ─────────────────────────────────────────────────
+  // True when the in-memory proposal differs from what the server last gave us,
+  // or when any keep toggle or manual coord entry has changed from its initial
+  // all-true / empty state. We compare via JSON so nested objects are covered.
+  const isDirty = $derived.by(() => {
+    if (!proposal || !data.brochureData) return false;
+    // Proposal content changed (title, subtitle, cover image, coords edited in-memory)
+    if (JSON.stringify(proposal) !== JSON.stringify(data.brochureData)) return true;
+    // Any keep toggle flipped off
+    if (keepStops.some(v => !v)) return true;
+    if (keepLodging.some(v => !v)) return true;
+    if (keepNotes.some(v => !v)) return true;
+    if (keepGotchas.some(v => !v)) return true;
+    // Any coord input has a non-empty value (user started entering a coord)
+    if (Object.values(coordInputs).some(v => v && v.trim())) return true;
+    return false;
+  });
+
+  // ── Confirm modal ─────────────────────────────────────────────────────────
+  let confirmOpen = $state(false);
+  let confirmResolve = null;
+
+  function showConfirm() {
+    if (confirmResolve) confirmResolve(false);
+    return new Promise(resolve => {
+      confirmResolve = resolve;
+      confirmOpen = true;
+    });
+  }
 
   let busy = $state(false);
   let statusLog = $state([]);
@@ -139,6 +178,16 @@
     }
   }
 
+  // Wrapper that guards the regenerate path with a confirmation prompt when
+  // the current review form has unsaved edits (dirty state).
+  async function handleRegenerate() {
+    if (isDirty) {
+      const ok = await showConfirm();
+      if (!ok) return;
+    }
+    generate();
+  }
+
   // Count stops missing coords so the button can say something useful.
   const missingCoordsCount = $derived(
     (proposal?.stops ?? []).filter(s => !Array.isArray(s.coords)).length,
@@ -175,13 +224,7 @@
   const keepNotesCount = $derived(keepNotes.filter(Boolean).length);
   const keepGotchasCount = $derived(keepGotchas.filter(Boolean).length);
 
-  // ── Manual coord entry ──────────────────────────────────────────────────
-  // Input text and error messages indexed as 's{i}' (stop) or 'l{i}' (lodge).
-  // editingCoord tracks which already-mapped rows have their input open.
-  let coordInputs = $state({});
-  let coordErrors = $state({});
-  let editingCoord = $state({});
-
+  // ── Manual coord entry (continued) ─────────────────────────────────────
   // Reset coord state whenever the server-side brochure data is reloaded
   // (after generate or regeocode), so stale inputs don't linger.
   $effect(() => {
@@ -249,7 +292,7 @@
   {#if data.brochureStale && proposal}
     <div class="brochure-stale-notice">
       <span>Sections have changed since this brochure was prepared — re-generate to pick up the latest content.</span>
-      <button class="btn btn-secondary btn-compact" onclick={generate} disabled={busy}>Re-prepare brochure</button>
+      <button class="btn btn-secondary btn-compact" onclick={handleRegenerate} disabled={busy}>Re-prepare brochure</button>
     </div>
   {/if}
 
@@ -432,11 +475,21 @@
           </button>
         </PromiseTooltip>
       {/if}
-      <button class="btn btn-secondary" disabled={busy || regeoStatus === 'in_progress'} onclick={generate} title="Re-run the AI extraction — overwrites any edits in brochure.md">
-        Re-generate from notes
+      <button class="btn btn-secondary" disabled={busy || regeoStatus === 'in_progress'} onclick={handleRegenerate}>
+        Regenerate draft
       </button>
       <a class="btn btn-tertiary" href={`/trips/${encodeURIComponent(trip._slug)}/brochure`}>View brochure</a>
     </div>
+
+    <ConfirmModal
+      bind:open={confirmOpen}
+      title="Discard edits and regenerate?"
+      body="This will re-run the AI extraction and replace your current review — any edits to the title, subtitle, cover photo, keep toggles, or pin coordinates will be lost."
+      confirmLabel="Regenerate"
+      danger={true}
+      onconfirm={() => { confirmResolve?.(true);  confirmResolve = null; }}
+      oncancel={() =>  { confirmResolve?.(false); confirmResolve = null; }}
+    />
 
     <!-- Instant Inline: SSE log as collapsed disclosure -->
     {#if regeoLog.length > 0}
