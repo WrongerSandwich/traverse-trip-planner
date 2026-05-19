@@ -132,6 +132,7 @@ export function getFeatureAvailability() {
   }
   result.share = Boolean(cfg.shareSecret);
   result.homeMdReady = isHomeMdReady();
+  result.pexelsConfigured = Boolean(effectiveEnv.PEXELS_API_KEY);
   return result;
 }
 

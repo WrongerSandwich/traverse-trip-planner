@@ -113,6 +113,7 @@ describe('getFeatureAvailability', () => {
     expect(getFeatureAvailability()).toEqual({
       seed: false, add: false, chat: false, retro: false, receipts: false, deepen: false, share: false,
       homeMdReady: false,
+      pexelsConfigured: false,
     });
   });
 
@@ -121,6 +122,7 @@ describe('getFeatureAvailability', () => {
     expect(getFeatureAvailability()).toEqual({
       seed: true, add: true, chat: true, retro: true, receipts: true, deepen: true, share: false,
       homeMdReady: false,
+      pexelsConfigured: false,
     });
   });
 
