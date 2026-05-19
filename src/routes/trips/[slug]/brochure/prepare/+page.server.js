@@ -1,10 +1,11 @@
 import { join } from 'path';
 import { error } from '@sveltejs/kit';
-import { enrichTrips, isBrochureStale, ROOT } from '$lib/server/data.js';
+import { enrichTrips, isBrochureStale, isValidSlug, ROOT } from '$lib/server/data.js';
 import { readBrochure } from '$lib/server/brochure.js';
 
 export async function load({ params }) {
   const { slug } = params;
+  if (!isValidSlug(slug)) throw error(404);
 
   const trips = await enrichTrips();
   const trip = trips.find(t => t._slug === slug);
