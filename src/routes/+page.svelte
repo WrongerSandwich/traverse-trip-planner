@@ -474,6 +474,15 @@
 </script>
 
 <div class="page">
+  {#if data.features?.pexelsConfigured === false}
+    <div class="pexels-banner" role="status">
+      <span class="pexels-banner-text">
+        Hero photos aren't loading because Pexels isn't configured.
+      </span>
+      <a class="pexels-banner-cta" href="/settings#server-config">Open settings →</a>
+    </div>
+  {/if}
+
   <div class="toast-stack">
     {#if seedStatus === 'success'}
       <div class="seed-toast" role="status" aria-live="polite">
@@ -990,6 +999,32 @@
   .pin-btn:hover:not(:disabled) { border-color: var(--sunset-600); color: var(--sunset-200); background: var(--sunset-800); }
   .pin-btn.open { background: var(--sunset-800); border-color: var(--sunset-600); color: var(--sunset-200); }
   .pin-btn.add-running { border-color: var(--sunset-600); opacity: 1; }
+
+  /* Pexels missing-key banner (#284) — self-resolves once a key is added,
+     so non-dismissible. Quiet sunset palette so it reads as informational,
+     not as an error. */
+  .pexels-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.55rem 1rem;
+    background: var(--sunset-900);
+    border-bottom: 1px solid var(--sunset-800);
+    color: var(--sunset-100);
+    font-size: 0.82rem;
+    line-height: 1.3;
+  }
+  .pexels-banner-cta {
+    color: var(--sunset-200);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
+  }
+  .pexels-banner-cta:hover {
+    color: var(--sunset-100);
+  }
 
   .home-setup-cta {
     font-size: 0.75rem;
