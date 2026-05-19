@@ -258,6 +258,23 @@ describe('failJob', () => {
     expect(fm.last_run_message.startsWith('first line second line')).toBe(true);
   });
 
+  it('writes [...]‑shaped messages as quoted strings so parseFrontmatterFields reads them back as strings not arrays', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+
+    failJob('deepen', 'marfa-tx', {
+      code: 'provider_error',
+      message: '[400] Bad model response',
+    });
+
+    const fm = readIdeaFm('marfa-tx');
+    // Must be a string, not an array mis-parsed from YAML bracket syntax.
+    // parseFrontmatterFields returns the raw trimmed value including surrounding
+    // quotes, so check type and that the original content is preserved.
+    expect(typeof fm.last_run_message).toBe('string');
+    expect(fm.last_run_message).toContain('[400] Bad model response');
+  });
+
   it('omits last_run_message when no message is given', () => {
     seedIdea('marfa-tx');
     startJob('deepen', 'marfa-tx');

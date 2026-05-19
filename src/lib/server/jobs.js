@@ -245,7 +245,10 @@ function sanitizeFrontmatterMessage(raw) {
   if (!raw || typeof raw !== 'string') return null;
   let s = raw.replace(/[\r\n]+/g, ' ').trim();
   if (!s) return null;
-  if (s.startsWith('[')) s = ' ' + s;
+  // Quote the value so it stays a string on re-parse — leading-space trick
+  // gets stripped by parseFrontmatterFields' .trim() and doesn't defend.
+  if (s.startsWith('[')) s = `"${s.replace(/"/g, '\\"')}"`;
+
   return s.length > 300 ? s.slice(0, 300) + '…' : s;
 }
 
