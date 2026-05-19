@@ -1,5 +1,5 @@
 <script>
-  import { marked } from 'marked';
+  import { renderMarkdown } from '$lib/sanitize.js';
   import Logo from '$lib/components/Logo.svelte';
   import PaperMap from '$lib/components/PaperMap.svelte';
   import DestinationMap from '$lib/components/DestinationMap.svelte';
@@ -40,7 +40,7 @@
       .map(k => ({ key: k, label: SECTION_LABELS[k], body: files[k] }));
   });
 
-  const renderMd = (md) => marked.parse(md || '', { mangle: false, headerIds: false });
+  const renderMd = renderMarkdown;
 
   // Meta row: date · distance · drive time · duration. JetBrains Mono.
   // Earlier this row included "N stops" pulled from waypoints, but waypoints

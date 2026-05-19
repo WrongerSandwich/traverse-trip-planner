@@ -1,5 +1,5 @@
 <script>
-  import { marked } from 'marked';
+  import { renderMarkdown } from '$lib/sanitize.js';
   import MiniMap from './MiniMap.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
@@ -32,7 +32,7 @@
   const tabs = $derived(Object.keys(tripFiles?.files || {}).filter(k => tripFiles.files[k]));
   const renderedContent = $derived.by(() => {
     const content = tripFiles?.files?.[activeTab];
-    return content ? marked.parse(content) : '';
+    return content ? renderMarkdown(content) : '';
   });
 
   const driveLabel = $derived(
