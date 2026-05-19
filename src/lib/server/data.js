@@ -87,7 +87,19 @@ export async function geocode(destination) {
         return null;
       }
       const data = await res.json();
-      const coords = data.length ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
+      let coords = null;
+      if (data.length) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        if (
+          Number.isFinite(lat) && Number.isFinite(lon) &&
+          lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
+        ) {
+          coords = [lat, lon];
+        } else {
+          console.warn('geocode: out-of-range coords for', destination, lat, lon);
+        }
+      }
       geocodeCache[destination] = coords;
       geocodeDirty = true;
       return coords;
@@ -185,11 +197,20 @@ function routeCacheKey(geocodedCoords) {
   return geocodedCoords.map(c => c.join(',')).join(';');
 }
 
+// Sentinel stored in the route cache when OSRM confirmed no route exists for
+// a given coordinate set. Distinguishes "we tried and there is no route"
+// (this sentinel) from null / undefined ("never tried — fetch on next request").
+const ROUTE_NO_ROUTE = { status: 'no_route' };
+
 async function fetchRoute(geocodedCoords) {
   if (!geocodedCoords || geocodedCoords.length < 2) return null;
 
   const cacheKey = routeCacheKey(geocodedCoords);
-  if (routeCache[cacheKey] !== undefined) return routeCache[cacheKey];
+  const cached = routeCache[cacheKey];
+  if (cached !== undefined) {
+    // Translate the sentinel back to null so callers don't need to know about it.
+    return cached === ROUTE_NO_ROUTE || (cached && cached.status === 'no_route') ? null : cached;
+  }
 
   try {
     // OSRM expects lon,lat order; overview=full gives maximum geometry fidelity
@@ -200,7 +221,9 @@ async function fetchRoute(geocodedCoords) {
 
     if (data.code !== 'Ok' || !data.routes?.[0]?.geometry?.coordinates) {
       console.warn('OSRM returned no route for', cacheKey);
-      routeCache[cacheKey] = null;
+      // Use a sentinel so we don't retry on every request, but distinguish this
+      // from null (= never fetched).
+      routeCache[cacheKey] = { status: 'no_route' };
       routeDirty = true;
       return null;
     }
@@ -213,7 +236,7 @@ async function fetchRoute(geocodedCoords) {
     return coords;
   } catch (e) {
     console.error('OSRM fetch error:', e.message);
-    routeCache[cacheKey] = null;
+    // Do NOT cache fetch errors — let the next request retry.
     return null;
   }
 }
@@ -494,16 +517,31 @@ export async function enrichTrips() {
   const liveImageKeys   = new Set();
   const liveGeocodeKeys = new Set();
 
+  // Per-request geocode coalescing: if two trips share a destination that isn't
+  // in the disk cache yet, the second trip awaits the same in-flight promise
+  // rather than firing a duplicate Nominatim request.
+  const geocodeInflight = new Map();
+
+  async function geocodeCached(destination) {
+    if (geocodeCache[destination] !== undefined) return geocodeCache[destination] ?? null;
+    if (geocodeInflight.has(destination)) return geocodeInflight.get(destination);
+    const promise = geocode(destination).then(async (coord) => {
+      await sleep(1100);
+      return coord;
+    });
+    geocodeInflight.set(destination, promise);
+    return promise;
+  }
+
   let completedEnumeration = true;
   for (const trip of trips) {
     try {
       // Geocode
       const dest = trip.destination;
       if (dest) liveGeocodeKeys.add(dest);
-      if (dest && geocodeCache[dest] === undefined) {
+      if (dest) {
         try {
-          trip._coords = await geocode(dest);
-          await sleep(1100);
+          trip._coords = await geocodeCached(dest);
         } catch (e) {
           if (e instanceof TraverseError && e.code === 'geocode_quota') {
             console.warn('geocode rate-limited during enrichment for', dest);
@@ -513,7 +551,7 @@ export async function enrichTrips() {
           }
         }
       } else {
-        trip._coords = geocodeCache[dest] ?? null;
+        trip._coords = null;
       }
 
       // Image

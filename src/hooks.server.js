@@ -149,8 +149,11 @@ printConfigBanner();
 // AbortController is empty after restart). The age threshold guards
 // against clobbering an in-flight write from another process.
 //
+// Deferred via setImmediate so it runs on the next tick — sync I/O inside
+// sweepStaleJobs would otherwise block the first incoming request.
+//
 // See src/lib/server/jobs.js and docs/ai-workflow-ux.md §8.
-sweepStaleJobs();
+setImmediate(() => sweepStaleJobs());
 
 // Stage dirs must be writable by the running uid; otherwise Research, Retro,
 // and Archive all fail with opaque EACCES errors mid-action. Most common cause

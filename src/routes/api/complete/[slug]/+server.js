@@ -6,6 +6,6 @@ export function POST({ params }) {
   if (invalid) return invalid;
   const { slug } = params;
   const err = moveTrip(slug, 'planning', 'completed', 'completed');
-  if (err) return new Response(err.error, { status: err.status });
+  if (err) return json({ error: err.error, code: 'move_failed' }, { status: err.status ?? 500 });
   return json({ ok: true, slug, stage: 'completed' });
 }

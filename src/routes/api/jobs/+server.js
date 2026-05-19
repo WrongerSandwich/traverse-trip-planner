@@ -12,20 +12,28 @@ import { json } from '@sveltejs/kit';
 import { listJobs, listRecentEvents } from '$lib/server/jobs.js';
 import { findTripFile, parseFrontmatter } from '$lib/server/data.js';
 
-function titleForSlug(slug) {
-  const path = findTripFile(slug);
-  if (!path) return null;
-  let content;
-  try {
-    content = readFileSync(path, 'utf8');
-  } catch {
-    return null;
-  }
-  const fm = parseFrontmatter(content);
-  return fm?.title ?? null;
+function makeTitleCache() {
+  const cache = new Map();
+  return function titleForSlug(slug) {
+    if (cache.has(slug)) return cache.get(slug);
+    const path = findTripFile(slug);
+    if (!path) { cache.set(slug, null); return null; }
+    let content;
+    try {
+      content = readFileSync(path, 'utf8');
+    } catch {
+      cache.set(slug, null);
+      return null;
+    }
+    const fm = parseFrontmatter(content);
+    const title = fm?.title ?? null;
+    cache.set(slug, title);
+    return title;
+  };
 }
 
 export function GET() {
+  const titleForSlug = makeTitleCache();
   const jobs = listJobs().map((j) => ({ ...j, title: titleForSlug(j.slug) }));
   const recent = listRecentEvents().map((e) => ({ ...e, title: titleForSlug(e.slug) }));
   return json({ jobs, recent });

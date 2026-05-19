@@ -27,4 +27,7 @@
 
 ---
 
-<!-- If this PR changes AI/search adapter code, note whether npm run smoke was run and against which provider. -->
+<!-- If this PR changes AI/search adapter code, note whether npm run smoke was run and against which provider.
+     Success looks like one ✓ line per configured provider printed in <10 s, e.g.:
+       ✓ anthropic/claude-sonnet-4-6 (N in / N out)
+     A failure prints a clear error and exits non-zero. -->

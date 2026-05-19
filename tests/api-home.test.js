@@ -398,7 +398,7 @@ describe('PUT /api/home — success', () => {
     expect(written).toMatch(/default_radius_mi:\s*400/);
   });
 
-  it('accepts stringified coords (defensive) and coerces on validation', async () => {
+  it('rejects stringified coords (must be numeric)', async () => {
     const payload = {
       ...validPayload,
       frontmatter: {
@@ -407,6 +407,6 @@ describe('PUT /api/home — success', () => {
       },
     };
     const res = await PUT(makeRequest(payload));
-    expect(res._status).toBe(200);
+    expect(res._status).toBe(400);
   });
 });

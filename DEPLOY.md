@@ -1,76 +1,14 @@
 # Deploying Traverse to a Home Server
 
-Traverse can be deployed two ways. Both reach the same `http://<server-ip>:3456` and read the same on-disk trip data. Pick whichever feels lighter.
+**Docker is the canonical deployment path.** It requires no Node.js toolchain on the host and is the path documented in CLAUDE.md.
 
-| Option              | Best for                                                                        |
-| ------------------- | ------------------------------------------------------------------------------- |
-| **A. PM2**          | Existing Linux servers that already run Node services; no Docker dependency.    |
-| **B. Docker**       | Fresh installs, devices without a Node toolchain, easier teardown / migration.  |
+PM2 (`ecosystem.config.cjs`) is a legacy path kept for existing deployments that predate the Docker switch. New installs should use Docker.
 
-You can swap between them later — both read the same `ideas/`, `planning/`, `completed/`, `archived/`, `home.md`, `.env`, and cache files.
+Both reach the same `http://<server-ip>:3456` and read the same on-disk trip data.
 
 ---
 
-## Option A — PM2
-
-### Prerequisites (on the Linux server)
-
-```bash
-# Node.js 20+
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# PM2 (process manager)
-sudo npm install -g pm2
-```
-
-### First deploy
-
-```bash
-# 1. Clone the repo
-git clone <your-repo-url> traverse
-cd traverse
-
-# 2. Configure your preferences
-cp home.example.md home.md
-# Edit home.md — set your home city/coords, traveler name(s), vehicle(s), and taste profile.
-# This file drives all AI features; the more honest detail you add, the better the suggestions.
-
-# 3. Set up your API keys
-cp .env.example .env
-# Edit .env — paste your ANTHROPIC_API_KEY and PEXELS_API_KEY.
-
-# 4. Install dependencies, verify provider keys, and build
-npm install
-npm run smoke         # 1-token round trip per configured provider; <1¢
-npm run build
-
-# 5. Start with PM2
-pm2 start ecosystem.config.cjs
-pm2 save                        # persist across reboots
-pm2 startup                     # enable auto-start (follow the printed command)
-```
-
-Traverse is now accessible on your LAN at `http://<server-ip>:3456`.
-
-### Finding the server IP
-
-```bash
-ip addr show | grep "inet " | grep -v 127.0.0.1
-```
-
-### Updating after changes
-
-```bash
-git pull
-npm install          # if dependencies changed
-npm run build
-pm2 restart traverse
-```
-
----
-
-## Option B — Docker
+## Docker (canonical)
 
 ### Prerequisites (on the host)
 
@@ -84,10 +22,11 @@ pm2 restart traverse
 git clone <your-repo-url> traverse
 cd traverse
 
-# 2. Configure your preferences (same as Option A)
+# 2. Configure your preferences
 cp home.example.md home.md
 cp .env.example .env
-# Edit home.md and .env.
+# Edit home.md — set your home city/coords, traveler name(s), vehicle(s), and taste profile.
+# Edit .env — paste your ANTHROPIC_API_KEY and PEXELS_API_KEY.
 
 # 3. Initialize on-disk state files that Compose will bind-mount
 # (Docker would otherwise create these as directories on first run.)
@@ -133,41 +72,24 @@ docker compose up -d
 
 macOS Docker Desktop translates ownership automatically; you can leave the defaults.
 
-### Swapping between PM2 and Docker
+### Migrating from PM2 (legacy) to Docker
 
-Both want port 3456. If you're migrating, stop the other first:
+PM2 and Docker both bind port 3456. To switch from an existing PM2 deploy:
 
 ```bash
-# PM2 → Docker
 pm2 delete traverse
 docker compose up -d --build
-
-# Docker → PM2
-docker compose down
-pm2 start ecosystem.config.cjs
 ```
 
----
+### Migrating from the old `atlas` process name
 
-## Migrating from the old `atlas` process name
-
-If you deployed before the brand rename, the pm2 app was called `atlas` and the env vars were `ATLAS_*`. One-time migration on the server:
+If you deployed before the brand rename, the PM2 app was called `atlas` and the env vars were `ATLAS_*`. One-time migration:
 
 ```bash
-pm2 delete atlas                # drop the old process
-sed -i 's/^ATLAS_/TRAVERSE_/' .env  # rename env vars in place
-git pull && npm install && npm run build
-pm2 start ecosystem.config.cjs  # registers the new `traverse` process
-pm2 save
-```
-
-## Useful PM2 commands
-
-```bash
-pm2 status           # check if running
-pm2 logs traverse    # tail logs (includes provider banner + per-call token usage)
-pm2 restart traverse    # restart after code changes
-pm2 stop traverse    # stop
+pm2 delete atlas                      # drop the old process
+sed -i 's/^ATLAS_/TRAVERSE_/' .env   # rename env vars in place
+git pull
+docker compose up -d --build          # switch to Docker at the same time
 ```
 
 The startup banner lists which providers are wired and which features are available. Each AI call also emits a one-line `[ai] <label> <provider>/<model> — N in / N out (T turns, ms)` log so you can grep for total spend per feature. Transient API failures (network blips, 429 rate limits, 5xx) are retried with exponential backoff (3 attempts, 1s/2s/4s) and logged as `[retry] <label> attempt N/3 …`. Non-retriable errors (4xx other than 429, malformed responses) fail immediately.

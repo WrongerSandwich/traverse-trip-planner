@@ -98,21 +98,15 @@ export async function PUT({ request }) {
   if (
     !Array.isArray(homeCoords) ||
     homeCoords.length !== 2 ||
-    !homeCoords.every((v) => typeof v === 'number' || typeof v === 'string')
+    !homeCoords.every((v) => typeof v === 'number' && Number.isFinite(v))
   ) {
     return json(
-      { error: 'frontmatter.home_coords must be an array of [lat, lon].', code: 'invalid_input' },
+      { error: 'frontmatter.home_coords must be an array of two finite numbers [lat, lon].', code: 'invalid_input' },
       { status: 400 },
     );
   }
 
-  const [lat, lon] = homeCoords.map(Number);
-  if (!isFinite(lat) || !isFinite(lon)) {
-    return json(
-      { error: 'frontmatter.home_coords must contain finite numbers.', code: 'invalid_input' },
-      { status: 400 },
-    );
-  }
+  const [lat, lon] = homeCoords;
   if (lat < -90 || lat > 90) {
     return json(
       { error: 'frontmatter.home_coords[0] (lat) must be between -90 and 90.', code: 'invalid_input' },
@@ -137,7 +131,8 @@ export async function PUT({ request }) {
   try {
     writeHomeMd({ frontmatter, prose });
   } catch (err) {
-    return json({ error: `Failed to write home.md: ${err.message}`, code: 'invalid_input' }, { status: 500 });
+    console.error('[home] failed to write home.md:', err);
+    return json({ error: 'Failed to save home configuration.', code: 'write_failed' }, { status: 500 });
   }
 
   invalidateEnrichCache();

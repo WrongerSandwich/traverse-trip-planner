@@ -46,7 +46,7 @@ export function parseBrochureFile(content) {
   try {
     data = yamlParse(match[1]) || {};
   } catch (err) {
-    throw new Error(`brochure.md YAML parse failed: ${err.message}`);
+    throw new TraverseError('model_returned_invalid_yaml', `brochure.md YAML parse failed: ${err.message}`);
   }
   const prose = (match[2] || '').trim();
   return { data, prose };
@@ -160,8 +160,12 @@ async function geocodeStops(stops = [], { destinationContext = '' } = {}) {
         const coord = await geocode(q);
         if (coord) { stop.coords = coord; break; }
       } catch (e) {
-        if (e instanceof TraverseError) throw e; // propagate quota/typed errors
-        // otherwise try the next fallback query
+        // Re-throw quota errors (429) so the caller surfaces a useful message.
+        if (e instanceof TraverseError && e.code === 'geocode_quota') throw e;
+        // Re-throw any other typed TraverseError (future-proofing).
+        if (e instanceof TraverseError) throw e;
+        // Non-TraverseError: log and try the next fallback query.
+        console.warn('[brochure] geocode fallback failed for', q, '—', e.message);
       }
     }
   }

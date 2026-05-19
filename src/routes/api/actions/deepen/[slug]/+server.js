@@ -137,8 +137,9 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
     // Some models (notably reasoning/preview ones) occasionally drop or
     // truncate the XML tags. Log the raw response so the failure is
     // debuggable without re-running the call.
+    const preview = text.slice(0, 200) + (text.length > 200 ? '… [truncated]' : '');
     console.warn(
-      `[deepen] ${slug}: no <overview_prose> tag in model response (${text.length} chars). Raw text follows:\n---\n${text}\n---`
+      `[deepen] ${slug}: no <overview_prose> tag in model response (${text.length} chars). Preview:\n${preview}`
     );
     throw new Error('No overview prose returned — try again.');
   }
@@ -178,8 +179,8 @@ export function GET({ params }) {
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
   const file = findIdeaFile(params.slug);
-  if (!file) return new Response('Not found', { status: 404 });
-  return new Response('ok');
+  if (!file) return json({ code: 'trip_not_found', error: 'Not found' }, { status: 404 });
+  return json({ ok: true });
 }
 
 export async function POST(event) {
@@ -221,7 +222,10 @@ export async function POST(event) {
     .catch((err) => {
       if (isAbort(err)) return; // cancelJob() owns the failure event
       const code = err instanceof TraverseError ? err.code : 'unknown';
-      failJob('deepen', slug, { code, message: err?.message ?? 'Unknown error' });
+      // Log the raw error server-side; send only a safe public message to the client.
+      console.error(`[deepen] ${slug}: research failed (${code}):`, err?.message ?? err);
+      const publicMessage = err instanceof TraverseError ? err.message : 'Research failed — try again.';
+      failJob('deepen', slug, { code, message: publicMessage });
     });
 
   return new Response(null, { status: 202 });

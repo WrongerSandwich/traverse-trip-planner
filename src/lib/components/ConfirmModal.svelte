@@ -71,7 +71,7 @@
     role="dialog"
     aria-modal="true"
     aria-labelledby="confirm-title"
-    aria-describedby={body ? 'confirm-body' : undefined}
+    aria-describedby={body || promise ? 'confirm-body' : undefined}
   >
     <div class="modal-body">
       <h2 id="confirm-title" class="modal-title" class:danger>{title}</h2>
