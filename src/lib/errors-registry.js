@@ -108,6 +108,15 @@ export const ERROR_REGISTRY = {
     sentence: "Couldn't save the cover photo. Try again.",
     affordances: ['retry', 'dismiss'],
   },
+  rate_limited: {
+    sentence: 'Too many requests. Try again in {retryAfterSec} seconds.',
+    affordances: ['retry', 'dismiss'],
+    interpolate: ['retryAfterSec'],
+  },
+  max_tokens_exceeded: {
+    sentence: 'Internal error: requested token budget exceeds the safety ceiling. Please report this.',
+    affordances: ['dismiss'],
+  },
 };
 
 /**

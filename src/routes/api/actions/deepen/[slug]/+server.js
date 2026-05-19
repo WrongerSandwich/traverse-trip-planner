@@ -33,6 +33,7 @@ import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
 import { TraverseError } from '$lib/server/errors.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
 export const _promise = HAND_DEFAULTS.deepen;
@@ -181,7 +182,8 @@ export function GET({ params }) {
   return new Response('ok');
 }
 
-export async function POST({ params }) {
+export async function POST(event) {
+  const { params } = event;
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
@@ -190,6 +192,9 @@ export async function POST({ params }) {
   const { slug } = params;
   const ideaPath = findIdeaFile(slug);
   if (!ideaPath) return new Response('Not found', { status: 404 });
+
+  const limited = rateLimitResponse({ event, endpoint: 'deepen', slugKey: slug });
+  if (limited) return limited;
 
   // Already running? Return 409 so the trigger UI can react.
   try {

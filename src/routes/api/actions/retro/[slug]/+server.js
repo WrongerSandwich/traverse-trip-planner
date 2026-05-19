@@ -6,6 +6,7 @@ import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 
 export const _promise = HAND_DEFAULTS['retro-questions'];
 
@@ -27,7 +28,8 @@ function tripContextDump(files) {
 }
 
 // POST — generate trip-specific retro questions.
-export async function POST({ params }) {
+export async function POST(event) {
+  const { params } = event;
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
@@ -39,6 +41,9 @@ export async function POST({ params }) {
   if (existsSync(join(trip.dir, 'notes.md'))) {
     return new Response('Retro already written — delete notes.md to redo', { status: 409 });
   }
+
+  const limited = rateLimitResponse({ event, endpoint: 'retro', slugKey: slug });
+  if (limited) return limited;
 
   const homeMd = readHomeMd();
   const context = tripContextDump(trip.files);

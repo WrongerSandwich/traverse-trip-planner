@@ -7,6 +7,7 @@ import { chat, formatUsage } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { json } from '@sveltejs/kit';
 
 export const _promise = HAND_DEFAULTS.add;
@@ -14,10 +15,13 @@ export const _promise = HAND_DEFAULTS.add;
 // TODO: consolidate trip-lookup helpers (findTripFile/findTrip/findIdeaFile) into data.js
 // TODO: extract readSections() shared by lock/+server.js and trip/[slug]/chat/+server.js
 
-export async function POST({ request }) {
+export async function POST(event) {
+  const { request } = event;
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
+  const limited = rateLimitResponse({ event, endpoint: 'add' });
+  if (limited) return limited;
   const NAME = getEffectiveConfig().assistantName;
   let destination = '';
   try {

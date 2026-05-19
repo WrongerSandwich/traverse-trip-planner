@@ -7,6 +7,7 @@ import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 import { sniffImageType } from '$lib/utils/sniffImageType.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 
 export const _promise = HAND_DEFAULTS.receipts;
 
@@ -21,7 +22,8 @@ const MAX_BODY_BYTES = MAX_IMAGES * MAX_BYTES + 64 * 1024;
 // POST — process receipt photos and append parsed lines to notes.md.
 // Body: multipart form data with one or more "image" file fields.
 // Returns: { lines: string[] } — one line per receipt parsed.
-export async function POST({ params, request }) {
+export async function POST(event) {
+  const { params, request } = event;
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
   const { slug } = params;
@@ -29,6 +31,9 @@ export async function POST({ params, request }) {
   if (!existsSync(join(ROOT, 'completed', slug))) {
     return new Response('Trip not in completed stage', { status: 404 });
   }
+
+  const limited = rateLimitResponse({ event, endpoint: 'receipts', slugKey: slug });
+  if (limited) return limited;
 
   // Reject oversize bodies before formData() materialises anything.
   const contentLength = request.headers.get('content-length');
