@@ -56,8 +56,11 @@ Drive a sedan.
 - Scenic routes.
 `;
 
-function makeRequest(body) {
-  return { request: { json: async () => body } };
+function makeRequest(body, { clientAddress = '127.0.0.1', headers = {} } = {}) {
+  return {
+    request: { json: async () => body, headers: new Headers(headers) },
+    getClientAddress: () => clientAddress,
+  };
 }
 
 beforeEach(() => {
@@ -189,11 +192,33 @@ describe('GET /api/home', () => {
   });
 });
 
+// ── PUT /api/home — loopback gate (#221) ──────────────────────────────────────
+
+describe('PUT /api/home — loopback gate', () => {
+  it('rejects a LAN caller by default with 403 forbidden_remote_write', async () => {
+    const res = await PUT(makeRequest(
+      { frontmatter: { home_city: 'X', home_coords: [0, 0] }, prose: { sections: [] } },
+      { clientAddress: '192.168.1.42' },
+    ));
+    expect(res._status).toBe(403);
+    expect(res._body.code).toBe('forbidden_remote_write');
+  });
+
+  it('allows a loopback caller by default (reaches validation, not gate)', async () => {
+    const res = await PUT(makeRequest({}, { clientAddress: '127.0.0.1' }));
+    expect(res._status).toBe(400);
+    expect(res._body.code).toBe('invalid_input');
+  });
+});
+
 // ── PUT /api/home — validation ─────────────────────────────────────────────────
 
 describe('PUT /api/home — validation', () => {
   it('returns 400 for invalid JSON body', async () => {
-    const req = { request: { json: async () => { throw new SyntaxError('bad json'); } } };
+    const req = {
+      request: { json: async () => { throw new SyntaxError('bad json'); }, headers: new Headers() },
+      getClientAddress: () => '127.0.0.1',
+    };
     const res = await PUT(req);
     expect(res._status).toBe(400);
     expect(res._body.error).toMatch(/invalid json/i);

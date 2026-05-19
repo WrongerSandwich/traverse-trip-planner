@@ -1,3 +1,8 @@
+// Threat model: see src/lib/server/auth.js. POST here writes settings.json,
+// which holds provider keys and the model selection that every chat() call
+// goes through. Without the loopback gate, a LAN attacker could swap the
+// provider to an attacker-controlled endpoint and exfiltrate every prompt
+// (including home.md profile data) by submitting a single JSON body.
 import { json } from '@sveltejs/kit';
 import {
   readSettings,
@@ -7,16 +12,22 @@ import {
   SUPPORTED_SERVICES,
   SUPPORTED_SEARCH_PROVIDERS,
 } from '$lib/server/settings.js';
+import { denyIfNotConfigWriter } from '$lib/server/auth.js';
 
 const SUPPORTED_SLOTS = ['default', 'research'];
 const ASSISTANT_NAME_MAX = 60;
 const MODEL_MAX_LENGTH = 200;
 const MODEL_CHARSET_RE = /^[A-Za-z0-9._:/\-]+$/;
 
-export async function POST({ request }) {
+export async function POST(event) {
   if (process.env.TRAVERSE_DISABLE_SETTINGS_UI) {
     return json({ error: 'Settings UI is disabled on this server.' }, { status: 403 });
   }
+
+  const denied = denyIfNotConfigWriter(event);
+  if (denied) return denied;
+
+  const { request } = event;
 
   let body;
   try {

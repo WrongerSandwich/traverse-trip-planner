@@ -1,8 +1,13 @@
+// Threat model: see src/lib/server/auth.js. PUT here rewrites home.md, which
+// shapes every AI prompt (home location, vehicle, travelers, taste). An
+// attacker who can write here could poison trip generation or scrub the
+// constraints the AI workflows rely on. Loopback-gated by default.
 import { json } from '@sveltejs/kit';
 import { parseHomeMd, writeHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { ROOT } from '$lib/server/data.js';
+import { denyIfNotConfigWriter } from '$lib/server/auth.js';
 
 /**
  * GET /api/home
@@ -63,10 +68,13 @@ export async function GET() {
   return json({ frontmatter, prose });
 }
 
-export async function PUT({ request }) {
+export async function PUT(event) {
+  const denied = denyIfNotConfigWriter(event);
+  if (denied) return denied;
+
   let body;
   try {
-    body = await request.json();
+    body = await event.request.json();
   } catch {
     return json({ error: 'Invalid JSON body.', code: 'invalid_input' }, { status: 400 });
   }
