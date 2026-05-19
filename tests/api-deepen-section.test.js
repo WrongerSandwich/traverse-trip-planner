@@ -51,6 +51,10 @@ vi.mock('$lib/server/data.js', () => ({
   parseFrontmatter: vi.fn(() => ({ title: 'Test Trip', status: 'planning' })),
   invalidateEnrichCache: vi.fn(),
   rejectInvalidSlug: () => null,
+  // atomicWrite is now used instead of writeFileSync for crash-safe writes.
+  // In tests we map it to mockWriteFileSync so file-write assertions continue
+  // to work without needing a real rename.
+  atomicWrite: mockWriteFileSync,
 }));
 
 const mockChat = vi.hoisted(() => vi.fn());

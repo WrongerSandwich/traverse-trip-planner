@@ -12,9 +12,10 @@
 //   2. User can re-run to regenerate (overwrites; no merge).
 //   3. The brochure render reads brochure.md exclusively when present.
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
+import { atomicWrite } from './atomic-write.js';
 import { findTripLocation, geocode, getTripFiles, readHomeMd, parseFrontmatter, flushCaches } from './data.js';
 import { chat } from './ai.js';
 import { getEffectiveConfig } from './config.js';
@@ -68,7 +69,7 @@ export function serializeBrochureFile({ data, prose = '' }) {
 export function writeBrochure(slug, { data, prose = '' }) {
   const path = brochurePath(slug);
   if (!path) throw new Error(`Cannot write brochure for trip "${slug}" — no folder stage found.`);
-  writeFileSync(path, serializeBrochureFile({ data, prose }));
+  atomicWrite(path, serializeBrochureFile({ data, prose }));
   return path;
 }
 

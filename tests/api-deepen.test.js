@@ -39,6 +39,10 @@ vi.mock('$lib/server/data.js', () => ({
   removeFrontmatterField: mockRemoveFrontmatterField,
   invalidateEnrichCache: mockInvalidateEnrichCache,
   rejectInvalidSlug: () => null,
+  // atomicWrite is now used instead of writeFileSync for crash-safe writes.
+  // In tests we map it to mockWriteFileSync so assertions on file writes
+  // continue to work.
+  atomicWrite: mockWriteFileSync,
 }));
 
 // --- AI / search / config mocks ---
