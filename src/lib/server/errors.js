@@ -66,22 +66,6 @@ export function logAdapterError(err) {
   const head = `[${err.provider}${err.model ? `/${err.model}` : ''}]`;
   const status = err.status ? ` ${err.status}` : '';
   console.error(`${head}${status} ${err.message}`);
-  if (err.cause !== undefined) {
-    let causeStr;
-    if (typeof err.cause === 'string') {
-      causeStr = err.cause;
-    } else {
-      try {
-        causeStr = JSON.stringify(err.cause);
-      } catch {
-        // Circular or non-serializable object — fall back to String()
-        causeStr = String(err.cause);
-      }
-    }
-    // Truncate noisy bodies so server logs stay readable.
-    const truncated = causeStr.length > 1000 ? `${causeStr.slice(0, 1000)}… [truncated]` : causeStr;
-    console.error(`${head} cause:`, truncated);
-  }
 }
 
 // Failure recovery registry lives in $lib/errors-registry.js — a client-safe
