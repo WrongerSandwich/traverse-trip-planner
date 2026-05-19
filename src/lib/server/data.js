@@ -832,8 +832,6 @@ export function assertSafeIdeaPath(p) {
 // ── Trip location ──
 // Returns { kind: 'file'|'dir', path, stage } for the trip's current live location,
 // or null if not found. kind='file' means an idea .md; kind='dir' means a stage folder.
-// TODO: findIdeaFile() in deepen/[slug]/+server.js is intentionally idea-only (deepening
-// only applies to ideas), but could be simplified to use findTripLocation if that changes.
 export function findTripLocation(slug) {
   const ideaPath = join(ROOT, 'ideas', `${slug}.md`);
   if (existsSync(ideaPath)) return { kind: 'file', path: ideaPath, stage: 'ideas' };
