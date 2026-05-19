@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { enrichTrips, getHome, getTripFiles, getTripRoute, geocode } from '$lib/server/data.js';
+import { enrichTrips, getHome, getTripFiles, getTripRoute, geocode, isValidSlug } from '$lib/server/data.js';
 import { readBrochure } from '$lib/server/brochure.js';
 import { stadiaStaticMapUrl } from '$lib/server/stadia.js';
 import { chooseZoomForBbox } from '$lib/utils/projection.js';
@@ -66,6 +66,7 @@ function buildDestinationBaseMap(brochureData) {
 
 export async function load({ params }) {
   const { slug } = params;
+  if (!isValidSlug(slug)) throw error(404);
 
   const [trips, home] = await Promise.all([enrichTrips(), Promise.resolve(getHome())]);
   const trip = trips.find(t => t._slug === slug);
