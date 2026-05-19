@@ -24,6 +24,7 @@ import { assertNotRunning, startJob, completeJob, failJob } from '$lib/server/jo
 import { TraverseError } from '$lib/server/errors.js';
 import { rejectInvalidSlug } from '$lib/server/data.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 
 export const _promise = HAND_DEFAULTS['brochure-prepare'];
 
@@ -39,10 +40,16 @@ function isAbort(err) {
   return err.name === 'AbortError' || err.code === 'ABORT_ERR';
 }
 
-export async function POST({ params }) {
+export async function POST(event) {
+  const { params } = event;
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
   const { slug } = params;
+
+  // Rate-limit before hitting the job registry — a burst across many slugs
+  // would bypass the per-slug already_running check and burn AI quota freely.
+  const limited = rateLimitResponse({ event, endpoint: 'brochure', slugKey: slug });
+  if (limited) return limited;
 
   // Already running? Fail fast with 409 so the trigger UI can react.
   try {

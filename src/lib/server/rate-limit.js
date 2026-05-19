@@ -37,6 +37,15 @@ export const DEFAULT_LIMITS = {
   receipts:         { capacity: 5,  refillPerMinute: 0.3 },
   chat:             { capacity: 30, refillPerMinute: 6   },
   brochure:         { capacity: 3,  refillPerMinute: 0.25 },
+  // image-search burns Pexels API quota; per-IP (no slugKey) is the right
+  // grain. capacity=10 allows a burst of manual image searches; refill=1/min
+  // sustains up to 60/hour without overwhelming the free-tier quota.
+  'image-search':   { capacity: 10, refillPerMinute: 1   },
+  // geocode was falling back to the generic 10/min default, which is more
+  // permissive than warranted for a Nominatim-backed endpoint (their ToS
+  // asks for ≤1 req/s from a single IP). Keep capacity generous for the
+  // legitimate re-geocode use-case but tighten the sustained rate.
+  geocode:          { capacity: 10, refillPerMinute: 2   },
 };
 
 const buckets = new Map();
