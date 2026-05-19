@@ -1,9 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { existsSync, mkdirSync, renameSync } from 'fs';
 import { join } from 'path';
-import { ROOT, findTripLocation } from '$lib/server/data.js';
+import { ROOT, findTripLocation, rejectInvalidSlug } from '$lib/server/data.js';
 
 export function POST({ params }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
   const trip = findTripLocation(slug);
   if (!trip) return new Response('Trip not found', { status: 404 });

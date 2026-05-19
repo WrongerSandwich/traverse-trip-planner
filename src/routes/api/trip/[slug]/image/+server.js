@@ -1,7 +1,9 @@
 import { json } from '@sveltejs/kit';
-import { updateImageMeta } from '$lib/server/data.js';
+import { updateImageMeta, rejectInvalidSlug } from '$lib/server/data.js';
 
 export async function POST({ params, request }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   let body;
   try {
     body = await request.json();

@@ -38,6 +38,7 @@ vi.mock('$lib/server/data.js', () => ({
   setFrontmatterField: mockSetFrontmatterField,
   removeFrontmatterField: mockRemoveFrontmatterField,
   invalidateEnrichCache: mockInvalidateEnrichCache,
+  rejectInvalidSlug: () => null,
 }));
 
 // --- AI / search / config mocks ---

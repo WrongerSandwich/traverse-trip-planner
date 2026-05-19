@@ -1,6 +1,6 @@
 import { writeFileSync } from 'fs';
 import { join } from 'path';
-import { ROOT, readHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
+import { ROOT, readHomeMd, invalidateEnrichCache, assertSafeIdeaPath } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
@@ -86,6 +86,10 @@ national_park: true`;
     }
 
     if (files.length === 0) throw new Error(`${NAME} returned no file blocks — try again.`);
+
+    // Reject the whole batch if the model emits an unsafe path. Partial writes
+    // would leave the idea list inconsistent with what the user saw stream.
+    for (const file of files) assertSafeIdeaPath(file.name);
 
     send(`Saving ${files.length} idea${files.length === 1 ? '' : 's'} to disk…`);
     for (const file of files) {

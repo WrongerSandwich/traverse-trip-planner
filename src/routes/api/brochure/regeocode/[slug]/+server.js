@@ -1,11 +1,14 @@
 import { sseStream } from '$lib/server/sse.js';
 import { regeocodeBrochureStops } from '$lib/server/brochure.js';
 import { TraverseError } from '$lib/server/errors.js';
+import { rejectInvalidSlug } from '$lib/server/data.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
 export const _promise = HAND_DEFAULTS.regeocode;
 
 export function POST({ params }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
   return sseStream(async (send) => {
     let result;

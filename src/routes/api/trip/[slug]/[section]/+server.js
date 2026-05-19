@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { ROOT, PLANNING_SECTIONS, writePlanningSection } from '$lib/server/data.js';
+import { ROOT, PLANNING_SECTIONS, writePlanningSection, rejectInvalidSlug } from '$lib/server/data.js';
 const VALID_SECTIONS = new Set(PLANNING_SECTIONS);
 
 function sectionPath(slug, section) {
@@ -9,6 +9,8 @@ function sectionPath(slug, section) {
 }
 
 export async function PUT({ params, request }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug, section } = params;
   if (!VALID_SECTIONS.has(section)) {
     return new Response('Invalid section', { status: 400 });

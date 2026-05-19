@@ -9,6 +9,7 @@ const mockToggleStarred = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/data.js', () => ({
   toggleStarred: mockToggleStarred,
+  rejectInvalidSlug: () => null,
 }));
 
 import { POST } from '../src/routes/api/bookmark/[slug]/+server.js';

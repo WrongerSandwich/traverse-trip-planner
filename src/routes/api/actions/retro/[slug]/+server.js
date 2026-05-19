@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { ROOT, atomicWrite, readHomeMd, getTripFiles, invalidateEnrichCache } from '$lib/server/data.js';
+import { ROOT, atomicWrite, readHomeMd, getTripFiles, invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
@@ -31,6 +31,8 @@ export async function POST({ params }) {
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
   const trip = loadCompletedTrip(slug);
   if (!trip) return new Response('Trip not in completed stage', { status: 404 });
@@ -99,6 +101,8 @@ function buildNotesMd({ rating, wouldRepeat, highlights, body, dateCompleted }) 
 
 // PUT — write notes.md from user answers + structured fields.
 export async function PUT({ params, request }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
   const trip = loadCompletedTrip(slug);
   if (!trip) return new Response('Trip not in completed stage', { status: 404 });

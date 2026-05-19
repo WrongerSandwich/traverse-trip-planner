@@ -677,12 +677,22 @@ export function writePlanningSection(dir, section, frontmatter, content) {
 }
 
 // ── Frontmatter field mutation ──
+//
+// Developer note: `field` is always internal — never pass user input. The
+// regex-escape below is belt-and-suspenders so a typo'd metacharacter in a
+// field name can't corrupt the frontmatter block.
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Sets or inserts a single frontmatter field in markdown content.
 // Returns the updated string; throws if no closing --- fence is found.
 export function setFrontmatterField(content, field, value) {
+  const safeField = escapeRegex(field);
   const line = `${field}: ${value}`;
-  if (new RegExp(`^${field}:`, 'm').test(content)) {
-    return content.replace(new RegExp(`^${field}:.*$`, 'm'), line);
+  if (new RegExp(`^${safeField}:`, 'm').test(content)) {
+    return content.replace(new RegExp(`^${safeField}:.*$`, 'm'), line);
   }
   return content.replace(/(\n---\n)/, `\n${line}$1`);
 }
@@ -690,10 +700,55 @@ export function setFrontmatterField(content, field, value) {
 // Removes a frontmatter field line from markdown content. No-op if absent.
 // Scoped to the frontmatter block so prose lines with the same prefix are safe.
 export function removeFrontmatterField(content, field) {
+  const safeField = escapeRegex(field);
   return content.replace(
     /^---\n([\s\S]*?)\n---/m,
-    (_, block) => `---\n${block.replace(new RegExp(`^${field}:.*\n?`, 'm'), '')}\n---`,
+    (_, block) => `---\n${block.replace(new RegExp(`^${safeField}:.*\n?`, 'm'), '')}\n---`,
   );
+}
+
+// ── Slug + AI-path validation ──
+//
+// Defends two attack surfaces:
+//   1. URL [slug] params reach the filesystem via `join(ROOT, …, slug)`. An
+//      unsanitized slug like `../../home.md` resolves outside the trip tree.
+//      SvelteKit decodes %2e%2e%2f before we see it, so the slug we receive
+//      is the post-decode string — we just need a strict character allowlist.
+//   2. AI-generated <file name="…"> paths from seed/add. A nudged model
+//      might emit `../../.env` if not constrained.
+//
+// Both checks live here (not as inline regexes at call sites) so the rule has
+// one canonical home. Update both patterns together if either evolves.
+
+// Slugs: kebab-case ASCII. Starts with [a-z0-9] to forbid leading dashes;
+// no dots, slashes, whitespace, or uppercase. Length cap is generous.
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,99}$/;
+
+export function isValidSlug(slug) {
+  return typeof slug === 'string' && SLUG_PATTERN.test(slug);
+}
+
+// Returns a 400 Response when the slug is invalid, else null. Use at the top
+// of every `[slug]` route handler before any filesystem access.
+export function rejectInvalidSlug(slug) {
+  if (isValidSlug(slug)) return null;
+  return new Response('Invalid slug', { status: 400 });
+}
+
+// AI-emitted file paths must match exactly `ideas/<kebab>.md`. Reject the
+// entire batch if any file fails so a partial write doesn't drop only some
+// of a planned set.
+const IDEA_PATH_PATTERN = /^ideas\/[a-z0-9][a-z0-9-]{0,99}\.md$/;
+
+export function isSafeIdeaPath(p) {
+  return typeof p === 'string' && IDEA_PATH_PATTERN.test(p);
+}
+
+export function assertSafeIdeaPath(p) {
+  if (!isSafeIdeaPath(p)) {
+    throw new Error(`Refusing unsafe AI-generated path: ${JSON.stringify(p)}`);
+  }
+  return p;
 }
 
 // ── Trip location ──
