@@ -3,13 +3,18 @@ import { regeocodeBrochureStops } from '$lib/server/brochure.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { rejectInvalidSlug } from '$lib/server/data.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { rateLimitResponse } from '$lib/server/rate-limit.js';
 
 export const _promise = HAND_DEFAULTS.regeocode;
 
-export function POST({ params }) {
+export function POST(event) {
+  const { params } = event;
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
   const { slug } = params;
+
+  const limited = rateLimitResponse({ event, endpoint: 'geocode', slugKey: slug });
+  if (limited) return limited;
   return sseStream(async (send) => {
     let result;
     try {

@@ -105,10 +105,15 @@ function buildNotesMd({ rating, wouldRepeat, highlights, body, dateCompleted }) 
 }
 
 // PUT — write notes.md from user answers + structured fields.
-export async function PUT({ params, request }) {
+export async function PUT(event) {
+  const { params, request } = event;
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
   const { slug } = params;
+
+  const limited = rateLimitResponse({ event, endpoint: 'retro', slugKey: slug });
+  if (limited) return limited;
+
   const trip = loadCompletedTrip(slug);
   if (!trip) return new Response('Trip not in completed stage', { status: 404 });
   if (existsSync(join(trip.dir, 'notes.md'))) {
