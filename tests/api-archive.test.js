@@ -17,11 +17,15 @@ vi.mock('fs', () => ({
   renameSync: mockRenameSync,
 }));
 
-const mockFindTripLocation = vi.hoisted(() => vi.fn());
+const { mockFindTripLocation, mockInvalidateEnrichCache } = vi.hoisted(() => ({
+  mockFindTripLocation: vi.fn(),
+  mockInvalidateEnrichCache: vi.fn(),
+}));
 
 vi.mock('$lib/server/data.js', () => ({
   ROOT: '/test-root',
   findTripLocation: mockFindTripLocation,
+  invalidateEnrichCache: mockInvalidateEnrichCache,
   rejectInvalidSlug: () => null,
 }));
 
@@ -30,6 +34,7 @@ import { POST } from '../src/routes/api/archive/[slug]/+server.js';
 beforeEach(() => {
   vi.clearAllMocks();
   mockExistsSync.mockReturnValue(false);
+  mockInvalidateEnrichCache.mockReturnValue(undefined);
 });
 
 describe('POST /api/archive/[slug]', () => {
@@ -52,6 +57,7 @@ describe('POST /api/archive/[slug]', () => {
       '/test-root/planning/ozarks',
       '/test-root/archived/planning/ozarks'
     );
+    expect(mockInvalidateEnrichCache).toHaveBeenCalledOnce();
   });
 
   it('archives a file-style idea', () => {
@@ -68,6 +74,7 @@ describe('POST /api/archive/[slug]', () => {
       '/test-root/ideas/parked-idea.md',
       '/test-root/archived/ideas/parked-idea.md'
     );
+    expect(mockInvalidateEnrichCache).toHaveBeenCalledOnce();
   });
 
   it('returns 404 when the trip is not found', () => {
@@ -76,6 +83,7 @@ describe('POST /api/archive/[slug]', () => {
     const res = POST({ params: { slug: 'nope' } });
     expect(res.status).toBe(404);
     expect(mockRenameSync).not.toHaveBeenCalled();
+    expect(mockInvalidateEnrichCache).not.toHaveBeenCalled();
   });
 
   it('returns 409 when the archive destination already exists', () => {
@@ -90,6 +98,7 @@ describe('POST /api/archive/[slug]', () => {
     const res = POST({ params: { slug: 'dup' } });
     expect(res.status).toBe(409);
     expect(mockRenameSync).not.toHaveBeenCalled();
+    expect(mockInvalidateEnrichCache).not.toHaveBeenCalled();
   });
 
   it('returns 500 when renameSync throws', () => {
@@ -103,5 +112,6 @@ describe('POST /api/archive/[slug]', () => {
 
     const res = POST({ params: { slug: 'crash' } });
     expect(res.status).toBe(500);
+    expect(mockInvalidateEnrichCache).not.toHaveBeenCalled();
   });
 });
