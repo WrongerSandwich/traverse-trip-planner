@@ -104,6 +104,43 @@ To revert to `.env`-only behavior, delete `settings.json` or use the **Remove** 
 
 **`TRAVERSE_DISABLE_SETTINGS_UI`** — set to any non-empty value to disable the `/settings` page and `POST /api/settings` entirely (both return 403). Recommended for production deployments where the server is reachable over an untrusted network and you prefer `.env`-only key management.
 
+### Config-write auth (loopback-by-default)
+
+`POST /api/settings` and `PUT /api/home` write provider keys and the
+home.md profile that shapes every AI prompt. The CSRF Origin check in
+`src/hooks.server.js` blocks cross-origin browser requests but does
+**not** block direct `curl` from anywhere the host is reachable. To
+prevent a LAN attacker (or a misconfigured proxy / sibling container)
+from swapping the provider to their own endpoint and exfiltrating
+prompts, these two endpoints require the request to originate from
+loopback by default.
+
+For a typical single-user home deployment where the browser runs on a
+different device on the same LAN, set:
+
+```bash
+TRAVERSE_ALLOW_LAN_WRITES=1
+```
+
+This opens the gate. Only set it when every device that can reach the
+API is trusted by the operator.
+
+Behind a reverse proxy (Caddy, nginx) the socket address is always the
+proxy's loopback. To gate by the real client IP, instead set:
+
+```bash
+TRUST_PROXY_FOR_AUTH=1
+```
+
+The gate then reads the first hop of `X-Forwarded-For`. **The proxy
+must unconditionally overwrite `X-Forwarded-For`** — otherwise an
+attacker can spoof it. With Caddy, `reverse_proxy` does this by
+default; with nginx, set `proxy_set_header X-Forwarded-For $remote_addr;`
+(not `$proxy_add_x_forwarded_for`).
+
+If both vars are set, `TRAVERSE_ALLOW_LAN_WRITES` wins (gate fully
+open). The threat model is documented in `src/lib/server/auth.js`.
+
 ## Provider configuration (BYOK)
 
 Traverse talks to model and search providers through a thin adapter layer. The defaults preserve the original Anthropic-only behavior, so existing deployments keep working without env changes. To switch providers, set the `TRAVERSE_*` variables in `.env`.

@@ -19,8 +19,11 @@ vi.mock('node:path', () => ({
 import { readFileSync, writeFileSync } from 'node:fs';
 import { POST } from '../src/routes/api/settings/+server.js';
 
-function makeRequest(body) {
-  return { request: { json: async () => body } };
+function makeRequest(body, { clientAddress = '127.0.0.1', headers = {} } = {}) {
+  return {
+    request: { json: async () => body, headers: new Headers(headers) },
+    getClientAddress: () => clientAddress,
+  };
 }
 
 beforeEach(() => {
@@ -41,11 +44,36 @@ describe('TRAVERSE_DISABLE_SETTINGS_UI', () => {
   });
 });
 
+// ── Loopback gate (#221) ──────────────────────────────────────────────────────
+
+describe('POST /api/settings — loopback gate', () => {
+  it('rejects a LAN caller by default with 403 forbidden_remote_write', async () => {
+    const res = await POST(makeRequest({ keys: {} }, { clientAddress: '192.168.1.42' }));
+    expect(res._status).toBe(403);
+    expect(res._body.code).toBe('forbidden_remote_write');
+  });
+
+  it('allows a loopback caller by default', async () => {
+    const res = await POST(makeRequest({ keys: {} }, { clientAddress: '127.0.0.1' }));
+    expect(res._status).toBe(200);
+  });
+
+  it('allows a LAN caller when TRAVERSE_ALLOW_LAN_WRITES=1', async () => {
+    process.env.TRAVERSE_ALLOW_LAN_WRITES = '1';
+    const res = await POST(makeRequest({ keys: {} }, { clientAddress: '192.168.1.42' }));
+    expect(res._status).toBe(200);
+    delete process.env.TRAVERSE_ALLOW_LAN_WRITES;
+  });
+});
+
 // ── Input validation ──────────────────────────────────────────────────────────
 
 describe('POST /api/settings — validation', () => {
   it('returns 400 for invalid JSON body', async () => {
-    const req = { request: { json: async () => { throw new SyntaxError('bad json'); } } };
+    const req = {
+      request: { json: async () => { throw new SyntaxError('bad json'); }, headers: new Headers() },
+      getClientAddress: () => '127.0.0.1',
+    };
     const res = await POST(req);
     expect(res._status).toBe(400);
     expect(res._body.error).toMatch(/invalid json/i);
