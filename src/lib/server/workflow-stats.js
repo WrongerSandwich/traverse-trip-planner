@@ -15,8 +15,9 @@
 // restart, following the same pattern as the existing caches in
 // `src/lib/server/data.js`.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { atomicWrite } from './atomic-write.js';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ function flushToDisk() {
     if (arr.length > 0) payload.samples[label] = arr;
   }
   try {
-    writeFileSync(STATS_PATH, JSON.stringify(payload));
+    atomicWrite(STATS_PATH, JSON.stringify(payload));
   } catch (e) {
     console.warn(`[workflow-stats] failed to flush ${STATS_PATH}: ${e.message}`);
   }

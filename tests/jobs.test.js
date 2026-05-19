@@ -42,6 +42,13 @@ vi.mock('node:fs', async (importOriginal) => {
       const prev = fs.files[p];
       setFile(p, content, prev?.mtimeMs ?? Date.now());
     },
+    renameSync: (src, dst) => {
+      if (!(src in fs.files)) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      const entry = fs.files[src];
+      const prev = fs.files[dst];
+      setFile(dst, entry.content, prev?.mtimeMs ?? Date.now());
+      delete fs.files[src];
+    },
     readdirSync: (dir, opts) => {
       if (!fs.dirs.has(dir)) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
       const prefix = dir.endsWith('/') ? dir : `${dir}/`;

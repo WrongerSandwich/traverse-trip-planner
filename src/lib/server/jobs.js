@@ -43,10 +43,11 @@
 // resolves to the same label as 'deepen-section'. New multi-instance workflows
 // must register their bare-workflow label there.
 
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ROOT,
+  atomicWrite,
   parseFrontmatter,
   setFrontmatterField,
   removeFrontmatterField,
@@ -123,7 +124,7 @@ function writeRunningFlag(slug, workflow) {
   const content = readTripFile(path);
   if (content === null) return;
   if (!parseFrontmatter(content)) return;
-  writeFileSync(path, setFrontmatterField(content, 'running', workflow));
+  atomicWrite(path, setFrontmatterField(content, 'running', workflow));
   invalidateEnrichCache();
 }
 
@@ -138,7 +139,7 @@ function clearRunningFlag(slug, extraFields = {}) {
   for (const [field, value] of Object.entries(extraFields)) {
     content = setFrontmatterField(content, field, value);
   }
-  writeFileSync(path, content);
+  atomicWrite(path, content);
   invalidateEnrichCache();
 }
 
@@ -381,7 +382,7 @@ export function sweepStaleJobs({ maxAgeMinutes = 10 } = {}) {
       updated = setFrontmatterField(updated, 'last_run_aborted', 'true');
       updated = setFrontmatterField(updated, 'last_run_aborted_at', new Date().toISOString());
       try {
-        writeFileSync(filePath, updated);
+        atomicWrite(filePath, updated);
         cleared++;
       } catch (e) {
         console.warn(`[jobs] sweep: failed to clear flag on ${filePath}:`, e.message);

@@ -13,9 +13,10 @@ vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
+  renameSync: vi.fn(),
 }));
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { splitHomeBody } from '../src/lib/server/data.js';
 import { GET, PUT } from '../src/routes/api/home/+server.js';
 
@@ -327,12 +328,17 @@ describe('PUT /api/home — success', () => {
 
   it('calls invalidateEnrichCache (writeHomeMd calls it internally)', async () => {
     // writeHomeMd calls invalidateEnrichCache; the PUT handler also calls it.
-    // Verify the file was written — cache invalidation is a side effect of writeHomeMd.
+    // Verify the file was written atomically — writeFileSync writes to .tmp,
+    // renameSync moves it to the canonical home.md path.
     await PUT(makeRequest(validPayload));
     expect(writeFileSync).toHaveBeenCalledOnce();
     const [writePath, content] = writeFileSync.mock.calls[0];
-    expect(writePath).toMatch(/home\.md$/);
+    expect(writePath).toMatch(/home\.md\.tmp$/);
     expect(content).toContain('home_city: Test City, ST');
+    // renameSync moves .tmp to canonical path
+    expect(renameSync).toHaveBeenCalledOnce();
+    const [, renameDst] = renameSync.mock.calls[0];
+    expect(renameDst).toMatch(/home\.md$/);
   });
 
   it('round-trip: written content contains all prose sections', async () => {

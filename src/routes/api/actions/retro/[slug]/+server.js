@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
-import { writeFileSync, existsSync } from 'fs';
+import { existsSync } from 'fs';
 import { join } from 'path';
-import { ROOT, readHomeMd, getTripFiles, invalidateEnrichCache } from '$lib/server/data.js';
+import { ROOT, atomicWrite, readHomeMd, getTripFiles, invalidateEnrichCache } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
@@ -180,7 +180,7 @@ Write the notes.md body now.`;
   });
 
   try {
-    writeFileSync(join(trip.dir, 'notes.md'), noteContent);
+    atomicWrite(join(trip.dir, 'notes.md'), noteContent);
   } catch (err) {
     return new Response(`Failed to write notes.md: ${err.message}`, { status: 500 });
   }
