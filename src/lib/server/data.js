@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync, statSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync, mkdirSync, renameSync } from 'fs';
 import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { resolveEnv } from './settings.js';
