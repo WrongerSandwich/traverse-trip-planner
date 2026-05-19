@@ -1,5 +1,5 @@
 // Verifies that `chat()` in src/lib/server/ai.js wires through to
-// `recordInvocation()` on every successful call. The recording is
+// `recordInvocation()` on both successful and error paths. The recording is
 // best-effort — failures here must never affect the call return value.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -66,6 +66,39 @@ describe('chat() telemetry hook', () => {
       maxTokens: 10,
     });
     expect(mockRecord).not.toHaveBeenCalled();
+  });
+
+  it('calls recordInvocation with zeroed tokens when the adapter throws', async () => {
+    const adapterErr = new Error('adapter failure');
+    mockAdapterChat.mockRejectedValueOnce(adapterErr);
+    const before = Date.now();
+    let thrown;
+    try {
+      await chat({
+        provider: 'anthropic',
+        model: 'm',
+        system: 's',
+        messages: [{ role: 'user', content: 'hi' }],
+        maxTokens: 10,
+        label: 'seed',
+      });
+    } catch (e) {
+      thrown = e;
+    }
+    const after = Date.now();
+
+    // Error must propagate unchanged.
+    expect(thrown).toBe(adapterErr);
+
+    // recordInvocation must still have been called once.
+    expect(mockRecord).toHaveBeenCalledTimes(1);
+    const arg = mockRecord.mock.calls[0][0];
+    expect(arg.label).toBe('seed');
+    expect(arg.tokensIn).toBe(0);
+    expect(arg.tokensOut).toBe(0);
+    expect(arg.startMs).toBeGreaterThanOrEqual(before);
+    expect(arg.endMs).toBeLessThanOrEqual(after);
+    expect(arg.endMs).toBeGreaterThanOrEqual(arg.startMs);
   });
 
   it('does not break the call when recordInvocation throws', async () => {

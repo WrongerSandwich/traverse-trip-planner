@@ -38,26 +38,31 @@ export async function chat({ provider, model, system, messages, maxTokens, tools
   }
   const adapter = adapters[provider];
   const start = Date.now();
-  const result = await adapter.chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText });
-  const end = Date.now();
-  const ms = end - start;
-  const u = result.usage || {};
-  const tag = label ? `${label} ` : '';
-  console.log(`[ai] ${tag}${provider}/${model} — ${u.input ?? 0} in / ${u.output ?? 0} out (${u.turns ?? 1} turn${u.turns === 1 ? '' : 's'}, ${ms}ms)`);
-  // Best-effort telemetry hook for `_promise` calibration. Failures here must
-  // never affect the caller — see src/lib/server/workflow-stats.js.
-  if (label) {
-    try {
-      recordInvocation({
-        label,
-        startMs: start,
-        endMs: end,
-        tokensIn: u.input ?? 0,
-        tokensOut: u.output ?? 0,
-      });
-    } catch (e) {
-      console.warn(`[workflow-stats] record hook failed: ${e?.message ?? e}`);
+  let u = {};
+  try {
+    const result = await adapter.chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText });
+    u = result.usage || {};
+    return result;
+  } finally {
+    const end = Date.now();
+    const ms = end - start;
+    const tag = label ? `${label} ` : '';
+    console.log(`[ai] ${tag}${provider}/${model} — ${u.input ?? 0} in / ${u.output ?? 0} out (${u.turns ?? 1} turn${u.turns === 1 ? '' : 's'}, ${ms}ms)`);
+    // Best-effort telemetry hook for `_promise` calibration. Failures here must
+    // never affect the caller — see src/lib/server/workflow-stats.js.
+    // Both success and error paths record; errors pass zero token counts.
+    if (label) {
+      try {
+        recordInvocation({
+          label,
+          startMs: start,
+          endMs: end,
+          tokensIn: u.input ?? 0,
+          tokensOut: u.output ?? 0,
+        });
+      } catch (e) {
+        console.warn(`[workflow-stats] record hook failed: ${e?.message ?? e}`);
+      }
     }
   }
-  return result;
 }
