@@ -1,9 +1,10 @@
 // Load .env for production (Vite handles this automatically in dev)
 import 'dotenv/config';
-import { readdirSync, readFileSync, writeFileSync, existsSync, accessSync, constants as fsConstants } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, accessSync, constants as fsConstants } from 'node:fs';
 import { join } from 'node:path';
 import { describeConfig } from '$lib/server/config.js';
 import { ROOT, parseFrontmatter, removeFrontmatterField } from '$lib/server/data.js';
+import { atomicWrite } from '$lib/server/atomic-write.js';
 import { sweepStaleJobs } from '$lib/server/jobs.js';
 
 // ── Security headers + CSRF Origin check ─────────────────────────────────────
@@ -137,7 +138,7 @@ printConfigBanner();
     const content = readFileSync(fp, 'utf8');
     const fm = parseFrontmatter(content);
     if (fm?.researching === 'true' || fm?.researching === true) {
-      writeFileSync(fp, removeFrontmatterField(content, 'researching'));
+      atomicWrite(fp, removeFrontmatterField(content, 'researching'));
       cleared++;
     }
   }
