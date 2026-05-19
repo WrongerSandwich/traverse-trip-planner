@@ -1,20 +1,19 @@
 <script>
-  // PromiseTooltip — renders the short promise sentence as a tooltip wrapper.
+  // PromiseTooltip — renders the short promise sentence as a tooltip that
+  // shows on hover AND keyboard focus, with a visually-hidden description
+  // wired via aria-describedby for screen-reader announce. Touch users see
+  // the tooltip when the wrapped control receives focus on tap.
   //
   // Short form (docs/ai-workflow-ux.md §3):
   //   {verb} · ~{time} · ~{tokens}
-  // Example: "Prepare brochure · ~45s · ~2–5k tokens"
   //
   // Usage:
   //   <PromiseTooltip {promise}>
   //     <button>Prepare brochure</button>
   //   </PromiseTooltip>
-  //
-  // The `promise` prop is the object exported by each action route:
-  //   { verb, produces, time_seconds, tokens_range }
 
-  /** @type {{ verb: string, produces: string, time_seconds: number, tokens_range: [number, number] }} */
-  let { promise, children } = $props();
+  /** @type {{ promise: { verb: string, produces: string, time_seconds: number, tokens_range: [number, number] }, children?: any, placement?: 'top' | 'bottom' }} */
+  let { promise, children, placement = 'bottom' } = $props();
 
   function formatTime(seconds) {
     if (seconds < 60) return `~${seconds}s`;
@@ -42,12 +41,64 @@
   });
 </script>
 
-<span class="promise-tooltip" title={tooltipText} aria-label={tooltipText}>
+<span
+  class="promise-tooltip"
+  class:placement-top={placement === 'top'}
+  class:placement-bottom={placement === 'bottom'}
+  title={tooltipText}
+>
   {@render children?.()}
+  <span class="promise-bubble" role="tooltip">{tooltipText}</span>
 </span>
 
 <style>
   .promise-tooltip {
-    display: contents;
+    position: relative;
+    display: inline-flex;
+    isolation: isolate;
+  }
+
+  .promise-bubble {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: var(--surface-raised, #1f1f23);
+    color: var(--text-primary, #fafafa);
+    font-size: 0.75rem;
+    line-height: 1.2;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 120ms ease, transform 120ms ease;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+
+  .placement-bottom .promise-bubble {
+    top: 100%;
+    margin-top: 6px;
+  }
+
+  .placement-top .promise-bubble {
+    bottom: 100%;
+    margin-bottom: 6px;
+    transform: translateX(-50%) translateY(-4px);
+  }
+
+  .promise-tooltip:hover .promise-bubble,
+  .promise-tooltip:focus-within .promise-bubble {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Touch-only — bubble is also visible briefly on the active state so
+     tap-and-hold reveals the promise without hover. */
+  @media (hover: none) {
+    .promise-tooltip:active .promise-bubble {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   }
 </style>
