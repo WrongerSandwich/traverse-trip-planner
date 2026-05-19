@@ -1,5 +1,6 @@
 <script>
   import PromiseBody from './PromiseBody.svelte';
+  import { focusTrap } from '$lib/actions/focusTrap.js';
 
   let {
     open = $bindable(false),
@@ -14,37 +15,11 @@
 
   let confirmBtn = $state(null);
   let cancelBtn  = $state(null);
-  let previousFocus = null;
 
-  // Focus management: capture trigger element on open, restore on close.
-  // For danger dialogs, default focus lands on Cancel to prevent accidental
-  // Enter-to-confirm on destructive actions.
-  $effect(() => {
-    if (open) {
-      previousFocus = document.activeElement;
-      (danger ? cancelBtn : confirmBtn)?.focus();
-    } else if (previousFocus) {
-      previousFocus.focus();
-      previousFocus = null;
-    }
-  });
-
-  function handleKey(e) {
-    if (!open) return;
-    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-    if (e.key === 'Tab') {
-      const modal = (confirmBtn ?? cancelBtn)?.closest('[role="dialog"]');
-      if (!modal) return;
-      const focusable = [...modal.querySelectorAll('button:not(:disabled)')];
-      if (focusable.length < 2) return;
-      const first = focusable[0], last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault(); last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault(); first.focus();
-      }
-    }
-  }
+  // Focus + Escape behavior come from src/lib/actions/focusTrap.js (#280).
+  // Initial focus lands on Cancel for danger dialogs to prevent accidental
+  // Enter-to-confirm; on Confirm otherwise. Focus restores to the trigger
+  // element on destroy.
 
   function confirm() {
     open = false;
@@ -56,8 +31,6 @@
     oncancel?.();
   }
 </script>
-
-<svelte:window onkeydown={handleKey} />
 
 {#if open}
   <div
@@ -72,6 +45,7 @@
     aria-modal="true"
     aria-labelledby="confirm-title"
     aria-describedby={body || promise ? 'confirm-body' : undefined}
+    use:focusTrap={{ initial: danger ? cancelBtn : confirmBtn, onEscape: cancel }}
   >
     <div class="modal-body">
       <h2 id="confirm-title" class="modal-title" class:danger>{title}</h2>

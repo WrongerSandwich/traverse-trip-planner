@@ -15,6 +15,7 @@
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
   import { tripColor } from '$lib/utils/colors.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
+  import { focusTrap } from '$lib/actions/focusTrap.js';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { isSectionsDirty } from '$lib/utils/sectionDirty.js';
   import { browser } from '$app/environment';
@@ -1048,8 +1049,13 @@
 
   <div class="chat-backdrop" class:open={chatOpen} onclick={() => chatOpen = false} role="presentation"></div>
 
-  <aside class="chat" class:open={chatOpen} aria-hidden={!chatOpen}
-    use:swipeClose={() => chatOpen = false}>
+  <aside
+    class="chat"
+    class:open={chatOpen}
+    aria-hidden={!chatOpen}
+    aria-label="Ask {data.assistantName} about this trip"
+    use:swipeClose={() => chatOpen = false}
+    use:focusTrap={{ enabled: chatOpen, onEscape: () => chatOpen = false }}>
     <header class="chat-header">
       <span>Ask {data.assistantName} about this trip</span>
       <div class="chat-header-actions">

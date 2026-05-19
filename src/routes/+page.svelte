@@ -12,6 +12,7 @@
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
+  import { focusTrap } from '$lib/actions/focusTrap.js';
 
   let { data } = $props();
 
@@ -600,7 +601,12 @@
 
   {#if seedFormOpen}
     <div class="seed-backdrop" onclick={() => seedFormOpen = false} role="presentation"></div>
-    <div class="seed-popover" role="dialog" aria-label="Generate trip ideas">
+    <div
+      class="seed-popover"
+      role="dialog"
+      aria-label="Generate trip ideas"
+      use:focusTrap={{ onEscape: () => { seedFormOpen = false; seedPrompt = ''; } }}
+    >
       <label class="seed-label" for="seed-prompt">
         Generate 5 new ideas
         <span class="seed-hint">Optional steering. Leave blank for general suggestions.</span>
@@ -664,7 +670,12 @@
 
   {#if pinFormOpen}
     <div class="seed-backdrop" onclick={() => { if (addStatus !== 'in_progress') pinFormOpen = false; }} role="presentation"></div>
-    <div class="seed-popover" role="dialog" aria-label="Add specific destination">
+    <div
+      class="seed-popover"
+      role="dialog"
+      aria-label="Add specific destination"
+      use:focusTrap={{ onEscape: () => { if (addStatus !== 'in_progress') { pinFormOpen = false; pinDest = ''; } } }}
+    >
       <label class="seed-label" for="pin-dest">
         Add a destination
         <span class="seed-hint">Name a specific place to add as an idea.</span>
