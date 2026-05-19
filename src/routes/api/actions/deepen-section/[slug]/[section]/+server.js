@@ -102,16 +102,29 @@ export async function POST(event) {
 
   const job = startJob(workflow, slug, { est_seconds: _promise.time_seconds, section });
 
-  // Fire-and-forget: do the research in the background.
+  // Fire-and-forget: do the research in the background. Use the two-callback
+  // form of .then() so that a throw inside completeJob (e.g. disk I/O failure
+  // in clearRunningFlag/atomicWrite) routes to the rejection handler rather than
+  // producing an unhandled rejection that would kill the server under Node 15+.
   runResearch({ slug, section, tripDir, signal: job.controller.signal })
-    .then((result) => {
-      completeJob(workflow, slug, { tokens: tokensFromUsage(result?.usage) });
-    })
-    .catch((err) => {
-      if (isAbort(err)) return; // cancelJob() owns the failure event
-      const code = err instanceof TraverseError ? err.code : 'unknown';
-      failJob(workflow, slug, { code, message: err?.message ?? 'Unknown error' });
-    });
+    .then(
+      (result) => {
+        try {
+          completeJob(workflow, slug, { tokens: tokensFromUsage(result?.usage) });
+        } catch (e) {
+          console.error(`[deepen-section] ${workflow}:${slug}: completeJob threw after success:`, e?.message ?? e);
+        }
+      },
+      (err) => {
+        if (isAbort(err)) return; // cancelJob() owns the failure event
+        const code = err instanceof TraverseError ? err.code : 'unknown';
+        try {
+          failJob(workflow, slug, { code, message: err?.message ?? 'Unknown error' });
+        } catch (e) {
+          console.error(`[deepen-section] ${workflow}:${slug}: failJob threw after failure:`, e?.message ?? e);
+        }
+      },
+    );
 
   return json({ ok: true, workflow, slug }, { status: 202 });
 }
