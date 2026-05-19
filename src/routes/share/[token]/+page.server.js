@@ -1,6 +1,8 @@
 import { error } from '@sveltejs/kit';
 import { enrichTrips, getTripFiles } from '$lib/server/data.js';
 import { verifyShareToken, shareEnabled } from '$lib/server/share.js';
+import { brochurePath } from '$lib/server/brochure.js';
+import { existsSync } from 'fs';
 
 export async function load({ params }) {
   if (!shareEnabled()) throw error(404, 'Sharing not configured');
@@ -14,5 +16,7 @@ export async function load({ params }) {
   if (trip.shared !== 'true') throw error(404, 'Trip not shared');
 
   const files = getTripFiles(slug);
-  return { trip, files: files?.files || {}, stage: files?.stage || trip._stage };
+  const bPath = brochurePath(slug);
+  const hasBrochure = !!(bPath && existsSync(bPath));
+  return { trip, files: files?.files || {}, stage: files?.stage || trip._stage, hasBrochure };
 }

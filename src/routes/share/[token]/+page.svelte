@@ -14,6 +14,7 @@
 
   const trip = $derived(data.trip);
   const files = $derived(data.files || {});
+  const hasBrochure = $derived(data.hasBrochure ?? false);
 
   // When an itinerary exists it's the canonical view; otherwise show the
   // planning sections that have content.
@@ -65,9 +66,11 @@
   </main>
 
   <footer>
-    <a class="brochure-link" href="brochure" target="_blank" rel="noopener">
-      Download as printable brochure →
-    </a>
+    {#if hasBrochure}
+      <a class="brochure-link" href="brochure" target="_blank" rel="noopener">
+        View printable brochure →
+      </a>
+    {/if}
     <p>Shared via <strong>Traverse</strong> — read-only.</p>
   </footer>
 </div>
