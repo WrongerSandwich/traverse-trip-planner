@@ -18,7 +18,7 @@
 // writes are fully removed — jobs.js now owns both concerns.
 
 import { json } from '@sveltejs/kit';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import {
   ROOT,
@@ -27,6 +27,7 @@ import {
   parseFrontmatterFields,
   invalidateEnrichCache,
   rejectInvalidSlug,
+  atomicWrite,
 } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
@@ -162,10 +163,10 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
   const dir = join(ROOT, 'planning', slug);
   mkdirSync(dir, { recursive: true });
 
-  writeFileSync(join(dir, 'overview.md'), overviewContent);
-  if (routeMd)     writeFileSync(join(dir, 'route.md'),     routeMd     + '\n');
-  if (stopsMd)     writeFileSync(join(dir, 'stops.md'),     stopsMd     + '\n');
-  if (logisticsMd) writeFileSync(join(dir, 'logistics.md'), logisticsMd + '\n');
+  atomicWrite(join(dir, 'overview.md'), overviewContent);
+  if (routeMd)     atomicWrite(join(dir, 'route.md'),     routeMd     + '\n');
+  if (stopsMd)     atomicWrite(join(dir, 'stops.md'),     stopsMd     + '\n');
+  if (logisticsMd) atomicWrite(join(dir, 'logistics.md'), logisticsMd + '\n');
 
   unlinkSync(ideaPath);
   invalidateEnrichCache();

@@ -1,17 +1,12 @@
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, renameSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { resolveEnv } from './settings.js';
 import { TraverseError } from './errors.js';
-
-// ── Atomic write ──
-// Write `data` to `path` via a temp file + rename so a mid-write crash/SIGTERM
-// never leaves the target file in a truncated / unparseable state.
-export function atomicWrite(path, data) {
-  const tmp = `${path}.tmp`;
-  writeFileSync(tmp, data);
-  renameSync(tmp, path);
-}
+// Canonical atomic-write module. Both imported for internal use and re-exported
+// so callers that import atomicWrite from data.js continue to work without change.
+export { atomicWrite } from './atomic-write.js';
+import { atomicWrite } from './atomic-write.js';
 
 export const ROOT = process.cwd();
 const IMAGE_CACHE_PATH   = join(ROOT, '.image-cache.json');

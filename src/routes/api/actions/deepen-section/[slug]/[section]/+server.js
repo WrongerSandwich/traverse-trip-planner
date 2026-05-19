@@ -15,9 +15,9 @@
 // - On failure: failJob with the TraverseError code (or 'unknown').
 
 import { json } from '@sveltejs/kit';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
+import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache, rejectInvalidSlug, atomicWrite } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
@@ -174,7 +174,7 @@ ${guidance}
   const content = m?.[1]?.trim() ?? null;
   if (!content) throw new TraverseError('no_section_content', `No ${section} content returned — try again.`);
 
-  writeFileSync(sectionPath, content + '\n');
+  atomicWrite(sectionPath, content + '\n');
   invalidateEnrichCache();
 
   return { usage };

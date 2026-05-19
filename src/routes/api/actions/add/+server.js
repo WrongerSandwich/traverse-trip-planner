@@ -1,6 +1,5 @@
-import { writeFileSync } from 'fs';
 import { join } from 'path';
-import { ROOT, readHomeMd, invalidateEnrichCache, assertSafeIdeaPath } from '$lib/server/data.js';
+import { ROOT, readHomeMd, invalidateEnrichCache, assertSafeIdeaPath, atomicWrite } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
@@ -119,7 +118,7 @@ image_query: [2–4 concrete words for a Pexels stock-photo search. Name the pla
     const file = files[0];
     assertSafeIdeaPath(file.name);
     const path = join(ROOT, file.name);
-    writeFileSync(path, file.content + '\n');
+    atomicWrite(path, file.content + '\n');
     const title = file.content.match(/^title: (.+)$/m)?.[1] ?? file.name;
     send(`  ✓ ${title}`);
     invalidateEnrichCache();
