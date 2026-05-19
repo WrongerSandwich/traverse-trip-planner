@@ -9,9 +9,10 @@
 //   redactKey(key)          → "sk-ant-…XY4Z" safe for sending to the browser
 //   settingsToEnv(settings) → flat env-var override map for merging with process.env
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PROVIDERS } from './providers.js';
+import { atomicWrite } from './atomic-write.js';
 
 const SETTINGS_PATH = resolve('settings.json');
 
@@ -42,7 +43,7 @@ export function readSettings() {
 }
 
 export function writeSettings(data) {
-  writeFileSync(SETTINGS_PATH, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  atomicWrite(SETTINGS_PATH, JSON.stringify(data, null, 2) + '\n');
 }
 
 /**

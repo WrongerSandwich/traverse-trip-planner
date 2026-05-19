@@ -13,6 +13,11 @@ vi.mock('node:fs', async (importOriginal) => {
       return fsState.files[p];
     },
     writeFileSync: (p, content) => { fsState.files[p] = content; },
+    renameSync: (src, dst) => {
+      if (!(src in fsState.files)) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      fsState.files[dst] = fsState.files[src];
+      delete fsState.files[src];
+    },
     readdirSync: () => [],
     statSync: () => ({ isDirectory: () => false }),
   };

@@ -4,6 +4,15 @@ import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { resolveEnv } from './settings.js';
 import { TraverseError } from './errors.js';
 
+// ── Atomic write ──
+// Write `data` to `path` via a temp file + rename so a mid-write crash/SIGTERM
+// never leaves the target file in a truncated / unparseable state.
+export function atomicWrite(path, data) {
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, data);
+  renameSync(tmp, path);
+}
+
 export const ROOT = process.cwd();
 const IMAGE_CACHE_PATH   = join(ROOT, '.image-cache.json');
 const ROUTE_CACHE_PATH   = join(ROOT, '.route-cache.json');
@@ -26,7 +35,7 @@ let routeDirty   = false;
 
 function saveCache(path, data, label) {
   try {
-    writeFileSync(path, JSON.stringify(data, null, 2));
+    atomicWrite(path, JSON.stringify(data, null, 2));
   } catch (e) {
     console.warn(`failed to save ${label} cache to ${path} —`, e.message);
   }
@@ -427,7 +436,7 @@ export function writeHomeMd({ frontmatter, prose }) {
   const final = `---\n${yamlBlock}\n---\n\n${body}\n`;
 
   const p = join(ROOT, 'home.md');
-  writeFileSync(p, final);
+  atomicWrite(p, final);
   invalidateEnrichCache();
 }
 
@@ -485,67 +494,77 @@ export async function enrichTrips() {
   const liveImageKeys   = new Set();
   const liveGeocodeKeys = new Set();
 
+  let completedEnumeration = true;
   for (const trip of trips) {
-    // Geocode
-    const dest = trip.destination;
-    if (dest) liveGeocodeKeys.add(dest);
-    if (dest && geocodeCache[dest] === undefined) {
-      try {
-        trip._coords = await geocode(dest);
-        await sleep(1100);
-      } catch (e) {
-        if (e instanceof TraverseError && e.code === 'geocode_quota') {
-          console.warn('geocode rate-limited during enrichment for', dest);
-          trip._coords = null;
-        } else {
-          throw e;
+    try {
+      // Geocode
+      const dest = trip.destination;
+      if (dest) liveGeocodeKeys.add(dest);
+      if (dest && geocodeCache[dest] === undefined) {
+        try {
+          trip._coords = await geocode(dest);
+          await sleep(1100);
+        } catch (e) {
+          if (e instanceof TraverseError && e.code === 'geocode_quota') {
+            console.warn('geocode rate-limited during enrichment for', dest);
+            trip._coords = null;
+          } else {
+            throw e;
+          }
         }
+      } else {
+        trip._coords = geocodeCache[dest] ?? null;
       }
-    } else {
-      trip._coords = geocodeCache[dest] ?? null;
-    }
 
-    // Image
-    const q = imageQuery(trip);
-    if (q) liveImageKeys.add(q);
-    if (q) {
-      const cached = readImageCacheEntry(imageCache, q);
-      const raw = cached.state === 'hit' ? cached.value : await fetchImage(q);
-      if (cached.state !== 'hit') await sleep(50);
-      trip._image = applyImagePick(raw, trip.image_pick);
-    } else {
-      trip._image = null;
-    }
+      // Image
+      const q = imageQuery(trip);
+      if (q) liveImageKeys.add(q);
+      if (q) {
+        const cached = readImageCacheEntry(imageCache, q);
+        const raw = cached.state === 'hit' ? cached.value : await fetchImage(q);
+        if (cached.state !== 'hit') await sleep(50);
+        trip._image = applyImagePick(raw, trip.image_pick);
+      } else {
+        trip._image = null;
+      }
 
-    // Route waypoints → geocode → OSRM road geometry
-    if (trip.waypoints) {
-      const geocoded = await geocodeWaypoints(trip.waypoints, liveGeocodeKeys);
-      if (geocoded.length >= 2) {
-        liveRouteKeys.add(routeCacheKey(geocoded));
-        const route = await fetchRoute(geocoded);
-        // Coords are fetched lazily by the client via /api/route/[slug] —
-        // shipping them here added 40 KB per route to every page load.
-        trip._has_route = !!(route && route.length >= 2);
+      // Route waypoints → geocode → OSRM road geometry
+      if (trip.waypoints) {
+        const geocoded = await geocodeWaypoints(trip.waypoints, liveGeocodeKeys);
+        if (geocoded.length >= 2) {
+          liveRouteKeys.add(routeCacheKey(geocoded));
+          const route = await fetchRoute(geocoded);
+          // Coords are fetched lazily by the client via /api/route/[slug] —
+          // shipping them here added 40 KB per route to every page load.
+          trip._has_route = !!(route && route.length >= 2);
+        } else {
+          trip._has_route = false;
+        }
       } else {
         trip._has_route = false;
       }
-    } else {
-      trip._has_route = false;
-    }
 
-    // Cost + drive time
-    trip._cost = estimateCost(trip, homeCoords);
-    if (homeCoords && Array.isArray(trip._coords)) {
-      const dist = haversine(homeCoords, trip._coords);
-      trip._drive_hours = Math.round((dist * 1.2 / 65) * 2) / 2;
-    } else {
-      trip._drive_hours = null;
+      // Cost + drive time
+      trip._cost = estimateCost(trip, homeCoords);
+      if (homeCoords && Array.isArray(trip._coords)) {
+        const dist = haversine(homeCoords, trip._coords);
+        trip._drive_hours = Math.round((dist * 1.2 / 65) * 2) / 2;
+      } else {
+        trip._drive_hours = null;
+      }
+    } catch (e) {
+      completedEnumeration = false;
+      console.warn('enrichTrips: error enriching trip', trip._slug, '—', e.message);
     }
   }
 
-  // GC orphaned cache entries — only when we found at least one trip, so a
-  // transient empty load (mid-promote, etc.) can't nuke the caches.
-  if (trips.length > 0) pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys);
+  // GC orphaned cache entries — only when we found at least one trip AND all
+  // trips enriched without error, so a partial failure can't nuke valid entries.
+  if (trips.length > 0 && completedEnumeration) {
+    pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys);
+  } else if (trips.length > 0 && !completedEnumeration) {
+    console.warn('enrichTrips: skipping cache prune due to partial enrichment');
+  }
 
   flushCaches();
 
@@ -649,10 +668,10 @@ export function writePlanningSection(dir, section, frontmatter, content) {
     const final = frontmatter
       ? `${frontmatter}\n${trimmed}${trimmed.endsWith('\n') ? '' : '\n'}`
       : `${trimmed}${trimmed.endsWith('\n') ? '' : '\n'}`;
-    writeFileSync(fp, final);
+    atomicWrite(fp, final);
   } else {
     const final = content.endsWith('\n') ? content : `${content}\n`;
-    writeFileSync(fp, final);
+    atomicWrite(fp, final);
   }
   invalidateEnrichCache();
 }
@@ -714,7 +733,7 @@ export function toggleStarred(slug) {
   const wasStarred = fm.starred === 'true' || fm.starred === true;
   const nowStarred = !wasStarred;
 
-  writeFileSync(filePath, setFrontmatterField(content, 'starred', nowStarred));
+  atomicWrite(filePath, setFrontmatterField(content, 'starred', nowStarred));
   invalidateEnrichCache();
   return { starred: nowStarred };
 }
@@ -727,7 +746,7 @@ export function setShared(slug, shared) {
   const content = readFileSync(filePath, 'utf8');
   if (!parseFrontmatter(content)) return null;
 
-  writeFileSync(filePath, setFrontmatterField(content, 'shared', shared));
+  atomicWrite(filePath, setFrontmatterField(content, 'shared', shared));
   invalidateEnrichCache();
   return { shared };
 }
@@ -770,7 +789,7 @@ export function updateImageMeta(slug, { image_query, image_pick } = {}) {
       : setFrontmatterField(content, 'image_pick', pick);
   }
 
-  writeFileSync(filePath, content);
+  atomicWrite(filePath, content);
   invalidateEnrichCache();
   return { ok: true };
 }
@@ -808,7 +827,7 @@ export function appendToNotes(slug, text) {
   const notesPath = join(ROOT, 'completed', slug, 'notes.md');
   const existing = existsSync(notesPath) ? readFileSync(notesPath, 'utf8') : '';
   const separator = existing.trimEnd().length > 0 ? '\n\n' : '';
-  writeFileSync(notesPath, existing.trimEnd() + separator + text.trim() + '\n');
+  atomicWrite(notesPath, existing.trimEnd() + separator + text.trim() + '\n');
   invalidateEnrichCache();
   return true;
 }
@@ -833,7 +852,7 @@ export function moveTrip(slug, fromStage, toStage, newStatus) {
       const updated = /^status:.*$/m.test(content)
         ? content.replace(/^status:.*$/m, `status: ${newStatus}`)
         : content.replace(/^---\n/, `---\nstatus: ${newStatus}\n`);
-      writeFileSync(overviewPath, updated);
+      atomicWrite(overviewPath, updated);
     }
   } catch (err) {
     return { error: err.message, status: 500 };
