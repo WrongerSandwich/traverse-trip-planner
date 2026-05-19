@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { tripColor } from '$lib/utils/colors.js';
+  import { buildTripPopup, buildHomePopup } from '$lib/utils/mapPopup.js';
 
   let { trips = [], home = null, hoveredSlug = null, selectedSlug = null, onTripClick } = $props();
 
@@ -124,7 +125,7 @@
           }),
           zIndexOffset: 1000,
         })
-          .bindPopup(`<div class="map-popup"><strong>${home.city}</strong><small>Home base</small></div>`)
+          .bindPopup(buildHomePopup(home))
           .addTo(map);
       }
 
@@ -197,11 +198,7 @@
       }
 
       const marker = L.marker([lat, lon], { icon: makeIcon(color, false) })
-        .bindPopup(L.popup({ closeButton: false }).setContent(
-          `<div class="map-popup"><strong>${trip.title || trip._slug}</strong>` +
-          `<small>${trip.destination || ''}</small>` +
-          `<button class="map-popup-open" data-slug="${trip._slug}">Open details →</button></div>`
-        ))
+        .bindPopup(L.popup({ closeButton: false }).setContent(buildTripPopup(trip)))
         .on('click', () => { pinnedSlug = trip._slug; })
         .addTo(map);
 
