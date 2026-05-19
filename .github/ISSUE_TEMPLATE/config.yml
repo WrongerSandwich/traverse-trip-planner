@@ -6,3 +6,9 @@ contact_links:
       Please report credential leaks, code-execution paths, or authentication
       bypasses via GitHub's private security advisories — not a public issue.
       See SECURITY.md for scope and guidance.
+  - name: Code of Conduct report
+    url: https://github.com/WrongerSandwich/traverse/blob/main/CODE_OF_CONDUCT.md#enforcement
+    about: >
+      Conduct concerns (harassment, abusive behavior) go to the private
+      maintainer alias in the Code of Conduct's Enforcement section —
+      not through GitHub security advisories.
