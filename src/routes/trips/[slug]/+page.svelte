@@ -17,7 +17,7 @@
   import { swipeClose } from '$lib/actions/swipeClose.js';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { browser } from '$app/environment';
-  import BrochureDayView from '$lib/components/BrochureDayView.svelte';
+  import BrochureDayBlocks from '$lib/components/BrochureDayBlocks.svelte';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
   import EmptyItineraryCTA from '$lib/components/EmptyItineraryCTA.svelte';
   import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
@@ -838,7 +838,7 @@
               Print / Save PDF
             </button>
           </div>
-          <BrochureDayView days={data.brochureData.days} />
+          <BrochureDayBlocks days={data.brochureData.days} />
         </div>
       {:else if sections.itinerary}
         <div class="itinerary-view">

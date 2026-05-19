@@ -375,7 +375,7 @@
 
     {#if proposal.field_guide_notes?.length}
       <section class="block">
-        <h2>Field guide notes <span class="count">{keepNotesCount} of {proposal.field_guide_notes.length}</span></h2>
+        <h2>What to expect <span class="count">{keepNotesCount} of {proposal.field_guide_notes.length}</span></h2>
         <ul class="checklist">
           {#each proposal.field_guide_notes as note, i}
             <li class:dimmed={!keepNotes[i]}>
@@ -393,7 +393,7 @@
 
     {#if proposal.gotchas?.length}
       <section class="block">
-        <h2>Before-you-go <span class="count">{keepGotchasCount} of {proposal.gotchas.length}</span></h2>
+        <h2>Don't forget <span class="count">{keepGotchasCount} of {proposal.gotchas.length}</span></h2>
         <ul class="checklist">
           {#each proposal.gotchas as gotcha, i}
             <li class:dimmed={!keepGotchas[i]}>

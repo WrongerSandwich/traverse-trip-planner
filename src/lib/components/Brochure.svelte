@@ -1,10 +1,17 @@
 <script>
+  import { page } from '$app/state';
   import { renderMarkdown } from '$lib/sanitize.js';
   import Logo from '$lib/components/Logo.svelte';
   import PaperMap from '$lib/components/PaperMap.svelte';
   import DestinationMap from '$lib/components/DestinationMap.svelte';
+  import BrochureDayBlocks from '$lib/components/BrochureDayBlocks.svelte';
 
   let { data } = $props();
+
+  // Share viewers reach the brochure via /share/<token>/brochure and don't
+  // have access to /trips/<slug>, so the back-to-trip affordance only
+  // makes sense on the authenticated route.
+  const isShareView = $derived(page.url?.pathname?.startsWith('/share/') ?? false);
 
   const trip = $derived(data.trip);
   const files = $derived(data.files || {});
@@ -98,27 +105,36 @@
 </script>
 
 <svelte:head>
-  <title>{trip?.title || trip?._slug} — Field guide</title>
+  <title>{trip?.title || trip?._slug} · Field guide</title>
 </svelte:head>
 
-<!-- Print hint banner — hidden in print via @media print. Gives the user
-     a clear way to save as PDF without an unexpected auto-print. -->
-<div class="print-hint">
-  <span>Save this brochure as a PDF</span>
-  <button class="btn btn-primary btn-compact" onclick={() => window.print()} type="button">
-    Print / save PDF
-  </button>
-</div>
-
 <div class="brochure">
+  <!-- Screen-only margin toolbar — quiet mono affordances that let the
+       page BE the artifact instead of advertising its printability. The
+       sticky forest banner was reading as web-app chrome; this recedes. -->
+  <nav class="brochure-toolbar no-print" aria-label="Brochure actions">
+    {#if trip?._slug && !isShareView}
+      <a class="toolbar-back" href={`/trips/${trip._slug}`}>← back to trip</a>
+    {:else}
+      <span></span>
+    {/if}
+    <button class="toolbar-print" onclick={() => window.print()} type="button" aria-label="Print or save as PDF">
+      print <kbd class="toolbar-key">⌘P</kbd>
+    </button>
+  </nav>
+
   <!-- Page 1 — Cover -->
   <section class="cover">
     {#if trip?._image}
       <img
         class="cover-photo"
-        src={trip._image.large || trip._image.medium}
-        srcset={trip._image.medium && trip._image.large ? `${trip._image.medium} 350w, ${trip._image.large} 940w` : undefined}
-        sizes="(max-width: 768px) 100vw, 720px"
+        src={trip._image.large2x || trip._image.large || trip._image.medium}
+        srcset={[
+          trip._image.medium && `${trip._image.medium} 350w`,
+          trip._image.large && `${trip._image.large} 940w`,
+          trip._image.large2x && `${trip._image.large2x} 1880w`,
+        ].filter(Boolean).join(', ') || undefined}
+        sizes="(max-width: 768px) 100vw, 820px"
         alt=""
       />
     {:else}
@@ -169,36 +185,19 @@
     {#if brochure.days?.length}
       <section class="content-page" data-section="itinerary">
         <div class="eyebrow">Itinerary</div>
-        {#each brochure.days as day}
-          <article class="day-block">
-            <h2 class="day-heading">
-              <span class="day-n">Day {day.n}</span>
-              {#if day.date}<span class="day-date">{day.date}</span>{/if}
-            </h2>
-            {#if day.theme}<p class="day-theme">{day.theme}</p>{/if}
-            {#each day.blocks ?? [] as block}
-              <div class="block">
-                <h3 class="block-period">{block.period}</h3>
-                <ul class="block-items">
-                  {#each block.items ?? [] as item}
-                    <li>
-                      {#if item.time}<span class="item-time">{item.time}</span>{/if}
-                      <span class="item-activity">{item.activity}</span>
-                    </li>
-                  {/each}
-                </ul>
-              </div>
-            {/each}
-          </article>
-        {/each}
+        <BrochureDayBlocks days={brochure.days} />
       </section>
     {/if}
 
     {#if atmosphere1}
       <figure class="atmosphere">
         <img
-          src={atmosphere1.large || atmosphere1.medium}
-          srcset={atmosphere1.medium && atmosphere1.large ? `${atmosphere1.medium} 350w, ${atmosphere1.large} 940w` : undefined}
+          src={atmosphere1.large2x || atmosphere1.large || atmosphere1.medium}
+          srcset={[
+            atmosphere1.medium && `${atmosphere1.medium} 350w`,
+            atmosphere1.large && `${atmosphere1.large} 940w`,
+            atmosphere1.large2x && `${atmosphere1.large2x} 1880w`,
+          ].filter(Boolean).join(', ') || undefined}
           sizes="(max-width: 768px) 100vw, 760px"
           alt=""
           loading="lazy"
@@ -259,22 +258,24 @@
           </ul>
         {/if}
 
-        <ul class="stops-list">
+        <ol class="stops-list">
           {#each brochure.stops as stop, i}
             {@const hasCoords = Array.isArray(stop.coords) && stop.coords.length === 2}
             <li class="stop" class:stop--must-see={stop.must_see} class:stop--unpinned={!hasCoords}>
-              <div class="stop-head">
-                <span class="stop-n" class:stop-n--must-see={stop.must_see} class:stop-n--unpinned={!hasCoords} aria-hidden="true">{i + 1}</span>
-                <span class="stop-name">{stop.name}</span>
-                {#if stop.category}<span class="stop-cat">{stop.category}</span>{/if}
-                {#if !hasCoords}<span class="stop-unpinned-tag">unmapped</span>{/if}
+              <span class="stop-n" class:stop-n--must-see={stop.must_see} class:stop-n--unpinned={!hasCoords} aria-hidden="true">{i + 1}</span>
+              <div class="stop-body">
+                <div class="stop-head">
+                  <span class="stop-name">{stop.name}</span>
+                  {#if stop.category}<span class="stop-cat">{stop.category}</span>{/if}
+                  {#if !hasCoords}<span class="stop-unpinned-tag">unmapped</span>{/if}
+                </div>
+                {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
+                {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
+                {#if stop.notes}<p class="stop-notes">{stop.notes}</p>{/if}
               </div>
-              {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
-              {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
-              {#if stop.notes}<p class="stop-notes">{stop.notes}</p>{/if}
             </li>
           {/each}
-        </ul>
+        </ol>
       </section>
     {/if}
 
@@ -286,7 +287,7 @@
             <li class="lodge">
               <div class="lodge-head">
                 <span class="lodge-name">{lodge.name}</span>
-                {#if lodge.nights}<span class="lodge-nights">{lodge.nights} night{lodge.nights === 1 ? '' : 's'}</span>{/if}
+                {#if lodge.nights}<span class="lodge-nights">{lodge.nights} night{Math.abs(Number(lodge.nights) - 1) < 0.0001 ? '' : 's'}</span>{/if}
               </div>
               {#if lodge.address}<div class="lodge-addr">{lodge.address}</div>{/if}
               {#if lodge.confirmation}<div class="lodge-conf">Confirmation · {lodge.confirmation}</div>{/if}
@@ -299,8 +300,12 @@
     {#if atmosphere2}
       <figure class="atmosphere">
         <img
-          src={atmosphere2.large || atmosphere2.medium}
-          srcset={atmosphere2.medium && atmosphere2.large ? `${atmosphere2.medium} 350w, ${atmosphere2.large} 940w` : undefined}
+          src={atmosphere2.large2x || atmosphere2.large || atmosphere2.medium}
+          srcset={[
+            atmosphere2.medium && `${atmosphere2.medium} 350w`,
+            atmosphere2.large && `${atmosphere2.large} 940w`,
+            atmosphere2.large2x && `${atmosphere2.large2x} 1880w`,
+          ].filter(Boolean).join(', ') || undefined}
           sizes="(max-width: 768px) 100vw, 760px"
           alt=""
           loading="lazy"
@@ -319,7 +324,7 @@
 
     {#if brochure.field_guide_notes?.length}
       <section class="content-page" data-section="notes">
-        <div class="eyebrow">Field guide notes</div>
+        <div class="eyebrow">What to expect</div>
         <ul class="fg-notes">
           {#each brochure.field_guide_notes as note}
             <li>{note}</li>
@@ -330,7 +335,7 @@
 
     {#if brochure.gotchas?.length}
       <section class="content-page" data-section="gotchas">
-        <div class="eyebrow">Before you go</div>
+        <div class="eyebrow">Don't forget</div>
         <ul class="gotchas">
           {#each brochure.gotchas as gotcha}
             <li>{gotcha}</li>
@@ -387,6 +392,7 @@
   </footer>
 </div>
 
+
 <style>
   /* Strip the document body to bone — no background colors from the parent.
      Uses a literal paper color (not the theme token) so the brochure always
@@ -397,38 +403,77 @@
     background: #FCFAF5;
   }
 
-  /* Print hint banner — sticky on-screen, gone in print. */
-  .print-hint {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: var(--forest-800);
-    color: var(--bone-200);
-    padding: 10px 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    font-family: var(--font-sans);
-    font-size: 13px;
-    font-weight: 500;
-  }
-  .print-hint :global(.btn) {
-    background: var(--bone-200);
-    color: var(--forest-800);
-    border-color: var(--bone-200);
-  }
-  .print-hint :global(.btn:hover) {
-    background: var(--bone-50);
-    border-color: var(--bone-50);
-  }
-
   .brochure {
     max-width: 820px;
     margin: 0 auto;
     padding: 1.75rem 0 2.5rem;
     color: var(--text-primary);
     font-family: var(--font-sans);
+  }
+
+  /* Screen-only margin toolbar. Reads as a margin annotation, not as
+     web-app chrome — mono, lowercase, low contrast. The page itself
+     handles the "I am a printable artifact" gesture; this just offers
+     the affordance. Hidden in print via .no-print. */
+  .brochure-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px;
+    margin-bottom: 1.25rem;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: lowercase;
+    color: var(--bone-600);
+  }
+  .toolbar-back {
+    text-decoration: none;
+    color: var(--bone-600);
+    padding: 4px 2px;
+    transition: color 0.15s ease;
+  }
+  .toolbar-back:hover,
+  .toolbar-back:focus-visible { color: var(--forest-800); }
+  .toolbar-print {
+    background: transparent;
+    border: 0.5px solid var(--bone-400);
+    border-radius: 3px;
+    padding: 5px 11px;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: var(--bone-600);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .toolbar-print:hover,
+  .toolbar-print:focus-visible {
+    background: var(--bone-100);
+    color: var(--forest-800);
+    border-color: var(--forest-800);
+  }
+  .toolbar-key {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: var(--bone-600);
+    text-transform: none;
+    background: var(--bone-100);
+    padding: 2px 5px;
+    border-radius: 2px;
+    border: 0.5px solid var(--bone-400);
+  }
+  .toolbar-print:hover .toolbar-key,
+  .toolbar-print:focus-visible .toolbar-key {
+    color: var(--forest-800);
+    border-color: var(--forest-800);
   }
 
   /* ── Cover spread ─────────────────────────────────────────────────── */
@@ -473,6 +518,7 @@
     letter-spacing: 0.005em;
     color: var(--bone-200);
     margin: 0;
+    text-wrap: balance;
   }
   .cover-meta {
     grid-column: 2;
@@ -544,7 +590,11 @@
     .pitch { font-size: 17px; }
 
     /* Multi-column dense lists fall back to single column on phones. */
-    .stops-list, .lodging-list, .gotchas { columns: 1; }
+    .lodging-list, .gotchas { columns: 1; }
+    /* Stops: tighten the hanging-numeral column so the body has room. */
+    .stop { grid-template-columns: 40px 1fr; column-gap: 16px; padding: 14px 0; }
+    .stop-n { font-size: 28px; }
+    .stop-name { font-size: 18px; }
     .atmosphere { margin-left: 20px; margin-right: 20px; }
     /* Cover-belt collapses: pitch above, route inset below. */
     .belt-inner { grid-template-columns: 1fr; gap: 1.25rem; }
@@ -702,13 +752,14 @@
     text-underline-offset: 2px;
   }
   .markdown :global(blockquote) {
-    margin: 1rem 0;
-    padding: 0.5rem 1rem;
-    border-left: 2px solid var(--sunset-600);
+    margin: 1.25rem 0;
+    padding: 0.85rem 1.25rem;
     background: var(--bone-100);
+    border-radius: 2px;
     font-family: var(--font-serif);
     font-style: italic;
     font-size: 15px;
+    line-height: 1.6;
     color: var(--bark-600);
   }
   .markdown :global(table) {
@@ -776,127 +827,54 @@
 
   /* ── Structured render (brochure.md) ─────────────────────────────── */
 
-  /* ── Itinerary ──────────────────────────────────────────────────── */
-  .day-block {
-    margin-top: 1.5rem;
-    padding-top: 1.25rem;
-    border-top: 0.5px solid var(--bone-400);
-  }
-  .day-block:first-of-type {
-    margin-top: 0.5rem;
-    padding-top: 0;
-    border-top: none;
-  }
-  .day-heading {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    margin: 0 0 0.25rem;
-  }
-  .day-n {
-    font-family: var(--font-serif);
-    font-size: 26px;
-    line-height: 32px;
-    font-weight: 500;
-    color: var(--forest-800);
-    letter-spacing: 0.003em;
-  }
-  .day-date {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--sunset-600);
-    letter-spacing: 0.08em;
-  }
-  .day-theme {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 16px;
-    font-weight: 500;
-    color: var(--bark-600);
-    margin: 0 0 1rem;
-  }
-  .block { margin-top: 1rem; }
-  .block-period {
-    font-family: var(--font-sans);
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.22em;
-    color: var(--bone-600);
-    margin: 0 0 0.5rem;
-  }
-  .block-items { list-style: none; margin: 0; padding: 0; }
-  .block-items li {
-    display: grid;
-    grid-template-columns: 88px 1fr;
-    column-gap: 14px;
-    padding: 4px 0;
-    font-family: var(--font-sans);
-    font-size: 14px;
-    line-height: 1.5;
-    color: var(--bark-800);
-    border-bottom: 0.5px dotted var(--bone-200);
-  }
-  .block-items li:last-child { border-bottom: none; }
-  .item-time {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--forest-800);
-    letter-spacing: 0.04em;
-    align-self: baseline;
-  }
-  .item-activity { color: var(--bark-800); }
+  /* Itinerary day blocks live in BrochureDayBlocks.svelte, shared with
+     the trip detail page so the same data renders identically across
+     both surfaces. */
 
-  /* ── Stops ──────────────────────────────────────────────────────── */
+  /* ── Stops ──────────────────────────────────────────────────────────
+     Editorial feature treatment: each stop is a 2-column grid with the
+     numeral hanging in the left margin like an illuminated initial. The
+     pin color from the map (forest for stop, sunset for must-see, bone
+     for unmapped) carries through to the numeral so the list reads as
+     the map's legend without competing with it. Single column on
+     purpose — a 2-column directory turned the trip into a service
+     listing. */
   .stops-list {
     list-style: none;
     margin: 1rem 0 0;
     padding: 0;
-    columns: 2;
-    column-gap: 32px;
   }
   .stop {
-    padding: 12px 0;
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    column-gap: 22px;
+    padding: 18px 0;
     border-bottom: 0.5px solid var(--bone-400);
     break-inside: avoid;
     page-break-inside: avoid;
   }
-  .stop:first-child { padding-top: 0; }
+  .stop:first-child { padding-top: 6px; }
   .stop:last-child { border-bottom: none; }
+  .stop-n {
+    font-family: var(--font-serif);
+    font-size: 34px;
+    line-height: 1;
+    font-weight: 500;
+    color: var(--forest-800);
+    text-align: right;
+    padding-top: 4px;
+    font-variant-numeric: lining-nums tabular-nums;
+    letter-spacing: 0.005em;
+  }
+  .stop-n--must-see { color: var(--sunset-600); }
+  .stop-n--unpinned { color: var(--bone-400); }
+  .stop-body { min-width: 0; max-width: 60ch; }
   .stop-head {
     display: flex;
     align-items: baseline;
     gap: 10px;
     flex-wrap: wrap;
-    margin-bottom: 0.25rem;
-  }
-  .stop-n {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--forest-800);
-    color: var(--bone-200);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    line-height: 1;
-    flex: 0 0 auto;
-    align-self: center;
-  }
-  .stop-n--must-see {
-    background: var(--sunset-600);
-    color: var(--sunset-50);
-  }
-  .stop-n--unpinned {
-    background: transparent;
-    color: var(--bone-600);
-    border: 1.5px solid var(--bone-400);
-    /* Slightly smaller text since the border adds visual weight. */
-    font-size: 10px;
+    margin-bottom: 0.35rem;
   }
   .stop-unpinned-tag {
     font-family: var(--font-mono);
@@ -908,10 +886,12 @@
   }
   .stop-name {
     font-family: var(--font-serif);
-    font-size: 17px;
+    font-size: 20px;
+    line-height: 1.25;
     font-weight: 500;
     color: var(--forest-800);
     letter-spacing: 0.003em;
+    text-wrap: balance;
   }
   .stop-cat {
     font-family: var(--font-mono);
@@ -920,9 +900,6 @@
     text-transform: uppercase;
     letter-spacing: 0.18em;
     color: var(--bone-600);
-    padding: 1px 6px;
-    border: 0.5px solid var(--bone-400);
-    border-radius: 2px;
   }
   .stop--must-see .stop-name { color: var(--forest-900); }
   .stop-hours,
@@ -936,10 +913,10 @@
   .stop-addr { color: var(--bark-600); }
   .stop-notes {
     font-family: var(--font-sans);
-    font-size: 13px;
-    line-height: 1.55;
+    font-size: 13.5px;
+    line-height: 1.6;
     color: var(--bark-800);
-    margin: 6px 0 0;
+    margin: 8px 0 0;
   }
 
   /* ── Lodging ────────────────────────────────────────────────────── */
@@ -992,7 +969,11 @@
     color: var(--bone-600);
   }
 
-  /* ── Field guide notes ──────────────────────────────────────────── */
+  /* ── Field guide notes ──────────────────────────────────────────────
+     The notebook half of the brochure's "atlas + notebook" gesture.
+     A sunset reference-mark glyph (※) sits in the margin like an
+     editorial annotation; the body is an italic Fraunces note in a
+     reading-width column. No side stripe — the typography carries it. */
   .fg-notes { list-style: none; margin: 1rem 0 0; padding: 0; }
   .fg-notes li {
     font-family: var(--font-serif);
@@ -1000,9 +981,22 @@
     font-size: 16px;
     line-height: 1.6;
     color: var(--bark-800);
-    padding: 12px 0 12px 18px;
-    border-left: 2px solid var(--sunset-600);
-    margin: 0 0 12px;
+    position: relative;
+    padding: 6px 0 6px 32px;
+    margin: 0 0 14px;
+    max-width: 60ch;
+  }
+  .fg-notes li::before {
+    content: "※";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--sunset-600);
+    letter-spacing: 0;
   }
   .fg-notes li:last-child { margin-bottom: 0; }
 
@@ -1096,7 +1090,7 @@
        margins but the same content fits within both safely. */
     @page { size: letter; margin: 0.75in; }
 
-    .print-hint { display: none !important; }
+    .no-print { display: none !important; }
 
     :global(body) {
       background: var(--bone-50);
