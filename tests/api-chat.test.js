@@ -16,6 +16,7 @@ vi.mock('$lib/server/data.js', () => ({
       : null,
   writePlanningSection: vi.fn(),
   PLANNING_SECTIONS: ['overview', 'route', 'stops', 'logistics'],
+  rejectInvalidSlug: () => null,
 }));
 
 vi.mock('$lib/server/config.js', () => ({

@@ -1,7 +1,10 @@
 import { json } from '@sveltejs/kit';
 import { writeBrochure, readBrochure } from '$lib/server/brochure.js';
+import { rejectInvalidSlug } from '$lib/server/data.js';
 
 export async function PUT({ params, request }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
 
   let body;

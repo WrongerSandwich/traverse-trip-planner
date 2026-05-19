@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { ROOT, appendToNotes } from '$lib/server/data.js';
+import { ROOT, appendToNotes, rejectInvalidSlug } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
@@ -22,6 +22,8 @@ const MAX_BODY_BYTES = MAX_IMAGES * MAX_BYTES + 64 * 1024;
 // Body: multipart form data with one or more "image" file fields.
 // Returns: { lines: string[] } — one line per receipt parsed.
 export async function POST({ params, request }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
 
   if (!existsSync(join(ROOT, 'completed', slug))) {

@@ -50,6 +50,7 @@ vi.mock('$lib/server/data.js', () => ({
   readHomeMd: () => '---\ntravelers: [you]\n---\n',
   parseFrontmatter: vi.fn(() => ({ title: 'Test Trip', status: 'planning' })),
   invalidateEnrichCache: vi.fn(),
+  rejectInvalidSlug: () => null,
 }));
 
 const mockChat = vi.hoisted(() => vi.fn());

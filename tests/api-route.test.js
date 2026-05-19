@@ -9,6 +9,7 @@ const mockGetTripRoute = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/data.js', () => ({
   getTripRoute: mockGetTripRoute,
+  rejectInvalidSlug: () => null,
 }));
 
 import { GET } from '../src/routes/api/route/[slug]/+server.js';

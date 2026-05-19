@@ -22,6 +22,7 @@ import { json } from '@sveltejs/kit';
 import { prepareBrochure } from '$lib/server/brochure.js';
 import { assertNotRunning, startJob, completeJob, failJob } from '$lib/server/jobs.js';
 import { TraverseError } from '$lib/server/errors.js';
+import { rejectInvalidSlug } from '$lib/server/data.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 
 export const _promise = HAND_DEFAULTS['brochure-prepare'];
@@ -39,6 +40,8 @@ function isAbort(err) {
 }
 
 export async function POST({ params }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
 
   // Already running? Fail fast with 409 so the trigger UI can react.

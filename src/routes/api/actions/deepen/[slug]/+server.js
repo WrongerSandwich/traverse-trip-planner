@@ -26,6 +26,7 @@ import {
   parseFrontmatter,
   parseFrontmatterFields,
   invalidateEnrichCache,
+  rejectInvalidSlug,
 } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
@@ -173,6 +174,8 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
 }
 
 export function GET({ params }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const file = findIdeaFile(params.slug);
   if (!file) return new Response('Not found', { status: 404 });
   return new Response('ok');
@@ -182,6 +185,8 @@ export async function POST({ params }) {
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
   const ideaPath = findIdeaFile(slug);
   if (!ideaPath) return new Response('Not found', { status: 404 });
@@ -218,6 +223,8 @@ export async function POST({ params }) {
 }
 
 export async function DELETE({ params }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
   // Delegate entirely to jobs.js — it aborts the in-flight controller and
   // clears the `running:` flag. No need to touch cancelRegistry (removed) or

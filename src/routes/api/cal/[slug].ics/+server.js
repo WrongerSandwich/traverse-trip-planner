@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { ROOT, parseFrontmatter } from '$lib/server/data.js';
+import { ROOT, parseFrontmatter, rejectInvalidSlug } from '$lib/server/data.js';
 import { tripsToIcs } from '$lib/server/ics.js';
 
 function findTripFrontmatter(slug) {
@@ -15,6 +15,8 @@ function findTripFrontmatter(slug) {
 }
 
 export function GET({ params }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const trip = findTripFrontmatter(params.slug);
   if (!trip) return new Response('Not found', { status: 404 });
   const ics = tripsToIcs([trip]);

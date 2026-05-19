@@ -58,7 +58,7 @@ describe('GET /api/trip/[slug]/image/search', () => {
 describe('POST /api/trip/[slug]/image', () => {
   it('writes image_query when provided', async () => {
     const updateImageMeta = vi.fn().mockReturnValue({ ok: true });
-    vi.doMock('$lib/server/data.js', () => ({ updateImageMeta }));
+    vi.doMock('$lib/server/data.js', () => ({ updateImageMeta, rejectInvalidSlug: () => null }));
     const { POST } = await import('../src/routes/api/trip/[slug]/image/+server.js');
     const res = await POST({
       params: { slug: 'demo' },
@@ -74,7 +74,7 @@ describe('POST /api/trip/[slug]/image', () => {
 
   it('writes image_pick when provided', async () => {
     const updateImageMeta = vi.fn().mockReturnValue({ ok: true });
-    vi.doMock('$lib/server/data.js', () => ({ updateImageMeta }));
+    vi.doMock('$lib/server/data.js', () => ({ updateImageMeta, rejectInvalidSlug: () => null }));
     const { POST } = await import('../src/routes/api/trip/[slug]/image/+server.js');
     const res = await POST({
       params: { slug: 'demo' },
@@ -91,6 +91,7 @@ describe('POST /api/trip/[slug]/image', () => {
   it('returns 404 when the trip is not found', async () => {
     vi.doMock('$lib/server/data.js', () => ({
       updateImageMeta: vi.fn().mockReturnValue(null),
+      rejectInvalidSlug: () => null,
     }));
     const { POST } = await import('../src/routes/api/trip/[slug]/image/+server.js');
     const res = await POST({
@@ -107,6 +108,7 @@ describe('POST /api/trip/[slug]/image', () => {
   it('returns 400 when updateImageMeta throws TypeError (invalid input)', async () => {
     vi.doMock('$lib/server/data.js', () => ({
       updateImageMeta: vi.fn(() => { throw new TypeError('image_pick must be an integer 0, 1, or 2'); }),
+      rejectInvalidSlug: () => null,
     }));
     const { POST } = await import('../src/routes/api/trip/[slug]/image/+server.js');
     const res = await POST({
@@ -123,6 +125,7 @@ describe('POST /api/trip/[slug]/image', () => {
   it('returns 500 image_save_failed on unexpected errors', async () => {
     vi.doMock('$lib/server/data.js', () => ({
       updateImageMeta: vi.fn(() => { throw new Error('disk full'); }),
+      rejectInvalidSlug: () => null,
     }));
     const { POST } = await import('../src/routes/api/trip/[slug]/image/+server.js');
     const res = await POST({

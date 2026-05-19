@@ -22,6 +22,7 @@ const mockFindTripLocation = vi.hoisted(() => vi.fn());
 vi.mock('$lib/server/data.js', () => ({
   ROOT: '/test-root',
   findTripLocation: mockFindTripLocation,
+  rejectInvalidSlug: () => null,
 }));
 
 import { POST } from '../src/routes/api/archive/[slug]/+server.js';

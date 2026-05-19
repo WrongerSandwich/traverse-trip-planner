@@ -17,7 +17,7 @@
 import { json } from '@sveltejs/kit';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache } from '$lib/server/data.js';
+import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
@@ -67,6 +67,8 @@ export async function POST({ params }) {
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug, section } = params;
 
   if (!VALID_SECTIONS.includes(section)) {

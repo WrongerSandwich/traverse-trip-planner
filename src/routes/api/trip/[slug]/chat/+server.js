@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS } from '$lib/server/data.js';
+import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS, rejectInvalidSlug } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
@@ -31,6 +31,8 @@ export async function POST({ params, request }) {
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const { slug } = params;
   const trip = readPlanningTrip(slug);
   if (!trip) return new Response('Trip not in planning stage', { status: 404 });

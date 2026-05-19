@@ -17,6 +17,7 @@ const mockParseFrontmatter = vi.hoisted(() => vi.fn());
 vi.mock('$lib/server/data.js', () => ({
   ROOT: '/test-root',
   parseFrontmatter: mockParseFrontmatter,
+  rejectInvalidSlug: () => null,
 }));
 
 const mockTripsToIcs = vi.hoisted(() => vi.fn(() => 'BEGIN:VCALENDAR\nEND:VCALENDAR\n'));

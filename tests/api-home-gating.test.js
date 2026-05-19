@@ -79,6 +79,8 @@ vi.mock('$lib/server/data.js', () => ({
   parseFrontmatter: vi.fn(() => ({})),
   parseFrontmatterFields: vi.fn(() => ({})),
   invalidateEnrichCache: vi.fn(),
+  rejectInvalidSlug: () => null,
+  assertSafeIdeaPath: (p) => p,
 }));
 
 // ── Other mocks needed by the routes ──
