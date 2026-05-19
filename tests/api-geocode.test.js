@@ -64,8 +64,8 @@ describe('normalizeResult (shape transform)', () => {
   });
 
   it('preserves the query string as the label', () => {
-    const result = normalizeResult('Overland Park, KS', [38.9822, -94.6708]);
-    expect(result.label).toBe('Overland Park, KS');
+    const result = normalizeResult('Cleveland, OH', [41.4993, -81.6944]);
+    expect(result.label).toBe('Cleveland, OH');
   });
 });
 
@@ -126,15 +126,15 @@ describe('GET /api/geocode — validation', () => {
 
 describe('GET /api/geocode — happy path', () => {
   it('returns 200 with a single result when geocode() finds a match', async () => {
-    geocode.mockResolvedValue([38.9822, -94.6708]);
+    geocode.mockResolvedValue([41.4993, -81.6944]);
 
-    const res = await GET(makeEvent({ q: 'Overland Park, KS' }));
+    const res = await GET(makeEvent({ q: 'Cleveland, OH' }));
     expect(res._status).toBe(200);
     expect(res._body.results).toHaveLength(1);
     const [r] = res._body.results;
-    expect(r.label).toBe('Overland Park, KS');
-    expect(r.lat).toBe(38.9822);
-    expect(r.lon).toBe(-94.6708);
+    expect(r.label).toBe('Cleveland, OH');
+    expect(r.lat).toBe(41.4993);
+    expect(r.lon).toBe(-81.6944);
   });
 
   it('calls geocode() with the trimmed query string', async () => {

@@ -68,7 +68,7 @@ Optional flags: `national_park: true` (for NPS units), `starred: true` (bookmark
 
 - `vibe` — short phrase describing the trip character (e.g. `"quirky mountain town"`, `"coastal scenic drive"`). Required at idea stage.
 - `image_query` — 2–4 concrete words sent to Pexels' keyword search for the card's hero photo (e.g. `"Chicago skyline downtown"`, `"Glacier mountains"`). Authored by the seed/add LLM because Pexels rewards visual nouns and punishes atmospheric phrases — letting the model pick the query produces far better matches than scraping the human-readable title. Legacy ideas without this field fall back to a stopword-stripped title in `imageQuery()` (`src/lib/server/data.js`).
-- `waypoints` — key cities along the driving route as an inline array: `[Overland Park KS, Leavenworth KS, Atchison KS]`. Used by the frontend to fetch an OSRM road-following route line. Required for the solid route line to appear on the map.
+- `waypoints` — key cities along the driving route as an inline array: `[Cleveland OH, Sandusky OH, Toledo OH]`. Used by the frontend to fetch an OSRM road-following route line. Required for the solid route line to appear on the map.
 - `national_park: true` — add to any trip where the primary draw is an NPS unit (national park, preserve, scenic riverway). Surfaces a badge on the trip card.
 - `starred: true` — bookmarked trip. Toggled by the frontend; write it here if pre-seeding a bookmark.
 - `cost_tier` — `budget` | `mid` | `splurge`.
