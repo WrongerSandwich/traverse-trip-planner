@@ -137,6 +137,21 @@
     return pills;
   });
 
+  // Mobile-only count + stage status row text. Computed here so the markup
+  // stays a single derived check. (#239)
+  const stageLabels = { idea: 'Ideas', planning: 'Planning', completed: 'Completed' };
+  const mobileStatusText = $derived.by(() => {
+    const total = data.trips.length;
+    const shown = trips.length;
+    const stageActive = activeFilter !== 'all';
+    const filtered = stageActive || attrFilterCount > 0;
+    if (!filtered) {
+      return `${total} destination${total !== 1 ? 's' : ''}`;
+    }
+    const head = `${shown} of ${total} trip${total !== 1 ? 's' : ''}`;
+    return stageActive ? `${head} · ${stageLabels[activeFilter]}` : head;
+  });
+
   // ── Mobile map toggle + header measurement ──
   let mapVisible = $state(true);
   let headerEl  = $state(null);
@@ -754,6 +769,17 @@
             <option value="az">A–Z</option>
           </select>
         </div>
+
+        <!-- Mobile-only count + stage status. Replaces the desktop
+             .header-count which is hidden at the mobile breakpoint. Shows
+             "12 of 30 trips · Planning" when filtered, or "30 destinations"
+             when not, so the user keeps track of which slice they're viewing.
+             (#239) -->
+        {#if mobileStatusText}
+          <div class="mobile-count" aria-live="polite">
+            {mobileStatusText}
+          </div>
+        {/if}
 
         <!-- Active-filter pills: visible whenever attribute filters diverge
              from defaults, so the user can see and clear individual filters
@@ -1434,6 +1460,11 @@
   }
   .clear-all:hover { color: var(--text-primary); }
 
+  /* Mobile-only count + stage status row. Sits above the active-pills row
+     and is hidden on desktop where .header-count provides the same signal.
+     (#239) */
+  .mobile-count { display: none; }
+
   /* Active-filter pills row — sits between the controls row and the filter
      panel. Visible whenever the user has applied attribute filters, so they
      can see what's active and remove individual filters without re-opening
@@ -1646,6 +1677,17 @@
     .seed-btn { width: var(--tap-min); height: var(--tap-min); }
     /* Labeled variant stays a pill on mobile, just guarantees tap height. */
     .seed-btn.labeled { width: auto; min-height: var(--tap-min); padding-left: 0.65rem; padding-right: 0.85rem; }
+
+    /* Mobile count/stage row — sits above active-pills, below the controls
+       strip. Visible only at this breakpoint since desktop has .header-count.
+       (#239) */
+    .mobile-count {
+      display: block;
+      padding: 0.4rem 1rem 0.5rem;
+      font-size: 0.78rem;
+      color: var(--text-muted, var(--bone-600));
+      letter-spacing: 0.01em;
+    }
 
     /* ── Map toggle active state ── */
     .map-toggle.map-showing {
