@@ -211,6 +211,16 @@ describe('setFrontmatterField', () => {
     expect(fmMatches).toHaveLength(2); // one in frontmatter, one in body
     expect(parseFrontmatter(result)?.starred).toBe(true);
   });
+
+  it('collapses duplicate status lines to exactly one canonical line (#278)', () => {
+    // Simulate frontmatter with a pre-existing duplicate key (the latent footgun).
+    const md = `---\ntitle: Test Trip\nstatus: idea\nstatus: planning\n---\n\nBody.`;
+    const result = setFrontmatterField(md, 'status', 'completed');
+    const matches = result.match(/^status:/gm);
+    expect(matches).toHaveLength(1);
+    expect(result).toContain('status: completed');
+    expect(parseFrontmatter(result)?.status).toBe('completed');
+  });
 });
 
 describe('removeFrontmatterField', () => {
@@ -240,6 +250,15 @@ describe('removeFrontmatterField', () => {
     const withoutFlag = removeFrontmatterField(withFlag, 'researching');
     expect(parseFrontmatter(withoutFlag)?.researching).toBeUndefined();
     expect(parseFrontmatter(withoutFlag)?.title).toBe('Test');
+  });
+
+  it('removes all duplicate copies of a field with the g flag (#278)', () => {
+    // Simulate frontmatter with a pre-existing duplicate key.
+    const md = `---\ntitle: Test Trip\nstatus: idea\nstatus: planning\n---\n\nBody.`;
+    const result = removeFrontmatterField(md, 'status');
+    expect(result).not.toContain('status:');
+    expect(parseFrontmatter(result)?.status).toBeUndefined();
+    expect(parseFrontmatter(result)?.title).toBe('Test Trip');
   });
 });
 
