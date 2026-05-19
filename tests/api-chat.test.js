@@ -158,4 +158,32 @@ describe('POST /api/trip/[slug]/chat — typed error codes', () => {
     expect(body.tokens).toBe(800); // 500 + 300
     expect(body.reply).toBe('Here is the update.');
   });
+
+  // Regression test for #279: when the model writes an <update section="overview">
+  // block with new waypoints, the server must include `updates` in the response so
+  // the client-side invalidateAll() call is triggered and card meta / map route
+  // stay fresh without a manual reload.
+  it('includes updates in response when model writes <update section="overview"> with new waypoints', async () => {
+    const updatedOverview = `# Overview\n\nThis trip goes through Springfield and Branson.\n\nwaypoints: [Springfield MO, Branson MO]`;
+    vi.doMock('$lib/server/ai.js', () => ({
+      chat: vi.fn().mockResolvedValue({
+        text: `<reply>I've updated the overview with new waypoints.</reply>\n<update section="overview">${updatedOverview}</update>`,
+        usage: { input: 400, output: 200 },
+      }),
+    }));
+
+    const { POST } = await import('../src/routes/api/trip/[slug]/chat/+server.js');
+    const req = new Request('http://localhost/api/trip/test-trip/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: VALID_MESSAGES }),
+    });
+    const res = await POST({ params: { slug: 'test-trip' }, request: req });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // updates must be present so the client calls invalidateAll() (fix for #279)
+    expect(body.updates).toBeDefined();
+    expect(body.updates.overview).toBe(updatedOverview);
+    expect(body.reply).toBe("I've updated the overview with new waypoints.");
+  });
 });

@@ -375,6 +375,9 @@
             delete drafts[section];
           }
         }
+        // Re-fetch server data so trip card meta (waypoints, drive hours, etc.)
+        // reflects any frontmatter changes the model wrote (e.g. updated overview).
+        await invalidateAll();
       }
     } catch {
       chatErrorCode = 'network_error';
