@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { existsSync, mkdirSync, renameSync } from 'fs';
 import { join } from 'path';
-import { ROOT, findTripLocation, rejectInvalidSlug } from '$lib/server/data.js';
+import { ROOT, findTripLocation, invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
 
 export function POST({ params }) {
   const invalid = rejectInvalidSlug(params.slug);
@@ -25,6 +25,8 @@ export function POST({ params }) {
   } catch (err) {
     return new Response(`Failed to archive trip: ${err.message}`, { status: 500 });
   }
+
+  invalidateEnrichCache();
 
   // TODO: ideas are single .md files while multi-stage trips are directories,
   // so archive can't reuse moveTrip() from data.js without teaching it about
