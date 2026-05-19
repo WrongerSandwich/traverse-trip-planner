@@ -19,5 +19,8 @@ jobs:
 
       - run: npm ci
 
+      - name: Audit dependencies (fail on high/critical)
+        run: npm audit --audit-level=high
+
       - name: Verify (svelte-check + tests + build)
         run: npm run verify

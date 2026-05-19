@@ -5,7 +5,7 @@ build
 
 # Secrets and personal config (provided at runtime via bind mounts or env_file)
 .env
-.env.example
+.env.*
 home.md
 settings.json
 
