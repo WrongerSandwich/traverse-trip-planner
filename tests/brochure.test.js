@@ -71,13 +71,13 @@ days:
       - period: morning
         items:
           - time: "8:00 AM"
-            activity: "Depart Overland Park"
+            activity: "Depart Cleveland"
           - time: "10:00 AM"
-            activity: "Coffee in Lexington"
+            activity: "Coffee in Sandusky"
 ---`;
     const { data } = parseBrochureFile(file);
     expect(data.days[0].blocks[0].items).toHaveLength(2);
-    expect(data.days[0].blocks[0].items[1].activity).toBe('Coffee in Lexington');
+    expect(data.days[0].blocks[0].items[1].activity).toBe('Coffee in Sandusky');
   });
 
   it('preserves list-typed top-level fields', () => {

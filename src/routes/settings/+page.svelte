@@ -547,7 +547,7 @@
                 type="text"
                 class="field-input"
                 class:field-input-error={!!homeFieldErrors.home_city}
-                placeholder="e.g. Overland Park, KS"
+                placeholder="e.g. Cleveland, OH"
                 bind:value={homeCity}
                 oninput={() => { homeFieldErrors = { ...homeFieldErrors, home_city: '' }; homeSavedOk = false; }}
               />
@@ -613,7 +613,7 @@
                 id="home-travelers"
                 type="text"
                 class="field-input"
-                placeholder="evan, erika"
+                placeholder="alex, sam"
                 bind:value={homeTravelersStr}
                 oninput={() => { homeSavedOk = false; }}
               />

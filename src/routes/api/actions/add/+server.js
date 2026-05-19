@@ -54,7 +54,7 @@ ${homeMd}
 The traveler already has trips for these destinations:
 ${existing.length > 0 ? existing.map(d => `- ${d}`).join('\n') : '(none yet)'}
 
-The user wants to add a specific destination. Before generating, check whether the requested destination is already covered — meaning it is the same place, a suburb/neighborhood within the same metro area, or so geographically close that a separate trip idea would be redundant (e.g. user requests "Overland Park, KS" when "Kansas City, MO" is already on the list).
+The user wants to add a specific destination. Before generating, check whether the requested destination is already covered — meaning it is the same place, a suburb/neighborhood within the same metro area, or so geographically close that a separate trip idea would be redundant (e.g. user requests "Lakewood, OH" when "Cleveland, OH" is already on the list).
 
 If it IS a near-duplicate, respond with ONLY this tag (no other text):
 <duplicate>the matching existing destination</duplicate>

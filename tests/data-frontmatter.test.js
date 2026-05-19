@@ -34,11 +34,11 @@ status: idea
 
   it('parses inline list values', () => {
     const md = `---
-waypoints: [Overland Park KS, Leavenworth KS, Atchison KS]
+waypoints: [Cleveland OH, Sandusky OH, Toledo OH]
 tags: [scenic-drive, small-town]
 ---`;
     const fm = parseFrontmatter(md);
-    expect(fm.waypoints).toEqual(['Overland Park KS', 'Leavenworth KS', 'Atchison KS']);
+    expect(fm.waypoints).toEqual(['Cleveland OH', 'Sandusky OH', 'Toledo OH']);
     expect(fm.tags).toEqual(['scenic-drive', 'small-town']);
   });
 
@@ -97,10 +97,10 @@ waypoints: []
   it('parses block-style home_coords as [number, number] (#275, folds in #283)', () => {
     const md = `---
 home_coords:
-  - 38.98
-  - -94.67
+  - 41.50
+  - -81.69
 ---`;
-    expect(parseFrontmatter(md).home_coords).toEqual([38.98, -94.67]);
+    expect(parseFrontmatter(md).home_coords).toEqual([41.50, -81.69]);
   });
 
   it('handles quoted commas inside inline arrays (#275)', () => {
@@ -133,9 +133,9 @@ weekend_viable: true`;
   });
 
   it('still recognizes inline list values', () => {
-    const text = `waypoints: [Overland Park KS, Leavenworth KS, Atchison KS]`;
+    const text = `waypoints: [Cleveland OH, Sandusky OH, Toledo OH]`;
     expect(parseFrontmatterFields(text).waypoints)
-      .toEqual(['Overland Park KS', 'Leavenworth KS', 'Atchison KS']);
+      .toEqual(['Cleveland OH', 'Sandusky OH', 'Toledo OH']);
   });
 
   it('returns an empty object for empty input', () => {

@@ -7,8 +7,8 @@
 /**
  * Serialize a travelers array to a comma-separated display string.
  *
- * @param {string[]} arr - e.g. ["evan", "erika"]
- * @returns {string} - e.g. "evan, erika"
+ * @param {string[]} arr - e.g. ["alex", "sam"]
+ * @returns {string} - e.g. "alex, sam"
  */
 export function travelersToString(arr) {
   if (!Array.isArray(arr) || arr.length === 0) return '';
@@ -18,8 +18,8 @@ export function travelersToString(arr) {
 /**
  * Parse a comma-separated string back to a trimmed, non-empty array of names.
  *
- * @param {string} str - e.g. "evan, erika"
- * @returns {string[]} - e.g. ["evan", "erika"]
+ * @param {string} str - e.g. "alex, sam"
+ * @returns {string[]} - e.g. ["alex", "sam"]
  */
 export function stringToTravelers(str) {
   if (!str || !str.trim()) return [];

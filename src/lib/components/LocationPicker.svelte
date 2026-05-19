@@ -114,7 +114,7 @@
     <input
       type="text"
       class="field-input"
-      placeholder="e.g. Overland Park, KS"
+      placeholder="e.g. Cleveland, OH"
       bind:value={query}
       oninput={onQueryInput}
       onblur={() => setTimeout(closeDropdown, 150)}

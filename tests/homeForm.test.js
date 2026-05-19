@@ -3,7 +3,7 @@ import { travelersToString, stringToTravelers } from '../src/lib/utils/homeForm.
 
 describe('travelersToString', () => {
   it('joins an array into a comma-separated string', () => {
-    expect(travelersToString(['evan', 'erika'])).toBe('evan, erika');
+    expect(travelersToString(['alex', 'sam'])).toBe('alex, sam');
   });
 
   it('returns empty string for an empty array', () => {
@@ -16,21 +16,21 @@ describe('travelersToString', () => {
   });
 
   it('handles a single traveler', () => {
-    expect(travelersToString(['evan'])).toBe('evan');
+    expect(travelersToString(['alex'])).toBe('alex');
   });
 
   it('handles names with spaces', () => {
-    expect(travelersToString(['Evan T', 'Erika M'])).toBe('Evan T, Erika M');
+    expect(travelersToString(['Alex K', 'Sam R'])).toBe('Alex K, Sam R');
   });
 });
 
 describe('stringToTravelers', () => {
   it('splits a comma-separated string into an array', () => {
-    expect(stringToTravelers('evan, erika')).toEqual(['evan', 'erika']);
+    expect(stringToTravelers('alex, sam')).toEqual(['alex', 'sam']);
   });
 
   it('trims whitespace from each entry', () => {
-    expect(stringToTravelers('  evan ,  erika  ')).toEqual(['evan', 'erika']);
+    expect(stringToTravelers('  alex ,  sam  ')).toEqual(['alex', 'sam']);
   });
 
   it('returns empty array for empty string', () => {
@@ -47,11 +47,11 @@ describe('stringToTravelers', () => {
   });
 
   it('filters out empty tokens from trailing commas', () => {
-    expect(stringToTravelers('evan, erika,')).toEqual(['evan', 'erika']);
+    expect(stringToTravelers('alex, sam,')).toEqual(['alex', 'sam']);
   });
 
   it('handles a single name', () => {
-    expect(stringToTravelers('evan')).toEqual(['evan']);
+    expect(stringToTravelers('alex')).toEqual(['alex']);
   });
 
   it('round-trips through travelersToString', () => {

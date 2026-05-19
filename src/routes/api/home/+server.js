@@ -20,11 +20,11 @@ import { denyIfNotConfigWriter } from '$lib/server/auth.js';
  * ```json
  * {
  *   "frontmatter": {
- *     "home_city": "Overland Park, KS",
- *     "home_coords": [38.98, -94.67],
- *     "travelers": ["evan", "erika"],
+ *     "home_city": "Cleveland, OH",
+ *     "home_coords": [41.50, -81.69],
+ *     "travelers": ["alex", "sam"],
  *     "vehicles": {
- *       "rav4": { "model": "2019 Toyota RAV4", "type": "gas", "default": true }
+ *       "car": { "model": "2019 Toyota RAV4", "type": "gas", "default": true }
  *     },
  *     "pets_need_sitter": true,
  *     "default_radius_mi": 450,
