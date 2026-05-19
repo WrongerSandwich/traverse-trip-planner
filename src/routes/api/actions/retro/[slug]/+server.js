@@ -5,7 +5,7 @@ import { ROOT, atomicWrite, readHomeMd, getTripFiles, invalidateEnrichCache, rej
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
-import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 
 export const _promise = HAND_DEFAULTS['retro-questions'];
@@ -65,7 +65,7 @@ ${context || '(no planning sections available)'}`;
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.retro,
     label: 'retro-questions',
-    maxTokens: 600,
+    maxTokens: MAX_TOKENS['retro-questions'],
     system,
     messages: [{ role: 'user', content: 'Generate the 5 questions now.' }],
   });
@@ -166,7 +166,7 @@ Write the notes.md body now.`;
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.retro,
     label: 'retro-save',
-    maxTokens: 2000,
+    maxTokens: MAX_TOKENS['retro-save'],
     system,
     messages: [{ role: 'user', content: userMsg }],
   });

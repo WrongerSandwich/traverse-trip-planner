@@ -5,7 +5,7 @@ import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
-import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { json } from '@sveltejs/kit';
 
@@ -86,7 +86,7 @@ image_query: [2–4 concrete words for a Pexels stock-photo search. Name the pla
         ...getEffectiveConfig().features.add,
         label: 'add',
         system,
-        maxTokens: 600,
+        maxTokens: MAX_TOKENS.add,
         messages: [{ role: 'user', content: `Add a trip idea for: ${destination}` }],
       }),
       send,

@@ -35,7 +35,7 @@ import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.j
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
-import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { isAbort } from '$lib/utils/abort.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 
@@ -107,7 +107,7 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.deepen,
     label: 'deepen',
-    maxTokens: 8000,
+    maxTokens: MAX_TOKENS.deepen,
     system,
     messages: [{ role: 'user', content: 'Research this trip thoroughly using web search.' }],
     tools: [searchToolDefinition()],

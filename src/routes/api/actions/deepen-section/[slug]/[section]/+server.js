@@ -24,7 +24,7 @@ import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.j
 import { TraverseError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { assertNotRunning, startJob, completeJob, failJob } from '$lib/server/jobs.js';
-import { HAND_DEFAULTS } from '$lib/server/promises.js';
+import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { isAbort } from '$lib/utils/abort.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 
@@ -158,7 +158,7 @@ ${guidance}
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.deepen,
     label: 'deepen-section',
-    maxTokens: 4000,
+    maxTokens: MAX_TOKENS['deepen-section'],
     system,
     messages: [{ role: 'user', content: `Research the ${section} section for this trip using web search.` }],
     tools: [searchToolDefinition()],
