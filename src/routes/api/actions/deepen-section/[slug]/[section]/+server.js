@@ -74,7 +74,10 @@ export async function POST(event) {
   const { slug, section } = params;
 
   if (!VALID_SECTIONS.includes(section)) {
-    return new Response(`Invalid section "${section}". Valid: ${VALID_SECTIONS.join(', ')}`, { status: 400 });
+    return json(
+      { code: 'invalid_input', error: `Invalid section "${section}". Valid: ${VALID_SECTIONS.join(', ')}` },
+      { status: 400 },
+    );
   }
 
   const tripDir = findTripDir(slug);

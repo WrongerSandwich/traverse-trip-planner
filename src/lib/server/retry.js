@@ -14,8 +14,10 @@ function isRetriable(err) {
   if (!err) return false;
   // AdapterError exposes the parsed HTTP status directly.
   if (typeof err.status === 'number' && RETRIABLE_HTTP_STATUSES.has(err.status)) return true;
-  // Network-level failures from fetch (TypeError on Node) and Node's connection errors.
-  if (err.name === 'TypeError') return true;
+  // Network-level failures from fetch surface as TypeError on Node.
+  // Only retry TypeErrors whose message mentions fetch/network; let real code
+  // bugs (e.g. "Cannot read properties of undefined") propagate immediately.
+  if (err.name === 'TypeError' && /fetch|network|failed to fetch/i.test(err.message || '')) return true;
   if (err.code && /^(ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN)$/.test(err.code)) return true;
   // Fallback: status codes baked into thrown error messages by SDKs we don't wrap.
   if (RETRIABLE_STATUS.test(err.message || '')) return true;

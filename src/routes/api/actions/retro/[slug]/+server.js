@@ -116,8 +116,9 @@ export async function PUT({ params, request }) {
   }
 
   const body = await request.json().catch(() => ({}));
+  const MAX_ANSWER_LENGTH = 2000;
   const questions = Array.isArray(body?.questions) ? body.questions.map(String) : [];
-  const answers   = Array.isArray(body?.answers)   ? body.answers.map(String)   : [];
+  const answers   = Array.isArray(body?.answers)   ? body.answers.map(s => String(s).slice(0, MAX_ANSWER_LENGTH)) : [];
   const rating = Number.isFinite(body?.rating) ? Math.max(1, Math.min(5, Math.round(body.rating))) : null;
   const wouldRepeat = Boolean(body?.would_repeat);
 
@@ -173,7 +174,8 @@ Write the notes.md body now.`;
   const highlights = [];
   const hlMatch = prose.match(/^##\s+Highlights\s*\n([\s\S]*?)(?=\n##\s|$)/im);
   if (hlMatch) {
-    const bulletRe = /^\s*[-*]\s+(.+?)\s*$/gm;
+    // Match unordered (- / *) and ordered (1. / 2.) list items.
+    const bulletRe = /^\s*(?:[-*]|\d+\.)\s+(.+?)\s*$/gm;
     let m;
     while ((m = bulletRe.exec(hlMatch[1])) !== null) {
       highlights.push(m[1].replace(/^[*_]+|[*_]+$/g, '').trim());

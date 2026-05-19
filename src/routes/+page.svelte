@@ -445,8 +445,14 @@
 
   function sorted(list, by) {
     const arr = [...list];
-    if (by === 'time') return arr.sort((a, b) => (a._drive_hours ?? 999) - (b._drive_hours ?? 999));
-    if (by === 'cost') return arr.sort((a, b) => costLow(a._cost) - costLow(b._cost));
+    // All comparators use slug as a stable secondary key to prevent re-ordering
+    // between renders when the primary values are equal.
+    if (by === 'time') return arr.sort((a, b) =>
+      ((a._drive_hours ?? 999) - (b._drive_hours ?? 999)) ||
+      (a.slug || '').localeCompare(b.slug || ''));
+    if (by === 'cost') return arr.sort((a, b) =>
+      (costLow(a._cost) - costLow(b._cost)) ||
+      (a.slug || '').localeCompare(b.slug || ''));
     if (by === 'az')   return arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
     return arr;
   }

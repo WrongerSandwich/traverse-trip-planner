@@ -230,6 +230,7 @@
                 class="star"
                 class:active={rating >= n}
                 onclick={() => rating = (rating === n ? 0 : n)}
+                onkeydown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); rating = (rating === n ? 0 : n); } }}
                 aria-label={`${n} out of 5`}
                 aria-pressed={rating >= n}
               >★</button>
