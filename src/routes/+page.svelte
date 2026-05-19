@@ -513,16 +513,19 @@
         <a href="/onboarding" class="home-setup-cta" title="Set up your home base to enable AI features">
           Set up home base
         </a>
+      {:else if !data.features?.seed && !data.features?.add}
+        <a class="ai-setup-cta" href="/settings#server-config">
+          Configure AI →
+        </a>
       {:else}
         <PromiseTooltip promise={SEED_PROMISE}>
           <button
-            class="seed-btn"
+            class="seed-btn labeled"
             class:open={seedFormOpen}
             class:seed-running={seedStatus === 'in_progress'}
             onclick={() => { seedFormOpen = !seedFormOpen; pinFormOpen = false; }}
             disabled={seedStatus === 'in_progress' || !data.features?.seed}
-            title={data.features?.seed ? null : 'No default model configured. Edit your .env to enable this.'}
-            aria-label={seedStatus === 'in_progress' ? 'Generating ideas…' : 'Add trips'}
+            aria-label={seedStatus === 'in_progress' ? 'Generating ideas…' : 'Generate ideas'}
             aria-expanded={seedFormOpen}
             aria-busy={seedStatus === 'in_progress'}
           >
@@ -533,16 +536,16 @@
                 <path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             {/if}
+            <span class="action-label">{seedStatus === 'in_progress' ? 'Generating…' : 'New ideas'}</span>
           </button>
         </PromiseTooltip>
         <PromiseTooltip promise={ADD_PROMISE}>
           <button
-            class="seed-btn pin-btn"
+            class="seed-btn pin-btn labeled"
             class:open={pinFormOpen}
             class:add-running={addStatus === 'in_progress'}
             onclick={() => { if (addStatus !== 'in_progress') { pinFormOpen = !pinFormOpen; seedFormOpen = false; } }}
             disabled={addStatus === 'in_progress' || !data.features?.add}
-            title={data.features?.add ? null : 'No default model configured. Edit your .env to enable this.'}
             aria-label={addStatus === 'in_progress' ? 'Adding…' : 'Add destination'}
             aria-expanded={pinFormOpen}
             aria-busy={addStatus === 'in_progress'}
@@ -555,8 +558,14 @@
                 <circle cx="6" cy="5" r="1.8" fill="var(--surface-raised)"/>
               </svg>
             {/if}
+            <span class="action-label">{addStatus === 'in_progress' ? 'Adding…' : 'Add place'}</span>
           </button>
         </PromiseTooltip>
+        {#if !data.features?.seed || !data.features?.add}
+          <a class="ai-partial-cta" href="/settings#server-config" title="Some AI features are unavailable until configured">
+            Configure AI →
+          </a>
+        {/if}
       {/if}
     </div>
   </header>
@@ -970,6 +979,46 @@
     background: var(--forest-800);
     border-color: var(--forest-400);
     color: var(--forest-100);
+  }
+
+  /* Labeled variant of seed/add — pill shape with visible text. (#234) */
+  .seed-btn.labeled {
+    border-radius: 999px;
+    width: auto;
+    height: auto;
+    padding: 0.3rem 0.7rem 0.3rem 0.55rem;
+    gap: 0.35rem;
+  }
+  .action-label {
+    font-size: 0.78rem;
+    line-height: 1;
+    white-space: nowrap;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  /* Inline recovery link surfaced when seed/add are unavailable. (#234) */
+  .ai-setup-cta,
+  .ai-partial-cta {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 6px;
+    border: 1px dashed var(--sunset-600);
+    color: var(--sunset-200);
+    background: transparent;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .ai-setup-cta:hover,
+  .ai-partial-cta:hover {
+    border-style: solid;
+    background: var(--sunset-800);
+    color: var(--sunset-100);
+  }
+  .ai-partial-cta {
+    /* Quieter than the standalone CTA — it sits next to working buttons. */
+    border-color: var(--surface-border, var(--forest-700));
+    color: var(--text-muted, var(--bone-600));
   }
 
   /* ── Seed prompt popover ── */
@@ -1514,6 +1563,8 @@
 
     /* Seed button larger tap target on mobile */
     .seed-btn { width: var(--tap-min); height: var(--tap-min); }
+    /* Labeled variant stays a pill on mobile, just guarantees tap height. */
+    .seed-btn.labeled { width: auto; min-height: var(--tap-min); padding-left: 0.65rem; padding-right: 0.85rem; }
 
     /* ── Header ── */
     header {
@@ -1593,6 +1644,8 @@
 
     /* ── Seed button ── */
     .seed-btn { width: var(--tap-min); height: var(--tap-min); }
+    /* Labeled variant stays a pill on mobile, just guarantees tap height. */
+    .seed-btn.labeled { width: auto; min-height: var(--tap-min); padding-left: 0.65rem; padding-right: 0.85rem; }
 
     /* ── Map toggle active state ── */
     .map-toggle.map-showing {
