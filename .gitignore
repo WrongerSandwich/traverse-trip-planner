@@ -41,3 +41,6 @@ settings.json
 
 # Brainstorming companion sessions
 .superpowers/
+
+# Generated design-critique artifacts from the impeccable agent
+.impeccable/
