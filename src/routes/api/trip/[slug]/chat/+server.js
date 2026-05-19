@@ -1,4 +1,6 @@
 import { json } from '@sveltejs/kit';
+import { existsSync, statSync } from 'fs';
+import { join } from 'path';
 import { readHomeMd, readPlanningTrip, writePlanningSection, PLANNING_SECTIONS, rejectInvalidSlug } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
@@ -45,6 +47,16 @@ export async function POST(event) {
 
   const limited = rateLimitResponse({ event, endpoint: 'chat', slugKey: slug });
   if (limited) return limited;
+
+  // Snapshot section mtimes at read so we can detect a concurrent deepen-section
+  // (or any other writer) that lands between the read and our writes. Without
+  // this guard the chat handler would silently overwrite the deepen result
+  // with the model's update based on the stale pre-deepen content. (#277)
+  const mtimeSnapshot = {};
+  for (const name of PLANNING_SECTIONS) {
+    const fp = join(trip.dir, `${name}.md`);
+    if (existsSync(fp)) mtimeSnapshot[name] = statSync(fp).mtimeMs;
+  }
 
   const body = await request.json().catch(() => ({}));
   const messages = Array.isArray(body?.messages) ? body.messages : [];
@@ -112,6 +124,24 @@ Your output format:
 
     const reply = parseReply(text);
     const updates = parseUpdates(text);
+
+    // Optimistic-concurrency: re-stat each section before applying its update.
+    // If any section's mtime moved during the chat round-trip, a concurrent
+    // deepen-section (or another mutator) wrote it. Bail with 409 + a typed
+    // ERROR_REGISTRY code so the UI prompts the user to re-run; their
+    // <reply> is discarded but no other agent's work is lost. (#277)
+    for (const section of Object.keys(updates)) {
+      const fp = join(trip.dir, `${section}.md`);
+      if (existsSync(fp)) {
+        const current = statSync(fp).mtimeMs;
+        if (mtimeSnapshot[section] !== undefined && current !== mtimeSnapshot[section]) {
+          return json(
+            { error: 'section_changed_during_chat', context: { section } },
+            { status: 409 },
+          );
+        }
+      }
+    }
 
     for (const [section, content] of Object.entries(updates)) {
       writePlanningSection(trip.dir, section, trip.frontmatter, content);
