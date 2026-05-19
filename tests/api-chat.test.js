@@ -159,6 +159,41 @@ describe('POST /api/trip/[slug]/chat — typed error codes', () => {
     expect(body.reply).toBe('Here is the update.');
   });
 
+  // Regression for #277: a concurrent deepen-section write (mtime advances
+  // between chat's read and write) must produce a 409 with the
+  // section_changed_during_chat code, not silently overwrite the deepen result.
+  it('returns 409 section_changed_during_chat when a section mtime advances mid-call', async () => {
+    // First statSync call (snapshot at handler start) returns mtime=1000;
+    // second call (pre-write check) returns mtime=2000 — simulating a
+    // concurrent writer that landed during the chat() await.
+    let statCallNum = 0;
+    vi.doMock('fs', () => ({
+      existsSync: () => true,
+      statSync: () => {
+        statCallNum++;
+        return { mtimeMs: statCallNum <= 4 ? 1000 : 2000 };
+      },
+    }));
+    vi.doMock('$lib/server/ai.js', () => ({
+      chat: vi.fn().mockResolvedValue({
+        text: '<reply>Updated route.</reply>\n<update section="route">New route content.</update>',
+        usage: { input: 100, output: 50 },
+      }),
+    }));
+
+    const { POST } = await import('../src/routes/api/trip/[slug]/chat/+server.js');
+    const req = new Request('http://localhost/api/trip/test-trip/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: VALID_MESSAGES }),
+    });
+    const res = await POST({ params: { slug: 'test-trip' }, request: req });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe('section_changed_during_chat');
+    expect(body.context?.section).toBe('route');
+  });
+
   // Regression test for #279: when the model writes an <update section="overview">
   // block with new waypoints, the server must include `updates` in the response so
   // the client-side invalidateAll() call is triggered and card meta / map route
