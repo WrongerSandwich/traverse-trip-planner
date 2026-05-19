@@ -530,16 +530,36 @@ async function geocodeWaypoints(waypoints, trackSet = null) {
 // 30-second memo on the enriched trip list so rapid-fire page loads (multiple
 // browser tabs, F5 spam) don't re-walk the file system. Mutating endpoints
 // call `invalidateEnrichCache()` to force a refresh.
+//
+// Concurrency (#273):
+//   - `enrichInflight` coalesces overlapping calls onto a single promise so
+//     two simultaneous enrichTrips() requests don't both walk the FS and
+//     race on pruneCaches.
+//   - `enrichGeneration` increments on every invalidateEnrichCache. The
+//     in-flight enrichment captures the generation at start and skips
+//     pruneCaches if the generation moved during the await — meaning a
+//     mutating endpoint wrote a new trip/cache entry mid-flight and the
+//     in-flight enrichment's `liveKeys` snapshot is stale.
 const ENRICH_TTL_MS = 30_000;
 let enrichMemo = null;
 let enrichTime = 0;
+let enrichInflight = null;
+let enrichGeneration = 0;
 
 export function invalidateEnrichCache() {
   enrichMemo = null;
+  enrichGeneration++;
 }
 
-export async function enrichTrips() {
-  if (enrichMemo && Date.now() - enrichTime < ENRICH_TTL_MS) return enrichMemo;
+export function enrichTrips() {
+  if (enrichMemo && Date.now() - enrichTime < ENRICH_TTL_MS) return Promise.resolve(enrichMemo);
+  if (enrichInflight) return enrichInflight;
+  enrichInflight = enrichTripsImpl().finally(() => { enrichInflight = null; });
+  return enrichInflight;
+}
+
+async function enrichTripsImpl() {
+  const startGen = enrichGeneration;
   const home = getHome();
   const homeCoords = home?.coords ?? null;
   const trips = collectTrips();
@@ -627,18 +647,30 @@ export async function enrichTrips() {
     }
   }
 
-  // GC orphaned cache entries — only when we found at least one trip AND all
-  // trips enriched without error, so a partial failure can't nuke valid entries.
-  if (trips.length > 0 && completedEnumeration) {
+  // GC orphaned cache entries — only when:
+  //   1. we found at least one trip
+  //   2. every trip enriched without error
+  //   3. no concurrent invalidation moved the generation while we were awaiting
+  //      (skipping #3 would let us delete a cache entry that a concurrent
+  //      seed/add/deepen request just inserted — see #273)
+  const generationStable = enrichGeneration === startGen;
+  if (trips.length > 0 && completedEnumeration && generationStable) {
     pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys);
   } else if (trips.length > 0 && !completedEnumeration) {
     console.warn('enrichTrips: skipping cache prune due to partial enrichment');
+  } else if (trips.length > 0 && !generationStable) {
+    console.warn('enrichTrips: skipping cache prune due to concurrent invalidation');
   }
 
   flushCaches();
 
-  enrichMemo = trips;
-  enrichTime = Date.now();
+  // Only memoize when the generation is stable — otherwise the in-flight
+  // snapshot is missing a concurrent write and we want the next reader to
+  // re-enrich rather than serve stale data for 30s.
+  if (generationStable) {
+    enrichMemo = trips;
+    enrichTime = Date.now();
+  }
   return trips;
 }
 
