@@ -161,8 +161,8 @@ describe('setFrontmatterField', () => {
   const base = `---\ntitle: Marfa Texas\nstatus: idea\n---\n\nBody prose.`;
 
   it('updates an existing field in place', () => {
-    const result = setFrontmatterField(base, 'status', 'exploring');
-    expect(result).toContain('status: exploring');
+    const result = setFrontmatterField(base, 'status', 'planning');
+    expect(result).toContain('status: planning');
     expect(result).not.toContain('status: idea');
   });
 

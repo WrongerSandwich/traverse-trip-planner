@@ -6,6 +6,8 @@ A self-hosted road-trip filing cabinet. Trips live as plain markdown files, prog
 
 > Built to be lived in, not to be sold. Stable enough for daily personal use, rough enough that you'll want to be the kind of person who's comfortable editing the markdown directly when something gets weird.
 
+![Home page with trip cards and an interactive map](docs/screenshots/home.png)
+
 ## Why this exists
 
 There are plenty of fancier travel apps. Almost all of them treat your trips as rows in their database, your photos as content for their feed, and your destination history as something to monetize. Traverse takes the opposite bet: trips are markdown, your `home.md` is your taste preferences in plain English, and AI is a useful tool wired into the workflow — not the workflow itself.
@@ -23,6 +25,20 @@ The mental model is closer to a personal wiki than a SaaS app. The LLM is fast a
 - **Calendar** — subscribe to `/api/cal.ics` from Google/Apple/Outlook to see planned trips on your calendar; per-trip feed at `/api/cal/<slug>.ics`
 
 All trip data is plain markdown on disk — readable, portable, and easy to edit directly.
+
+## What it looks like
+
+The detail view in Read mode — sections render as prose; click `✎ Edit` to surface authoring affordances:
+
+![Trip detail page in Read mode](docs/screenshots/detail.png)
+
+The print-optimized brochure: cover photo, paper-map route inset from home, destination map with numbered pins, and structured stops:
+
+![Brochure print view](docs/screenshots/brochure.png)
+
+Settings — the Home base tab edits `home.md` in-browser without dropping to a terminal:
+
+![Settings page with home base configuration](docs/screenshots/settings.png)
 
 ## Self-hosting
 

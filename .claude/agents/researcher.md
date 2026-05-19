@@ -1,6 +1,6 @@
 ---
 name: researcher
-description: Researches a road trip destination via web search and returns structured findings. Invoked by /deepen when promoting an idea to exploring.
+description: Researches a road trip destination via web search and returns structured findings. Dispatched ad-hoc by Claude Code for exploratory research outside the formal trip lifecycle.
 tools: WebSearch, WebFetch, Read
 ---
 
