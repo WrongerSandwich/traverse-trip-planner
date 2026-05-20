@@ -24,6 +24,7 @@
   import KebabMenu from '$lib/components/KebabMenu.svelte';
   import EmptyItineraryCTA from '$lib/components/EmptyItineraryCTA.svelte';
   import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
+  import FieldGuidePalette from '$lib/components/FieldGuidePalette.svelte';
 
   let { data } = $props();
 
@@ -306,6 +307,79 @@
     tokens_range: [2000, 6000],
   };
   const CHAT_PROMISE = $derived(data.promises?.chat ?? CHAT_FALLBACK);
+
+  // ── Field guide palette (new Cmd-K surface; chat panel still wired below
+  // until commit 4 of the structural migration). The palette is the future
+  // primary input; per-section Ask buttons + Cmd-K both target it. ──
+  let paletteOpen = $state(false);
+  let paletteScope = $state(/** @type {{ kind: 'trip' } | { kind: 'section', section: string }} */ ({ kind: 'trip' }));
+  let paletteBusy = $state(false);
+  let paletteErrorSentence = $state(/** @type {string | null} */ (null));
+
+  function openPalette(section = null) {
+    if (!isPlanning) return;
+    paletteScope = section ? { kind: 'section', section } : autoScopeForViewport();
+    paletteErrorSentence = null;
+    paletteOpen = true;
+  }
+  function closePalette() {
+    paletteOpen = false;
+  }
+  function widenPaletteScope() {
+    paletteScope = { kind: 'trip' };
+  }
+
+  // Pick whichever section is most-centered in the viewport at Cmd-K time.
+  // Trip-wide fallback when no section header is in view.
+  function autoScopeForViewport() {
+    if (!browser) return { kind: 'trip' };
+    const viewH = window.innerHeight;
+    let best = null;
+    let bestDist = Infinity;
+    for (const section of canonicalSections) {
+      const el = document.getElementById(`section-${section}`);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      // Skip sections entirely off-screen.
+      if (rect.bottom < 0 || rect.top > viewH) continue;
+      const center = rect.top + rect.height / 2;
+      const dist = Math.abs(center - viewH / 2);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = section;
+      }
+    }
+    return best ? { kind: 'section', section: best } : { kind: 'trip' };
+  }
+
+  function handlePaletteSubmit(value) {
+    // Stub for commit 1 — real send wiring lands in the wire-up commit.
+    // Surface the would-be intent so the UI behaves while we build out the
+    // diff overlay + API plumbing.
+    paletteErrorSentence = `Palette wiring is in progress — your request ("${value}") wasn't sent yet. The chat panel still works.`;
+  }
+  function handlePaletteCancel() {
+    paletteBusy = false;
+  }
+
+  // Cmd-K (Mac) / Ctrl-K (Win/Linux) opens the palette from anywhere on a
+  // planning trip detail page. Respects text-input focus so the shortcut
+  // doesn't fight section editors.
+  $effect(() => {
+    if (!browser || !isPlanning) return;
+    function onKey(e) {
+      const isModK = (e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K');
+      if (!isModK) return;
+      // Don't hijack Cmd-K when a textarea has focus (section editing).
+      const t = e.target;
+      if (t instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      if (paletteOpen) closePalette();
+      else openPalette();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
 
   let chatOpen = $state(false);
   let chatMessages = $state([]); // [{role: 'user'|'assistant', content: '...', tokens?: number}]
@@ -940,7 +1014,10 @@
           <header class="section-header">
             <h2>{SECTION_LABELS[section] || section}</h2>
             {#if isPlanning && sections[section] !== undefined && !editing[section]}
-              <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
+              <div class="section-header-actions">
+                <button class="btn-section-ask" onclick={() => openPalette(section)} title="Ask {data.assistantName} to edit this section (⌘K)">↳ Ask</button>
+                <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
+              </div>
             {/if}
           </header>
 
@@ -1057,6 +1134,20 @@
     danger={confirmOpts.danger ?? false}
     onconfirm={() => { confirmResolve?.(true);  confirmResolve = null; }}
     oncancel={() =>  { confirmResolve?.(false); confirmResolve = null; }}
+  />
+
+  <FieldGuidePalette
+    open={paletteOpen}
+    scope={paletteScope}
+    sectionLabel={paletteScope.kind === 'section' ? (SECTION_LABELS[paletteScope.section] || paletteScope.section) : ''}
+    assistantName={data.assistantName}
+    busy={paletteBusy}
+    blockedReason={deepenSectionRunning ? `Section research is running. ${data.assistantName} is paused until it finishes so the two writers can't race on the same file.` : null}
+    errorSentence={paletteErrorSentence}
+    onsubmit={handlePaletteSubmit}
+    oncancel={handlePaletteCancel}
+    onclose={closePalette}
+    onwidenscope={widenPaletteScope}
   />
 
   <div class="chat-backdrop" class:open={chatOpen} onclick={() => chatOpen = false} role="presentation"></div>
@@ -1456,6 +1547,30 @@
     letter-spacing: -0.015em;
     color: var(--text-primary);
     margin: 0;
+  }
+  .section-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  /* Quieter than .btn-secondary so the section's primary action stays Edit;
+     ↳ Ask is the secondary AI affordance. */
+  .btn-section-ask {
+    background: none;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.32rem 0.6rem;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .btn-section-ask:hover {
+    background: color-mix(in oklab, var(--accent) 8%, transparent);
+    border-color: color-mix(in oklab, var(--accent) 35%, var(--border-default));
+    color: var(--accent-text);
   }
 
   .editor {
