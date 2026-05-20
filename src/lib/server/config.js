@@ -122,8 +122,21 @@ export function getFeatureAvailability() {
   }
   result.share = Boolean(cfg.shareSecret);
   result.homeMdReady = isHomeMdReady();
-  result.pexelsConfigured = Boolean(effectiveEnv.PEXELS_API_KEY);
+  result.pexelsConfigured = isRealKey(effectiveEnv.PEXELS_API_KEY);
   return result;
+}
+
+// Treat obvious .env.example placeholders (anything matching `your_*_here` or
+// containing `...`) as unset. Older copies of `.env.example` shipped
+// `PEXELS_API_KEY=your_pexels_key_here`, which is truthy but useless — the
+// API rejects it at request time, and the "no key" banner would never show.
+function isRealKey(value) {
+  if (!value || typeof value !== 'string') return false;
+  const v = value.trim();
+  if (!v) return false;
+  if (/^your_.*_here$/i.test(v)) return false;
+  if (v.endsWith('...')) return false;
+  return true;
 }
 
 // Both functions below describe the *live* config — process.env merged with

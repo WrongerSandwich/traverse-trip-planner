@@ -156,6 +156,26 @@ describe('getFeatureAvailability', () => {
     });
     expect(getFeatureAvailability().deepen).toBe(true);
   });
+
+  it('marks pexelsConfigured: true when PEXELS_API_KEY is a real-looking value', async () => {
+    const { getFeatureAvailability } = await loadConfig({
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      PEXELS_API_KEY: 'abc123realkey',
+    });
+    expect(getFeatureAvailability().pexelsConfigured).toBe(true);
+  });
+
+  // Regression: older copies of .env.example shipped PEXELS_API_KEY with a
+  // `your_pexels_key_here` placeholder. That string is truthy, but the API
+  // rejects it — so pexelsConfigured should still be false and the "no key"
+  // banner should still surface.
+  it('marks pexelsConfigured: false when PEXELS_API_KEY is the env-example placeholder', async () => {
+    const { getFeatureAvailability } = await loadConfig({
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      PEXELS_API_KEY: 'your_pexels_key_here',
+    });
+    expect(getFeatureAvailability().pexelsConfigured).toBe(false);
+  });
 });
 
 describe('describeConfig', () => {
