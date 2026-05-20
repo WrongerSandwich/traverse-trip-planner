@@ -592,6 +592,34 @@
   let retroOpen = $state(false);
   const hasNotes = $derived(typeof sections.notes === 'string' && sections.notes.trim().length > 0);
 
+  // The home page sets :global(html, body) { height: 100%; overflow: hidden }
+  // in its route stylesheet so its grid layout can fill the viewport.
+  // SvelteKit doesn't reliably unload route stylesheets on client nav, so a
+  // CSS-only :global reset here loses the cascade fight. Settings already
+  // hit this and solved it with inline styles in onMount — same fix here.
+  // Without this, the sticky header doesn't compute against a scrolling
+  // container and the page reads as fixed-height instead.
+  onMount(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      htmlHeight: html.style.height,
+      bodyOverflow: body.style.overflow,
+      bodyHeight: body.style.height,
+    };
+    html.style.overflow = 'auto';
+    html.style.height = 'auto';
+    body.style.overflow = 'auto';
+    body.style.height = 'auto';
+    return () => {
+      html.style.overflow = prev.htmlOverflow;
+      html.style.height = prev.htmlHeight;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.height = prev.bodyHeight;
+    };
+  });
+
   onMount(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get('just-completed') === '1' && isCompleted && !hasNotes) {
@@ -910,7 +938,16 @@
 
   {#if trip?._image}
     <div class="hero">
-      <img src={trip._image.large || trip._image.medium} alt={trip.title || ''} />
+      <img
+        src={trip._image.large2x || trip._image.large || trip._image.medium}
+        srcset={[
+          trip._image.medium && `${trip._image.medium} 350w`,
+          trip._image.large && `${trip._image.large} 940w`,
+          trip._image.large2x && `${trip._image.large2x} 1880w`,
+        ].filter(Boolean).join(', ')}
+        sizes="100vw"
+        alt={trip.title || ''}
+      />
       {#if trip.vibe}<span class="vibe">{trip.vibe}</span>{/if}
     </div>
   {/if}
@@ -1172,9 +1209,6 @@
 </div>
 
 <style>
-  /* Reset app-shell rules leaked from the home page's :global(html, body) */
-  :global(html, body) { height: auto; overflow: auto; }
-
   .page {
     min-height: 100vh;
     background: var(--surface-page);
@@ -1244,6 +1278,22 @@
     border: 1px solid color-mix(in oklab, var(--bone-50) 22%, transparent);
     border-radius: 3px;
     color: var(--bone-200);
+  }
+
+  /* KebabMenu lives inside the forest-800 page header here, so its default
+     light-surface palette (warm-tan border + text-secondary dots) reads as
+     near-invisible. Override the trigger colors to bone-toned ones to match
+     the .back / .header-ask buttons in the same row. The dropdown panel
+     itself opens onto a normal surface and uses the component defaults. */
+  .page > header :global(.kebab-trigger) {
+    border-color: var(--forest-600);
+    color: var(--bone-200);
+  }
+  .page > header :global(.kebab-trigger:hover),
+  .page > header :global(.kebab-trigger[aria-expanded="true"]) {
+    background: var(--forest-700);
+    border-color: var(--forest-400);
+    color: var(--bone-50);
   }
 
   .back {
