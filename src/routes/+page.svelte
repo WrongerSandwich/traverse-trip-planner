@@ -931,9 +931,16 @@
   .page {
     height: 100vh;
     display: grid;
-    grid-template-rows: auto 1fr;
+    /* Three explicit tracks: optional banner (row 1), header (row 2), main layout (row 3 = 1fr).
+       The banner is conditionally rendered, but we still pin every in-flow child to its row so
+       toggling the banner doesn't shift the 1fr track onto a different child. Track 1 collapses
+       to 0 when the banner isn't present. */
+    grid-template-rows: auto auto 1fr;
     overflow: hidden;
   }
+  .page > .pexels-banner { grid-row: 1; }
+  .page > header { grid-row: 2; }
+  .page > .layout { grid-row: 3; }
 
   header {
     background: var(--forest-800);
