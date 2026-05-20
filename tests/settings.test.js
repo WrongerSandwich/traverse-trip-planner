@@ -139,37 +139,98 @@ describe('settingsToEnv', () => {
 // ── redactSettings ────────────────────────────────────────────────────────────
 
 describe('redactSettings', () => {
-  it('includes isSet:true and preview for a stored key', () => {
-    const view = redactSettings({ keys: { anthropic: 'sk-ant-api03-ABCDEFG1234' } });
+  it('marks a settings.json-only key with source:settings and no envShadowed', () => {
+    const view = redactSettings(
+      { keys: { anthropic: 'sk-ant-api03-ABCDEFG1234' } },
+      {} // empty env
+    );
     expect(view.keys.anthropic.isSet).toBe(true);
-    expect(typeof view.keys.anthropic.preview).toBe('string');
+    expect(view.keys.anthropic.source).toBe('settings');
     expect(view.keys.anthropic.preview).toContain('…');
+    expect(view.keys.anthropic.envShadowed).toBe(null);
   });
 
-  it('includes isSet:false and empty preview for a missing key', () => {
-    const view = redactSettings({});
+  it('marks an env-only key with source:env', () => {
+    const view = redactSettings(
+      {},
+      { ANTHROPIC_API_KEY: 'sk-ant-api03-FROMENVXYZ' }
+    );
+    expect(view.keys.anthropic.isSet).toBe(true);
+    expect(view.keys.anthropic.source).toBe('env');
+    expect(view.keys.anthropic.preview).toContain('…');
+    expect(view.keys.anthropic.envShadowed).toBe(null);
+  });
+
+  it('marks settings as overriding when both .env and settings differ', () => {
+    const view = redactSettings(
+      { keys: { anthropic: 'sk-ant-api03-FROMSETTINGSXX' } },
+      { ANTHROPIC_API_KEY: 'sk-ant-api03-FROMENVAAAA' }
+    );
+    expect(view.keys.anthropic.source).toBe('settings');
+    expect(view.keys.anthropic.preview).toContain('GSXX'); // last 4 of settings value
+    expect(view.keys.anthropic.envShadowed).not.toBe(null);
+    expect(view.keys.anthropic.envShadowed.preview).toContain('AAAA');
+  });
+
+  it('does not flag envShadowed when settings and env values match', () => {
+    const sameValue = 'sk-ant-api03-IDENTICAL12';
+    const view = redactSettings(
+      { keys: { anthropic: sameValue } },
+      { ANTHROPIC_API_KEY: sameValue }
+    );
+    expect(view.keys.anthropic.source).toBe('settings');
+    expect(view.keys.anthropic.envShadowed).toBe(null);
+  });
+
+  it('marks an unset key with source:unset and empty preview', () => {
+    const view = redactSettings({}, {});
     for (const p of SUPPORTED_PROVIDERS) {
       expect(view.keys[p].isSet).toBe(false);
+      expect(view.keys[p].source).toBe('unset');
       expect(view.keys[p].preview).toBe('');
+      expect(view.keys[p].envShadowed).toBe(null);
     }
   });
 
+  it('applies the same source logic to service keys', () => {
+    const view = redactSettings(
+      { services: { pexels: 'pex-FROM-SETTINGS-1' } },
+      { PEXELS_API_KEY: 'pex-FROM-ENV-AAAA' }
+    );
+    expect(view.services.pexels.source).toBe('settings');
+    expect(view.services.pexels.envShadowed).not.toBe(null);
+    expect(view.services.tavily.source).toBe('unset');
+    expect(view.services.stadia.source).toBe('unset');
+  });
+
+  it('treats whitespace-only env values as unset', () => {
+    const view = redactSettings({}, { ANTHROPIC_API_KEY: '   ' });
+    expect(view.keys.anthropic.source).toBe('unset');
+  });
+
   it('passes slot values through unchanged', () => {
-    const view = redactSettings({
-      slots: { default: { provider: 'openai', model: 'gpt-4o' } },
-    });
+    const view = redactSettings(
+      { slots: { default: { provider: 'openai', model: 'gpt-4o' } } },
+      {}
+    );
     expect(view.slots.default).toEqual({ provider: 'openai', model: 'gpt-4o' });
   });
 
   it('returns null slots when not set', () => {
-    const view = redactSettings({});
+    const view = redactSettings({}, {});
     expect(view.slots.default).toBe(null);
     expect(view.slots.research).toBe(null);
   });
 
   it('never exposes the raw key value', () => {
     const rawKey = 'sk-ant-api03-SUPERSECRETVALUE';
-    const view = redactSettings({ keys: { anthropic: rawKey } });
+    const view = redactSettings({ keys: { anthropic: rawKey } }, {});
+    expect(JSON.stringify(view)).not.toContain(rawKey);
+  });
+
+  it('never exposes a raw env-only key value', () => {
+    const rawKey = 'sk-ant-api03-ENVSECRETVALUE';
+    const view = redactSettings({}, { ANTHROPIC_API_KEY: rawKey });
     expect(JSON.stringify(view)).not.toContain(rawKey);
   });
 });
