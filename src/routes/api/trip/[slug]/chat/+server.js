@@ -8,6 +8,7 @@ import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.j
 import { TraverseError, AdapterError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
+import { isAbort } from '$lib/utils/abort.js';
 
 // Cap on conversation length passed to the model — prevents a chatty client
 // from saturating the context window (and the bill) with a 1000-message thread.
@@ -116,7 +117,18 @@ Your output format:
       maxTokens: MAX_TOKENS.chat,
       system,
       messages: apiMessages,
+      // Thread the client's abort signal so the Cancel affordance in the UI
+      // actually aborts the model call — without this, clicking Cancel only
+      // hides the spinner while the server happily writes the section file.
+      signal: event.request.signal,
     });
+
+    // The client disconnected before the model finished. No write happens
+    // because the mtime guard below is unreached; return a quiet 499-style
+    // payload (the client won't render anything from it).
+    if (event.request.signal?.aborted) {
+      return json({ error: 'cancelled' }, { status: 499 });
+    }
 
     if (!text || !text.trim()) {
       return json({ error: 'empty_model_output' }, { status: 502 });
@@ -156,6 +168,9 @@ Your output format:
 
     return json({ reply, updates, usage, tokens: usageToTokens(usage) });
   } catch (err) {
+    if (isAbort(err)) {
+      return json({ error: 'cancelled' }, { status: 499 });
+    }
     if (err instanceof TraverseError) {
       return json({ error: err.code }, { status: 502 });
     }

@@ -313,6 +313,10 @@
   let chatErrorCode = $state(null);    // TraverseError code string | null
   let chatErrorContext = $state(null); // interpolation context | null
   let lastChatInput = $state('');      // preserved for retry
+  /** AbortController for the in-flight chat fetch — null when idle. Allows
+   *  Cancel to abort the request mid-flight so a long model turn doesn't
+   *  silently land a write the user changed their mind about. */
+  let chatAbort = $state(/** @type {AbortController | null} */ (null));
 
   const chatStorageKey = $derived(trip?._slug ? `traverse-chat-${trip._slug}` : null);
 
@@ -352,6 +356,8 @@
       chatInput = '';
     }
 
+    const controller = new AbortController();
+    chatAbort = controller;
     try {
       const res = await fetch(
         `/api/trip/${encodeURIComponent(trip._slug)}/chat`,
@@ -359,14 +365,29 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: chatMessages }),
+          signal: controller.signal,
         }
       );
       const data = await res.json();
+      // 499 (or any response with error: 'cancelled') = user-initiated cancel
+      // landed at the server before the model finished writing. No-op locally.
+      if (res.status === 499 || data?.error === 'cancelled') {
+        return;
+      }
       if (!res.ok) {
         chatErrorCode = data.error ?? 'network_error';
         chatErrorContext = data.context ?? null;
         return;
       }
+      // Capture pre-turn snapshots BEFORE applying updates, so Revert can put
+      // the section back the way it was. Stored on the assistant message and
+      // persisted via the chatMessages localStorage blob (same per-browser
+      // scope as the chat history itself).
+      const snapshots = {};
+      for (const section of Object.keys(data.updates || {})) {
+        snapshots[section] = sections[section] ?? '';
+      }
+
       chatMessages = [
         ...chatMessages,
         {
@@ -375,6 +396,9 @@
           updated: Object.keys(data.updates || {}),
           usage: data.usage,
           tokens: data.tokens ?? 0,
+          turnAt: Date.now(),
+          snapshots,
+          reverted: {},
         },
       ];
       // Apply any updates the model wrote to disk
@@ -391,10 +415,23 @@
         // reflects any frontmatter changes the model wrote (e.g. updated overview).
         await invalidateAll();
       }
-    } catch {
+    } catch (err) {
+      // User-initiated abort via cancelChat() — silent.
+      if (err?.name === 'AbortError') return;
       chatErrorCode = 'network_error';
     } finally {
       chatBusy = false;
+      chatAbort = null;
+    }
+  }
+
+  function cancelChat() {
+    if (!chatAbort) return;
+    chatAbort.abort();
+    // Drop the optimistic user message we appended at send-time so the log
+    // doesn't show a question that never got an answer.
+    if (chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === 'user') {
+      chatMessages = chatMessages.slice(0, -1);
     }
   }
 
@@ -402,6 +439,76 @@
     chatErrorCode = null;
     chatErrorContext = null;
     sendChat(lastChatInput);
+  }
+
+  // ── Diff / revert affordance ──────────────────────────────────────────────
+  // Per-section expand state keyed by `{turnAt}:{section}` so each assistant
+  // turn's rows expand/collapse independently. Not persisted — opens collapsed
+  // every time the chat reloads.
+  let expandedRows = $state(/** @type {Record<string, boolean>} */ ({}));
+  // Per-section revert confirm state, same keying.
+  let pendingRevert = $state(/** @type {Record<string, boolean>} */ ({}));
+  // Per-section revert error state, same keying.
+  let revertErrors = $state(/** @type {Record<string, string>} */ ({}));
+
+  function rowKey(turnAt, section) { return `${turnAt}:${section}`; }
+
+  function fmtAgo(ms) {
+    if (ms < 0) ms = 0;
+    const s = Math.floor(ms / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s} seconds ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
+    const h = Math.floor(m / 60);
+    return `${h} hour${h === 1 ? '' : 's'} ago`;
+  }
+
+  // True when a later assistant turn also wrote to this section — the
+  // snapshot's content predates the current on-disk version by more than
+  // one turn, so reverting would undo intermediate edits too.
+  function isSnapshotOutOfDate(msgIndex, section) {
+    for (let i = msgIndex + 1; i < chatMessages.length; i++) {
+      const m = chatMessages[i];
+      if (m.role !== 'assistant') continue;
+      if (Array.isArray(m.updated) && m.updated.includes(section)) return true;
+    }
+    return false;
+  }
+
+  async function revertSection(msgIndex, section) {
+    const msg = chatMessages[msgIndex];
+    if (!msg || !msg.snapshots || msg.reverted?.[section]) return;
+    const snapshot = msg.snapshots[section];
+    if (typeof snapshot !== 'string') return;
+    const key = rowKey(msg.turnAt, section);
+    revertErrors[key] = '';
+    try {
+      const res = await fetch(
+        `/api/trip/${encodeURIComponent(trip._slug)}/${encodeURIComponent(section)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: snapshot }),
+        }
+      );
+      if (!res.ok) {
+        revertErrors[key] = failureSentence('revert_failed');
+        return;
+      }
+      // Mark reverted in the chat log + reflect locally so the page doesn't
+      // wait for invalidateAll() to update.
+      const reverted = { ...(msg.reverted ?? {}), [section]: true };
+      chatMessages = chatMessages.map((m, i) =>
+        i === msgIndex ? { ...m, reverted } : m
+      );
+      sections[section] = snapshot;
+      pendingRevert[key] = false;
+      expandedRows[key] = false;
+      await invalidateAll();
+    } catch {
+      revertErrors[key] = failureSentence('revert_failed');
+    }
   }
 
   function dismissChatError() {
@@ -828,7 +935,7 @@
       {/if}
 
       {#each canonicalSections as section}
-        <section class="section">
+        <section class="section" id="section-{section}">
           <header class="section-header">
             <h2>{SECTION_LABELS[section] || section}</h2>
             {#if isPlanning && sections[section] !== undefined && !editing[section]}
@@ -906,16 +1013,12 @@
     </main>
   </div>
 
-  {#if isPlanning && data.features?.chat && data.features?.homeMdReady !== false}
-    <button class="chat-fab" class:open={chatOpen} onclick={() => chatOpen = !chatOpen} aria-label="Ask {data.assistantName}">
-      {#if chatOpen}
-        ✕
-      {:else}
-        <svg class="fab-icon" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M8 1.2L9.4 5.6 14 7l-4.6 1.4L8 12.8 6.6 8.4 2 7l4.6-1.4z M13 11l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor"/>
-        </svg>
-        Ask {data.assistantName}
-      {/if}
+  {#if isPlanning && data.features?.chat && data.features?.homeMdReady !== false && !chatOpen}
+    <button class="chat-fab" onclick={() => (chatOpen = true)} aria-label="Ask {data.assistantName}">
+      <svg class="fab-icon" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 1.2L9.4 5.6 14 7l-4.6 1.4L8 12.8 6.6 8.4 2 7l4.6-1.4z M13 11l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor"/>
+      </svg>
+      Ask {data.assistantName}
     </button>
   {/if}
 
@@ -965,7 +1068,7 @@
     use:swipeClose={() => chatOpen = false}
     use:focusTrap={{ enabled: chatOpen, onEscape: () => chatOpen = false }}>
     <header class="chat-header">
-      <span>Ask {data.assistantName} about this trip</span>
+      <span class="chat-header-name">{data.assistantName}</span>
       <div class="chat-header-actions">
         {#if chatMessages.length > 0}
           <button class="chat-clear" onclick={clearChat} disabled={chatBusy} title="Clear conversation history">Clear</button>
@@ -988,20 +1091,76 @@
               <li>"Trim the route down to one direct option."</li>
               <li>"Suggest a vegetarian-friendly dinner spot in Atchison."</li>
             </ul>
-            <p class="hint">I can edit your section files directly. Changes apply on save.</p>
+            <dl class="chat-contract">
+              <dt>I can</dt>
+              <dd>Rewrite your route, stops, logistics, and overview prose. Each reply lists what changed with a Preview / Revert per section.</dd>
+              <dt>I won't</dt>
+              <dd>Touch frontmatter (dates, lodging, cost, waypoints). Use a section's Edit button for those.</dd>
+            </dl>
           </div>
         </div>
       {:else}
-        {#each chatMessages as m}
+        {#each chatMessages as m, msgIndex}
           <div class="msg" class:user={m.role === 'user'} class:assistant={m.role === 'assistant'}>
             <div class="msg-body">{m.content}</div>
             {#if m.updated && m.updated.length > 0}
-              <div class="msg-updates">
-                Updated: {m.updated.map(s => SECTION_LABELS[s] || s).join(', ')}
-              </div>
-            {/if}
-            {#if m.tokens}
-              <div class="msg-tokens">{formatTokens(m.tokens)}</div>
+              <ul class="change-rows" aria-label="Changes from this turn">
+                {#each m.updated as section}
+                  {@const key = rowKey(m.turnAt, section)}
+                  {@const isReverted = m.reverted?.[section]}
+                  {@const outOfDate = isSnapshotOutOfDate(msgIndex, section)}
+                  {@const newContent = sections[section] ?? ''}
+                  <li class="change-row" class:reverted={isReverted}>
+                    <div class="change-row-head">
+                      <span class="change-row-label">
+                        {SECTION_LABELS[section] || section}
+                        {#if isReverted}<span class="change-row-state">— reverted</span>{/if}
+                        {#if outOfDate && !isReverted}<span class="change-row-state out-of-date" title="A later turn also edited this section; reverting would undo those changes too.">(out of date)</span>{/if}
+                      </span>
+                      <div class="change-row-actions">
+                        {#if !isReverted}
+                          <button
+                            type="button"
+                            class="change-row-toggle"
+                            onclick={() => (expandedRows[key] = !expandedRows[key])}
+                            aria-expanded={!!expandedRows[key]}
+                          >{expandedRows[key] ? 'Hide' : 'Preview'}</button>
+                          <button
+                            type="button"
+                            class="change-row-revert"
+                            onclick={() => (pendingRevert[key] = true)}
+                          >Revert</button>
+                        {/if}
+                      </div>
+                    </div>
+                    {#if expandedRows[key] && !isReverted}
+                      <pre class="change-row-preview">{newContent}</pre>
+                      <button
+                        type="button"
+                        class="change-row-fullview"
+                        onclick={() => {
+                          chatOpen = false;
+                          setTimeout(() => {
+                            document.getElementById(`section-${section}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }, 240);
+                        }}
+                      >Show full section in page ↗</button>
+                    {/if}
+                    {#if pendingRevert[key] && !isReverted}
+                      <div class="change-row-confirm" role="alert">
+                        <span>Revert? This puts {SECTION_LABELS[section] || section} back the way it was {fmtAgo(Date.now() - m.turnAt)}.</span>
+                        <div class="change-row-confirm-actions">
+                          <button type="button" class="change-row-confirm-yes" onclick={() => revertSection(msgIndex, section)}>Revert</button>
+                          <button type="button" class="change-row-confirm-no" onclick={() => (pendingRevert[key] = false)}>Cancel</button>
+                        </div>
+                      </div>
+                    {/if}
+                    {#if revertErrors[key]}
+                      <div class="change-row-error" role="alert">{revertErrors[key]}</div>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
             {/if}
           </div>
         {/each}
@@ -1024,21 +1183,26 @@
         rows="2"
         disabled={chatBusy || deepenSectionRunning}
       ></textarea>
-      <PromiseTooltip promise={CHAT_PROMISE}>
+      {#if chatBusy}
         <button
-          type="submit"
-          class="send-btn"
-          class:busy={chatBusy}
-          disabled={chatBusy || deepenSectionRunning || !chatInput.trim()}
-          aria-label={chatBusy ? 'Sending…' : 'Send message'}
+          type="button"
+          class="cancel-btn"
+          onclick={cancelChat}
+          aria-label="Cancel Field guide request"
         >
-          {#if chatBusy}
-            <span class="spinner" aria-hidden="true"></span>
-          {:else}
-            Send
-          {/if}
+          <span class="spinner" aria-hidden="true"></span>
+          Cancel
         </button>
-      </PromiseTooltip>
+      {:else}
+        <PromiseTooltip promise={CHAT_PROMISE}>
+          <button
+            type="submit"
+            class="send-btn"
+            disabled={deepenSectionRunning || !chatInput.trim()}
+            aria-label="Send message"
+          >Send</button>
+        </PromiseTooltip>
+      {/if}
     </form>
     {#if chatErrorCode}
       <div class="chat-error" role="alert">
@@ -1413,17 +1577,23 @@
     gap: 0.45rem;
   }
   .chat-fab:hover { transform: translateY(-1px); box-shadow: 0 9px 22px rgba(0, 0, 0, 0.22); }
-  .chat-fab.open { background: var(--forest-900); }
   .fab-icon { display: block; }
 
+  /* Backdrop covers the map and route on small screens where the chat is
+     full-width anyway, but on desktop the panel only occupies the right edge
+     and the user needs to *see* the map/route they're asking Field guide to
+     change. Hide the backdrop above 768px. */
   .chat-backdrop {
     position: fixed; inset: 0;
-    background: rgba(20, 20, 20, 0.4);
+    background: rgba(0, 0, 0, 0.45);
     z-index: 902;
     opacity: 0; pointer-events: none;
     transition: opacity 0.25s;
   }
   .chat-backdrop.open { opacity: 1; pointer-events: auto; }
+  @media (min-width: 769px) {
+    .chat-backdrop, .chat-backdrop.open { display: none; }
+  }
 
   .chat {
     position: fixed;
@@ -1449,19 +1619,47 @@
     font-size: 0.85rem;
     font-weight: 700;
   }
+  /* Italic serif name matches the assistant-card "Field guide says…" voice,
+     giving the panel an identity beat instead of an imperative restatement
+     of the FAB label. */
+  .chat-header-name {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 1.05rem;
+    color: var(--bone-50);
+    letter-spacing: 0.01em;
+  }
   .chat-header-actions { display: flex; align-items: center; gap: 0.4rem; }
   .chat-close {
     background: none; border: none; color: var(--bone-400);
     cursor: pointer; font-size: 1rem; line-height: 1;
     padding: 0.2rem 0.35rem; border-radius: 3px;
+    transition: background 0.1s, color 0.1s;
   }
-  .chat-close:hover { color: var(--bone-200); background: rgba(255, 255, 255, 0.08); }
+  .chat-close:hover {
+    color: var(--bone-50);
+    background: color-mix(in oklab, var(--bone-50) 12%, transparent);
+  }
+  /* Sentence-case "Clear" instead of uppercase caps — caps voice belongs to
+     labels (.stage-pill etc.), not verbs. Matches .chat-close's register. */
   .chat-clear {
-    background: none; border: 1px solid rgba(255, 255, 255, 0.18); color: var(--bone-400);
-    cursor: pointer; font-size: 0.7rem; font-weight: 500; line-height: 1;
-    padding: 0.3rem 0.55rem; border-radius: 3px; letter-spacing: 0.04em; text-transform: uppercase;
+    background: none;
+    border: 1px solid color-mix(in oklab, var(--bone-50) 22%, transparent);
+    color: var(--bone-400);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.3rem 0.6rem;
+    border-radius: 3px;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
   }
-  .chat-clear:hover:not(:disabled) { color: var(--bone-200); background: rgba(255, 255, 255, 0.08); }
+  .chat-clear:hover:not(:disabled) {
+    color: var(--bone-50);
+    background: color-mix(in oklab, var(--bone-50) 10%, transparent);
+    border-color: color-mix(in oklab, var(--bone-50) 35%, transparent);
+  }
   .chat-clear:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .chat-log {
@@ -1474,12 +1672,36 @@
   }
 
   .chat-empty .assistant-card__body p { margin: 0 0 0.5rem; }
-  .chat-empty .assistant-card__body ul { margin: 0.4rem 0 0.5rem 1.2rem; padding: 0; }
+  .chat-empty .assistant-card__body ul { margin: 0.4rem 0 0.75rem 1.2rem; padding: 0; }
   .chat-empty .assistant-card__body li { margin-bottom: 0.25rem; }
-  .chat-empty .assistant-card__body .hint {
-    color: var(--text-tertiary);
+
+  /* "What I do / what I won't" contract — promoted from the buried .hint
+     to equal weight with the examples. This is the only place the user
+     learns Field guide writes to disk, so it deserves the room. */
+  .chat-contract {
+    margin: 0.6rem 0 0;
+    padding: 0.55rem 0.7rem;
+    background: var(--surface-page);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.6rem;
+    row-gap: 0.35rem;
     font-size: 0.78rem;
-    margin-top: 0.5rem;
+    line-height: 1.45;
+  }
+  .chat-contract dt {
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.66rem;
+    padding-top: 0.15rem;
+  }
+  .chat-contract dd {
+    margin: 0;
+    color: var(--text-primary);
   }
 
   .msg {
@@ -1502,13 +1724,129 @@
     color: var(--text-primary);
     border-bottom-left-radius: 2px;
   }
-  .msg-updates {
+  /* ── Per-section change rows (Preview / Revert) ───────────────────────── */
+  .change-rows {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .change-row {
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    background: var(--surface-page);
+    padding: 0.4rem 0.55rem;
+  }
+  .change-row.reverted {
+    opacity: 0.6;
+  }
+  .change-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .change-row-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .change-row.reverted .change-row-label { text-decoration: line-through; }
+  .change-row-state {
+    font-weight: 500;
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
+    margin-left: 0.25rem;
+    text-decoration: none;
+  }
+  .change-row-state.out-of-date { color: var(--state-warning); }
+  .change-row-actions {
+    display: inline-flex;
+    gap: 0.3rem;
+  }
+  .change-row-toggle,
+  .change-row-revert,
+  .change-row-fullview {
+    background: none;
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.22rem 0.5rem;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+  }
+  .change-row-toggle:hover,
+  .change-row-fullview:hover {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+  .change-row-revert:hover {
+    background: var(--state-danger-surface);
+    border-color: var(--state-danger);
+    color: var(--state-danger);
+  }
+  .change-row-fullview {
+    margin-top: 0.35rem;
+    display: inline-block;
+  }
+  .change-row-preview {
+    margin: 0.4rem 0 0;
+    max-height: 12em;
+    overflow-y: auto;
+    padding: 0.5rem 0.6rem;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .change-row-confirm {
     margin-top: 0.4rem;
+    padding: 0.4rem 0.5rem;
+    background: var(--state-warning-surface);
+    border-radius: 3px;
+    font-size: 0.74rem;
+    line-height: 1.4;
+    color: var(--state-warning);
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .change-row-confirm-actions {
+    display: flex;
+    gap: 0.35rem;
+  }
+  .change-row-confirm-yes,
+  .change-row-confirm-no {
+    background: var(--surface-page);
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
     font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--planning-text);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-weight: 600;
+    padding: 0.22rem 0.55rem;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .change-row-confirm-yes {
+    color: var(--state-danger);
+    border-color: var(--state-danger);
+  }
+  .change-row-confirm-yes:hover { background: var(--state-danger-surface); }
+  .change-row-confirm-no:hover  { background: var(--surface-raised); color: var(--text-primary); }
+  .change-row-error {
+    margin-top: 0.35rem;
+    font-size: 0.72rem;
+    color: var(--state-danger);
   }
   /* Opacity-pulse instead of the previous translateY hop; the bounce read
      as a dated chat-bubble loader. Staggered phases preserve the
@@ -1572,26 +1910,56 @@
     white-space: nowrap;
   }
   .chat-input .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  /* Busy variant uses the spinner only; min-width keeps the button from
-     collapsing so the input row doesn't visually jump on send. */
-  .chat-input .send-btn.busy { padding: 0.5rem; }
+
+  /* Cancel replaces Send while a turn is in flight. Embers tone so it reads
+     as an interrupt, not a primary action. Matches the .send-btn footprint
+     (same min-width / padding) so the input row doesn't jump. */
+  .chat-input .cancel-btn {
+    background: var(--surface-page);
+    color: var(--state-danger);
+    border: 1px solid var(--state-danger);
+    min-width: 4rem;
+    padding: 0.5rem 0.95rem;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.38rem;
+    white-space: nowrap;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .chat-input .cancel-btn:hover {
+    background: var(--state-danger-surface);
+  }
+  .chat-input .cancel-btn .spinner {
+    border-color: color-mix(in oklab, var(--state-danger) 35%, transparent);
+    border-top-color: var(--state-danger);
+  }
 
   /* Spinner inside the send button — matches InstantInlineStatus.svelte's .spinner */
   @keyframes chat-spin { to { transform: rotate(360deg); } }
   .chat-input .spinner {
     width: 11px; height: 11px;
-    border: 1.5px solid rgba(255, 255, 255, 0.35);
-    border-top-color: #fff;
+    border: 1.5px solid color-mix(in oklab, var(--bone-50) 35%, transparent);
+    border-top-color: var(--bone-50);
     border-radius: 50%;
     animation: chat-spin 0.8s linear infinite;
     flex-shrink: 0;
   }
 
   /* Inline error envelope below the chat input area */
+  /* Transient retryable failures get the warmer warning surface, matching
+     .chat-blocked (which protects a more serious case). The fire-engine-red
+     embers-600 top border was overshooting the severity for what's usually
+     a network blip. */
   .chat-error {
     padding: 0.6rem 0.9rem 0.7rem;
-    background: var(--sunset-50, #fff5f0);
-    border-top: 1px solid var(--embers-600);
+    background: var(--state-warning-surface);
+    border-top: 1px solid color-mix(in oklab, var(--state-warning) 40%, transparent);
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
@@ -1599,16 +1967,8 @@
   .chat-error-sentence {
     margin: 0;
     font-size: 0.78rem;
-    color: var(--text-primary);
+    color: var(--state-warning);
     line-height: 1.4;
-  }
-
-  /* Per-turn token count — subtle dim text below assistant message */
-  .msg-tokens {
-    margin-top: 0.3rem;
-    font-size: 0.68rem;
-    color: var(--text-tertiary);
-    font-variant-numeric: tabular-nums;
   }
 
   /* ── Itinerary view ── */
@@ -1727,5 +2087,15 @@
     .section { padding: 1rem 1.1rem 1.2rem; }
     .chat { width: 100vw; }
     .chat-fab { bottom: 1rem; right: 1rem; padding: 0.75rem 1rem; }
+  }
+
+  /* PRODUCT.md #6 calls for prefers-reduced-motion on the map animations;
+     the chat panel inherits the same obligation — the slide-in and the
+     typing-dots pulse both need to settle without motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .chat,
+    .chat-backdrop { transition: none; }
+    .typing span { animation: none; opacity: 1; }
+    .chat-input .spinner { animation: none; }
   }
 </style>

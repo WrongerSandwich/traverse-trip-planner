@@ -113,6 +113,10 @@ export const ERROR_REGISTRY = {
     sentence: "Couldn't save the cover photo. Try again.",
     affordances: ['retry', 'dismiss'],
   },
+  revert_failed: {
+    sentence: "Couldn't revert this section. The current content is still on disk; try again.",
+    affordances: ['retry', 'dismiss'],
+  },
   rate_limited: {
     sentence: 'Too many requests. Try again in {retryAfterSec} seconds.',
     affordances: ['retry', 'dismiss'],
