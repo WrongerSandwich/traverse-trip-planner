@@ -720,7 +720,16 @@
     </div>
     {#if tripJobs.length > 0}
       <div class="header-job-badge">
-        <TripJobBadge jobs={tripJobs} />
+        <TripJobBadge
+          jobs={tripJobs}
+          oncancel={(workflow, slug) => {
+            // Optimistic: drop the canceled job from allJobs immediately so the
+            // badge collapses without waiting for the 10s poll. The watcher
+            // effect (see prevJobKeys) then triggers invalidateAll() once the
+            // last job disappears, refreshing any partial section files.
+            allJobs = allJobs.filter(j => !(j.workflow === workflow && j.slug === slug));
+          }}
+        />
       </div>
     {/if}
     <KebabMenu groups={kebabGroups} />
