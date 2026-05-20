@@ -24,7 +24,7 @@ export const MAX_TOKENS = {
   seed: 3000,
   add: 600,
   deepen: 8000,
-  'deepen-section': 4000,
+  'deepen-section': 8000,
   'brochure-prepare': 4000,
   chat: 6000,
   'retro-questions': 600,

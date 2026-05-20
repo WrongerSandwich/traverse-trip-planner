@@ -174,9 +174,49 @@ ${guidance}
     },
   });
 
-  const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
-  const content = m?.[1]?.trim() ?? null;
-  if (!content) throw new TraverseError('no_section_content', `No ${section} content returned — try again.`);
+  // Prefer the well-formed <tag>...</tag> body. If the model produced an
+  // opening tag but never closed it (Anthropic's native web_search burns
+  // server-side reasoning tokens that count against max_tokens — see #log
+  // diagnostics in this handler), fall back to everything after the opening
+  // tag so a near-complete section isn't thrown away. Anything before the
+  // opening tag (model preamble like "I'll research…") is dropped either way.
+  const tagged = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+  let content = tagged?.[1]?.trim() ?? null;
+  let truncated = false;
+  if (!content) {
+    const openIdx = text.indexOf(`<${tag}>`);
+    if (openIdx !== -1) {
+      const after = text.slice(openIdx + `<${tag}>`.length).trim();
+      // Require some real content (a few hundred chars) before we accept a
+      // truncated response — short of that, it's not worth saving a stub.
+      if (after.length >= 300) {
+        content = after;
+        truncated = true;
+        console.warn(
+          `[deepen-section] ${slug}/${section}: saving truncated response (no </${tag}> tag).`
+        );
+      }
+    }
+  }
+  if (!content) {
+    const head = text.slice(0, 600);
+    const tail = text.length > 1200 ? text.slice(-600) : '';
+    const sawOpening = text.includes(`<${tag}>`);
+    const sawClosing = text.includes(`</${tag}>`);
+    console.error(
+      `[deepen-section] ${slug}/${section}: regex miss for <${tag}>...</${tag}>\n` +
+      `  usage input=${usage?.input ?? '?'} output=${usage?.output ?? '?'} turns=${usage?.turns ?? '?'} maxTokens=${MAX_TOKENS['deepen-section']}\n` +
+      `  text length=${text.length}, sawOpening=${sawOpening}, sawClosing=${sawClosing}\n` +
+      `  ── head ──\n${head}\n` +
+      (tail ? `  ── tail ──\n${tail}\n` : '') +
+      `  ── end ──`
+    );
+    throw new TraverseError('no_section_content', `No ${section} content returned — try again.`);
+  }
+
+  if (truncated) {
+    content += '\n\n<!-- traverse: model output was truncated; review and complete this section. -->';
+  }
 
   atomicWrite(sectionPath, content + '\n');
   invalidateEnrichCache();
