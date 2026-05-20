@@ -40,7 +40,6 @@ See **[DEPLOY.md](DEPLOY.md)** for full setup instructions, including provider s
 
 ```bash
 git clone <repo-url> traverse && cd traverse
-cp home.example.md home.md   # edit with your home city, vehicles, taste
 cp .env.example .env         # edit with your API keys
 npm install
 # npm run seed-sample        # optional: load the bundled demo dataset (skip for a clean first-run experience)
@@ -49,7 +48,7 @@ npm run build
 PORT=3456 node build/index.js
 ```
 
-Open `http://localhost:3456`.
+Open `http://localhost:3456` and follow the in-app onboarding to set up your home base.
 
 Prefer Docker? See [DEPLOY.md](DEPLOY.md#option-b--docker) for `docker compose up -d --build`.
 
@@ -66,7 +65,7 @@ archived/       # hidden from UI; excluded from re-suggestion
 
 These directories are **gitignored** — they hold your personal trips, not the project's source. A bundled demo dataset under `sample-data/` is available via `npm run seed-sample`; see [sample-data/README.md](sample-data/README.md) for details.
 
-Your personal preferences live in `home.md` (also gitignored — see `home.example.md`). This file drives all AI prompts: home location, vehicle specs, taste profile, seasonal constraints.
+Your personal preferences live in `home.md` (also gitignored). The in-app onboarding flow creates it on first run; from there, the Settings page lets you edit home location, vehicles, taste profile, and seasonal constraints. This file drives all AI prompts.
 
 ## Tech
 

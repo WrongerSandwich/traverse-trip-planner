@@ -384,7 +384,7 @@ function collectTrips() {
 export function readHomeMd() {
   const p = join(ROOT, 'home.md');
   if (!existsSync(p)) {
-    throw new Error('home.md not found — copy home.example.md to home.md and fill in your details.');
+    throw new Error('home.md not found — open the app and complete the onboarding wizard, or run the in-app Settings to create it.');
   }
   return readFileSync(p, 'utf8');
 }

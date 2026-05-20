@@ -7,12 +7,11 @@ Traverse is a personal road-trip filing cabinet that's also designed to be self-
 ```bash
 git clone <your-fork>
 cd traverse
-cp home.example.md home.md       # edit with your home city, vehicles, taste
 cp .env.example .env             # add at minimum ANTHROPIC_API_KEY (or OPENAI_API_KEY) + PEXELS_API_KEY
 npm install
 npm run seed-sample              # optional: load the bundled demo dataset (see sample-data/)
 npm run smoke                    # 1-token round-trip per provider — verifies your env
-npm run dev                      # http://localhost:3456
+npm run dev                      # http://localhost:3456 — onboarding wizard creates home.md on first run
 ```
 
 Trip data (`ideas/`, `planning/`, `completed/`, `archived/`) is gitignored — those directories hold your own trips, not project source. Use `npm run seed-sample` if you want a populated UI to develop against.

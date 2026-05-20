@@ -19,10 +19,9 @@ git clone <your-repo-url> traverse
 cd traverse
 
 # 2. Configure your preferences
-cp home.example.md home.md
 cp .env.example .env
-# Edit home.md — set your home city/coords, traveler name(s), vehicle(s), and taste profile.
 # Edit .env — paste your ANTHROPIC_API_KEY and PEXELS_API_KEY.
+# home.md is created by the in-app onboarding flow on first run; edit later via Settings.
 
 # 3. Initialize on-disk state files that Compose will bind-mount
 # (Docker would otherwise create these as directories on first run.)
@@ -75,7 +74,7 @@ The startup banner lists which providers are wired and which features are availa
 - **Geocode cache** (Nominatim) is in-memory and re-fetched on each restart. With ~30 trips at 1.1s each, warmup takes ~35s after restart. The app is functional immediately; the map markers fill in during warmup.
 - **Image + route caches** (`.image-cache.json`, `.route-cache.json`) are on disk and survive restarts.
 - **`.env` is gitignored** — never committed. Use `.env.example` as your template.
-- **`home.md` is gitignored** — your personal preferences stay local. Use `home.example.md` as your template.
+- **`home.md` is gitignored** — your personal preferences stay local. It's created by the in-app onboarding flow on first run, and editable later from the Settings page.
 - The `PEXELS_API_KEY` enables trip card photos. Without it, cards show a map thumbnail instead.
 - The `STADIA_API_KEY` (optional) replaces the brochure's destination-area illustrative paper map with a real Stadia "Outdoors" tile render (streets, parks, terrain shading visible). Without it, the destination map falls back to the state-outlines + rivers + place-labels illustration. Free tier: 200K static-map requests/month for non-commercial use. Sign up at [stadiamaps.com](https://stadiamaps.com) → Property → API key.
 
