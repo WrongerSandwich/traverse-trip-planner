@@ -3,8 +3,43 @@
   import MiniMap from './MiniMap.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { swipeClose } from '$lib/actions/swipeClose.js';
+  import { invalidateAll } from '$app/navigation';
+  import { failureSentence } from '$lib/errors-registry.js';
 
-  let { trip = null, onclose, starred = false, onbookmark, onarchive } = $props();
+  let {
+    trip = null,
+    onclose,
+    starred = false,
+    onbookmark,
+    onarchive,
+    pexelsConfigured = true,
+  } = $props();
+
+  let imageRetryStatus = $state('idle');
+  let imageRetryError = $state('');
+
+  async function retryImage() {
+    if (!trip?._slug || imageRetryStatus === 'in_progress') return;
+    imageRetryStatus = 'in_progress';
+    imageRetryError = '';
+    try {
+      const res = await fetch(`/api/trip/${encodeURIComponent(trip._slug)}/image/refresh`, {
+        method: 'POST',
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.image) {
+        await invalidateAll();
+        imageRetryStatus = 'idle';
+        return;
+      }
+      const code = body.code || (res.status === 503 ? 'image_search_unconfigured' : 'image_search_failed');
+      imageRetryError = failureSentence(code);
+      imageRetryStatus = 'failed';
+    } catch {
+      imageRetryError = failureSentence('image_search_failed');
+      imageRetryStatus = 'failed';
+    }
+  }
 
   // TODO: consider splitting enrichTrips() in data.js into geocode/image/calculation concerns
   const markerColor = tripColor;
@@ -105,6 +140,17 @@
         {#if trip?.vibe}<span class="fallback-vibe">{trip.vibe}</span>{/if}
         <h2>{trip?.title || trip?._slug || ''}</h2>
         {#if trip?.destination}<div class="fallback-dest">{trip.destination}</div>{/if}
+        {#if pexelsConfigured}
+          <button
+            class="image-retry"
+            onclick={retryImage}
+            disabled={imageRetryStatus === 'in_progress'}>
+            {imageRetryStatus === 'in_progress' ? 'Fetching…' : 'Try fetching image'}
+          </button>
+          {#if imageRetryStatus === 'failed' && imageRetryError}
+            <div class="image-retry-error" role="alert">{imageRetryError}</div>
+          {/if}
+        {/if}
       </div>
       <button class="close fallback" onclick={onclose} aria-label="Close">✕</button>
     </div>
@@ -311,6 +357,28 @@
     font-size: 0.78rem;
     color: color-mix(in oklab, var(--text-inverse) 75%, transparent);
     margin-top: 0.3rem;
+  }
+  .image-retry {
+    margin-top: 0.75rem;
+    background: color-mix(in oklab, var(--text-inverse) 12%, transparent);
+    color: var(--text-inverse);
+    border: 1px solid color-mix(in oklab, var(--text-inverse) 25%, transparent);
+    border-radius: 4px;
+    padding: 0.32rem 0.7rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .image-retry:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--text-inverse) 20%, transparent);
+    border-color: color-mix(in oklab, var(--text-inverse) 40%, transparent);
+  }
+  .image-retry:disabled { cursor: progress; opacity: 0.7; }
+  .image-retry-error {
+    margin-top: 0.4rem;
+    font-size: 0.72rem;
+    color: color-mix(in oklab, var(--text-inverse) 80%, transparent);
   }
 
   /* ── Map ── */

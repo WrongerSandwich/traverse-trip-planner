@@ -129,6 +129,19 @@ export function writeImageCacheEntry(cache, query, value, now = Date.now()) {
   cache[query] = { value, fetchedAt: now };
 }
 
+/**
+ * Drop a single image-cache entry by query, so the next `fetchImage(query)`
+ * call re-hits Pexels instead of returning the cached value (including a
+ * cached null). Used by the "Try fetching image" retry on the detail panel.
+ */
+export function purgeImageCacheEntry(query) {
+  if (query in imageCache) {
+    delete imageCache[query];
+    imageDirty = true;
+    flushCaches();
+  }
+}
+
 // Whether Pexels search is available in this environment. The endpoint
 // distinguishes "search failed" (network/quota) from "search unconfigured"
 // (no API key) so the UI can render the right ERROR_REGISTRY sentence.

@@ -70,8 +70,12 @@
   let activeFilter = $state('all');
   // Sort
   let activeSort   = $state('date');
-  // Detail panel
-  let selectedTrip = $state(null);
+  // Detail panel — track slug so the panel re-renders with fresh trip data
+  // after invalidateAll() (e.g. image refetch) rebuilds data.trips.
+  let selectedSlug = $state(null);
+  const selectedTrip = $derived(
+    selectedSlug ? data.trips.find(t => t._slug === selectedSlug) ?? null : null
+  );
   let hoveredSlug  = $state(null);
   // Extended filters
   let filterOpen   = $state(false);
@@ -411,7 +415,7 @@
     try {
       const res = await fetch(`/api/archive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (!res.ok) throw new Error(`Archive failed: ${res.status}`);
-      selectedTrip = null;
+      selectedSlug = null;
       await invalidateAll();
     } catch (err) {
       console.error(err);
@@ -424,7 +428,7 @@
     if (stage === 'planning') {
       goto(`/trips/${encodeURIComponent(trip._slug)}`);
     } else {
-      selectedTrip = trip;
+      selectedSlug = trip._slug;
     }
   }
 
@@ -914,9 +918,10 @@
 <DetailPanel
   trip={selectedTrip}
   starred={selectedTrip ? isStarred(selectedTrip) : false}
+  pexelsConfigured={data.features?.pexelsConfigured !== false}
   onbookmark={(e) => selectedTrip && toggleBookmark(selectedTrip, e)}
   onarchive={(e) => selectedTrip && archiveTrip(selectedTrip, e)}
-  onclose={() => selectedTrip = null}
+  onclose={() => selectedSlug = null}
 />
 
 <ConfirmModal
