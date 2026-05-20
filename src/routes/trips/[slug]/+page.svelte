@@ -1209,14 +1209,25 @@
 </div>
 
 <style>
+  /* Grid (not flex column) so the sticky header has a clean containing
+     block. position: sticky on the first child of a `display: flex;
+     flex-direction: column` container with `min-height: 100vh` can fail
+     to engage in some browsers — the home page solved this same problem
+     with `display: grid; grid-template-rows: ...` and we follow suit.
+     Track 1 is the header (auto), track 2 is everything else (auto so it
+     sizes to content); the trailing `1fr` track makes .page fill the
+     viewport even when content is shorter than 100vh. */
   .page {
     min-height: 100vh;
     background: var(--surface-page);
     color: var(--text-primary);
     font-family: var(--font-sans);
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto auto 1fr;
   }
+  .page > header { grid-row: 1; }
+  .page > .hero { grid-row: 2; }
+  .page > .layout { grid-row: 3; }
 
   /* Sticky so the per-trip job badge, ⋯ menu, and back link stay reachable
      while scrolling through long sections — the global pill is suppressed
@@ -1374,7 +1385,7 @@
   }
 
   .layout {
-    flex: 1;
+    /* Grid row 3 with 1fr (see .page) fills remaining viewport height. */
     display: flex;
     justify-content: center;
     padding: 1.75rem 1.25rem 4rem;
