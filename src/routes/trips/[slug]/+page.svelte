@@ -1051,6 +1051,11 @@
     flex-direction: column;
   }
 
+  /* Sticky so the per-trip job badge, ⋯ menu, and back link stay reachable
+     while scrolling through long sections — the global pill is suppressed
+     for current-trip jobs (to avoid colliding with the chat FAB), so the
+     in-header badge needs to remain visible. z-index sits above body
+     content but below modals/confirms (which use 1000+). */
   .page > header {
     background: var(--forest-800);
     color: var(--bone-200);
@@ -1060,6 +1065,9 @@
     align-items: center;
     gap: 0.9rem;
     flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 50;
   }
 
   /* Per-trip job badge inside the page header. Sits between the meta block
