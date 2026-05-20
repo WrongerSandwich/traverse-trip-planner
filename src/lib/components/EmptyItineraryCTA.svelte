@@ -1,7 +1,6 @@
 <script>
   // EmptyItineraryCTA — shown in the itinerary slot when a planning trip has
-  // neither a brochure nor a legacy itinerary.md. This is the primary CTA in
-  // Read mode for trips with no itinerary content yet.
+  // neither a brochure nor a legacy itinerary.md.
   //
   // Props:
   //   onprepare — callback to trigger the Ambient Background prepare flow

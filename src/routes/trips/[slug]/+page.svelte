@@ -79,16 +79,12 @@
   // until saved — intentionally initial-only (don't re-sync on every load),
   // so untrack() to silence the "captures initial value" lint.
   let sections = $state(untrack(() => ({ ...data.files })));
-  // ── Read / Edit mode toggle ──
-  let editMode = $state(false);
 
   // Per-section UI state
   let editing = $state({});      // { route: true, ... }
   let drafts  = $state({});      // staging textareas while editing
   let saving  = $state({});
   let completing = $state(false);
-
-  const anySectionEditing = $derived(Object.values(editing).some(v => v));
 
   // True when any open draft differs from the saved section content.
   // Cancel explicitly resets the draft to the saved value before exiting,
@@ -173,10 +169,7 @@
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
 
   // Show the "Research this section →" button when the feature is enabled,
-  // the trip is in planning, and the section is a researchable type. Not
-  // gated to Edit mode: researching a section produces content; it isn't
-  // an authoring affordance, so a casual reader who notices an empty
-  // section should still have a path forward.
+  // the trip is in planning, and the section is a researchable type.
   const RESEARCHABLE = new Set(['route', 'stops', 'logistics']);
   const canResearchSection = $derived(
     stage === 'planning' &&
@@ -707,23 +700,12 @@
       {/if}
       {#if trip?._cost}<span class="cost">{trip._cost}</span>{/if}
     </div>
-    {#if isPlanning}
-      <button
-        class="edit-mode-toggle"
-        class:active={editMode}
-        onclick={() => { if (!anySectionEditing) editMode = !editMode; }}
-        title={anySectionEditing ? 'Finish editing the open section first.' : undefined}
-        aria-pressed={editMode}
-      >
-        {editMode ? '✓ Editing' : '✎ Edit'}
-      </button>
-    {/if}
-    <KebabMenu groups={kebabGroups} />
     {#if tripJobs.length > 0}
       <div class="header-job-badge">
         <TripJobBadge jobs={tripJobs} />
       </div>
     {/if}
+    <KebabMenu groups={kebabGroups} />
   </header>
 
   {#if trip?._image}
@@ -735,20 +717,7 @@
 
   <div class="layout">
     <main class="content">
-      {#if editMode}
-        <div class="editing-banner" role="status">
-          You're editing. Section actions and brochure controls are visible below.
-        </div>
-      {/if}
-
-      {#if isPlanning}
-        {#if !editMode}
-          <div class="callout">
-            <strong>Planning trip.</strong>
-            Click <em>Edit</em> to modify sections, or tap <em>Ask {data.assistantName}</em> for plain-English updates.
-          </div>
-        {/if}
-      {:else if isCompleted}
+      {#if isCompleted}
         <div class="callout completed-callout">
           <strong>Completed.</strong>
           This trip is done. All sections are preserved below.
@@ -784,7 +753,7 @@
           style="display:none"
           onchange={uploadReceipts}
         />
-      {:else}
+      {:else if !isPlanning}
         <div class="callout warn">
           <strong>Idea.</strong> Click <em>Research →</em> on the card to flesh this out into a planning trip with route, stops, and logistics.
         </div>
@@ -835,7 +804,7 @@
         <section class="section">
           <header class="section-header">
             <h2>{SECTION_LABELS[section] || section}</h2>
-            {#if editMode && isPlanning && sections[section] !== undefined && !editing[section]}
+            {#if isPlanning && sections[section] !== undefined && !editing[section]}
               <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
             {/if}
           </header>
@@ -1070,54 +1039,12 @@
     flex-wrap: wrap;
   }
 
-  /* Per-trip job badge inside the page header. Pushes to the right of the meta
-     block; wraps gracefully on small screens thanks to flex-wrap on the header. */
+  /* Per-trip job badge inside the page header. Sits between the meta block
+     (which carries margin-left: auto) and the ⋯ menu, so the running-job
+     indicator is inset rather than pinned to the right edge. */
   .header-job-badge {
-    margin-left: auto;
-  }
-
-  /* ── Read / Edit mode toggle ── */
-  .edit-mode-toggle {
-    background: none;
-    border: 1.5px solid var(--forest-600);
-    color: var(--bone-200);
-    padding: 0.45rem 0.85rem;
-    min-height: var(--tap-min);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-family: var(--font-sans);
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
-  }
-  .edit-mode-toggle:hover {
-    background: var(--forest-800);
-    border-color: var(--forest-400);
-    color: var(--bone-100);
-  }
-  /* Active state uses the project sunset palette (the amber tokens these
-     CSS lines previously referenced don't exist in app.css, so the page
-     was stuck on the hex fallbacks regardless of theme). */
-  .edit-mode-toggle.active {
-    background: var(--sunset-50);
-    border-color: var(--sunset-200);
-    color: var(--sunset-800);
-  }
-  .edit-mode-toggle.active:hover {
-    background: var(--sunset-100);
-    border-color: var(--sunset-400);
-    color: var(--sunset-900);
-  }
-
-  /* ── Editing banner ── */
-  .editing-banner {
-    padding: 0.55rem 0.95rem;
-    background: var(--sunset-50);
-    border: 1px solid var(--sunset-200);
-    border-radius: 4px;
-    font-size: 0.82rem;
-    color: var(--sunset-800);
-    line-height: 1.45;
+    display: inline-flex;
+    align-items: center;
   }
 
   .back {

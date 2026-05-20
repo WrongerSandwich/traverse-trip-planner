@@ -9,6 +9,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { afterNavigate, goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { failureSentence } from '$lib/errors-registry.js';
   import { createJobsClient, keyFor } from '$lib/utils/jobs-store.js';
 
@@ -76,10 +77,28 @@
   let mirror = $state(null);
   let nowTick = $state(Date.now()); // ticks every 1s for elapsed timers
 
+  // Slug of the trip the user is currently viewing (if any). When a running
+  // job belongs to this trip, the per-trip badge in the trip header already
+  // surfaces it — so we suppress that job from the global pill to avoid the
+  // pill overlapping page chrome (e.g. the Ask field guide button on the
+  // planning detail page). Drawer still lists every job.
+  const currentTripSlug = $derived.by(() => {
+    const m = page.url?.pathname?.match(/^\/trips\/([^/]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  });
+
+  const visibleRunningJobs = $derived(
+    mirror
+      ? (currentTripSlug
+          ? mirror.jobs.filter((j) => j.slug !== currentTripSlug)
+          : mirror.jobs)
+      : [],
+  );
+
   const pillState = $derived(
     mirror
-      ? mirror.jobs.length > 0
-        ? { variant: 'running', count: mirror.jobs.length }
+      ? visibleRunningJobs.length > 0
+        ? { variant: 'running', count: visibleRunningJobs.length }
         : (() => {
             const live = mirror.failures.filter(
               (f) => !mirror.dismissedKeys.has(keyFor(f.workflow, f.slug)),
