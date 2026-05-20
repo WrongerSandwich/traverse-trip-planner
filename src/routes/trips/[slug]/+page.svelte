@@ -196,6 +196,24 @@
     tripJobs.some(j => j.workflow?.startsWith('deepen-section:')),
   );
 
+  // Trigger invalidateAll() when a tripJobs entry disappears between polls —
+  // that means an Ambient Background job for this trip (deepen-section,
+  // brochure) finished or failed and its file was written. Without this the
+  // user has to manually refresh to see the new section content.
+  // The set comparison handles the multi-job case (one finishes while another
+  // is still running) without firing on job starts.
+  let prevJobKeys = new Set();
+  $effect(() => {
+    const currKeys = new Set(tripJobs.map(j => j.workflow));
+    for (const k of prevJobKeys) {
+      if (!currKeys.has(k)) {
+        invalidateAll();
+        break;
+      }
+    }
+    prevJobKeys = currKeys;
+  });
+
   let deepenSectionError = $state(/** @type {{code: string, ctx?: object}|null} */ (null));
 
   // Generic action-error banner for handlers that don't own a per-section
