@@ -1,5 +1,6 @@
 <script>
   import { onMount, untrack } from 'svelte';
+  import { invalidateAll } from '$app/navigation';
   import Logo from '$lib/components/Logo.svelte';
   import LocationPicker from '$lib/components/LocationPicker.svelte';
   import { getStoredTheme, setTheme } from '$lib/theme.js';
@@ -202,6 +203,10 @@
         if (updated.settingsView) {
           data = { ...data, settingsView: updated.settingsView };
         }
+        // Layout exposes data.features (incl. pexelsConfigured + per-feature
+        // gating). Refresh so any banners and disabled buttons on other pages
+        // reflect the new config without requiring a hard reload.
+        await invalidateAll();
       }
     } catch {
       saveError = failureSentence('network_error');
@@ -229,6 +234,7 @@
         if (updated.settingsView) {
           data = { ...data, settingsView: updated.settingsView };
         }
+        await invalidateAll();
       }
     } catch {
       saveError = failureSentence('network_error');
@@ -288,6 +294,7 @@
         if (updated.settingsView) {
           data = { ...data, settingsView: updated.settingsView };
         }
+        await invalidateAll();
       }
     } catch {
       saveError = failureSentence('network_error');
