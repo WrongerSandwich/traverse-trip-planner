@@ -35,11 +35,6 @@ vi.mock('$lib/server/brochure.js', () => ({
   readBrochure: vi.fn(() => null),
 }));
 
-// --- share mock ---
-vi.mock('$lib/server/share.js', () => ({
-  makeShareToken: vi.fn(() => null),
-}));
-
 // --- stadia mock ---
 vi.mock('$lib/server/stadia.js', () => ({
   stadiaStaticMapUrl: vi.fn(() => null),

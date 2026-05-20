@@ -2,8 +2,8 @@
 //
 // Returns a same-origin proxy URL (/api/stadia-map?...) — never the direct
 // Stadia URL with the embedded api_key, since that would leak the key to
-// anyone with view-source access, including public /share/<token>/brochure
-// recipients. See #265 and src/routes/api/stadia-map/+server.js.
+// anyone with view-source access on the brochure page. See #265 and
+// src/routes/api/stadia-map/+server.js.
 //
 // The proxy fetches the upstream image with the key injected server-side
 // and returns it with a long Cache-Control so repeated brochure loads hit

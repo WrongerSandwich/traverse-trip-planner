@@ -1,7 +1,6 @@
 import { join } from 'path';
 import { error } from '@sveltejs/kit';
 import { enrichTrips, getHome, getTripFiles, isBrochureStale, isValidSlug, ROOT } from '$lib/server/data.js';
-import { makeShareToken } from '$lib/server/share.js';
 import { readBrochure } from '$lib/server/brochure.js';
 
 export async function load({ params }) {
@@ -11,13 +10,6 @@ export async function load({ params }) {
   const [trips, home] = await Promise.all([enrichTrips(), Promise.resolve(getHome())]);
   const trip = trips.find(t => t._slug === slug);
   if (!trip) throw error(404, `Trip "${slug}" not found`);
-
-  // If sharing is enabled and the trip is opted in, compute the public share URL
-  // for the UI to display. Token is deterministic from slug + TRAVERSE_SHARE_SECRET.
-  if (trip.shared === true || trip.shared === 'true') {
-    const token = makeShareToken(slug);
-    if (token) trip._shareUrl = `/share/${token}`;
-  }
 
   const files = getTripFiles(slug);
   const resolvedStage = files?.stage || trip._stage;

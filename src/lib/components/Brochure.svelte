@@ -1,5 +1,4 @@
 <script>
-  import { page } from '$app/state';
   import { renderMarkdown } from '$lib/sanitize.js';
   import Logo from '$lib/components/Logo.svelte';
   import PaperMap from '$lib/components/PaperMap.svelte';
@@ -7,11 +6,6 @@
   import BrochureDayBlocks from '$lib/components/BrochureDayBlocks.svelte';
 
   let { data } = $props();
-
-  // Share viewers reach the brochure via /share/<token>/brochure and don't
-  // have access to /trips/<slug>, so the back-to-trip affordance only
-  // makes sense on the authenticated route.
-  const isShareView = $derived(page.url?.pathname?.startsWith('/share/') ?? false);
 
   const trip = $derived(data.trip);
   const files = $derived(data.files || {});
@@ -113,7 +107,7 @@
        page BE the artifact instead of advertising its printability. The
        sticky forest banner was reading as web-app chrome; this recedes. -->
   <nav class="brochure-toolbar no-print" aria-label="Brochure actions">
-    {#if trip?._slug && !isShareView}
+    {#if trip?._slug}
       <a class="toolbar-back" href={`/trips/${trip._slug}`}>← back to trip</a>
     {:else}
       <span></span>

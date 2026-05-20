@@ -533,65 +533,6 @@
   // ── Cover photo ──
   let coverPhotoOpen = $state(false);
 
-  // ── Share ──
-  let shareUrl = $state('');
-  let shareBusy = $state(false);
-
-  $effect(() => {
-    // Rehydrate share state when navigating between trips. $effect runs only
-    // client-side, so location.origin is safe to read.
-    shareUrl = trip?.shared === 'true' && trip?._shareUrl
-      ? `${location.origin}${trip._shareUrl}`
-      : '';
-  });
-
-  async function enableShare() {
-    if (!trip || shareBusy) return;
-    shareBusy = true;
-    try {
-      const res = await fetch(`/api/share/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
-      if (!res.ok) throw new Error(`Share failed: ${res.status}`);
-      const data = await res.json();
-      shareUrl = `${location.origin}${data.url}`;
-      await invalidateAll();
-    } catch (err) {
-      console.error(err);
-      actionError = { code: 'action_failed', ctx: { action: 'enable sharing' } };
-    } finally {
-      shareBusy = false;
-    }
-  }
-
-  async function disableShare() {
-    if (!trip || shareBusy) return;
-    const ok = await showConfirm({
-      title:        'Disable share link?',
-      body:         'Anyone who already has the URL will lose access immediately.',
-      confirmLabel: 'Disable',
-      danger:       true,
-    });
-    if (!ok) return;
-    shareBusy = true;
-    try {
-      const res = await fetch(`/api/share/${encodeURIComponent(trip._slug)}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`Disable failed: ${res.status}`);
-      shareUrl = '';
-      await invalidateAll();
-    } catch (err) {
-      console.error(err);
-      actionError = { code: 'action_failed', ctx: { action: 'disable sharing' } };
-    } finally {
-      shareBusy = false;
-    }
-  }
-
-  async function copyShareUrl() {
-    if (!shareUrl) return;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-    } catch { /* clipboard blocked — user can copy manually */ }
-  }
-
   // ── Receipts promise (mirrors _promise from the receipts route) ──
   // Telemetry-resolved values come from `data.promises.receipts`.
   const RECEIPTS_FALLBACK = {
@@ -701,35 +642,6 @@
       label: '🖼 Change cover photo…',
       onclick: () => { coverPhotoOpen = true; },
     });
-
-    if (data.features?.share) {
-      if (shareUrl) {
-        // Share is active — show the URL as read-only text, then Copy + Disable
-        outputItems.push({
-          type: 'text',
-          value: shareUrl,
-        });
-        outputItems.push({
-          type: 'button',
-          label: '📋 Copy share link',
-          onclick: copyShareUrl,
-        });
-        outputItems.push({
-          type: 'button',
-          label: '🔗 Disable share',
-          onclick: disableShare,
-          disabled: shareBusy,
-          danger: false,
-        });
-      } else {
-        outputItems.push({
-          type: 'button',
-          label: shareBusy ? 'Generating…' : '🔗 Generate share link',
-          onclick: enableShare,
-          disabled: shareBusy,
-        });
-      }
-    }
 
     const groups = [{ label: 'Output', items: outputItems }];
 

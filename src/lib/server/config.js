@@ -53,7 +53,6 @@ function buildConfig(envObj) {
       provider: env(envObj, 'TRAVERSE_SEARCH_PROVIDER', 'anthropic-builtin'),
     },
     assistantName: env(envObj, 'TRAVERSE_ASSISTANT_NAME', 'Field guide'),
-    shareSecret: env(envObj, 'TRAVERSE_SHARE_SECRET', ''),
   };
 }
 
@@ -120,7 +119,6 @@ export function getFeatureAvailability() {
     const ok = providerKeyOkIn(effectiveEnv, cfg.features[feature].provider);
     result[feature] = feature === 'deepen' ? (ok && search) : ok;
   }
-  result.share = Boolean(cfg.shareSecret);
   result.homeMdReady = isHomeMdReady();
   result.pexelsConfigured = isRealKey(effectiveEnv.PEXELS_API_KEY);
   return result;

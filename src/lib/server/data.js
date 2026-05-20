@@ -945,20 +945,6 @@ export function toggleStarred(slug) {
   return { starred: nowStarred };
 }
 
-// ── Share toggle ──
-export function setShared(slug, shared) {
-  const filePath = findTripFile(slug);
-  if (!filePath) return null;
-
-  const content = readFileSync(filePath, 'utf8');
-  const fm = parseFrontmatter(content);
-  if (!fm) return null;
-
-  atomicWrite(filePath, setFrontmatterField(content, 'shared', shared));
-  invalidateEnrichCache();
-  return { shared };
-}
-
 // ── Image metadata mutation ──
 // Writes image_query and/or image_pick to a trip's frontmatter. Both are
 // optional — caller provides only the fields they want to update.

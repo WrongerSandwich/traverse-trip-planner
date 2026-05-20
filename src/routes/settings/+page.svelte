@@ -40,7 +40,6 @@
     lock:   'Lock itinerary',
     chat:   'Ask Field guide',
     deepen: 'Research (deepen)',
-    share:  'Share links',
   };
 
   // ── Theme (local-only, no save endpoint) ───────────────────────────────────

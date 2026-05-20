@@ -27,7 +27,6 @@ const TRAVERSE_KEYS = [
   'TRAVERSE_MODEL_ADD_PROVIDER', 'TRAVERSE_MODEL_ADD',
   'TRAVERSE_MODEL_CHAT_PROVIDER', 'TRAVERSE_MODEL_CHAT',
   'TRAVERSE_MODEL_DEEPEN_PROVIDER', 'TRAVERSE_MODEL_DEEPEN',
-  'TRAVERSE_SHARE_SECRET',
 ];
 
 function clearEnv() {
@@ -111,7 +110,7 @@ describe('getFeatureAvailability', () => {
   it('disables every feature when no keys are set', async () => {
     const { getFeatureAvailability } = await loadConfig();
     expect(getFeatureAvailability()).toEqual({
-      seed: false, add: false, chat: false, retro: false, receipts: false, deepen: false, share: false,
+      seed: false, add: false, chat: false, retro: false, receipts: false, deepen: false,
       homeMdReady: false,
       pexelsConfigured: false,
     });
@@ -120,18 +119,10 @@ describe('getFeatureAvailability', () => {
   it('enables all features with anthropic + builtin search', async () => {
     const { getFeatureAvailability } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
     expect(getFeatureAvailability()).toEqual({
-      seed: true, add: true, chat: true, retro: true, receipts: true, deepen: true, share: false,
+      seed: true, add: true, chat: true, retro: true, receipts: true, deepen: true,
       homeMdReady: false,
       pexelsConfigured: false,
     });
-  });
-
-  it('enables share when TRAVERSE_SHARE_SECRET is set', async () => {
-    const { getFeatureAvailability } = await loadConfig({
-      ANTHROPIC_API_KEY: 'sk-ant-test',
-      TRAVERSE_SHARE_SECRET: 'shh',
-    });
-    expect(getFeatureAvailability().share).toBe(true);
   });
 
   it('disables only deepen when search backend is misconfigured', async () => {
