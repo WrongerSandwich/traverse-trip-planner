@@ -1,5 +1,5 @@
 <script>
-  import { goto, beforeNavigate } from '$app/navigation';
+  import { goto, beforeNavigate, invalidateAll } from '$app/navigation';
   import Logo from '$lib/components/Logo.svelte';
   import LocationPicker from '$lib/components/LocationPicker.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
@@ -231,8 +231,11 @@
         writeError = body.error ?? failureSentence('action_failed');
         return;
       }
-      // Successful write — bypass the discard guard and go home.
+      // Successful write — bypass the discard guard, refresh layout data
+      // (so data.features.homeMdReady flips and the "Set up home base" CTA
+      // is replaced by the seed/add buttons without a hard reload), then go.
       skipDiscardOnce = true;
+      await invalidateAll();
       goto('/');
     } catch {
       writeError = failureSentence('network_error');
