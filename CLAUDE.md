@@ -36,7 +36,7 @@ scans it so those destinations stay in the seed-avoidance list.)
 Trips progress through three stages. Earlier-stage fields are never removed — structure accrues as a trip matures.
 
 1. **idea** — single `.md` file in `ideas/`. Fields: `title`, `status`, `destination`, `pitch`, `created`, `vibe`. Target: <30 seconds to create.
-2. **planning** — promoted to a folder by the Research action. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out. Concrete dates, lodging, and reservations accrue here as the trip firms up. The frontend's planning page enables in-place editing of any section + an "Ask Field guide" chat that writes section updates back to disk.
+2. **planning** — promoted to a folder by the Research action. `overview.md` carries expanded frontmatter; siblings `route.md`, `stops.md`, `logistics.md` appear as research fleshes them out. Concrete dates, lodging, and reservations accrue here as the trip firms up. The frontend's planning page enables in-place editing of any section + a "Field guide" command palette (Cmd-K or per-section `↳ Ask` buttons) that writes section updates back to disk, with diff-and-revert overlays rendered inline at the affected section.
 3. **completed** — moved to `completed/`. The Mark-as-completed action offers an AI-prompted retro flow that writes `notes.md` (skippable; available later via an "Add retro" button on the completed view).
 
 **Canonical section sets per stage:** The detail view always renders a fixed set of sections regardless of which files actually exist on disk. Missing files show an empty-state placeholder — producers (deepen, chat) are not required to write every section. The canonical sets are:
