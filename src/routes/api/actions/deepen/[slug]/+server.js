@@ -30,6 +30,7 @@ import {
   atomicWrite,
 } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
+import { cleanupLLMMarkdown } from '$lib/server/markdown-cleanup.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
@@ -102,7 +103,15 @@ Full markdown for stops.md. ## headers per location. Key sights, food, lodging m
 
 <logistics_md>
 Full markdown for logistics.md. Reservations checklist (table), seasonal notes, pet sitter reminder for overnights, cell coverage, gotchas. Flag anything that needs re-verification before the trip.
-</logistics_md>`;
+</logistics_md>
+
+Formatting rules for the markdown content inside route_md / stops_md / logistics_md (these matter — the content is written directly to .md files):
+- Standard markdown only. ## and ### for headings. Use - for bullets (not * or +). Use **bold** and *italic* for emphasis.
+- Do NOT wrap any of the markdown sections in a triple-backtick fence. Inline code fences (\`\`\`lang ... \`\`\`) are fine only for actual code or terminal commands.
+- Blank line between paragraphs, blank line before every heading, blank line after every heading. Never 3+ consecutive blank lines.
+- Tables use the standard pipe-and-dash syntax with a separator row. Don't use HTML <table>.
+- Plain quotes (" '), em-dashes (—), and ellipses (…) are fine. Don't escape with HTML entities (&amp;, &quot;).
+- No leading or trailing whitespace inside any of the section tags. No content outside the tags besides the ones we've named.`;
 
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.deepen,
@@ -148,15 +157,23 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
   const fmLines = Object.entries(merged)
     .map(([k, v]) => `${k}: ${Array.isArray(v) ? `[${v.join(', ')}]` : v}`)
     .join('\n');
-  const overviewContent = `---\n${fmLines}\n---\n\n${prose}\n`;
 
   const dir = join(ROOT, 'planning', slug);
   mkdirSync(dir, { recursive: true });
 
-  atomicWrite(join(dir, 'overview.md'), overviewContent);
-  if (routeMd)     atomicWrite(join(dir, 'route.md'),     routeMd     + '\n');
-  if (stopsMd)     atomicWrite(join(dir, 'stops.md'),     stopsMd     + '\n');
-  if (logisticsMd) atomicWrite(join(dir, 'logistics.md'), logisticsMd + '\n');
+  // Deterministic post-processing — strips outer code fences, normalizes
+  // bullets, collapses blank-line runs. The overview body uses the same
+  // pass; the frontmatter block is left untouched (already plain YAML).
+  const cleanProse      = cleanupLLMMarkdown(prose);
+  const cleanRoute      = routeMd     ? cleanupLLMMarkdown(routeMd)     : null;
+  const cleanStops      = stopsMd     ? cleanupLLMMarkdown(stopsMd)     : null;
+  const cleanLogistics  = logisticsMd ? cleanupLLMMarkdown(logisticsMd) : null;
+  const overviewContentClean = `---\n${fmLines}\n---\n\n${cleanProse}\n`;
+
+  atomicWrite(join(dir, 'overview.md'), overviewContentClean);
+  if (cleanRoute)     atomicWrite(join(dir, 'route.md'),     cleanRoute     + '\n');
+  if (cleanStops)     atomicWrite(join(dir, 'stops.md'),     cleanStops     + '\n');
+  if (cleanLogistics) atomicWrite(join(dir, 'logistics.md'), cleanLogistics + '\n');
 
   unlinkSync(ideaPath);
   invalidateEnrichCache();

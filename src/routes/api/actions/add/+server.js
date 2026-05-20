@@ -71,12 +71,12 @@ Output the trip as a single file block in this exact format, with nothing outsid
 
 <file name="ideas/[kebab-case-slug].md">
 ---
-title: [Human-readable title]
+title: [Evocative title, not just the destination name. Calibrate to existing titles in the project: "Galena & the Driftless Area", "Ozark Highlands Scenic Drive", "Million Dollar Highway & Ouray", "Black Hills & Badlands Loop". The destination name alone (e.g. "Kansas City, MO") is too flat — name the route, the region, the character, or a paired draw. Avoid ornamental phrasing.]
 status: idea
 destination: [Town, State]
 pitch: [2–3 sentences naming the specific draw. Concrete, not generic.]
 created: ${today}
-vibe: [2–4 word noun phrase tagging the trip's character, like "quirky mountain town" or "prairie scenic drive". No sentences, no conjunctions, no sub-clauses, no commas. It's a label, not a description — the pitch field handles description.]
+vibe: [4–7 word phrase tagging the trip's character. Like "quirky mountain town and starlit nights", "high desert ghost-town circuit", "prairie scenic drive and Frank Lloyd Wright country". Conjunctions, modifiers, and a single comma are fine if they help the phrase land — but keep it a phrase, not a full sentence. It's a label, not a description.]
 image_query: [2–4 concrete words for a Pexels stock-photo search. Name the place + one visual scene noun: "Chicago skyline downtown", "Glacier National Park mountains", "Asheville Blue Ridge". Avoid abstract terms like "intellectual", "historic", "vibes" — they don't match photos. The card uses this image, so picture what should be on it.]
 ---
 </file>`;

@@ -19,6 +19,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache, rejectInvalidSlug, atomicWrite, findTripLocation } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
+import { cleanupLLMMarkdown } from '$lib/server/markdown-cleanup.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { TraverseError } from '$lib/server/errors.js';
@@ -153,7 +154,15 @@ Produce the research inside exactly these XML tags:
 
 <${tag}>
 ${guidance}
-</${tag}>`;
+</${tag}>
+
+Formatting rules for the content inside the XML tags (these matter — the content is written directly to a .md file):
+- Standard markdown only. ## and ### for headings. Use - for bullets (not * or +). Use **bold** and *italic* for emphasis.
+- Do NOT wrap the entire output in a triple-backtick fence. Inline code fences (\`\`\`lang ... \`\`\`) are fine only for actual code or terminal commands.
+- Blank line between paragraphs, blank line before every heading, blank line after every heading. Never 3+ consecutive blank lines.
+- Tables use the standard pipe-and-dash syntax with a separator row. Don't use HTML <table>.
+- Plain quotes (" '), em-dashes (—), and ellipses (…) are fine. Don't escape with HTML entities (&amp;, &quot;).
+- No leading or trailing whitespace inside the tags. No content outside the tags.`;
 
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.deepen,
@@ -217,6 +226,11 @@ ${guidance}
   if (truncated) {
     content += '\n\n<!-- traverse: model output was truncated; review and complete this section. -->';
   }
+
+  // Deterministic post-processing — strips outer code fences, normalizes
+  // bullets, collapses blank-line runs, etc. Cheaper and more reliable
+  // than asking the model to "review its output."
+  content = cleanupLLMMarkdown(content);
 
   atomicWrite(sectionPath, content + '\n');
   invalidateEnrichCache();
