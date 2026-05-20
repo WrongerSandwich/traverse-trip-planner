@@ -134,7 +134,14 @@ Your output format:
       const fp = join(trip.dir, `${section}.md`);
       if (existsSync(fp)) {
         const current = statSync(fp).mtimeMs;
-        if (mtimeSnapshot[section] !== undefined && current !== mtimeSnapshot[section]) {
+        // Two-sided check:
+        //   - file existed at snapshot AND mtime changed → another writer touched it
+        //   - file did NOT exist at snapshot but exists now → another writer (deepen-section
+        //     creating a previously-empty file) raced us. Without this branch, chat would
+        //     happily overwrite the fresh research because mtimeSnapshot[section] === undefined.
+        const appeared = mtimeSnapshot[section] === undefined;
+        const mutated  = mtimeSnapshot[section] !== undefined && current !== mtimeSnapshot[section];
+        if (appeared || mutated) {
           return json(
             { error: 'section_changed_during_chat', context: { section } },
             { status: 409 },

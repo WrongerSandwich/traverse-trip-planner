@@ -342,7 +342,7 @@
 
   async function sendChat(retryText = null) {
     const text = retryText ?? chatInput.trim();
-    if (!text || chatBusy) return;
+    if (!text || chatBusy || deepenSectionRunning) return;
     chatBusy = true;
     chatErrorCode = null;
     chatErrorContext = null;
@@ -1002,16 +1002,21 @@
       {/if}
     </div>
 
+    {#if deepenSectionRunning}
+      <div class="chat-blocked" role="status">
+        Section research is running. Field guide is paused until it finishes so the two writers can't race on the same file.
+      </div>
+    {/if}
     <form class="chat-input" onsubmit={(e) => { e.preventDefault(); sendChat(); }}>
       <textarea
         bind:value={chatInput}
         onkeydown={handleChatKey}
-        placeholder="What should change?"
+        placeholder={deepenSectionRunning ? 'Paused while research is running…' : 'What should change?'}
         rows="2"
-        disabled={chatBusy}
+        disabled={chatBusy || deepenSectionRunning}
       ></textarea>
       <PromiseTooltip promise={CHAT_PROMISE}>
-        <button type="submit" class="send-btn" disabled={chatBusy || !chatInput.trim()}>
+        <button type="submit" class="send-btn" disabled={chatBusy || deepenSectionRunning || !chatInput.trim()}>
           {#if chatBusy}
             <span class="spinner" aria-hidden="true"></span>
           {/if}
@@ -1494,6 +1499,15 @@
   .typing span:nth-child(2) { animation-delay: 0.15s; }
   .typing span:nth-child(3) { animation-delay: 0.3s; }
   @keyframes typing-pulse { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+
+  .chat-blocked {
+    border-top: 1px solid var(--border-default);
+    padding: 0.55rem 0.9rem;
+    background: var(--state-warning-surface);
+    color: var(--state-warning);
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
 
   .chat-input {
     border-top: 1px solid var(--border-default);
