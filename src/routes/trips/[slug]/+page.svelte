@@ -803,6 +803,22 @@
 
     const groups = [{ label: 'Output', items: outputItems }];
 
+    // Mobile-only trip-wide entry for the Field guide palette. On desktop
+    // the page-header Ask button + Cmd-K cover this; mobile has neither,
+    // so the kebab is the discoverable trip-wide path.
+    if (isPlanning && data.features?.chat && data.features?.homeMdReady !== false) {
+      groups.push({
+        label: data.assistantName,
+        items: [
+          {
+            type: 'button',
+            label: `Ask ${data.assistantName}`,
+            onclick: () => { openPalette(); },
+          },
+        ],
+      });
+    }
+
     if (isCompleted) {
       // Activity group (completed trips only) — only render when at least one applies
       const activityItems = [];
@@ -878,6 +894,16 @@
           }}
         />
       </div>
+    {/if}
+    {#if isPlanning && data.features?.chat && data.features?.homeMdReady !== false}
+      <button
+        class="header-ask"
+        onclick={() => openPalette()}
+        title="Open the {data.assistantName} palette"
+        aria-label="Open {data.assistantName}"
+      >
+        Ask <kbd class="header-ask-kbd" aria-hidden="true">⌘K</kbd>
+      </button>
     {/if}
     <KebabMenu groups={kebabGroups} />
   </header>
@@ -980,7 +1006,9 @@
             <h2>{SECTION_LABELS[section] || section}</h2>
             {#if isPlanning && sections[section] !== undefined && !editing[section]}
               <div class="section-header-actions">
-                <button class="btn-section-ask" onclick={() => openPalette(section)} title="Ask {data.assistantName} to edit this section (⌘K)">↳ Ask</button>
+                <button class="btn-section-ask" onclick={() => openPalette(section)} title="Ask {data.assistantName} to edit this section">
+                  Ask <kbd class="section-ask-kbd" aria-hidden="true">⌘K</kbd>
+                </button>
                 <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
               </div>
             {/if}
@@ -1137,7 +1165,7 @@
         {#if pendingHasFresh}<span class="palette-chip-arrow" aria-hidden="true">↑</span>{/if}
       </button>
       <button type="button" class="palette-chip-btn" onclick={refineFromChip}>Refine</button>
-      <button type="button" class="palette-chip-btn palette-chip-dismiss" onclick={dismissChip}>Done</button>
+      <button type="button" class="palette-chip-btn palette-chip-dismiss" onclick={dismissChip} title="Hide this indicator. Edits are already on disk.">Dismiss</button>
     </div>
   {/if}
 
@@ -1181,6 +1209,41 @@
   .header-job-badge {
     display: inline-flex;
     align-items: center;
+  }
+
+  /* "Ask Field guide" entry in the page header — primary discoverability
+     anchor for the palette. The inline keycap doubles as a shortcut hint
+     so users don't have to discover ⌘K via the hover-only title. */
+  .header-ask {
+    background: none;
+    border: 1.5px solid var(--forest-600);
+    color: var(--bone-200);
+    padding: 0.35rem 0.6rem 0.35rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .header-ask:hover {
+    background: var(--forest-700);
+    border-color: var(--forest-400);
+    color: var(--bone-100);
+  }
+  .header-ask-kbd {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1;
+    padding: 0.18rem 0.35rem;
+    background: color-mix(in oklab, var(--bone-50) 10%, transparent);
+    border: 1px solid color-mix(in oklab, var(--bone-50) 22%, transparent);
+    border-radius: 3px;
+    color: var(--bone-200);
   }
 
   .back {
@@ -1372,7 +1435,9 @@
     gap: 0.5rem;
   }
   /* Quieter than .btn-secondary so the section's primary action stays Edit;
-     ↳ Ask is the secondary AI affordance. */
+     "Ask" is the secondary AI affordance. The inline ⌘K keycap doubles
+     as a discoverability hint so users learn the shortcut from any
+     section header, not just a hover-only title. */
   .btn-section-ask {
     background: none;
     border: 1px solid var(--border-subtle);
@@ -1380,14 +1445,32 @@
     font-family: var(--font-sans);
     font-size: 0.78rem;
     font-weight: 600;
-    padding: 0.32rem 0.6rem;
+    padding: 0.32rem 0.5rem 0.32rem 0.6rem;
     border-radius: 3px;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
   .btn-section-ask:hover {
     background: color-mix(in oklab, var(--accent) 8%, transparent);
     border-color: color-mix(in oklab, var(--accent) 35%, var(--border-default));
+    color: var(--accent-text);
+  }
+  .section-ask-kbd {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    line-height: 1;
+    padding: 0.16rem 0.32rem;
+    background: var(--surface-page);
+    border: 1px solid var(--border-default);
+    border-radius: 3px;
+    color: var(--text-tertiary);
+  }
+  .btn-section-ask:hover .section-ask-kbd {
+    border-color: color-mix(in oklab, var(--accent) 30%, var(--border-default));
     color: var(--accent-text);
   }
 
