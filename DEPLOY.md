@@ -80,28 +80,62 @@ The startup banner lists which providers are wired and which features are availa
 
 ## Settings overlay (settings.json)
 
-The Settings page (`/settings`) lets you manage API keys and model-slot configuration from the browser without editing files or restarting the server. Values are stored in `settings.json` at the repo root.
+The Settings page (`/settings`) lets you manage API keys and routing configuration from the browser without editing files or restarting the server. Values are stored in `settings.json` at the repo root.
 
 **Precedence (highest to lowest):**
 1. `settings.json` — set via the UI; takes effect on the next request, no restart needed
-2. `.env` — the traditional deployment path; still the recommended approach for production servers where the UI is not accessible or key rotation is managed externally
+2. `.env` — the traditional deployment path; still the right choice for production servers where the UI is not accessible or key rotation is managed externally (Vault, sealed-secrets, Doppler, etc.)
 3. Compiled defaults (e.g. `anthropic` / `claude-sonnet-4-6`)
 
-**What settings.json stores:**
-- Provider API keys (`keys.anthropic`, `keys.openai`, `keys.openrouter`)
-- Slot configuration (`slots.default` and `slots.research`, each with `provider` + `model`)
+`settings.json` is gitignored; it never appears in version control. See `settings.example.json` for the expected shape, and the [Configuration reference](#configuration-reference) below for the full list of what can live where.
 
-**What settings.json does NOT store (deferred to later):**
-- Search backend selection or Tavily key
-- Assistant name, share secret, or feature flags
-
-`settings.json` is gitignored; it never appears in version control. See `settings.example.json` for the expected shape.
-
-To revert to `.env`-only behavior, delete `settings.json` or use the **Remove** button next to a stored key on the Settings page. Removing a key deletes only that key's entry from `settings.json`; other stored settings are untouched. Once removed, the corresponding `.env` value (e.g. `ANTHROPIC_API_KEY`) resumes as the active key. If no `.env` fallback exists, the next AI call using that provider will fail with a missing-key error.
-
-> **Note:** The startup banner (printed to the server log on boot) reflects only `.env` state — it reads config before `settings.json` can be overlaid. The Settings page (`/settings`) shows what is actually effective for incoming requests.
+To revert to `.env`-only behavior, delete `settings.json` or use the **Remove** button next to a stored key on the Settings page. Removing a key deletes only that key's entry from `settings.json`; other stored settings are untouched. Once removed, the corresponding `.env` value resumes as the active key. If no `.env` fallback exists, the next AI call using that provider will fail with a missing-key error.
 
 **`TRAVERSE_DISABLE_SETTINGS_UI`** — set to any non-empty value to disable the `/settings` page and `POST /api/settings` entirely (both return 403). Recommended for production deployments where the server is reachable over an untrusted network and you prefer `.env`-only key management.
+
+## Configuration reference
+
+Where each configuration knob can live. The short answer: provider/service keys and AI routing live in either `.env` or `settings.json` (settings.json wins where both are set). Operational knobs (process startup, security boundaries) live in `.env` only by design.
+
+### Knobs that work in both .env and settings.json
+
+These overlay through `getEffectiveConfig()` (`src/lib/server/config.js`). Set them via `.env` for config-as-code, or via the Settings UI for click-through setup — both work, and settings.json wins per-key when both are populated.
+
+| Knob                            | .env variable                      | settings.json path           | Notes                                          |
+| ------------------------------- | ---------------------------------- | ---------------------------- | ---------------------------------------------- |
+| Anthropic API key               | `ANTHROPIC_API_KEY`                | `keys.anthropic`             |                                                |
+| OpenAI API key                  | `OPENAI_API_KEY`                   | `keys.openai`                |                                                |
+| OpenRouter API key              | `OPENROUTER_API_KEY`               | `keys.openrouter`            |                                                |
+| Pexels API key                  | `PEXELS_API_KEY`                   | `services.pexels`            | Cover photos                                   |
+| Tavily API key                  | `TAVILY_API_KEY`                   | `services.tavily`            | Search backend (when `tavily` is selected)     |
+| Stadia Maps API key             | `STADIA_API_KEY`                   | `services.stadia`            | Brochure base map                              |
+| Default slot provider           | `TRAVERSE_MODEL_DEFAULT_PROVIDER`  | `slots.default.provider`     |                                                |
+| Default slot model              | `TRAVERSE_MODEL_DEFAULT`           | `slots.default.model`        |                                                |
+| Research slot provider          | `TRAVERSE_MODEL_RESEARCH_PROVIDER` | `slots.research.provider`    |                                                |
+| Research slot model             | `TRAVERSE_MODEL_RESEARCH`          | `slots.research.model`       |                                                |
+| Search backend                  | `TRAVERSE_SEARCH_PROVIDER`         | `search.provider`            | `anthropic-builtin` (default) or `tavily`      |
+| Assistant display name          | `TRAVERSE_ASSISTANT_NAME`          | `assistantName`              |                                                |
+
+Per-feature model overrides (`TRAVERSE_MODEL_SEED`, `TRAVERSE_MODEL_LOCK`, etc.) are `.env`-only today; the UI doesn't surface them. Set them when you want a specific feature to use a different model than its slot default — for example, a cheaper formatting model for `lock`.
+
+### Knobs that are .env only
+
+These are intentionally not in `settings.json`. Each row explains why.
+
+| Knob                            | Variable                                                    | Why env-only                                                                                          |
+| ------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Host uid                        | `UID`                                                       | Read by Docker Compose on the host (`docker-compose.yml`'s `user:` interpolation) before the container starts. Compose can't read a JSON file inside an unstarted container. |
+| Host gid                        | `GID`                                                       | Same as `UID`.                                                                                        |
+| HTTP port                       | `PORT`                                                      | Read by SvelteKit's adapter-node at process startup. Set in `docker-compose.yml`'s `environment:` block.   |
+| Listen address                  | `HOST`                                                      | Same as `PORT`.                                                                                       |
+| Node environment                | `NODE_ENV`                                                  | Set by Docker Compose; affects framework behavior at startup.                                         |
+| Disable the Settings UI         | `TRAVERSE_DISABLE_SETTINGS_UI`                              | Trust boundary — if it lived in `settings.json`, the UI it disables could re-enable itself.           |
+| Allow LAN writes to config      | `TRAVERSE_ALLOW_LAN_WRITES`                                 | Auth gate for `POST /api/settings` and `PUT /api/home`. Same trust-boundary reasoning.                |
+| Trust proxy for auth            | `TRUST_PROXY_FOR_AUTH`                                      | Auth gate behavior; see [Config-write auth](#config-write-auth-loopback-by-default) below.            |
+| Share-link HMAC secret          | `TRAVERSE_SHARE_SECRET`                                     | Long-lived secret; rotating it should invalidate existing share links, so it shouldn't round-trip through a UI. |
+| Rate-limit overrides            | `TRAVERSE_RATELIMIT_<endpoint>_CAPACITY`, `_REFILL_PER_MIN` | Operational tuning, not user preferences.                                                             |
+
+If you need a knob that's currently `.env`-only to be UI-editable, open an issue — the current split is intentional but not sacred.
 
 ### Config-write auth (loopback-by-default)
 
