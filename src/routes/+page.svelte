@@ -478,6 +478,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>Traverse</title>
+</svelte:head>
+
 <div class="page">
   {#if data.features?.pexelsConfigured === false}
     <div class="pexels-banner" role="status">
