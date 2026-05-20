@@ -1,5 +1,46 @@
 import { describe, it, expect } from 'vitest';
-import { diffLines, summarizeDiff } from '../src/lib/utils/diff.js';
+import { diffArrays, diffLines, diffBlocks, summarizeDiff } from '../src/lib/utils/diff.js';
+
+describe('diffArrays', () => {
+  it('operates on arbitrary string arrays', () => {
+    const out = diffArrays(['a', 'b', 'c'], ['a', 'X', 'c']);
+    expect(out.filter(r => r.type === 'del').map(r => r.line)).toEqual(['b']);
+    expect(out.filter(r => r.type === 'add').map(r => r.line)).toEqual(['X']);
+    expect(out.filter(r => r.type === 'eq').map(r => r.line)).toEqual(['a', 'c']);
+  });
+});
+
+describe('diffBlocks', () => {
+  it('splits on blank-line paragraph breaks', () => {
+    const before = 'First paragraph.\n\nSecond paragraph.';
+    const after  = 'First paragraph.\n\nReplaced paragraph.';
+    const out = diffBlocks(before, after);
+    expect(out.filter(r => r.type === 'eq').map(r => r.line)).toEqual(['First paragraph.']);
+    expect(out.filter(r => r.type === 'del').map(r => r.line)).toEqual(['Second paragraph.']);
+    expect(out.filter(r => r.type === 'add').map(r => r.line)).toEqual(['Replaced paragraph.']);
+  });
+
+  it('treats multi-line blocks as single units', () => {
+    const before = '## Heading\nBody line 1\nBody line 2';
+    const after  = '## Heading\nBody line 1\nBody line 2';
+    const out = diffBlocks(before, after);
+    expect(out).toHaveLength(1);
+    expect(out[0].type).toBe('eq');
+    expect(out[0].line).toBe(before);
+  });
+
+  it('drops empty trailing blocks from a final blank line', () => {
+    const out = diffBlocks('one\n\ntwo\n\n', 'one\n\ntwo');
+    // No spurious del — both sides parsed to the same two blocks.
+    expect(out.every(r => r.type === 'eq')).toBe(true);
+    expect(out.map(r => r.line)).toEqual(['one', 'two']);
+  });
+
+  it('handles null / undefined as empty', () => {
+    expect(diffBlocks(null, 'x').map(r => r.line)).toEqual(['x']);
+    expect(diffBlocks('x', undefined).map(r => r.line)).toEqual(['x']);
+  });
+});
 
 describe('diffLines', () => {
   it('returns all eq rows when before === after', () => {

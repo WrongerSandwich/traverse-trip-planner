@@ -1,28 +1,21 @@
 /**
- * Line-level diff between two strings via longest-common-subsequence (LCS).
+ * Core array-level diff via longest-common-subsequence (LCS). The DP table
+ * costs O(m·n) memory; the planning sections we diff are typically <500
+ * elements, so we're well under a megabyte and a few milliseconds.
  *
- * Used by the Field guide chat's per-section Preview to show what changed
- * rather than dumping the full new content. The snapshot is captured client-
- * side at send-time (see chatMessages[*].snapshots[section] in
- * src/routes/trips/[slug]/+page.svelte), so the diff is just `before → after`
- * on the two strings.
+ * Callers pre-split the two strings into the token granularity they need:
+ *   - `diffLines` for monospace per-line diffs (e.g., the old Preview block)
+ *   - `diffBlocks` for paragraph-level diffs against markdown content
  *
- * Returns an array of `{ type, line }` rows where:
- *   - type === 'eq'   line appears in both (unchanged context)
- *   - type === 'add'  line is in `after` but not `before` (insertion)
- *   - type === 'del'  line is in `before` but not `after` (removal)
+ * Returns rows tagged with the original element under `.line` (kept for
+ * back-compat with the existing `diffLines` consumers — paragraph-level
+ * consumers also read `.line`, treating it as "the chunk that changed").
  *
- * The classic LCS DP table costs O(m·n) memory. For the planning sections
- * we diff (typically <500 lines), that's well under a megabyte and runs in
- * a couple milliseconds — adequate for an interactive preview.
- *
- * @param {string} before
- * @param {string} after
+ * @param {string[]} a
+ * @param {string[]} b
  * @returns {Array<{ type: 'eq' | 'add' | 'del', line: string }>}
  */
-export function diffLines(before, after) {
-  const a = (before ?? '').split('\n');
-  const b = (after ?? '').split('\n');
+export function diffArrays(a, b) {
   const m = a.length;
   const n = b.length;
 
@@ -55,6 +48,40 @@ export function diffLines(before, after) {
   while (i < m) out.push({ type: 'del', line: a[i++] });
   while (j < n) out.push({ type: 'add', line: b[j++] });
   return out;
+}
+
+/**
+ * Line-level diff. Kept as the public API for callers that want monospace
+ * per-line output (e.g., the legacy in-panel Preview block).
+ *
+ * @param {string} before
+ * @param {string} after
+ * @returns {Array<{ type: 'eq' | 'add' | 'del', line: string }>}
+ */
+export function diffLines(before, after) {
+  return diffArrays((before ?? '').split('\n'), (after ?? '').split('\n'));
+}
+
+/**
+ * Paragraph-level diff. Splits each string into blocks delimited by blank
+ * lines (one or more `\n` runs) — the standard markdown paragraph break.
+ * Each surviving row's `.line` is a full markdown block that can be passed
+ * to `renderMarkdown()` for in-section overlay rendering.
+ *
+ * Empty trailing blocks (from a final `\n\n`) are dropped so they don't
+ * register as spurious adds/dels.
+ *
+ * @param {string} before
+ * @param {string} after
+ * @returns {Array<{ type: 'eq' | 'add' | 'del', line: string }>}
+ */
+export function diffBlocks(before, after) {
+  const splitBlocks = (s) =>
+    (s ?? '')
+      .split(/\n{2,}/)
+      .map((b) => b.replace(/\s+$/, ''))
+      .filter((b) => b.length > 0);
+  return diffArrays(splitBlocks(before), splitBlocks(after));
 }
 
 /**
