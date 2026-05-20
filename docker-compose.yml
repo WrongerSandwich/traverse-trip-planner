@@ -3,7 +3,6 @@ services:
     build: .
     image: traverse:local
     container_name: traverse
-    init: true
     restart: unless-stopped
     ports:
       - "3456:3456"
