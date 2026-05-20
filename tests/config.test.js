@@ -200,6 +200,81 @@ describe('describeConfig', () => {
     expect(d.features.seed.overridden).toBe(false);
   });
 
+  it('attributes source as "default" when nothing is set anywhere', async () => {
+    const { describeConfig } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
+    const d = describeConfig();
+    expect(d.modelDefault.providerSource).toBe('default');
+    expect(d.modelDefault.modelSource).toBe('default');
+    expect(d.modelResearch.providerSource).toBe('default');
+    expect(d.search.providerSource).toBe('default');
+  });
+
+  it('attributes source as "env" when a TRAVERSE_ var is set in process.env', async () => {
+    const { describeConfig } = await loadConfig({
+      ANTHROPIC_API_KEY: 'sk-ant-test',
+      TRAVERSE_MODEL_DEFAULT_PROVIDER: 'openai',
+      TRAVERSE_MODEL_DEFAULT: 'gpt-4o-mini',
+      OPENAI_API_KEY: 'sk-test',
+    });
+    const d = describeConfig();
+    expect(d.modelDefault.providerSource).toBe('env');
+    expect(d.modelDefault.modelSource).toBe('env');
+    // Untouched slot still reports default.
+    expect(d.modelResearch.providerSource).toBe('default');
+  });
+
+  it('attributes source as "settings" when settings.json overlays a value', async () => {
+    clearEnv();
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    vi.resetModules();
+    vi.doMock('node:fs', () => ({
+      readFileSync: () => JSON.stringify({
+        slots: { default: { provider: 'openai', model: 'gpt-4o-mini' } },
+        keys: { openai: 'sk-oai-test' },
+      }),
+      writeFileSync: () => {},
+      existsSync: () => false,
+    }));
+    const { describeConfig } = await import('../src/lib/server/config.js');
+    const d = describeConfig();
+    expect(d.modelDefault.providerSource).toBe('settings');
+    expect(d.modelDefault.modelSource).toBe('settings');
+
+    vi.doMock('node:fs', () => ({
+      readFileSync: () => { throw new Error('ENOENT'); },
+      writeFileSync: () => {},
+      existsSync: () => false,
+    }));
+  });
+
+  it('reports per-field source when provider and model originate differently', async () => {
+    clearEnv();
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    process.env.OPENAI_API_KEY = 'sk-oai-test';
+    process.env.TRAVERSE_MODEL_DEFAULT_PROVIDER = 'openai'; // from .env
+    vi.resetModules();
+    vi.doMock('node:fs', () => ({
+      // settings.json overrides the model only; provider still comes from .env.
+      readFileSync: () => JSON.stringify({
+        slots: { default: { model: 'gpt-4o' } },
+      }),
+      writeFileSync: () => {},
+      existsSync: () => false,
+    }));
+    const { describeConfig } = await import('../src/lib/server/config.js');
+    const d = describeConfig();
+    expect(d.modelDefault.providerSource).toBe('env');
+    expect(d.modelDefault.modelSource).toBe('settings');
+    expect(d.modelDefault.provider).toBe('openai');
+    expect(d.modelDefault.model).toBe('gpt-4o');
+
+    vi.doMock('node:fs', () => ({
+      readFileSync: () => { throw new Error('ENOENT'); },
+      writeFileSync: () => {},
+      existsSync: () => false,
+    }));
+  });
+
   it('reflects the settings.json overlay, not just the module-load snapshot', async () => {
     // Module load has `TRAVERSE_MODEL_RESEARCH=claude-opus-4-7` (the default).
     // settings.json overlays research → openrouter/google/gemini-3.1-pro-preview.

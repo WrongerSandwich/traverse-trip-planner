@@ -141,6 +141,19 @@ function isRealKey(value) {
 // the settings.json overlay — not the module-load snapshot. The startup banner
 // is printed once on first request, by which point a user may already have
 // saved settings via the UI; reading the overlay keeps the banner truthful.
+//
+// Returns 'settings' if the value came from settings.json overlay, 'env' if
+// from process.env, 'default' if neither was set (compiled fallback in use).
+// Used by describeConfig() / printConfigBanner() to attribute each line's
+// source so operators can reason about which knob is in effect.
+function sourceOf(envName, overlay, processEnv) {
+  const overlayVal = overlay[envName];
+  if (overlayVal !== undefined && overlayVal !== '') return 'settings';
+  const envVal = processEnv[envName];
+  if (envVal !== undefined && envVal !== '') return 'env';
+  return 'default';
+}
+
 export function describeConfig() {
   const overlay = settingsToEnv(readSettings());
   const effectiveEnv = { ...process.env, ...overlay };
@@ -154,9 +167,23 @@ export function describeConfig() {
     featureDetails[feature] = { ...info, ok, overridden };
   }
   return {
-    modelDefault: { ...effective.modelDefault, ok: providerKeyOkIn(effectiveEnv, effective.modelDefault.provider) },
-    modelResearch: { ...effective.modelResearch, ok: providerKeyOkIn(effectiveEnv, effective.modelResearch.provider) },
-    search: { provider: effective.search.provider, ok: searchOkIn(effective, effectiveEnv) },
+    modelDefault: {
+      ...effective.modelDefault,
+      ok: providerKeyOkIn(effectiveEnv, effective.modelDefault.provider),
+      providerSource: sourceOf('TRAVERSE_MODEL_DEFAULT_PROVIDER', overlay, process.env),
+      modelSource: sourceOf('TRAVERSE_MODEL_DEFAULT', overlay, process.env),
+    },
+    modelResearch: {
+      ...effective.modelResearch,
+      ok: providerKeyOkIn(effectiveEnv, effective.modelResearch.provider),
+      providerSource: sourceOf('TRAVERSE_MODEL_RESEARCH_PROVIDER', overlay, process.env),
+      modelSource: sourceOf('TRAVERSE_MODEL_RESEARCH', overlay, process.env),
+    },
+    search: {
+      provider: effective.search.provider,
+      ok: searchOkIn(effective, effectiveEnv),
+      providerSource: sourceOf('TRAVERSE_SEARCH_PROVIDER', overlay, process.env),
+    },
     features: featureDetails,
     issues: validateConfig(),
   };
