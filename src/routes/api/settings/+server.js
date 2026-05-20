@@ -13,6 +13,7 @@ import {
   SUPPORTED_SEARCH_PROVIDERS,
 } from '$lib/server/settings.js';
 import { denyIfNotConfigWriter } from '$lib/server/auth.js';
+import { purgeNullImageEntries, invalidateEnrichCache } from '$lib/server/data.js';
 
 const SUPPORTED_SLOTS = ['default', 'research'];
 const ASSISTANT_NAME_MAX = 60;
@@ -185,6 +186,20 @@ export async function POST(event) {
     ...(mergedAssistantName ? { assistantName: mergedAssistantName } : {}),
   };
   writeSettings(updated);
+
+  // If the user just provided (or changed) a Pexels key, purge null image
+  // cache entries left behind from a prior no-key state. Without this, trips
+  // enriched before the key was configured stay imageless forever — the
+  // cached null is treated as a final answer on every subsequent load.
+  const incomingPexels = incomingServices.pexels?.trim();
+  const prevPexels = existing.services?.pexels?.trim();
+  if (incomingPexels && incomingPexels !== prevPexels) {
+    const dropped = purgeNullImageEntries();
+    if (dropped > 0) {
+      invalidateEnrichCache();
+      console.log(`Pexels key updated — purged ${dropped} cached null image entr${dropped === 1 ? 'y' : 'ies'}`);
+    }
+  }
 
   return json({ ok: true, settingsView: redactSettings(updated) });
 }

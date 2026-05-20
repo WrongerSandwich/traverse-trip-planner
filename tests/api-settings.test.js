@@ -14,6 +14,16 @@ vi.mock('node:fs', () => ({
 }));
 vi.mock('node:path', () => ({
   resolve: vi.fn((...args) => args.join('/')),
+  join: vi.fn((...args) => args.join('/')),
+}));
+
+// $lib/server/data.js does heavy module-init I/O and isn't what we're testing
+// here; stub the two functions the settings handler reaches into.
+const mockPurgeNullImages = vi.hoisted(() => vi.fn(() => 0));
+const mockInvalidateEnrich = vi.hoisted(() => vi.fn());
+vi.mock('$lib/server/data.js', () => ({
+  purgeNullImageEntries: mockPurgeNullImages,
+  invalidateEnrichCache: mockInvalidateEnrich,
 }));
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -271,5 +281,76 @@ describe('POST /api/settings — model field validation', () => {
     const res = await POST(makeRequest({ slots: { default: { provider: 'anthropic' } } }));
     expect(res._status).toBe(200);
     expect(res._body.ok).toBe(true);
+  });
+});
+
+// ── Pexels key change → image cache purge ─────────────────────────────────────
+
+describe('POST /api/settings — Pexels key change purges null image cache', () => {
+  it('purges null entries when a Pexels key is added for the first time', async () => {
+    readFileSync.mockReturnValue('{}');
+    mockPurgeNullImages.mockReturnValue(3);
+
+    const res = await POST(makeRequest({
+      services: { pexels: 'real-pexels-key-abc123' },
+    }));
+
+    expect(res._status).toBe(200);
+    expect(mockPurgeNullImages).toHaveBeenCalledTimes(1);
+    expect(mockInvalidateEnrich).toHaveBeenCalledTimes(1);
+  });
+
+  it('purges when the Pexels key value changes', async () => {
+    readFileSync.mockReturnValue(JSON.stringify({
+      services: { pexels: 'old-key' },
+    }));
+    mockPurgeNullImages.mockReturnValue(1);
+
+    const res = await POST(makeRequest({
+      services: { pexels: 'new-key' },
+    }));
+
+    expect(res._status).toBe(200);
+    expect(mockPurgeNullImages).toHaveBeenCalledTimes(1);
+    expect(mockInvalidateEnrich).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT purge when Pexels is absent from the payload', async () => {
+    readFileSync.mockReturnValue(JSON.stringify({
+      services: { pexels: 'existing-key' },
+    }));
+
+    const res = await POST(makeRequest({
+      keys: { anthropic: 'sk-ant-test' },
+    }));
+
+    expect(res._status).toBe(200);
+    expect(mockPurgeNullImages).not.toHaveBeenCalled();
+  });
+
+  it('does NOT purge when the same Pexels key is re-submitted unchanged', async () => {
+    readFileSync.mockReturnValue(JSON.stringify({
+      services: { pexels: 'same-key' },
+    }));
+
+    const res = await POST(makeRequest({
+      services: { pexels: 'same-key' },
+    }));
+
+    expect(res._status).toBe(200);
+    expect(mockPurgeNullImages).not.toHaveBeenCalled();
+  });
+
+  it('does NOT invalidate enrich cache when purge returns 0 entries', async () => {
+    readFileSync.mockReturnValue('{}');
+    mockPurgeNullImages.mockReturnValue(0);
+
+    const res = await POST(makeRequest({
+      services: { pexels: 'fresh-key' },
+    }));
+
+    expect(res._status).toBe(200);
+    expect(mockPurgeNullImages).toHaveBeenCalledTimes(1);
+    expect(mockInvalidateEnrich).not.toHaveBeenCalled();
   });
 });

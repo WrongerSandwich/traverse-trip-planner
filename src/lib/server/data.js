@@ -136,6 +136,37 @@ export function isPexelsConfigured() {
   return !!resolveEnv('PEXELS_API_KEY');
 }
 
+/**
+ * Drop every image-cache entry whose value is null. These are the "tried
+ * and got nothing" entries we wrote while Pexels was unconfigured (or while
+ * an old/invalid key was returning errors). Once a real key is in play we
+ * want the next enrich pass to re-fetch them instead of treating the cached
+ * null as a final answer.
+ *
+ * Returns the number of entries dropped so callers can log / surface it.
+ */
+export function purgeNullImageEntries() {
+  let dropped = 0;
+  for (const k of Object.keys(imageCache)) {
+    const entry = imageCache[k];
+    // Two cache shapes coexist (see readImageCacheEntry):
+    //   - wrapped: `{ value, fetchedAt }` — null when `value === null`.
+    //   - legacy bare: the value itself with no `fetchedAt`, so a bare object
+    //     `{ medium, large, ... }` is a real hit and only `null` is the miss.
+    const isWrapped = entry !== null && typeof entry === 'object' && typeof entry.fetchedAt === 'number';
+    const isNullValue = entry === null || (isWrapped && entry.value === null);
+    if (isNullValue) {
+      delete imageCache[k];
+      dropped++;
+    }
+  }
+  if (dropped > 0) {
+    imageDirty = true;
+    flushCaches();
+  }
+  return dropped;
+}
+
 export async function fetchImage(query) {
   const cached = readImageCacheEntry(imageCache, query);
   if (cached.state === 'hit') return cached.value;
