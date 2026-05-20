@@ -2,6 +2,7 @@ import { readSettings, settingsToEnv } from './settings.js';
 import { PROVIDERS } from './providers.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parse as yamlParse } from 'yaml';
 
 function env(envObj, name, fallback) {
   const v = envObj[name];
@@ -98,22 +99,11 @@ function isHomeMdReady() {
     const content = readFileSync(p, 'utf8');
     const match = content.match(/^---\n([\s\S]*?)\n---/);
     if (!match) return false;
-    const fm = {};
-    for (const line of match[1].split('\n')) {
-      const colon = line.indexOf(':');
-      if (colon < 1) continue;
-      const key = line.slice(0, colon).trim();
-      const raw = line.slice(colon + 1).trim();
-      fm[key] = raw.startsWith('[') && raw.endsWith(']')
-        ? raw.slice(1, -1).split(',').map(s => s.trim())
-        : raw;
-    }
+    const fm = yamlParse(match[1]) || {};
     if (!fm.home_city || typeof fm.home_city !== 'string' || !fm.home_city.trim()) return false;
-    const coords = Array.isArray(fm.home_coords)
-      ? fm.home_coords.map(Number)
-      : null;
-    if (!coords || coords.length !== 2) return false;
-    if (!isFinite(coords[0]) || !isFinite(coords[1])) return false;
+    if (!Array.isArray(fm.home_coords) || fm.home_coords.length !== 2) return false;
+    const [lat, lon] = fm.home_coords.map(Number);
+    if (!isFinite(lat) || !isFinite(lon)) return false;
     return true;
   } catch {
     return false;

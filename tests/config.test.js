@@ -388,4 +388,23 @@ home_coords: [NaN, -94.5786]
     });
     expect(getFeatureAvailability().homeMdReady).toBe(false);
   });
+
+  // Regression: the onboarding writer (writeHomeMd → yamlStringify) emits
+  // home_coords as a YAML block sequence, not the inline `[lat, lon]` form.
+  // The readiness check must accept both shapes.
+  it('returns homeMdReady: true when home_coords is a YAML block sequence', async () => {
+    const blockForm = `---
+home_city: Des Moines
+home_coords:
+  - 41.5868654
+  - -93.6249494
+---
+`;
+    const { getFeatureAvailability } = await loadConfigWithFs({
+      existsSync: () => true,
+      readFileSync: () => blockForm,
+      writeFileSync: () => {},
+    });
+    expect(getFeatureAvailability().homeMdReady).toBe(true);
+  });
 });
