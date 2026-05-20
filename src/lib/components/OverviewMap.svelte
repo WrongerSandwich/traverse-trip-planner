@@ -146,7 +146,12 @@
         btn.onclick = ev => {
           ev.stopPropagation();
           const trip = markers[btn.dataset.slug]?.trip;
-          if (trip) onTripClick?.(trip);
+          if (!trip) return;
+          // Hand focus off to the parent's selectedSlug — clearing pinnedSlug
+          // so closing the shelf later cleanly restores the default map view
+          // instead of leaving the marker pinned.
+          pinnedSlug = null;
+          onTripClick?.(trip);
         };
       };
       map.on('popupopen', _onPopupOpen);
