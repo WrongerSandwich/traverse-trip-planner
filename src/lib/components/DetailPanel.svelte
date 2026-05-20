@@ -100,13 +100,13 @@
       {/if}
     </div>
   {:else}
-    <div class="header-dark">
+    <div class="header-fallback">
       <div class="header-text">
-        {#if trip?.vibe}<span class="dark-vibe">{trip.vibe}</span>{/if}
+        {#if trip?.vibe}<span class="fallback-vibe">{trip.vibe}</span>{/if}
         <h2>{trip?.title || trip?._slug || ''}</h2>
-        {#if trip?.destination}<div class="dark-dest">{trip.destination}</div>{/if}
+        {#if trip?.destination}<div class="fallback-dest">{trip.destination}</div>{/if}
       </div>
-      <button class="close dark" onclick={onclose} aria-label="Close">✕</button>
+      <button class="close fallback" onclick={onclose} aria-label="Close">✕</button>
     </div>
   {/if}
 
@@ -253,7 +253,8 @@
     border: none;
     cursor: pointer;
     line-height: 1;
-    padding: 0.4rem;
+    width: 2.25rem; height: 2.25rem;
+    padding: 0;
     display: flex; align-items: center; justify-content: center;
     transition: background 0.12s, color 0.12s, transform 0.12s;
   }
@@ -272,16 +273,20 @@
   }
   .close.light       { color: var(--bone-50); }
   .close.light:hover { background: rgba(0, 0, 0, 0.65); color: var(--bone-50); }
-  .close.dark {
+  .close.fallback {
     background: none; border: none; cursor: pointer; line-height: 1;
     padding: 0.3rem; border-radius: 3px;
     transition: background 0.12s, color 0.12s;
-    color: var(--text-tertiary);
+    color: color-mix(in oklab, var(--text-inverse) 70%, transparent);
   }
-  .close.dark:hover  { color: var(--text-primary); background: rgba(255, 255, 255, 0.08); }
+  .close.fallback:hover {
+    color: var(--text-inverse);
+    background: color-mix(in oklab, var(--text-inverse) 12%, transparent);
+  }
 
-  /* ── Dark fallback header (no photo) ── */
-  .header-dark {
+  /* ── Fallback header (no photo) — uses --surface-invert + --text-inverse
+     so it stays high-contrast in both light and dark modes. ── */
+  .header-fallback {
     background: var(--surface-invert);
     padding: 1.4rem 1.4rem 1.3rem;
     display: flex; align-items: flex-start; gap: 0.75rem;
@@ -289,20 +294,24 @@
     position: relative;
   }
   .header-text { flex: 1; min-width: 0; }
-  .dark-vibe {
+  .fallback-vibe {
     display: inline-block;
     font-size: 0.6rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--text-tertiary);
+    color: color-mix(in oklab, var(--text-inverse) 70%, transparent);
     margin-bottom: 0.35rem;
   }
-  .header-dark h2 {
+  .header-fallback h2 {
     font-family: var(--font-serif);
     font-size: 1.4rem; font-weight: 500; line-height: 1.2;
-    color: var(--text-primary); letter-spacing: 0.005em;
+    color: var(--text-inverse); letter-spacing: 0.005em;
     margin: 0;
   }
-  .dark-dest { font-size: 0.78rem; color: var(--text-tertiary); margin-top: 0.3rem; }
+  .fallback-dest {
+    font-size: 0.78rem;
+    color: color-mix(in oklab, var(--text-inverse) 75%, transparent);
+    margin-top: 0.3rem;
+  }
 
   /* ── Map ── */
   .panel-map { height: 140px; flex-shrink: 0; background: var(--border-default); }
