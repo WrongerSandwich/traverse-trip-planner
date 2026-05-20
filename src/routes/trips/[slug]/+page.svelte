@@ -25,6 +25,7 @@
   import EmptyItineraryCTA from '$lib/components/EmptyItineraryCTA.svelte';
   import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
   import FieldGuidePalette from '$lib/components/FieldGuidePalette.svelte';
+  import SectionDiffOverlay from '$lib/components/SectionDiffOverlay.svelte';
 
   let { data } = $props();
 
@@ -309,12 +310,25 @@
   const CHAT_PROMISE = $derived(data.promises?.chat ?? CHAT_FALLBACK);
 
   // ── Field guide palette (new Cmd-K surface; chat panel still wired below
-  // until commit 4 of the structural migration). The palette is the future
-  // primary input; per-section Ask buttons + Cmd-K both target it. ──
+  // until commit 4 of the structural migration). The palette is the primary
+  // input; per-section Ask buttons + Cmd-K both target it. ──
   let paletteOpen = $state(false);
   let paletteScope = $state(/** @type {{ kind: 'trip' } | { kind: 'section', section: string }} */ ({ kind: 'trip' }));
   let paletteBusy = $state(false);
   let paletteErrorSentence = $state(/** @type {string | null} */ (null));
+  /** Abort controller for the in-flight palette request, mirroring the chat
+   *  pattern — lets Cancel actually interrupt the server-side write. */
+  let paletteAbort = $state(/** @type {AbortController | null} */ (null));
+  /** Conversation history for Refine across turns. Cleared when the user
+   *  dismisses the post-edit chip. */
+  let paletteThread = $state(/** @type {{ role: 'user' | 'assistant', content: string }[]} */ ([]));
+
+  /** Per-section pending edit: { before, after, reply, turnAt, outOfDate }.
+   *  Sections with an entry render via SectionDiffOverlay instead of the
+   *  normal markdown body until the user clicks Accept or Revert. In-memory
+   *  only — the model writes the new content to disk at the API call;
+   *  Revert is a window of opportunity that closes on page reload. */
+  let pendingEdits = $state(/** @type {Record<string, { before: string, after: string, reply: string, turnAt: number, outOfDate: boolean }>} */ ({}));
 
   function openPalette(section = null) {
     if (!isPlanning) return;
@@ -324,6 +338,7 @@
   }
   function closePalette() {
     paletteOpen = false;
+    paletteErrorSentence = null;
   }
   function widenPaletteScope() {
     paletteScope = { kind: 'trip' };
@@ -352,14 +367,185 @@
     return best ? { kind: 'section', section: best } : { kind: 'trip' };
   }
 
-  function handlePaletteSubmit(value) {
-    // Stub for commit 1 — real send wiring lands in the wire-up commit.
-    // Surface the would-be intent so the UI behaves while we build out the
-    // diff overlay + API plumbing.
-    paletteErrorSentence = `Palette wiring is in progress — your request ("${value}") wasn't sent yet. The chat panel still works.`;
+  async function handlePaletteSubmit(value) {
+    if (paletteBusy) return;
+    paletteErrorSentence = null;
+    // Append the user turn to the running thread (Refine carries history
+    // forward across turns until the post-edit chip is dismissed).
+    paletteThread = [...paletteThread, { role: 'user', content: value }];
+
+    paletteBusy = true;
+    const controller = new AbortController();
+    paletteAbort = controller;
+
+    try {
+      const res = await fetch(
+        `/api/trip/${encodeURIComponent(trip._slug)}/chat`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: paletteThread }),
+          signal: controller.signal,
+        }
+      );
+      const body = await res.json().catch(() => ({}));
+
+      // User cancelled mid-flight — drop the optimistic user turn so the
+      // thread doesn't carry a question that never got an answer.
+      if (res.status === 499 || body?.error === 'cancelled') {
+        paletteThread = paletteThread.slice(0, -1);
+        return;
+      }
+
+      if (!res.ok) {
+        paletteErrorSentence = failureSentence(body.error || 'network_error', body.context || {});
+        // Roll back the optimistic turn since the model never answered it,
+        // otherwise a Retry would send the question twice.
+        paletteThread = paletteThread.slice(0, -1);
+        return;
+      }
+
+      const reply = body.reply || '(no reply)';
+      const updates = body.updates || {};
+      const turnAt = Date.now();
+
+      // Record per-section pending edits BEFORE mutating local sections so
+      // the "before" snapshot is the pre-turn content. If a section already
+      // has a pending edit from a previous turn, mark the old one as
+      // out-of-date (its snapshot now predates the current on-disk state
+      // by more than one turn — reverting would clobber intermediate work).
+      const nextPending = { ...pendingEdits };
+      for (const [section, after] of Object.entries(updates)) {
+        for (const [k, v] of Object.entries(nextPending)) {
+          if (k === section && !v.outOfDate) nextPending[k] = { ...v, outOfDate: true };
+        }
+        nextPending[section] = {
+          before: sections[section] ?? '',
+          after,
+          reply,
+          turnAt,
+          outOfDate: false,
+        };
+      }
+      pendingEdits = nextPending;
+
+      // Apply the writes locally so the in-section overlay can diff against
+      // the new content. The server already wrote to disk; this just keeps
+      // the page in sync without a full invalidateAll() round-trip.
+      for (const [section, content] of Object.entries(updates)) {
+        sections[section] = content;
+        if (editing[section]) {
+          editing[section] = false;
+          delete drafts[section];
+        }
+      }
+      // Refresh server-loaded data (frontmatter waypoints, drive hours, etc.)
+      // so the trip card meta and map reflect any overview-frontmatter edits.
+      if (Object.keys(updates).length > 0) await invalidateAll();
+
+      paletteThread = [...paletteThread, { role: 'assistant', content: reply }];
+
+      if (Object.keys(updates).length > 0) {
+        // Edit landed — close the palette; the post-edit chip + section
+        // banners carry the rest of the flow.
+        paletteOpen = false;
+      } else {
+        // Conversational reply only — keep the palette open with the reply
+        // surfaced so the user can Refine or Esc out.
+        // (Reply surface is rendered inside FieldGuidePalette via lastReply.)
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        paletteThread = paletteThread.slice(0, -1);
+        return;
+      }
+      paletteErrorSentence = failureSentence('network_error');
+      paletteThread = paletteThread.slice(0, -1);
+    } finally {
+      paletteBusy = false;
+      paletteAbort = null;
+    }
   }
   function handlePaletteCancel() {
-    paletteBusy = false;
+    paletteAbort?.abort();
+  }
+
+  // Most recent assistant reply for the conversational-only path. Surfaced
+  // inside the palette below the input when no <update> blocks landed.
+  const paletteLastReply = $derived.by(() => {
+    if (paletteThread.length === 0) return null;
+    const last = paletteThread[paletteThread.length - 1];
+    return last.role === 'assistant' ? last.content : null;
+  });
+
+  // ── Pending-edit chip + Accept / Revert ──────────────────────────────────
+  const pendingSections = $derived(Object.keys(pendingEdits));
+  const pendingHasFresh = $derived(pendingSections.some(s => !pendingEdits[s].outOfDate));
+  /** The most recent turn's reply (for the post-edit chip label). */
+  const pendingChipReply = $derived.by(() => {
+    let mostRecent = null;
+    for (const s of pendingSections) {
+      const p = pendingEdits[s];
+      if (!mostRecent || p.turnAt > mostRecent.turnAt) mostRecent = p;
+    }
+    return mostRecent?.reply ?? '';
+  });
+
+  function acceptEdit(section) {
+    const next = { ...pendingEdits };
+    delete next[section];
+    pendingEdits = next;
+  }
+  async function revertEdit(section) {
+    const pending = pendingEdits[section];
+    if (!pending) return;
+    try {
+      const res = await fetch(
+        `/api/trip/${encodeURIComponent(trip._slug)}/${encodeURIComponent(section)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: pending.before }),
+        }
+      );
+      if (!res.ok) {
+        // Surface inside the section banner via a transient error sentence —
+        // for now, leave the pending edit so the user can retry.
+        actionError = { code: 'revert_failed' };
+        return;
+      }
+      sections[section] = pending.before;
+      const next = { ...pendingEdits };
+      delete next[section];
+      pendingEdits = next;
+      // Drop the now-stale palette thread so a Refine doesn't reference
+      // the reverted turn.
+      paletteThread = [];
+      await invalidateAll();
+    } catch {
+      actionError = { code: 'revert_failed' };
+    }
+  }
+
+  function refineFromChip() {
+    // Re-open palette in trip-wide scope (the previous edit might span
+    // multiple sections; scope is conversational from here on).
+    paletteScope = { kind: 'trip' };
+    paletteErrorSentence = null;
+    paletteOpen = true;
+  }
+  function dismissChip() {
+    // Accept any still-pending edits and clear the thread. Edits the user
+    // already explicitly accepted are gone; this is the "I'm done with this
+    // turn, my edits stand" sweep.
+    pendingEdits = {};
+    paletteThread = [];
+  }
+
+  function scrollToFirstPending() {
+    if (!browser || pendingSections.length === 0) return;
+    const el = document.getElementById(`section-${pendingSections[0]}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // Cmd-K (Mac) / Ctrl-K (Win/Linux) opens the palette from anywhere on a
@@ -1053,6 +1239,18 @@
                 Cancel
               </button>
             </div>
+          {:else if pendingEdits[section]}
+            <SectionDiffOverlay
+              before={stripLeadingH1(pendingEdits[section].before)}
+              after={stripLeadingH1(pendingEdits[section].after)}
+              reply={pendingEdits[section].reply}
+              assistantName={data.assistantName}
+              outOfDate={pendingEdits[section].outOfDate}
+              turnAt={pendingEdits[section].turnAt}
+              sectionAnchor={`#section-${section}`}
+              onaccept={() => acceptEdit(section)}
+              onrevert={() => revertEdit(section)}
+            />
           {:else}
             <div class="prose">{@html renderMarkdown(stripLeadingH1(sections[section]))}</div>
           {/if}
@@ -1091,7 +1289,7 @@
     </main>
   </div>
 
-  {#if isPlanning && data.features?.chat && data.features?.homeMdReady !== false && !chatOpen}
+  {#if isPlanning && data.features?.chat && data.features?.homeMdReady !== false && !chatOpen && !paletteOpen && pendingSections.length === 0}
     <button class="chat-fab" onclick={() => (chatOpen = true)} aria-label="Ask {data.assistantName}">
       <svg class="fab-icon" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
         <path d="M8 1.2L9.4 5.6 14 7l-4.6 1.4L8 12.8 6.6 8.4 2 7l4.6-1.4z M13 11l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor"/>
@@ -1144,11 +1342,34 @@
     busy={paletteBusy}
     blockedReason={deepenSectionRunning ? `Section research is running. ${data.assistantName} is paused until it finishes so the two writers can't race on the same file.` : null}
     errorSentence={paletteErrorSentence}
+    lastReply={paletteLastReply}
     onsubmit={handlePaletteSubmit}
     oncancel={handlePaletteCancel}
     onclose={closePalette}
     onwidenscope={widenPaletteScope}
   />
+
+  {#if pendingSections.length > 0 && !paletteOpen}
+    <div class="palette-chip" role="status" aria-live="polite">
+      <button
+        type="button"
+        class="palette-chip-label"
+        onclick={scrollToFirstPending}
+        title={pendingChipReply}
+      >
+        <span class="palette-chip-icon" aria-hidden="true">✎</span>
+        {data.assistantName} edited
+        {#if pendingSections.length === 1}
+          {SECTION_LABELS[pendingSections[0]] || pendingSections[0]}
+        {:else}
+          {pendingSections.length} sections
+        {/if}
+        {#if pendingHasFresh}<span class="palette-chip-arrow" aria-hidden="true">↑</span>{/if}
+      </button>
+      <button type="button" class="palette-chip-btn" onclick={refineFromChip}>Refine</button>
+      <button type="button" class="palette-chip-btn palette-chip-dismiss" onclick={dismissChip}>Done</button>
+    </div>
+  {/if}
 
   <div class="chat-backdrop" class:open={chatOpen} onclick={() => chatOpen = false} role="presentation"></div>
 
@@ -1683,6 +1904,71 @@
   .action-error-dismiss:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
+  }
+
+  /* ── Field guide post-edit chip ──
+     Sits where the chat FAB used to live; the chat FAB is hidden while the
+     chip is visible (commit 4 will retire the FAB entirely). The chip is
+     the "you have pending edits" indicator + Refine/Done affordance. */
+  .palette-chip {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 940;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.6rem;
+    background: var(--surface-overlay);
+    border: 1px solid color-mix(in oklab, var(--state-success) 35%, var(--border-default));
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+  }
+  .palette-chip-label {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.1rem 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .palette-chip-label:hover { color: var(--accent-text); }
+  .palette-chip-icon {
+    color: var(--state-success);
+    font-size: 0.85em;
+    line-height: 1;
+  }
+  .palette-chip-arrow {
+    color: var(--text-tertiary);
+    font-size: 0.8em;
+  }
+  .palette-chip-btn {
+    background: var(--surface-page);
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .palette-chip-btn:hover {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+  .palette-chip-dismiss { color: var(--text-tertiary); }
+  @media (max-width: 640px) {
+    .palette-chip { bottom: 1rem; right: 1rem; }
   }
 
   /* ── AI chat ── */

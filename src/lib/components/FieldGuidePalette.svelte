@@ -19,6 +19,10 @@
    *   - blockedReason: string | null — when set, replaces the input with the
    *       reason copy (e.g., concurrent deepen-section job running).
    *   - errorSentence: string | null — typed failure surface inside the palette.
+   *   - lastReply: string | null — most recent assistant turn (conversational
+   *       fallback when the model returns a <reply> with no <update> blocks).
+   *       Rendered in italic-serif below the input so the user can Refine or
+   *       Esc out.
    *   - onsubmit(value): void — caller handles the send.
    *   - oncancel(): void — caller aborts the in-flight request.
    *   - onclose(): void — Esc / click-outside / explicit close.
@@ -40,6 +44,7 @@
    *   busy?: boolean,
    *   blockedReason?: string | null,
    *   errorSentence?: string | null,
+   *   lastReply?: string | null,
    *   onsubmit: (value: string) => void,
    *   oncancel?: () => void,
    *   onclose: () => void,
@@ -53,6 +58,7 @@
     busy = false,
     blockedReason = null,
     errorSentence = null,
+    lastReply = null,
     onsubmit,
     oncancel,
     onclose,
@@ -162,6 +168,13 @@
           >Send</button>
         {/if}
       </form>
+
+      {#if lastReply}
+        <div class="palette-reply" role="status" aria-live="polite">
+          <span class="palette-reply-author">— {assistantName}:</span>
+          {lastReply}
+        </div>
+      {/if}
 
       <div class="palette-promise">{promiseLine}</div>
     {/if}
@@ -303,6 +316,25 @@
     border-radius: 50%;
     animation: palette-spin 0.8s linear infinite;
     flex-shrink: 0;
+  }
+
+  /* Conversational reply (no <update> blocks): rendered below the input
+     in italic serif to carry the Field-guide voice from the section banner
+     into the palette itself. */
+  .palette-reply {
+    padding: 0.7rem 0.95rem;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--surface-raised);
+    border-top: 1px solid var(--border-subtle);
+  }
+  .palette-reply-author {
+    font-style: italic;
+    color: var(--text-secondary);
+    margin-right: 0.15rem;
   }
 
   .palette-promise {
