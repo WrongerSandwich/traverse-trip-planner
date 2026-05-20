@@ -11,6 +11,7 @@
   import AffordanceButtons from '$lib/workflow-status/AffordanceButtons.svelte';
   import { failureSentence, ERROR_REGISTRY } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
+  import { diffLines, summarizeDiff } from '$lib/utils/diff.js';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
   import { tripColor } from '$lib/utils/colors.js';
@@ -1134,7 +1135,22 @@
                       </div>
                     </div>
                     {#if expandedRows[key] && !isReverted}
-                      <pre class="change-row-preview">{newContent}</pre>
+                      {@const diff = summarizeDiff(diffLines(m.snapshots?.[section] ?? '', newContent))}
+                      <div class="change-row-preview" role="region" aria-label="Diff preview">
+                        {#each diff.visible as row, idx (idx)}
+                          {#if row.type === 'ellipsis'}
+                            <div class="diff-ellipsis" aria-hidden="true">⋯</div>
+                          {:else}
+                            <div class="diff-line diff-{row.type}">
+                              <span class="diff-marker" aria-hidden="true">{row.type === 'add' ? '+' : row.type === 'del' ? '−' : ' '}</span>
+                              <span class="diff-text">{row.line || ' '}</span>
+                            </div>
+                          {/if}
+                        {/each}
+                        {#if diff.hiddenChanges > 0}
+                          <div class="diff-more">+ {diff.hiddenChanges} more line{diff.hiddenChanges === 1 ? '' : 's'} changed</div>
+                        {/if}
+                      </div>
                       <button
                         type="button"
                         class="change-row-fullview"
@@ -1794,20 +1810,65 @@
     margin-top: 0.35rem;
     display: inline-block;
   }
+  /* Diff preview: per-line rows with semantic tint for add / del / eq.
+     Color comes from --state-success / --state-danger so the contrast
+     adapts in dark mode. No git-style green-blob / red-blob backgrounds —
+     a low-alpha mix() keeps the tint legible at small sizes without
+     turning the panel into a code-review surface. */
   .change-row-preview {
     margin: 0.4rem 0 0;
-    max-height: 12em;
+    max-height: 14em;
     overflow-y: auto;
-    padding: 0.5rem 0.6rem;
+    padding: 0.4rem 0.5rem;
     background: var(--surface-raised);
     border: 1px solid var(--border-subtle);
     border-radius: 3px;
     font-family: var(--font-mono);
     font-size: 0.74rem;
-    line-height: 1.45;
-    color: var(--text-secondary);
-    white-space: pre-wrap;
+    line-height: 1.5;
     word-break: break-word;
+  }
+  .diff-line {
+    display: grid;
+    grid-template-columns: 1.1em 1fr;
+    column-gap: 0.35rem;
+    align-items: baseline;
+    white-space: pre-wrap;
+  }
+  .diff-marker {
+    text-align: center;
+    user-select: none;
+    color: var(--text-tertiary);
+    font-weight: 600;
+  }
+  .diff-text { min-width: 0; }
+  .diff-eq  { color: var(--text-tertiary); }
+  .diff-add {
+    background: color-mix(in oklab, var(--state-success) 12%, transparent);
+    color: var(--text-primary);
+  }
+  .diff-add .diff-marker { color: var(--state-success); }
+  .diff-del {
+    background: color-mix(in oklab, var(--state-danger) 12%, transparent);
+    color: var(--text-secondary);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in oklab, var(--state-danger) 45%, transparent);
+  }
+  .diff-del .diff-marker {
+    color: var(--state-danger);
+    text-decoration: none;
+  }
+  .diff-ellipsis {
+    text-align: center;
+    color: var(--text-tertiary);
+    padding: 0.1rem 0;
+    letter-spacing: 0.3em;
+  }
+  .diff-more {
+    margin-top: 0.3rem;
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
   }
   .change-row-confirm {
     margin-top: 0.4rem;
