@@ -1025,11 +1025,18 @@
         disabled={chatBusy || deepenSectionRunning}
       ></textarea>
       <PromiseTooltip promise={CHAT_PROMISE}>
-        <button type="submit" class="send-btn" disabled={chatBusy || deepenSectionRunning || !chatInput.trim()}>
+        <button
+          type="submit"
+          class="send-btn"
+          class:busy={chatBusy}
+          disabled={chatBusy || deepenSectionRunning || !chatInput.trim()}
+          aria-label={chatBusy ? 'Sending…' : 'Send message'}
+        >
           {#if chatBusy}
             <span class="spinner" aria-hidden="true"></span>
+          {:else}
+            Send
           {/if}
-          {chatBusy ? 'Sending…' : 'Send'}
         </button>
       </PromiseTooltip>
     </form>
@@ -1492,7 +1499,7 @@
   .msg.assistant {
     align-self: flex-start;
     background: var(--surface-sunken);
-    color: var(--bark-800);
+    color: var(--text-primary);
     border-bottom-left-radius: 2px;
   }
   .msg-updates {
@@ -1551,6 +1558,7 @@
     background: var(--forest-800);
     color: var(--bone-50);
     border: none;
+    min-width: 4rem;
     padding: 0.5rem 0.95rem;
     border-radius: 4px;
     font-size: 0.82rem;
@@ -1559,10 +1567,14 @@
     cursor: pointer;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.38rem;
     white-space: nowrap;
   }
   .chat-input .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* Busy variant uses the spinner only; min-width keeps the button from
+     collapsing so the input row doesn't visually jump on send. */
+  .chat-input .send-btn.busy { padding: 0.5rem; }
 
   /* Spinner inside the send button — matches InstantInlineStatus.svelte's .spinner */
   @keyframes chat-spin { to { transform: rotate(360deg); } }
