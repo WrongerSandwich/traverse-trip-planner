@@ -43,7 +43,7 @@ git clone <repo-url> traverse && cd traverse
 cp home.example.md home.md   # edit with your home city, vehicles, taste
 cp .env.example .env         # edit with your API keys
 npm install
-npm run seed-sample          # optional: load the bundled demo dataset
+# npm run seed-sample        # optional: load the bundled demo dataset (skip for a clean first-run experience)
 npm run smoke                # optional: 1-token round-trip per provider
 npm run build
 PORT=3456 node build/index.js
