@@ -87,16 +87,15 @@ function searchOkIn(cfg, envObj) {
 }
 
 /**
- * Returns true iff home.md exists at the repo root, has a non-empty
- * home_city field, and has a valid home_coords array (2 finite numbers).
- * Used to gate AI features that require the traveler's home context.
+ * Pure: returns true iff `content` is a home.md file whose frontmatter has a
+ * non-empty `home_city` and a `home_coords` array of two finite numbers.
+ * Exported so unit tests can exercise the parsing logic directly without
+ * having to mock `node:fs` — the fs-mocking pattern was the source of
+ * intermittent flakiness across tests (vi.doMock + resetModules ordering).
  */
-function isHomeMdReady() {
+export function isHomeFrontmatterReady(content) {
   try {
-    const p = join(process.cwd(), 'home.md');
-    if (!existsSync(p)) return false;
-    const content = readFileSync(p, 'utf8');
-    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    const match = String(content ?? '').match(/^---\n([\s\S]*?)\n---/);
     if (!match) return false;
     const fm = yamlParse(match[1]) || {};
     if (!fm.home_city || typeof fm.home_city !== 'string' || !fm.home_city.trim()) return false;
@@ -104,6 +103,21 @@ function isHomeMdReady() {
     const [lat, lon] = fm.home_coords.map(Number);
     if (!isFinite(lat) || !isFinite(lon)) return false;
     return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Returns true iff home.md exists at the repo root and its frontmatter
+ * passes isHomeFrontmatterReady(). Used to gate AI features that require
+ * the traveler's home context.
+ */
+function isHomeMdReady() {
+  try {
+    const p = join(process.cwd(), 'home.md');
+    if (!existsSync(p)) return false;
+    return isHomeFrontmatterReady(readFileSync(p, 'utf8'));
   } catch {
     return false;
   }

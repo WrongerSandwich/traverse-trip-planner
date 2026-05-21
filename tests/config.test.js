@@ -348,104 +348,93 @@ describe('per-feature model overrides', () => {
   });
 });
 
-describe('homeMdReady', () => {
-  const VALID_HOME_MD = `---
+// Frontmatter-parsing cases — tested against the pure function so they don't
+// need vi.doMock at all. The previous loadConfigWithFs pattern compounded
+// known module-state-ordering flakiness in this suite.
+describe('isHomeFrontmatterReady', () => {
+  it('returns true for valid frontmatter with inline home_coords array', async () => {
+    const { isHomeFrontmatterReady } = await loadConfig();
+    const content = `---
 home_city: Kansas City
 home_coords: [39.0997, -94.5786]
 ---
 
 Some prose here.
 `;
-
-  // Helper that re-imports config.js with a custom fs mock for this test only.
-  async function loadConfigWithFs(fsMock, env = { ANTHROPIC_API_KEY: 'sk-ant-test' }) {
-    clearEnv();
-    for (const [k, v] of Object.entries(env)) process.env[k] = v;
-    vi.resetModules();
-    vi.doMock('node:fs', () => fsMock);
-    const mod = await import('../src/lib/server/config.js');
-    vi.doMock('node:fs', () => ({
-      readFileSync: () => { throw new Error('ENOENT'); },
-      writeFileSync: () => {},
-      existsSync: () => false,
-    }));
-    return mod;
-  }
-
-  it('returns homeMdReady: true for a valid home.md', async () => {
-    const { getFeatureAvailability } = await loadConfigWithFs({
-      existsSync: () => true,
-      readFileSync: () => VALID_HOME_MD,
-      writeFileSync: () => {},
-    });
-    expect(getFeatureAvailability().homeMdReady).toBe(true);
+    expect(isHomeFrontmatterReady(content)).toBe(true);
   });
 
-  it('returns homeMdReady: false when home.md does not exist', async () => {
-    const { getFeatureAvailability } = await loadConfigWithFs({
-      existsSync: () => false,
-      readFileSync: () => { throw new Error('ENOENT'); },
-      writeFileSync: () => {},
-    });
-    expect(getFeatureAvailability().homeMdReady).toBe(false);
-  });
-
-  it('returns homeMdReady: false when home_city is missing', async () => {
-    const noCity = `---
+  it('returns false when home_city is missing', async () => {
+    const { isHomeFrontmatterReady } = await loadConfig();
+    const content = `---
 home_coords: [39.0997, -94.5786]
 ---
 `;
-    const { getFeatureAvailability } = await loadConfigWithFs({
-      existsSync: () => true,
-      readFileSync: () => noCity,
-      writeFileSync: () => {},
-    });
-    expect(getFeatureAvailability().homeMdReady).toBe(false);
+    expect(isHomeFrontmatterReady(content)).toBe(false);
   });
 
-  it('returns homeMdReady: false when home_coords is missing', async () => {
-    const noCoords = `---
+  it('returns false when home_coords is missing', async () => {
+    const { isHomeFrontmatterReady } = await loadConfig();
+    const content = `---
 home_city: Kansas City
 ---
 `;
-    const { getFeatureAvailability } = await loadConfigWithFs({
-      existsSync: () => true,
-      readFileSync: () => noCoords,
-      writeFileSync: () => {},
-    });
-    expect(getFeatureAvailability().homeMdReady).toBe(false);
+    expect(isHomeFrontmatterReady(content)).toBe(false);
   });
 
-  it('returns homeMdReady: false when home_coords contains non-finite values', async () => {
-    const badCoords = `---
+  it('returns false when home_coords contains non-finite values', async () => {
+    const { isHomeFrontmatterReady } = await loadConfig();
+    const content = `---
 home_city: Kansas City
 home_coords: [NaN, -94.5786]
 ---
 `;
-    const { getFeatureAvailability } = await loadConfigWithFs({
-      existsSync: () => true,
-      readFileSync: () => badCoords,
-      writeFileSync: () => {},
-    });
-    expect(getFeatureAvailability().homeMdReady).toBe(false);
+    expect(isHomeFrontmatterReady(content)).toBe(false);
   });
 
   // Regression: the onboarding writer (writeHomeMd → yamlStringify) emits
   // home_coords as a YAML block sequence, not the inline `[lat, lon]` form.
   // The readiness check must accept both shapes.
-  it('returns homeMdReady: true when home_coords is a YAML block sequence', async () => {
-    const blockForm = `---
+  it('returns true when home_coords is a YAML block sequence', async () => {
+    const { isHomeFrontmatterReady } = await loadConfig();
+    const content = `---
 home_city: Des Moines
 home_coords:
   - 41.5868654
   - -93.6249494
 ---
 `;
-    const { getFeatureAvailability } = await loadConfigWithFs({
-      existsSync: () => true,
-      readFileSync: () => blockForm,
+    expect(isHomeFrontmatterReady(content)).toBe(true);
+  });
+
+  it('returns false when content has no frontmatter block', async () => {
+    const { isHomeFrontmatterReady } = await loadConfig();
+    expect(isHomeFrontmatterReady('just prose, no frontmatter')).toBe(false);
+    expect(isHomeFrontmatterReady('')).toBe(false);
+    expect(isHomeFrontmatterReady(null)).toBe(false);
+    expect(isHomeFrontmatterReady(undefined)).toBe(false);
+  });
+});
+
+// One end-to-end test that the wrapper checks existsSync. Still uses the
+// vi.doMock pattern, but only one test is exposed to its flakiness instead
+// of six.
+describe('homeMdReady (fs wrapper)', () => {
+  it('returns homeMdReady: false when home.md does not exist', async () => {
+    clearEnv();
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    vi.resetModules();
+    vi.doMock('node:fs', () => ({
+      readFileSync: () => { throw new Error('ENOENT'); },
       writeFileSync: () => {},
-    });
-    expect(getFeatureAvailability().homeMdReady).toBe(true);
+      existsSync: () => false,
+    }));
+    const { getFeatureAvailability } = await import('../src/lib/server/config.js');
+    expect(getFeatureAvailability().homeMdReady).toBe(false);
+    vi.doMock('node:fs', () => ({
+      readFileSync: () => { throw new Error('ENOENT'); },
+      writeFileSync: () => {},
+      existsSync: () => false,
+    }));
   });
 });
