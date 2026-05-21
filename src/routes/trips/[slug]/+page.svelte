@@ -1335,6 +1335,10 @@
     background: var(--planning-bg);
     color: var(--planning-text);
   }
+  /* Dark-mode header outline lives in app.css alongside the other
+     [data-theme="dark"] overrides — Svelte's CSS scoper can't see the
+     html-level data-theme attribute, so it would mark a per-component
+     override as unused. */
 
   .page > header h1 {
     font-family: var(--font-serif);
@@ -1731,9 +1735,10 @@
   /* Day-heading band. Background carries the day-separator affordance;
      the previous 3px sunset stripe stacked one per day and tripped the
      absolute ban. Bottom border keeps the seam visible. */
-  /* Day-heading band is editorial warmth, not a warning. Uses the
-     decorative --surface-warm-* tokens so its color story doesn't
-     collide with state semantics. */
+  /* Day-heading band uses the warning-surface palette. Structurally
+     unambiguous (rounded top of an itinerary block, not an inline
+     notice) so it doesn't collide with the brochure-stale notice or
+     .callout.warn even though they share the warm-orange palette. */
   .itinerary-view :global(h2) {
     font-size: 1rem;
     font-weight: 800;
@@ -1741,9 +1746,9 @@
     color: var(--text-primary);
     margin: 0;
     padding: 0.7rem 1.1rem 0.6rem;
-    background: var(--surface-warm-bg);
+    background: var(--state-warning-surface);
     border-radius: 4px 4px 0 0;
-    border-bottom: 1px solid var(--surface-warm-border);
+    border-bottom: 1px solid var(--state-warning);
   }
   .itinerary-view :global(h3) {
     font-size: 0.64rem;

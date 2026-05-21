@@ -170,14 +170,6 @@ Wire both themes through the same semantic variable names. Components reference 
 
   /* --- Focus --- */
   --focus-ring: #D87B3F;
-
-  /* --- Decorative warm surface --- */
-  /* For editorial accents (day-heading bands, section openers). Kept
-     distinct from --state-warning-surface so warning semantics stay
-     unambiguous. */
-  --surface-warm-bg:     #FCEEE2;
-  --surface-warm-text:   #8D4C24;
-  --surface-warm-border: #F0B080;
 }
 
 .dark {
@@ -217,12 +209,6 @@ Wire both themes through the same semantic variable names. Components reference 
 
   /* --- Focus --- */
   --focus-ring: #E0884F;
-
-  /* --- Decorative warm surface (dark cousin of the light cream tint) --- */
-  /* Custom stops, deliberately bounded to this token so they don't sprawl. */
-  --surface-warm-bg:     #2A2218;
-  --surface-warm-text:   #E0884F;
-  --surface-warm-border: #5C3F26;
 }
 
 body {

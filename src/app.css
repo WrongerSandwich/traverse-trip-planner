@@ -121,14 +121,6 @@
   --completed-bg:   var(--bark-100);
   --completed-text: var(--bark-600);
 
-  /* ── Decorative warm surface ──────────────────────────────────────────
-     A warm cream tint used for editorial accents (day-heading bands,
-     section openers). Distinct from --state-warning-surface so warning
-     semantics aren't diluted by decoration. */
-  --surface-warm-bg:     #FCEEE2;
-  --surface-warm-text:   #8D4C24;
-  --surface-warm-border: #F0B080;
-
   /* ── Typography ──────────────────────────────────────────────────────── */
   --font-serif: 'Fraunces', ui-serif, Georgia, serif;
   --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -220,13 +212,6 @@
   --planning-text:  var(--forest-200);
   --completed-bg:   var(--bark-800);
   --completed-text: var(--bark-200);
-
-  /* Decorative warm surface — dark cousin of the light cream tint. Custom
-     stops, not in the named ramps, but explicitly bounded to this token
-     so they don't sprawl into other components. */
-  --surface-warm-bg:     #2A2218;
-  --surface-warm-text:   #E0884F;
-  --surface-warm-border: #5C3F26;
 }
 
 body {
@@ -240,6 +225,17 @@ body {
 /* Photos / trip imagery — dim slightly in dark mode so they don't glare. */
 [data-theme="dark"] img:not([data-theme-invariant]) {
   filter: brightness(0.92);
+}
+
+/* Lifecycle stage pill on the trip detail page header. The header is
+   --forest-800 in both modes, and the planning pill bg is also forest-800
+   in dark mode — without an outline the pill becomes invisible. The
+   border-strong overlay reads against both the header and the pill fill,
+   so all three stages (idea / planning / completed) stay legible without
+   bespoke per-stage overrides. Light mode doesn't need this — its pill
+   bgs are cream tints with high contrast against the dark forest header. */
+[data-theme="dark"] .page > header .stage-pill {
+  border: 1px solid var(--border-strong);
 }
 
 ::selection {
