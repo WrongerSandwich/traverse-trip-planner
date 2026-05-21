@@ -1038,6 +1038,23 @@
             </div>
 
             <div class="subsection">
+              <span class="subsection-label">Environment-only configuration</span>
+              <p class="field-hint">These knobs live only in <code>.env</code> — each has a reason it can't be UI-edited. See the configuration reference in <code>DEPLOY.md</code> for the full list.</p>
+
+              <div class="field-group env-only-list">
+                {#each data.envOnlyKnobs as knob (knob.name)}
+                  <div class="field env-only-row">
+                    <div class="field-label-row">
+                      <code class="field-label env-only-name">{knob.name}</code>
+                      <span class="badge {knob.isSet ? 'badge-env' : 'badge-unset'}">{knob.displayValue}</span>
+                    </div>
+                    <p class="field-hint">{knob.reason}</p>
+                  </div>
+                {/each}
+              </div>
+            </div>
+
+            <div class="subsection">
               <span class="subsection-label">Search backend</span>
               <p class="field-hint">Which backend to use for web search (today: Research/deepen). <code>anthropic-builtin</code> uses Anthropic's native search tool but only works when the Research slot is also Anthropic. <code>tavily</code> works with any provider but needs a Tavily key above.</p>
 
@@ -1490,6 +1507,16 @@
   .source-note code {
     font-family: var(--font-mono);
     font-style: normal;
+  }
+
+  .env-only-list .env-only-row + .env-only-row { margin-top: 4px; }
+  .env-only-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--surface-sunken);
+    padding: 2px 6px;
+    border-radius: 3px;
   }
 
   /* ── Checkbox ── */
