@@ -546,7 +546,7 @@
   }
 
   .step-pill-active {
-    border-color: var(--forest-600);
+    border-color: var(--accent);
     color: var(--text-primary);
     background: var(--surface-raised);
   }
@@ -569,8 +569,8 @@
   }
 
   .step-pill-active .step-num {
-    background: var(--forest-600);
-    color: var(--surface-page);
+    background: var(--accent);
+    color: var(--text-inverse);
   }
 
   .step {
@@ -658,7 +658,7 @@
   }
 
   .radio-option-active {
-    border-color: var(--forest-600);
+    border-color: var(--accent);
     background: var(--surface-raised);
   }
 
@@ -698,9 +698,9 @@
   }
 
   .btn-primary {
-    background: var(--forest-600);
-    color: var(--surface-page);
-    border-color: var(--forest-600);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
+    border-color: var(--surface-invert);
   }
 
   .btn-primary:disabled {
@@ -715,6 +715,6 @@
   }
 
   .btn-secondary:hover {
-    border-color: var(--forest-400);
+    border-color: var(--border-strong);
   }
 </style>

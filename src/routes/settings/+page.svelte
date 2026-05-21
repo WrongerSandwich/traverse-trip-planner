@@ -1294,7 +1294,7 @@
   .field-select:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
-    border-color: var(--forest-400);
+    border-color: var(--border-strong);
   }
   .field-input::placeholder {
     color: var(--text-tertiary);
@@ -1414,7 +1414,7 @@
     font-weight: 500;
   }
   .btn-confirm-yes:hover:not(:disabled) {
-    background: var(--embers-50);
+    background: color-mix(in oklab, var(--state-danger) 14%, transparent);
   }
   .btn-confirm-yes:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-confirm-cancel {
@@ -1455,16 +1455,16 @@
     transition: border-color 0.15s, color 0.15s, background-color 0.15s;
   }
   .theme-option:hover,
-  .radio-option:hover { border-color: var(--forest-400); }
+  .radio-option:hover { border-color: var(--border-strong); }
   .theme-option-active,
   .radio-option-active {
-    border-color: var(--forest-600);
+    border-color: var(--accent);
     color: var(--text-primary);
     background: var(--surface-raised);
   }
   .theme-option input[type="radio"],
   .radio-option input[type="radio"] {
-    accent-color: var(--forest-600);
+    accent-color: var(--accent);
     margin: 0;
   }
   .theme-option:focus-within,
@@ -1528,7 +1528,7 @@
     margin-top: 2px;
   }
   .checkbox-row input[type="checkbox"] {
-    accent-color: var(--forest-600);
+    accent-color: var(--accent);
     width: 16px;
     height: 16px;
     margin: 0;
@@ -1607,14 +1607,14 @@
     min-height: 32px;
     transition: border-color 0.15s, color 0.15s, background-color 0.15s;
   }
-  .default-radio:hover { border-color: var(--forest-400); }
+  .default-radio:hover { border-color: var(--border-strong); }
   .default-radio-active {
-    border-color: var(--forest-600);
+    border-color: var(--accent);
     color: var(--text-primary);
     background: var(--surface-raised);
   }
   .default-radio input[type="radio"] {
-    accent-color: var(--forest-600);
+    accent-color: var(--accent);
     margin: 0;
   }
 

@@ -286,13 +286,13 @@
     transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
   .palette-submit {
-    background: var(--forest-800);
-    color: var(--bone-50);
-    border: 1px solid var(--forest-800);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
+    border: 1px solid var(--surface-invert);
   }
   .palette-submit:hover:not(:disabled) {
-    background: var(--forest-900);
-    border-color: var(--forest-900);
+    background: var(--text-primary);
+    border-color: var(--text-primary);
   }
   .palette-submit:disabled {
     opacity: 0.5;

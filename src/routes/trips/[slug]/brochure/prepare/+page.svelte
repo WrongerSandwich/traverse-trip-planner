@@ -550,11 +550,11 @@
     font-size: 11px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     text-decoration: none;
     margin-bottom: 1rem;
   }
-  .back:hover { color: var(--forest-800); }
+  .back:hover { color: var(--text-primary); }
   h1 {
     font-family: var(--font-serif);
     font-size: 32px;
@@ -562,13 +562,13 @@
     font-weight: 500;
     letter-spacing: 0.003em;
     margin: 0 0 0.75rem;
-    color: var(--forest-800);
+    color: var(--text-primary);
   }
   .lede {
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.6;
-    color: var(--bark-800);
+    color: var(--text-secondary);
     margin: 0;
     max-width: 56ch;
   }
@@ -581,9 +581,9 @@
   }
 
   .error-banner {
-    background: var(--sunset-50);
-    border: 0.5px solid var(--embers-600);
-    color: var(--embers-600);
+    background: var(--state-danger-surface);
+    border: 0.5px solid var(--state-danger);
+    color: var(--state-danger);
     padding: 0.75rem 1rem;
     border-radius: 4px;
     margin-bottom: 1.5rem;
@@ -596,11 +596,11 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.6rem 1rem;
-    background: var(--amber-50, #fffbeb);
-    border: 1px solid var(--amber-300, #fcd34d);
+    background: var(--state-warning-surface);
+    border: 1px solid var(--state-warning);
     border-radius: 6px;
     font-size: 0.85rem;
-    color: var(--amber-800, #92400e);
+    color: var(--state-warning);
     margin-bottom: 1rem;
   }
   .brochure-stale-notice span { flex: 1; }
@@ -609,20 +609,20 @@
     text-align: center;
     padding: 3rem 1rem;
     background: var(--surface-raised);
-    border: 0.5px solid var(--bone-400);
+    border: 0.5px solid var(--border-default);
     border-radius: 8px;
   }
   .cta-hint {
     font-family: var(--font-sans);
     font-size: 12px;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     margin: 0.75rem 0 0;
   }
 
   .block {
     margin: 2rem 0 0;
     padding-top: 1.5rem;
-    border-top: 0.5px solid var(--bone-400);
+    border-top: 0.5px solid var(--border-default);
   }
   .block:first-of-type {
     border-top: none;
@@ -632,7 +632,7 @@
     font-family: var(--font-serif);
     font-size: 20px;
     font-weight: 500;
-    color: var(--forest-800);
+    color: var(--text-primary);
     margin: 0 0 0.5rem;
     display: flex;
     align-items: baseline;
@@ -642,13 +642,13 @@
     font-family: var(--font-mono);
     font-size: 11px;
     font-weight: 500;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     letter-spacing: 0.12em;
   }
   .hint {
     font-family: var(--font-sans);
     font-size: 12px;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     margin: 0 0 0.75rem;
   }
 
@@ -662,7 +662,7 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.18em;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     margin-bottom: 4px;
   }
   .text-input {
@@ -670,14 +670,15 @@
     font-family: var(--font-sans);
     font-size: 15px;
     padding: 8px 12px;
-    border: 0.5px solid var(--bone-400);
+    border: 0.5px solid var(--border-default);
     border-radius: 4px;
     background: var(--surface-raised);
     color: var(--text-primary);
   }
   .text-input:focus {
-    outline: none;
-    border-color: var(--forest-800);
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+    border-color: var(--border-strong);
   }
 
   .photo-grid {
@@ -693,14 +694,14 @@
     overflow: hidden;
     transition: border-color 0.15s ease;
   }
-  .photo-option.active { border-color: var(--sunset-600); }
+  .photo-option.active { border-color: var(--accent); }
   .photo-option input { position: absolute; opacity: 0; pointer-events: none; }
   .photo-option img { width: 100%; height: auto; display: block; aspect-ratio: 5 / 3; object-fit: cover; }
   .photo-credit {
     display: block;
     font-family: var(--font-mono);
     font-size: 10px;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     padding: 4px 6px;
     background: var(--surface-raised);
   }
@@ -712,7 +713,7 @@
   }
   .checklist > li {
     padding: 10px 0;
-    border-bottom: 0.5px solid var(--bone-400);
+    border-bottom: 0.5px solid var(--border-default);
     transition: opacity 0.15s ease;
   }
   .checklist > li:last-child { border-bottom: none; }
@@ -728,7 +729,7 @@
     margin-top: 4px;
     width: 16px;
     height: 16px;
-    accent-color: var(--forest-800);
+    accent-color: var(--accent);
     cursor: pointer;
   }
   .item-head {
@@ -742,16 +743,16 @@
     font-family: var(--font-serif);
     font-size: 16px;
     font-weight: 500;
-    color: var(--forest-800);
+    color: var(--text-primary);
   }
   .item-tag {
     font-family: var(--font-mono);
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.18em;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     padding: 1px 6px;
-    border: 0.5px solid var(--bone-400);
+    border: 0.5px solid var(--border-default);
     border-radius: 2px;
   }
   .item-anchor {
@@ -759,27 +760,27 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.18em;
-    color: var(--sunset-600);
+    color: var(--accent);
   }
   .item-notes {
     font-family: var(--font-sans);
     font-size: 13px;
     line-height: 1.5;
-    color: var(--bark-800);
+    color: var(--text-secondary);
     margin: 4px 0 0;
   }
   .note-text {
     font-family: var(--font-serif);
     font-size: 14px;
     line-height: 1.55;
-    color: var(--bark-800);
+    color: var(--text-secondary);
     font-style: italic;
     margin: 0;
   }
 
   .item-unmapped {
-    color: var(--bone-600);
-    border-color: var(--bone-400);
+    color: var(--text-tertiary);
+    border-color: var(--border-default);
     opacity: 0.8;
   }
 
@@ -795,7 +796,7 @@
     font-family: var(--font-mono);
     font-size: 11px;
     padding: 4px 8px;
-    border: 0.5px solid var(--bone-400);
+    border: 0.5px solid var(--border-default);
     border-radius: 3px;
     background: var(--surface-raised);
     color: var(--text-primary);
@@ -803,13 +804,14 @@
     flex: 1;
   }
   .coord-input:focus {
-    outline: none;
-    border-color: var(--forest-800);
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+    border-color: var(--border-strong);
   }
   .coord-error {
     font-family: var(--font-mono);
     font-size: 10px;
-    color: var(--embers-600);
+    color: var(--state-danger);
     flex-basis: 100%;
     padding-left: 2px;
   }
@@ -818,16 +820,16 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.14em;
-    color: var(--bone-600);
+    color: var(--text-tertiary);
     background: none;
-    border: 0.5px solid var(--bone-400);
+    border: 0.5px solid var(--border-default);
     border-radius: 3px;
     padding: 2px 8px;
     cursor: pointer;
   }
   .edit-coord-btn:hover {
-    color: var(--forest-800);
-    border-color: var(--forest-800);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
   }
 
   .actions {
@@ -836,7 +838,7 @@
     gap: 12px;
     margin-top: 2.5rem;
     padding-top: 1.5rem;
-    border-top: 0.5px solid var(--bone-400);
+    border-top: 0.5px solid var(--border-default);
   }
 
   .status-log {
@@ -847,7 +849,7 @@
     border-radius: 4px;
     font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--bark-800);
+    color: var(--text-secondary);
   }
   .status-log li { padding: 2px 0; }
 
@@ -895,11 +897,11 @@
     overflow-y: auto;
     padding: 0.35rem 0.5rem;
     background: var(--surface-raised);
-    border: 0.5px solid var(--bone-400);
+    border: 0.5px solid var(--border-default);
     border-radius: 4px;
     font-family: var(--font-mono);
     font-size: 11px;
-    color: var(--bark-800);
+    color: var(--text-secondary);
   }
   .regeo-log-line { line-height: 1.45; }
 
@@ -912,8 +914,8 @@
     margin-top: 0.75rem;
     display: inline-flex;
     align-items: center;
-    background: var(--forest-800);
-    color: var(--bone-200);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
     padding: 0.45rem 0.85rem;
     border-radius: 5px;
     font-family: var(--font-sans);
@@ -927,8 +929,8 @@
   .regeo-error {
     margin-top: 0.75rem;
     padding: 0.5rem 0.65rem;
-    background: var(--sunset-50, #fff5f0);
-    border: 1px solid var(--embers-600, #c0392b);
+    background: var(--state-danger-surface);
+    border: 1px solid var(--state-danger);
     border-radius: 4px;
     display: flex;
     flex-direction: column;

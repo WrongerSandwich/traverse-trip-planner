@@ -8,9 +8,10 @@
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
 
-  // Disable the Research CTA while a deepen job is in flight for this trip.
-  // The TripJobBadge below already surfaces the "Researching…" status, so we
-  // gate the button instead of duplicating the spinner inline.
+  // Hide the Research CTA while a deepen job is in flight for this trip — the
+  // TripJobBadge below already says "Researching…", so showing a disabled
+  // button next to it is redundant. Parent sets an optimistic deepen job on
+  // confirm so this flips immediately, before the next /api/jobs poll.
   const deepenRunning = $derived(
     jobs.some(j => (typeof j.workflow === 'string' ? j.workflow.split(':')[0] : j.workflow) === 'deepen')
   );
@@ -106,17 +107,15 @@
 
     {#if trip.pitch}<p class="pitch">{trip.pitch}</p>{/if}
 
-    {#if isIdea}
+    {#if isIdea && !deepenRunning}
       <button
         class="btn btn-secondary btn-compact card-cta"
         onclick={ondeepen}
-        disabled={!ondeepen || deepenRunning}
+        disabled={!ondeepen}
         title={
-          deepenRunning
-            ? 'Research already in progress — see the badge below'
-            : ondeepen
-              ? 'Look into this trip with web search'
-              : 'Research is offline — configure the research model and search backend in .env or via Settings'
+          ondeepen
+            ? 'Look into this trip with web search'
+            : 'Research is offline — configure the research model and search backend in .env or via Settings'
         }
       >
         Research →

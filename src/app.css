@@ -84,11 +84,14 @@
   --border-default: #C9B695;
   --border-strong:  #9A8A6F;
 
-  /* State — foreground (text/icon) colors */
+  /* State — foreground (text/icon) colors.
+     --state-warning uses sunset-800 in light mode (not sunset-400) so warning
+     text clears AA against both --surface-page and --state-warning-surface.
+     Dark mode lifts back to sunset-400 since the surface is dark. */
   --state-success: #2D5840;
   --state-danger:  #A82F1F;
   --state-info:    #3D5A6E;
-  --state-warning: #E0884F;
+  --state-warning: #8D4C24;
 
   /* State — surface tints (filled banners/badges) */
   --state-success-surface: #E6EFE9;

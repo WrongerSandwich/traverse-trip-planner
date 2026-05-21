@@ -1361,7 +1361,7 @@
     padding: 0.14rem 0.45rem;
     border-radius: 2px;
   }
-  .meta .mode.drive { background: var(--forest-100); color: var(--forest-800); }
+  .meta .mode.drive { background: var(--state-success-surface); color: var(--state-success); }
   .meta .cost { font-weight: 700; color: var(--bone-200); }
 
   .hero {
@@ -1400,32 +1400,34 @@
   }
 
   /* Full-border callouts; the side-stripe variant tripped the absolute ban
-     and the background tint + matching border already carry the affordance. */
+     and the background tint + matching border already carry the affordance.
+     Drives off semantic state-* tokens so each callout flavor adapts to
+     dark mode without per-mode overrides. */
   .callout {
-    background: var(--forest-50);
-    color: var(--forest-800);
-    border: 1px solid var(--forest-100);
+    background: var(--state-success-surface);
+    color: var(--state-success);
+    border: 1px solid var(--state-success);
     border-radius: 4px;
     padding: 0.7rem 0.95rem;
     font-size: 0.84rem;
     line-height: 1.55;
   }
   .callout.warn {
-    background: var(--sunset-50);
-    color: var(--sunset-800);
-    border-color: var(--sunset-100);
+    background: var(--state-warning-surface);
+    color: var(--state-warning);
+    border-color: var(--state-warning);
   }
   .callout.completed-callout {
-    background: var(--bark-50);
-    color: var(--bark-600);
-    border-color: var(--bark-100);
+    background: var(--completed-bg);
+    color: var(--completed-text);
+    border-color: var(--completed-text);
   }
   /* ── Receipts inline result / error ── */
   .receipts-success {
     margin-top: 0.6rem;
     font-size: 0.82rem;
     font-weight: 600;
-    color: var(--forest-700);
+    color: var(--state-success);
   }
   .receipts-lines {
     margin: 0.4rem 0 0 1.1rem;
@@ -1440,8 +1442,8 @@
     flex-direction: column;
     gap: 0.35rem;
     padding: 0.5rem 0.65rem;
-    background: var(--sunset-50, #fff5f0);
-    border: 1px solid var(--embers-600);
+    background: var(--state-danger-surface);
+    border: 1px solid var(--state-danger);
     border-radius: 4px;
     max-width: 28rem;
   }
@@ -1548,7 +1550,7 @@
     padding: 0.7rem 0.85rem;
     resize: vertical;
   }
-  .editor:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
+  .editor:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 
   .editor-actions {
     display: flex;
@@ -1587,27 +1589,27 @@
   .prose :global(ul), .prose :global(ol) { margin: 0 0 0.85rem 1.3rem; }
   .prose :global(li) { margin-bottom: 0.3rem; }
   .prose :global(strong) { font-weight: 700; color: var(--text-primary); }
-  .prose :global(a) { color: var(--forest-600); text-decoration: none; }
+  .prose :global(a) { color: var(--accent-text); text-decoration: none; }
   .prose :global(a:hover) { text-decoration: underline; }
   .prose :global(table) { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin: 0 0 1rem; }
   .prose :global(th) { text-align: left; font-weight: 700; padding: 0.4rem 0.6rem; border-bottom: 2px solid var(--border-default); color: var(--text-primary); }
   .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
-  .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--forest-50); color: var(--forest-800); padding: 0.1em 0.4em; border-radius: 3px; }
+  .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--surface-sunken); color: var(--text-primary); padding: 0.1em 0.4em; border-radius: 3px; }
 
   /* ── Brochure error banner (replaces .brochure-error inside old brochure-zone) ── */
   .brochure-error-banner {
     padding: 0.55rem 0.85rem;
-    background: var(--sunset-50);
-    border: 1px solid var(--embers-600);
+    background: var(--state-danger-surface);
+    border: 1px solid var(--state-danger);
     border-radius: 4px;
     font-size: 0.82rem;
-    color: var(--embers-600);
+    color: var(--state-danger);
     line-height: 1.45;
   }
 
   .deepen-section-error {
     font-size: 0.78rem;
-    color: var(--embers-600);
+    color: var(--state-danger);
     line-height: 1.45;
     margin-top: 0.25rem;
   }
@@ -1732,9 +1734,9 @@
     color: var(--text-primary);
     margin: 0;
     padding: 0.7rem 1.1rem 0.6rem;
-    background: var(--sunset-50);
+    background: var(--state-warning-surface);
     border-radius: 4px 4px 0 0;
-    border-bottom: 1px solid var(--sunset-200);
+    border-bottom: 1px solid var(--state-warning);
   }
   .itinerary-view :global(h3) {
     font-size: 0.64rem;
@@ -1776,11 +1778,11 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.6rem 1rem;
-    background: var(--sunset-50);
-    border: 1px solid var(--sunset-200);
+    background: var(--state-warning-surface);
+    border: 1px solid var(--state-warning);
     border-radius: 6px;
     font-size: 0.85rem;
-    color: var(--sunset-800);
+    color: var(--state-warning);
     margin-top: 0.5rem;
   }
   .brochure-stale-notice span { flex: 1; }

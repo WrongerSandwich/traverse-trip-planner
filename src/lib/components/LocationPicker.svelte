@@ -235,8 +235,9 @@
   }
 
   .field-input:focus {
-    outline: none;
-    border-color: var(--forest-400);
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+    border-color: var(--border-strong);
   }
 
   .field-input::placeholder {
@@ -253,7 +254,7 @@
     width: 12px;
     height: 12px;
     border: 2px solid var(--border-default);
-    border-top-color: var(--forest-400);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
     pointer-events: none;

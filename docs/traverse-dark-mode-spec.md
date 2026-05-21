@@ -22,7 +22,7 @@ If a quick dark-mode pass "isn't quite working," it is almost always one or more
 
 6. **Invisible borders.** Light-mode borders are warm tan on cream. On a dark surface they disappear. Dark mode borders are low-alpha warm-white overlays.
 
-7. **No treatment for illustration.** The paper-map view is a centerpiece. Left untouched, a cream `bone-100` map glares inside a dark UI. It needs its own dark re-skin.
+7. **No treatment for illustration.** ~~The paper-map view is a centerpiece. Left untouched, a cream `bone-100` map glares inside a dark UI. It needs its own dark re-skin.~~ **Deferred indefinitely.** Multiple attempts at a dark paper-map skin have not landed cleanly — the topographic contours, river, and route line each compete differently against the dark canvas and the result reads as muddy rather than dusk-lit. Paper-map illustrations and the Leaflet OSM tile pane stay on their light-mode values inside the dark UI. The accompanying photo brightness filter still mitigates glare on the rest of the surface.
 
 8. **Hardcoded palette classes in components.** If components use `bg-bone-50` and `text-forest-900` directly, every one needs a `dark:` override and the result drifts out of sync. **The fix — and the single most important recommendation in this document — is to drive all mode-dependent color through semantic tokens (CSS custom properties), so components never reference a raw palette color for surface, text, or border.** See section 6.
 
@@ -361,25 +361,15 @@ Drive this off `surface-overlay` in both modes? No — light mode wants the inse
 </div>
 ```
 
-### Paper-map illustration
+### Paper-map illustration — deferred indefinitely
 
-The map gets a full dark re-skin. Background uses `surface-raised` (consistent with light mode, where the map sits on `bone-100`). Every other element shifts:
+**Status: not attempted in current dark mode.** The paper-map illustrations (`DestinationMap.svelte`, `PaperMap.svelte`) and the Leaflet OSM tile pane render their light-mode values inside the dark UI. This is a deliberate hold, not an oversight:
 
-| Map element | Light value | Dark value |
-| --- | --- | --- |
-| Canvas background | `bone-100` `#F6F1E5` | `surface-raised` `#1E2C24` |
-| Topographic contour lines | `forest-200`, 35–55% opacity | `forest-200` `#95B8A2`, 18–24% opacity |
-| River | `sky-200`-ish, ~55% opacity | `sky-400` `#5B7E92`, ~50% opacity |
-| Route line | `sunset-600` `#D87B3F` | `sunset-600` `#D87B3F` (unchanged) |
-| Stop pin fill | `forest-800` | `bone-100` `#F6F1E5` |
-| Stop pin ring + inner dot | `bone-50` | `surface-page` `#14201A` |
-| Destination pin | `sunset-600` + white X | `sunset-600` + `surface-page` X (unchanged fill) |
-| Compass, scale bar, labels | `bark-600` | `text-secondary` `#B4C2B3` |
-| Title plate text | `bark-600` / `bone-600` | `text-secondary` / `text-tertiary` |
+- Multiple passes at a dark map skin have produced muddy results. The cream-on-forest legibility that makes the light map readable doesn't survive inversion — topographic contours and rivers compete with the canvas instead of receding into it, and the sunset route line loses the "glowing at dusk" quality the rest of the dark mode achieves.
+- The existing `[data-theme="dark"] img { filter: brightness(0.92) }` rule and the warm-dark surfaces around the map already mitigate the glare problem for adjacent content.
+- Paper maps are tied to the print/brochure context, where light mode is the canonical render anyway.
 
-The route line and destination pin do not change — the orange holds against the dark canvas and glows, exactly as intended by the "Dusk" concept.
-
-If you move to a real interactive map later (MapLibre/Mapbox), build a parallel dark style sheet: deep forest-charcoal base, muted `forest-400` land, `sky-800` water, `sunset-600` route.
+If a future attempt revisits this, the original element table (canvas, contours, river, pins, compass) is in git history; treat it as a sketch, not a binding spec — every prior attempt has needed to rework opacity, hue, and the route-line treatment in tandem before the map reads cleanly. A real interactive map (MapLibre/Mapbox) would face the same problem on its own dark style sheet.
 
 ### Inputs and form fields
 
@@ -468,7 +458,7 @@ Practical rules:
 - [ ] Migrate components off raw palette classes (`bg-bone-50`, `text-forest-900`) onto semantic ones (`bg-surface-page`, `text-ink-primary`)
 - [ ] Add the `dark:` treatment change to the primary button
 - [ ] Add the `dark:` surface swap to the AI assistant card
-- [ ] Re-skin the paper-map illustration per the element table
+- [ ] ~~Re-skin the paper-map illustration per the element table~~ — **deferred indefinitely** (see Section 6 / Section 0 #7)
 - [ ] Add `border-bottom` to the header for dark mode
 - [ ] Install and wire `next-themes`; add the blocking class so there is no flash
 - [ ] Add a three-way (light / dark / system) toggle to the header

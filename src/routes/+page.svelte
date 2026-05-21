@@ -40,17 +40,84 @@
   // ── Background jobs polling (10s interval) ──
   // Fetches GET /api/jobs once and distributes the filtered subset to each
   // card via filterJobsForSlug(). Stops/starts cleanly with the component.
+  //
+  // Two side effects beyond the basic poll:
+  //   - When a deepen job disappears between polls, invalidateAll() so the
+  //     card flips from idea→planning without a manual refresh.
+  //   - Drop any optimistic deepen flag for that slug once a real deepen job
+  //     appears in /api/jobs (or after STALE_DEEPEN_MS as a safety net).
   let allJobs = $state([]);
+
+  // Optimistic deepen flags — slug → timestamp set the moment the user
+  // confirms research, so the card switches to "Researching…" immediately
+  // instead of waiting for the next jobs poll.
+  let optimisticDeepenSlugs = $state(new Map());
+  const STALE_DEEPEN_MS = 30_000;
+
+  function bareWorkflow(w) {
+    return typeof w === 'string' ? w.split(':')[0] : w;
+  }
+
+  function deepenSlugSet(jobsList) {
+    const set = new Set();
+    for (const j of jobsList) {
+      if (bareWorkflow(j.workflow) === 'deepen') set.add(j.slug);
+    }
+    return set;
+  }
+
+  function setOptimisticDeepen(slug) {
+    const next = new Map(optimisticDeepenSlugs);
+    next.set(slug, Date.now());
+    optimisticDeepenSlugs = next;
+  }
+
+  function clearOptimisticDeepen(slug) {
+    if (!optimisticDeepenSlugs.has(slug)) return;
+    const next = new Map(optimisticDeepenSlugs);
+    next.delete(slug);
+    optimisticDeepenSlugs = next;
+  }
 
   $effect(() => {
     if (!browser) return;
     let cancelled = false;
+    let prevDeepenSlugs = new Set();
     async function fetchJobs() {
       try {
         const res = await fetch('/api/jobs');
         if (!cancelled && res.ok) {
           const body = await res.json();
-          allJobs = body.jobs ?? [];
+          const next = body.jobs ?? [];
+          const nextDeepenSlugs = deepenSlugSet(next);
+
+          // Detect deepen completions (slug present before, absent now) and
+          // refresh trip data so the card switches to its planning state.
+          let anyDeepenCompleted = false;
+          for (const slug of prevDeepenSlugs) {
+            if (!nextDeepenSlugs.has(slug)) anyDeepenCompleted = true;
+          }
+
+          // Drop optimistic flags that are either superseded by a real job or
+          // stale (server never registered the job — fail safe so the card
+          // doesn't stay stuck on "Researching…" forever).
+          if (optimisticDeepenSlugs.size > 0) {
+            const cleaned = new Map(optimisticDeepenSlugs);
+            const stale = Date.now() - STALE_DEEPEN_MS;
+            let changed = false;
+            for (const [slug, ts] of cleaned) {
+              if (nextDeepenSlugs.has(slug) || ts < stale) {
+                cleaned.delete(slug);
+                changed = true;
+              }
+            }
+            if (changed) optimisticDeepenSlugs = cleaned;
+          }
+
+          allJobs = next;
+          prevDeepenSlugs = nextDeepenSlugs;
+
+          if (anyDeepenCompleted) invalidateAll();
         }
       } catch { /* network blip — keep stale state */ }
     }
@@ -58,6 +125,28 @@
     const timer = setInterval(fetchJobs, 10_000);
     return () => { cancelled = true; clearInterval(timer); };
   });
+
+  // Drop optimistic flags once the underlying trip has left the idea stage —
+  // handles the fast path where deepen finishes between two polls (so we
+  // never saw it in allJobs) and invalidateAll has just landed.
+  $effect(() => {
+    if (optimisticDeepenSlugs.size === 0) return;
+    for (const slug of optimisticDeepenSlugs.keys()) {
+      const trip = data.trips.find(t => t._slug === slug);
+      const stillIdea = trip && (trip.status === 'idea' || trip._stage === 'idea');
+      if (!stillIdea) clearOptimisticDeepen(slug);
+    }
+  });
+
+  // Merge real jobs with an optimistic deepen entry when present, so the
+  // TripCard renders "Researching…" the instant the user confirms.
+  function jobsForTrip(slug) {
+    const real = filterJobsForSlug(allJobs, slug);
+    const optimisticAt = optimisticDeepenSlugs.get(slug);
+    if (optimisticAt == null) return real;
+    if (real.some(j => bareWorkflow(j.workflow) === 'deepen')) return real;
+    return [...real, { workflow: 'deepen', slug, startedAt: optimisticAt }];
+  }
 
   // Focuses the popover input on mount. Used via `use:focusOnMount` instead
   // of the HTML autofocus attribute — autofocus's a11y warning applies to
@@ -383,20 +472,28 @@
       danger:       false,
     });
     if (!ok) return;
+    // Flip the card to "Researching…" before the POST returns so a second
+    // click can't fire while the request is in flight or the next /api/jobs
+    // poll is still pending.
+    setOptimisticDeepen(trip._slug);
     try {
       const res = await fetch(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
       if (res.status === 409) {
+        clearOptimisticDeepen(trip._slug);
         actionError = { code: 'already_running' };
         return;
       }
       if (!res.ok) {
+        clearOptimisticDeepen(trip._slug);
         console.error(`deepen failed: ${res.status}`);
         actionError = { code: 'action_failed', ctx: { action: 'start research' } };
         return;
       }
-      // 202 accepted, so the card flips to "Researching…" immediately.
-      await invalidateAll();
+      // 202 accepted. The optimistic flag bridges the gap until the next
+      // jobs poll surfaces the real job; the polling $effect also calls
+      // invalidateAll() when deepen completes, so no manual refresh here.
     } catch (e) {
+      clearOptimisticDeepen(trip._slug);
       console.error(e);
       actionError = { code: 'network_error' };
     }
@@ -937,7 +1034,7 @@
           {#each trips as trip (trip._slug)}
             <TripCard {trip}
               starred={isStarred(trip)}
-              jobs={filterJobsForSlug(allJobs, trip._slug)}
+              jobs={jobsForTrip(trip._slug)}
               onclick={() => openTrip(trip)}
               onhover={() => hoveredSlug = trip._slug}
               onleave={() => hoveredSlug = null}
@@ -1218,8 +1315,8 @@
   }
   .ai-partial-cta {
     /* Quieter than the standalone CTA — it sits next to working buttons. */
-    border-color: var(--surface-border, var(--forest-700));
-    color: var(--text-muted, var(--bone-600));
+    border-color: var(--forest-700);
+    color: var(--bone-600);
   }
 
   /* ── Seed prompt popover ── */
@@ -1268,7 +1365,7 @@
     resize: vertical;
     min-height: 60px;
   }
-  .seed-popover textarea:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
+  .seed-popover textarea:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .pin-input {
     width: 100%;
     border: 1px solid var(--border-default);
@@ -1279,7 +1376,7 @@
     color: var(--text-primary);
     background: var(--surface-page);
   }
-  .pin-input:focus { outline: 2px solid var(--forest-200); outline-offset: 1px; }
+  .pin-input:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .seed-actions {
     display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center;
   }
@@ -1369,8 +1466,8 @@
 
   /* Success toast — auto-dismisses after 4s; no buttons, so non-interactive. */
   .seed-toast {
-    background: var(--forest-800);
-    color: var(--bone-200);
+    background: var(--surface-invert);
+    color: var(--text-inverse);
     padding: 0.6rem 1rem;
     border-radius: 6px;
     font-size: 0.82rem;
@@ -1501,10 +1598,10 @@
     white-space: nowrap;
   }
   .tab:hover  { color: var(--text-primary); }
-  .tab:active { color: var(--text-secondary); background: var(--forest-50); }
+  .tab:active { color: var(--text-secondary); background: color-mix(in oklab, var(--text-primary) 6%, transparent); }
   .tab.active {
-    color: var(--text-secondary);
-    border-bottom-color: var(--forest-800);
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
     font-weight: 600;
   }
 
@@ -1535,8 +1632,8 @@
   }
   .filter-toggle:hover { color: var(--text-primary); }
   .filter-toggle.active {
-    color: var(--text-secondary);
-    border-bottom-color: var(--forest-800);
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
   }
   .filter-toggle.has-filters { color: var(--text-secondary); font-weight: 600; }
 
@@ -1610,12 +1707,12 @@
     transition: border-color 0.1s, background 0.1s, color 0.1s;
     white-space: nowrap;
   }
-  .chip:hover  { border-color: var(--forest-200); color: var(--text-secondary); }
-  .chip:active { background: var(--forest-50); border-color: var(--forest-800); color: var(--text-secondary); }
+  .chip:hover  { border-color: var(--border-strong); color: var(--text-primary); }
+  .chip:active { background: color-mix(in oklab, var(--text-primary) 6%, transparent); border-color: var(--border-strong); color: var(--text-primary); }
   .chip.active {
-    background: var(--forest-800);
-    border-color: var(--forest-800);
-    color: var(--bone-50);
+    background: var(--surface-invert);
+    border-color: var(--surface-invert);
+    color: var(--text-inverse);
   }
 
   .clear-all {
@@ -1656,13 +1753,13 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.22rem 0.45rem 0.22rem 0.6rem;
-    background: var(--forest-800);
-    border: 1px solid var(--forest-800);
+    background: var(--surface-invert);
+    border: 1px solid var(--surface-invert);
     border-radius: 3px;
     font-family: var(--font-sans);
     font-size: 0.71rem;
     font-weight: 500;
-    color: var(--bone-50);
+    color: var(--text-inverse);
     cursor: pointer;
     transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
@@ -1860,7 +1957,7 @@
       display: block;
       padding: 0.4rem 1rem 0.5rem;
       font-size: 0.78rem;
-      color: var(--text-muted, var(--bone-600));
+      color: var(--text-tertiary);
       letter-spacing: 0.01em;
     }
 
