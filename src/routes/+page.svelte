@@ -9,6 +9,7 @@
   import { streamAction } from '$lib/utils/action.js';
   import { goto, invalidateAll } from '$app/navigation';
   import { browser } from '$app/environment';
+  import { onMount } from 'svelte';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
@@ -480,6 +481,38 @@
     if (by === 'az')   return arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
     return arr;
   }
+
+  // ── First-run welcome banner ──
+  // Shows when no AI provider is configured (no key in .env or settings.json).
+  // The default-model check (seed/add) is sufficient — if those work, the user
+  // has at least one provider key. Dismiss is sticky per browser via
+  // localStorage, BUT cleared the moment a provider does become configured —
+  // so if the user later removes all keys, the banner reappears.
+  const WELCOME_DISMISS_KEY = 'traverse:welcome-banner-dismissed';
+  let welcomeDismissed = $state(false);
+  onMount(() => {
+    try { welcomeDismissed = localStorage.getItem(WELCOME_DISMISS_KEY) === '1'; }
+    catch { /* private mode etc — ignore */ }
+  });
+  const noProviderConfigured = $derived(
+    data.features?.homeMdReady !== false &&
+    !data.features?.seed &&
+    !data.features?.add
+  );
+  const showWelcomeBanner = $derived(noProviderConfigured && !welcomeDismissed);
+  // Reset dismiss when the unconfigured state resolves, so a future relapse
+  // surfaces the banner again instead of staying silently hidden.
+  $effect(() => {
+    if (!browser) return;
+    if (!noProviderConfigured && welcomeDismissed) {
+      try { localStorage.removeItem(WELCOME_DISMISS_KEY); } catch { /* ignore */ }
+      welcomeDismissed = false;
+    }
+  });
+  function dismissWelcome() {
+    welcomeDismissed = true;
+    try { localStorage.setItem(WELCOME_DISMISS_KEY, '1'); } catch { /* ignore */ }
+  }
 </script>
 
 <svelte:head>
@@ -487,6 +520,24 @@
 </svelte:head>
 
 <div class="page">
+  {#if showWelcomeBanner}
+    <div class="welcome-banner" role="status">
+      <div class="welcome-banner-body">
+        <p class="welcome-banner-title">Welcome to Traverse — add a model provider key to get started.</p>
+        <p class="welcome-banner-text">
+          Two ways: open the <a href="/settings#server-config" class="welcome-banner-link">Settings page</a> and paste a key, or edit
+          <code>.env</code> on the host (see <code>.env.example</code>). Both work; settings.json wins when both are set.
+        </p>
+      </div>
+      <button
+        type="button"
+        class="welcome-banner-dismiss"
+        onclick={dismissWelcome}
+        aria-label="Dismiss welcome banner"
+      >×</button>
+    </div>
+  {/if}
+
   {#if data.features?.pexelsConfigured === false}
     <div class="pexels-banner" role="status">
       <span class="pexels-banner-text">
@@ -944,12 +995,13 @@
        The banner is conditionally rendered, but we still pin every in-flow child to its row so
        toggling the banner doesn't shift the 1fr track onto a different child. Track 1 collapses
        to 0 when the banner isn't present. */
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto auto 1fr;
     overflow: hidden;
   }
-  .page > .pexels-banner { grid-row: 1; }
-  .page > header { grid-row: 2; }
-  .page > .layout { grid-row: 3; }
+  .page > .welcome-banner { grid-row: 1; }
+  .page > .pexels-banner { grid-row: 2; }
+  .page > header { grid-row: 3; }
+  .page > .layout { grid-row: 4; }
 
   header {
     background: var(--forest-800);
@@ -1030,6 +1082,63 @@
   .pin-btn:hover:not(:disabled) { border-color: var(--sunset-600); color: var(--sunset-200); background: var(--sunset-800); }
   .pin-btn.open { background: var(--sunset-800); border-color: var(--sunset-600); color: var(--sunset-200); }
   .pin-btn.add-running { border-color: var(--sunset-600); opacity: 1; }
+
+  /* First-run welcome banner: shown when no AI provider is configured
+     anywhere (no key in .env or settings.json). Dismissible via the X;
+     dismiss is per-browser via localStorage but resurfaces if the user
+     later removes all keys. Forest palette so it reads as positive
+     onboarding, not as an error. */
+  .welcome-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    background: var(--forest-900);
+    border-bottom: 1px solid var(--forest-700);
+    color: var(--forest-100);
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+  .welcome-banner-body { flex: 1; }
+  .welcome-banner-title {
+    margin: 0 0 0.25rem;
+    font-weight: 600;
+    color: var(--forest-50);
+  }
+  .welcome-banner-text {
+    margin: 0;
+    color: var(--forest-200);
+  }
+  .welcome-banner-text code {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    background: var(--forest-800);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--forest-100);
+  }
+  .welcome-banner-link {
+    color: var(--forest-100);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .welcome-banner-link:hover { color: var(--forest-50); }
+  .welcome-banner-dismiss {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: var(--forest-300);
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0 0.25rem;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .welcome-banner-dismiss:hover { color: var(--forest-100); }
+  .welcome-banner-dismiss:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
 
   /* Pexels missing-key banner (#284) — self-resolves once a key is added,
      so non-dismissible. Quiet sunset palette so it reads as informational,
