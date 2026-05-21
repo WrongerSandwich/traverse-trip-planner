@@ -28,29 +28,52 @@ All trip data is plain markdown on disk — readable, portable, and easy to edit
 
 Traverse is designed to be self-hosted. You bring your own API keys; nothing is shared.
 
-**Requirements:**
-- Node.js 20+
-- A model provider API key — [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/) (for AI features)
+**You'll need:**
+- A model provider API key — [Anthropic](https://console.anthropic.com/), [OpenAI](https://platform.openai.com/), or [OpenRouter](https://openrouter.ai) (one key, many models)
 - A [Pexels API key](https://www.pexels.com/api/) (free, for trip card photos)
-- *Optional:* a [Tavily](https://tavily.com/) API key — required only if you use a non-Anthropic model and want the `Research →` (deepen) feature
+- *Optional:* a [Tavily](https://tavily.com/) API key — required only if you use a non-Anthropic research model and want `Research →`
 
-See **[DEPLOY.md](DEPLOY.md)** for full setup instructions, including provider switching.
+Docker is the canonical deployment. See **[DEPLOY.md](DEPLOY.md)** for the full walkthrough.
 
-## Quick start
+## Configure Traverse
+
+Two ways to configure — pick whichever fits your workflow. Both use Docker; both are first-class.
+
+### Path A — Click through setup (NAS / homelab)
+
+For when you'd rather configure from a browser than edit files:
 
 ```bash
 git clone <repo-url> traverse && cd traverse
-cp .env.example .env         # edit with your API keys
-npm install
-# npm run seed-sample        # optional: load the bundled demo dataset (skip for a clean first-run experience)
-npm run smoke                # optional: 1-token round-trip per provider
-npm run build
-PORT=3456 node build/index.js
+cp .env.example .env         # leave keys commented; set UID/GID if your host user isn't uid 1000
+touch settings.json .geocode-cache.json .image-cache.json \
+      .route-cache.json .workflow-stats.json
+docker compose up -d --build
 ```
 
-Open `http://localhost:3456` and follow the in-app onboarding to set up your home base.
+Open `http://<server-ip>:3456/settings`, paste your API keys, save. Then go through the in-app onboarding to set up your home base. **You won't need to edit `.env` again.**
 
-Prefer Docker? See [DEPLOY.md](DEPLOY.md#option-b--docker) for `docker compose up -d --build`.
+### Path B — Infra-as-code / secrets manager
+
+For when secrets come from Vault, sealed-secrets, Doppler, GitHub Actions, etc.:
+
+```bash
+git clone <repo-url> traverse && cd traverse
+# Generate .env from your secrets pipeline with ANTHROPIC_API_KEY (or OPENAI_API_KEY /
+# OPENROUTER_API_KEY), PEXELS_API_KEY, and TRAVERSE_DISABLE_SETTINGS_UI=1 to lock the
+# runtime UI off.
+touch settings.json .geocode-cache.json .image-cache.json \
+      .route-cache.json .workflow-stats.json
+docker compose up -d --build
+```
+
+Rotate keys via your existing pipeline. **You don't need to open `/settings`.**
+
+---
+
+Both paths land you at `http://<server-ip>:3456`. The full table of what can live in `.env` vs. `settings.json` is in [DEPLOY.md → Configuration reference](DEPLOY.md#configuration-reference).
+
+Running outside Docker (Node 20+ directly) is supported for development; see [DEPLOY.md](DEPLOY.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for the manual path.
 
 ## Trip data
 
