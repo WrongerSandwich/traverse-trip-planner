@@ -487,7 +487,9 @@
     min-width: 220px;
     max-width: min(360px, calc(100vw - 1.8rem));
   }
-  .toast.success { border-left: 3px solid var(--state-success); }
+  /* The success-state icon (and its color) carries the tone signal; no
+     side stripe needed and none allowed per the shared design laws. */
+  .toast.success { border: 1px solid color-mix(in oklab, var(--state-success) 35%, var(--border-default)); }
   .toast-icon {
     color: var(--state-success);
     font-weight: 600;

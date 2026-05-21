@@ -117,20 +117,23 @@
     background: var(--surface-raised);
     font-family: var(--font-sans);
   }
+  /* Tone is conveyed by the state-tinted background + tone-colored icon
+     and a tone-tinted full border. The earlier 4px side stripe was a
+     banned colored side accent (shared design laws). */
   .banner[data-tone="progress"] {
-    border-left: 4px solid var(--accent);
+    border-color: var(--accent);
     background: var(--state-warning-surface);
   }
   .banner[data-tone="success"] {
-    border-left: 4px solid var(--state-success);
+    border-color: var(--state-success);
     background: var(--state-success-surface);
   }
   .banner[data-tone="failure"] {
-    border-left: 4px solid var(--state-danger);
+    border-color: var(--state-danger);
     background: var(--state-danger-surface);
   }
   .banner[data-tone="cancelled"] {
-    border-left: 4px solid var(--border-strong);
+    border-color: var(--border-strong);
     background: var(--surface-sunken);
   }
 

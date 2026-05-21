@@ -207,8 +207,10 @@
   .thumb.placeholder :global(.placeholder-mark) { opacity: 0.22; }
 
   /* Badge as photo overlay — bottom-left.
-     Left stripe carries the stage color so readers don't have to parse the
-     word to tell idea / planning / completed apart. */
+     Leading stage-colored dot carries the pre-attentive cue so readers
+     don't have to parse the word at 0.58rem to tell idea / planning /
+     completed apart. (A 3px left stripe used to do this, but it tripped
+     the shared design laws' ban on colored side accents > 1px.) */
   .badge {
     position: absolute;
     bottom: 0.6rem;
@@ -217,12 +219,22 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    padding: 0.18rem 0.5rem 0.18rem 0.4rem;
+    padding: 0.18rem 0.5rem;
     border-radius: 2px;
-    border-left: 3px solid var(--stage-color, var(--bone-100));
     background: rgba(31, 25, 14, 0.72);
     color: var(--bone-100);
     backdrop-filter: blur(4px);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+  }
+  .badge::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--stage-color, var(--bone-100));
+    flex-shrink: 0;
   }
 
   /* NPS badge — top-right, clear of photo credit */

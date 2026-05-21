@@ -128,18 +128,21 @@
     font-size: 0.74rem;
     color: var(--text-secondary);
   }
+  /* Tone is conveyed by the icon color + a tone-tinted full border, not by
+     a side stripe (banned per the shared design laws as a colored accent
+     greater than 1px). */
   .ambient[data-layout="toast"] {
     padding: 0.6rem 0.8rem;
     background: var(--surface-overlay);
     border-radius: 6px;
+    border: 1px solid var(--border-default);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-    border-left: 4px solid var(--border-default);
     min-width: 16rem;
     max-width: 24rem;
   }
-  .ambient[data-layout="toast"][data-tone="success"] { border-left-color: var(--state-success); }
-  .ambient[data-layout="toast"][data-tone="failure"] { border-left-color: var(--state-danger); }
-  .ambient[data-layout="toast"][data-tone="cancelled"] { border-left-color: var(--border-strong); }
+  .ambient[data-layout="toast"][data-tone="success"]   { border-color: color-mix(in oklab, var(--state-success) 45%, var(--border-default)); }
+  .ambient[data-layout="toast"][data-tone="failure"]   { border-color: color-mix(in oklab, var(--state-danger) 45%, var(--border-default)); }
+  .ambient[data-layout="toast"][data-tone="cancelled"] { border-color: var(--border-strong); }
 
   .ambient[data-layout="row"] {
     padding: 0.6rem 0.7rem;
@@ -178,8 +181,9 @@
   .ambient[data-layout="badge"] .ambient-body { flex-direction: row; gap: 0.3rem; }
 
   .ambient-icon { flex-shrink: 0; display: inline-flex; align-items: center; }
-  .ambient[data-tone="success"] .ambient-icon { color: var(--state-success); }
-  .ambient[data-tone="failure"] .ambient-icon { color: var(--state-danger); }
+  .ambient[data-tone="success"]   .ambient-icon { color: var(--state-success); }
+  .ambient[data-tone="failure"]   .ambient-icon { color: var(--state-danger); }
+  .ambient[data-tone="cancelled"] .ambient-icon { color: var(--text-tertiary); }
 
   .row-cancel, .row-open {
     background: var(--surface-raised);

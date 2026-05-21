@@ -242,8 +242,10 @@
   }
   .banner-stale-link:hover { color: var(--text-primary); }
 
-  /* Body — each block renders via renderMarkdown, then gets a left
-     decoration when added/removed. No mono font, no +/− glyphs. */
+  /* Body — each block renders via renderMarkdown. Add/del blocks get a
+     stronger background tint plus a leading colored marker dot (not a
+     side stripe — banned per the shared design laws). No mono font, no
+     +/− glyphs in the prose. */
   .section-diff-body {
     display: flex;
     flex-direction: column;
@@ -251,17 +253,36 @@
   }
   .diff-block {
     padding: 0.15rem 0.55rem;
-    border-left: 2px solid transparent;
+    border-radius: 3px;
   }
   .diff-block.diff-eq { color: var(--text-primary); }
+  .diff-block.diff-add,
+  .diff-block.diff-del {
+    position: relative;
+    padding-left: 1.05rem;
+  }
+  .diff-block.diff-add::before,
+  .diff-block.diff-del::before {
+    content: '';
+    position: absolute;
+    left: 0.4rem;
+    top: 0.55em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
   .diff-block.diff-add {
-    border-left-color: var(--state-success);
-    background: color-mix(in oklab, var(--state-success) 6%, transparent);
+    background: color-mix(in oklab, var(--state-success) 10%, transparent);
+  }
+  .diff-block.diff-add::before {
+    background: var(--state-success);
   }
   .diff-block.diff-del {
-    border-left-color: var(--state-danger);
-    background: color-mix(in oklab, var(--state-danger) 5%, transparent);
+    background: color-mix(in oklab, var(--state-danger) 9%, transparent);
     opacity: 0.55;
+  }
+  .diff-block.diff-del::before {
+    background: var(--state-danger);
   }
   /* Strikethrough only on prose text, not on headings — strikethrough headings
      read as "deleted the whole section," which isn't what we mean. */
