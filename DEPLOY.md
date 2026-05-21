@@ -189,7 +189,7 @@ Traverse talks to model and search providers through a thin adapter layer. The d
 | Add receipts (completed trips) | `modelDefault` provider with valid key **+ vision-capable model** (e.g. `claude-sonnet-4-6`, `gpt-4o`; non-vision models like `gpt-3.5-turbo` will error at runtime) |
 | Research → (deepen)        | `modelResearch` provider with key **+** search backend  |
 
-If a feature's backing provider isn't configured, its button is disabled in the UI with a tooltip pointing at `.env`. The startup banner (printed to the server log) lists which features are wired.
+If a feature's backing provider isn't configured, its button is disabled in the UI with a tooltip pointing at either `.env` or the Settings page. The startup banner (printed to the server log) lists which features are wired and tags each effective value's source.
 
 ### Supported providers
 
