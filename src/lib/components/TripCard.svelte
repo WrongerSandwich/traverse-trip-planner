@@ -116,7 +116,7 @@
             ? 'Research already in progress — see the badge below'
             : ondeepen
               ? 'Look into this trip with web search'
-              : 'Research is offline — research model or search backend not configured'
+              : 'Research is offline — configure the research model and search backend in .env or via Settings'
         }
       >
         Research →

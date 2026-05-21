@@ -4,10 +4,11 @@
 // made via the Settings UI take effect on the next request without a restart.
 //
 // Public API:
-//   readSettings()          → parsed settings.json or {}
-//   writeSettings(data)     → write settings.json (not crash-safe; single-user app)
-//   redactKey(key)          → "sk-ant-…XY4Z" safe for sending to the browser
-//   settingsToEnv(settings) → flat env-var override map for merging with process.env
+//   readSettings()                   → parsed settings.json or {}
+//   writeSettings(data)              → write settings.json (not crash-safe; single-user app)
+//   redactKey(key)                   → "sk-ant-…XY4Z" safe for sending to the browser
+//   settingsToEnv(settings)          → flat env-var override map for merging with process.env
+//   redactSettings(settings, env?)   → browser-safe view with per-row source attribution
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -97,31 +98,57 @@ export function settingsToEnv(settings) {
 }
 
 /**
- * Return the redacted settings view for the browser: each stored key is
- * replaced with a redacted preview + an `isSet` flag. Slot values are sent
- * as-is (they're not secret).
+ * Build a per-key row describing where the effective value came from. The
+ * Settings UI uses this to render "From .env" vs "From settings.json"
+ * labels and to tell users what (if anything) will resume on Remove.
+ *
+ * Returns `{ isSet, source, preview, envShadowed }`:
+ *   - `isSet`        — kept for backwards compatibility; equivalent to `source !== 'unset'`
+ *   - `source`       — 'env' | 'settings' | 'unset' — origin of the effective value
+ *   - `preview`      — redacted preview of the effective value (or '' if unset)
+ *   - `envShadowed`  — `{ preview }` when settings.json is overriding a *different* .env
+ *                      value (so the UI can show what would resume on Remove); else `null`
+ */
+function describeKeyRow(settingsRaw, envRaw) {
+  const settingsValue = typeof settingsRaw === 'string' ? settingsRaw.trim() : '';
+  const envValue      = typeof envRaw      === 'string' ? envRaw.trim()      : '';
+  if (settingsValue) {
+    return {
+      isSet: true,
+      source: 'settings',
+      preview: redactKey(settingsValue),
+      envShadowed: (envValue && envValue !== settingsValue)
+        ? { preview: redactKey(envValue) }
+        : null,
+    };
+  }
+  if (envValue) {
+    return { isSet: true, source: 'env', preview: redactKey(envValue), envShadowed: null };
+  }
+  return { isSet: false, source: 'unset', preview: '', envShadowed: null };
+}
+
+/**
+ * Return the redacted settings view for the browser. Each provider/service
+ * key row carries source attribution (.env vs settings.json) so the UI can
+ * tell users where the active value came from and what would happen on
+ * Remove. Slot/search/assistantName values are sent as-is (not secret); the
+ * Settings UI already surfaces effective values via separate page-data fields.
  *
  * @param {object} settings — parsed settings.json
+ * @param {object} env      — env-var map to consult for shadowing (defaults to process.env)
  */
-export function redactSettings(settings) {
+export function redactSettings(settings, env = process.env) {
   const keys = settings?.keys ?? {};
   const redactedKeys = {};
   for (const provider of SUPPORTED_PROVIDERS) {
-    const raw = keys[provider] ?? '';
-    redactedKeys[provider] = {
-      isSet: Boolean(raw),
-      preview: raw ? redactKey(raw) : '',
-    };
+    redactedKeys[provider] = describeKeyRow(keys[provider], env[PROVIDER_KEY_ENV[provider]]);
   }
 
   const services = settings?.services ?? {};
   const redactedServices = {};
   for (const service of SUPPORTED_SERVICES) {
-    const raw = services[service] ?? '';
-    redactedServices[service] = {
-      isSet: Boolean(raw),
-      preview: raw ? redactKey(raw) : '',
-    };
+    redactedServices[service] = describeKeyRow(services[service], env[SERVICE_KEY_ENV[service]]);
   }
 
   return {

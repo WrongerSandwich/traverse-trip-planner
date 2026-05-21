@@ -902,7 +902,7 @@
 
             <div class="subsection">
               <span class="subsection-label">Model provider keys</span>
-              <p class="field-hint">Stored in <code>settings.json</code>, overlay your <code>.env</code> values. The full key is never sent back to the browser after saving.</p>
+              <p class="field-hint">Keys can live in either <code>.env</code> or <code>settings.json</code>; values saved here override <code>.env</code> per key. The full key is never sent back to the browser after saving.</p>
 
               <div class="field-group">
                 {#each PROVIDERS as provider}
@@ -910,21 +910,32 @@
                   <div class="field">
                     <div class="field-label-row">
                       <label for="key-{provider}" class="field-label">{PROVIDER_LABELS[provider]}</label>
-                      {#if current?.isSet}
-                        <span class="badge badge-set">set: {current.preview}</span>
+                      {#if current?.source === 'settings'}
+                        <span class="badge badge-set">settings.json: {current.preview}</span>
                         {#if removingKey[provider]}
                           <span class="remove-confirm">
-                            Remove key?
+                            {#if current.envShadowed}
+                              Remove? <code>.env</code> value <code>{current.envShadowed.preview}</code> will resume.
+                            {:else}
+                              Remove? No <code>.env</code> fallback — this provider becomes unconfigured.
+                            {/if}
                             <button class="btn-confirm-yes" onclick={() => removeKey(provider)} disabled={busy}>Yes, remove</button>
                             <button class="btn-confirm-cancel" onclick={() => removingKey[provider] = false}>Cancel</button>
                           </span>
                         {:else}
                           <button class="btn-remove" onclick={() => removingKey[provider] = true}>Remove</button>
                         {/if}
+                      {:else if current?.source === 'env'}
+                        <span class="badge badge-env">from .env: {current.preview}</span>
                       {:else}
                         <span class="badge badge-unset">not set</span>
                       {/if}
                     </div>
+                    {#if current?.source === 'settings' && current.envShadowed}
+                      <p class="source-note">Overriding <code>.env</code> value <code>{current.envShadowed.preview}</code>.</p>
+                    {:else if current?.source === 'env'}
+                      <p class="source-note">Paste a key here to override the <code>.env</code> value.</p>
+                    {/if}
                     <input
                       id="key-{provider}"
                       type="password"
@@ -949,22 +960,33 @@
                   <div class="field">
                     <div class="field-label-row">
                       <label for="service-{service}" class="field-label">{SERVICE_LABELS[service]}</label>
-                      {#if current?.isSet}
-                        <span class="badge badge-set">set: {current.preview}</span>
+                      {#if current?.source === 'settings'}
+                        <span class="badge badge-set">settings.json: {current.preview}</span>
                         {#if removingService[service]}
                           <span class="remove-confirm">
-                            Remove key?
+                            {#if current.envShadowed}
+                              Remove? <code>.env</code> value <code>{current.envShadowed.preview}</code> will resume.
+                            {:else}
+                              Remove? No <code>.env</code> fallback — this service becomes unconfigured.
+                            {/if}
                             <button class="btn-confirm-yes" onclick={() => removeService(service)} disabled={busy}>Yes, remove</button>
                             <button class="btn-confirm-cancel" onclick={() => removingService[service] = false}>Cancel</button>
                           </span>
                         {:else}
                           <button class="btn-remove" onclick={() => removingService[service] = true}>Remove</button>
                         {/if}
+                      {:else if current?.source === 'env'}
+                        <span class="badge badge-env">from .env: {current.preview}</span>
                       {:else}
                         <span class="badge badge-unset">not set</span>
                       {/if}
                     </div>
                     <p class="field-hint">{SERVICE_DESCRIPTIONS[service]}</p>
+                    {#if current?.source === 'settings' && current.envShadowed}
+                      <p class="source-note">Overriding <code>.env</code> value <code>{current.envShadowed.preview}</code>.</p>
+                    {:else if current?.source === 'env'}
+                      <p class="source-note">Paste a key here to override the <code>.env</code> value.</p>
+                    {/if}
                     <input
                       id="service-{service}"
                       type="password"
@@ -1013,6 +1035,23 @@
                   </div>
                 </div>
               {/each}
+            </div>
+
+            <div class="subsection">
+              <span class="subsection-label">Environment-only configuration</span>
+              <p class="field-hint">These knobs live only in <code>.env</code> — each has a reason it can't be UI-edited. See the configuration reference in <code>DEPLOY.md</code> for the full list.</p>
+
+              <div class="field-group env-only-list">
+                {#each data.envOnlyKnobs as knob (knob.name)}
+                  <div class="field env-only-row">
+                    <div class="field-label-row">
+                      <code class="field-label env-only-name">{knob.name}</code>
+                      <span class="badge {knob.isSet ? 'badge-env' : 'badge-unset'}">{knob.displayValue}</span>
+                    </div>
+                    <p class="field-hint">{knob.reason}</p>
+                  </div>
+                {/each}
+              </div>
             </div>
 
             <div class="subsection">
@@ -1447,9 +1486,37 @@
     background: var(--state-success-surface);
     color: var(--state-success);
   }
+  .badge-env {
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-default);
+  }
   .badge-unset {
     background: var(--surface-sunken);
     color: var(--text-tertiary);
+  }
+
+  .source-note {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 0;
+    line-height: 1.5;
+    font-style: italic;
+    max-width: 65ch;
+  }
+  .source-note code {
+    font-family: var(--font-mono);
+    font-style: normal;
+  }
+
+  .env-only-list .env-only-row + .env-only-row { margin-top: 4px; }
+  .env-only-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--surface-sunken);
+    padding: 2px 6px;
+    border-radius: 3px;
   }
 
   /* ── Checkbox ── */

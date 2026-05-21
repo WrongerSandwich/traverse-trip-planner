@@ -98,18 +98,29 @@ function printConfigBanner() {
   banneredOnce = true;
 
   const d = describeConfig();
-  const fmt = (slot) => `${slot.provider}/${slot.model} ${slot.ok ? '✓' : '✗'}`;
+
+  // Render a per-slot source label: "[.env]" / "[settings.json]" / "[default]"
+  // when both provider and model agree, otherwise "[provider:.env, model:settings.json]".
+  // SOURCE_LABEL maps the source code to the human-readable label so the source
+  // attribution can be widened later (e.g. adding a "shell" source) without
+  // touching every call site.
+  const SOURCE_LABEL = { env: '.env', settings: 'settings.json', default: 'default' };
+  const slotSource = (s) => {
+    if (s.providerSource === s.modelSource) return `[${SOURCE_LABEL[s.providerSource]}]`;
+    return `[provider:${SOURCE_LABEL[s.providerSource]}, model:${SOURCE_LABEL[s.modelSource]}]`;
+  };
+  const fmt = (slot) => `${slot.provider}/${slot.model} ${slot.ok ? '✓' : '✗'} ${slotSource(slot)}`;
 
   console.log('────────────────────────────────────────────');
   console.log('Traverse — provider configuration');
   console.log(`  default model  : ${fmt(d.modelDefault)}`);
   console.log(`  research model : ${fmt(d.modelResearch)}`);
-  console.log(`  search backend : ${d.search.provider} ${d.search.ok ? '✓' : '✗'}`);
+  console.log(`  search backend : ${d.search.provider} ${d.search.ok ? '✓' : '✗'} [${SOURCE_LABEL[d.search.providerSource]}]`);
   console.log('  features:');
   for (const [name, info] of Object.entries(d.features)) {
     const status = info.ok ? '✓' : '✗';
     const detail = `${info.provider}/${info.model}${info.overridden ? ' (override)' : ''}`;
-    const tail = info.ok ? '' : ' (unavailable — see env)';
+    const tail = info.ok ? '' : ' (unavailable — configure in .env or /settings)';
     console.log(`    ${name.padEnd(7)} ${status} ${detail}${tail}`);
   }
   if (d.issues.length > 0) {
