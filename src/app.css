@@ -111,13 +111,23 @@
        idea       → sky
        planning   → forest
        completed  → bark
-   */
+     Same family in both modes — dark mode picks deeper surface stops + lighter
+     foreground stops from the same ramp, so a "planning" pill never collides
+     with a "success" state surface and the vocabulary stays inside the brand. */
   --idea-bg:        var(--sky-100);
   --idea-text:      var(--sky-600);
   --planning-bg:    var(--forest-100);
   --planning-text:  var(--forest-600);
   --completed-bg:   var(--bark-100);
   --completed-text: var(--bark-600);
+
+  /* ── Decorative warm surface ──────────────────────────────────────────
+     A warm cream tint used for editorial accents (day-heading bands,
+     section openers). Distinct from --state-warning-surface so warning
+     semantics aren't diluted by decoration. */
+  --surface-warm-bg:     #FCEEE2;
+  --surface-warm-text:   #8D4C24;
+  --surface-warm-border: #F0B080;
 
   /* ── Typography ──────────────────────────────────────────────────────── */
   --font-serif: 'Fraunces', ui-serif, Georgia, serif;
@@ -198,15 +208,25 @@
   /* RGB triple matching the dark --surface-raised */
   --surface-raised-rgb: 30, 44, 36;
 
-  /* ── Status pills — dark-tinted bg with lighter accent text ────────────
-     Status pills in dark mode use the state-surface family so they
-     don't carry over the bright light-mode tints. */
-  --idea-bg:        var(--state-info-surface);
-  --idea-text:      var(--state-info);
-  --planning-bg:    var(--state-success-surface);
-  --planning-text:  var(--state-success);
-  --completed-bg:   #2A211B;
-  --completed-text: #B19785;
+  /* ── Status pills — dark stops from the same family as light mode ─────
+     Deeper surface stops for the bg + lighter foreground stops for the
+     text/icon, both pulled from the same brand ramp the light value
+     used. Keeps planning ≠ success even when both involve a forest tint
+     (planning-bg = forest-800 is the constant header value but the
+     planning pill renders on surface-raised, never adjacent to itself). */
+  --idea-bg:        var(--sky-800);
+  --idea-text:      var(--sky-200);
+  --planning-bg:    var(--forest-800);
+  --planning-text:  var(--forest-200);
+  --completed-bg:   var(--bark-800);
+  --completed-text: var(--bark-200);
+
+  /* Decorative warm surface — dark cousin of the light cream tint. Custom
+     stops, not in the named ramps, but explicitly bounded to this token
+     so they don't sprawl into other components. */
+  --surface-warm-bg:     #2A2218;
+  --surface-warm-text:   #E0884F;
+  --surface-warm-border: #5C3F26;
 }
 
 body {

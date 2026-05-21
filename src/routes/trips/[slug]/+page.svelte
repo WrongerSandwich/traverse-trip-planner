@@ -1361,7 +1361,11 @@
     padding: 0.14rem 0.45rem;
     border-radius: 2px;
   }
-  .meta .mode.drive { background: var(--state-success-surface); color: var(--state-success); }
+  /* Mode pill sits inside the constant forest-800 page header, so its
+     colors are scoped to "on dark forest" in both modes — raw refs are
+     appropriate here, not the mode-adaptive state-* tokens (a "drive"
+     mode is not a "success" state). */
+  .meta .mode.drive { background: var(--forest-100); color: var(--forest-800); }
   .meta .cost { font-weight: 700; color: var(--bone-200); }
 
   .hero {
@@ -1727,6 +1731,9 @@
   /* Day-heading band. Background carries the day-separator affordance;
      the previous 3px sunset stripe stacked one per day and tripped the
      absolute ban. Bottom border keeps the seam visible. */
+  /* Day-heading band is editorial warmth, not a warning. Uses the
+     decorative --surface-warm-* tokens so its color story doesn't
+     collide with state semantics. */
   .itinerary-view :global(h2) {
     font-size: 1rem;
     font-weight: 800;
@@ -1734,9 +1741,9 @@
     color: var(--text-primary);
     margin: 0;
     padding: 0.7rem 1.1rem 0.6rem;
-    background: var(--state-warning-surface);
+    background: var(--surface-warm-bg);
     border-radius: 4px 4px 0 0;
-    border-bottom: 1px solid var(--state-warning);
+    border-bottom: 1px solid var(--surface-warm-border);
   }
   .itinerary-view :global(h3) {
     font-size: 0.64rem;

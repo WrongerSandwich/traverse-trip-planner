@@ -75,7 +75,7 @@ Warm pale ink. Primary is a toned off-white; secondary and tertiary fade toward 
 | --- | --- | --- | --- |
 | `text-primary` | `#F1ECDF` | `forest-900` | Warm off-white. Not pure white. |
 | `text-secondary` | `#B4C2B3` | `forest-600` | Faded sage — labels, meta, secondary copy |
-| `text-tertiary` | `#7C8A7B` | `bone-600` | Muted sage-gray — hints, disabled, captions |
+| `text-tertiary` | `#9DAA9C` | `bone-600` | Muted sage-gray — hints, disabled, captions. (Lifted from `#7C8A7B` to clear AA at body size on `--surface-raised`.) |
 | `text-inverse` | `#15211B` | `bone-50` | Dark text for use on light elements (e.g. the primary button) |
 
 ### Borders
@@ -170,6 +170,14 @@ Wire both themes through the same semantic variable names. Components reference 
 
   /* --- Focus --- */
   --focus-ring: #D87B3F;
+
+  /* --- Decorative warm surface --- */
+  /* For editorial accents (day-heading bands, section openers). Kept
+     distinct from --state-warning-surface so warning semantics stay
+     unambiguous. */
+  --surface-warm-bg:     #FCEEE2;
+  --surface-warm-text:   #8D4C24;
+  --surface-warm-border: #F0B080;
 }
 
 .dark {
@@ -183,7 +191,7 @@ Wire both themes through the same semantic variable names. Components reference 
   /* --- Text --- */
   --text-primary:   #F1ECDF;
   --text-secondary: #B4C2B3;
-  --text-tertiary:  #7C8A7B;
+  --text-tertiary:  #9DAA9C;
   --text-inverse:   #15211B;
 
   /* --- Borders --- */
@@ -209,6 +217,12 @@ Wire both themes through the same semantic variable names. Components reference 
 
   /* --- Focus --- */
   --focus-ring: #E0884F;
+
+  /* --- Decorative warm surface (dark cousin of the light cream tint) --- */
+  /* Custom stops, deliberately bounded to this token so they don't sprawl. */
+  --surface-warm-bg:     #2A2218;
+  --surface-warm-text:   #E0884F;
+  --surface-warm-border: #5C3F26;
 }
 
 body {
@@ -434,7 +448,7 @@ All against `surface-page` `#14201A` unless noted.
 | --- | --- | --- |
 | `text-primary` `#F1ECDF` | ~16:1 | AAA |
 | `text-secondary` `#B4C2B3` | ~9:1 | AAA |
-| `text-tertiary` `#7C8A7B` | ~4.6:1 | AA — large/non-essential text only |
+| `text-tertiary` `#9DAA9C` | ~6:1 | AA — meta, hints, captions |
 | `accent` `#D87B3F` | ~7:1 | AA — UI, large text, lines |
 | `accent-text` `#E0884F` | ~8.5:1 | AAA — safe for small accent text |
 | `state-success` `#95B8A2` | ~8:1 | AAA |
@@ -471,7 +485,7 @@ Practical rules:
 
 **Surfaces:** `#0E1813` sunken · `#14201A` page · `#1E2C24` raised · `#29382F` overlay — deep warm forest, lighter as elevation rises.
 
-**Ink:** `#F1ECDF` primary · `#B4C2B3` secondary · `#7C8A7B` tertiary — warm pale, fading to sage.
+**Ink:** `#F1ECDF` primary · `#B4C2B3` secondary · `#9DAA9C` tertiary — warm pale, fading to sage.
 
 **Borders:** warm-white at 10 / 16 / 30% alpha.
 
