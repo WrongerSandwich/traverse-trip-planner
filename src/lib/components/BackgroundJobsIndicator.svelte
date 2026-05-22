@@ -87,6 +87,12 @@
     return m ? decodeURIComponent(m[1]) : null;
   });
 
+  // Home page has a "Home base" link pinned to the bottom-right of the cards
+  // column on desktop — the pill at right: 0.9rem would overlap it. Shift the
+  // pill leftward when we're on /. Other pages have no bottom-right chrome
+  // conflict, so they keep the default corner anchor.
+  const isHomePage = $derived(page.url?.pathname === '/');
+
   const visibleRunningJobs = $derived(
     mirror
       ? (currentTripSlug
@@ -189,7 +195,7 @@
 
 {#if mirror}
   <!-- Pill + drawer container, top-right, fixed above page chrome. -->
-  <div class="indicator-root" aria-live="polite">
+  <div class="indicator-root" class:home-page={isHomePage} aria-live="polite">
     {#if pillState.variant !== 'hidden'}
       <button
         type="button"
@@ -345,6 +351,14 @@
     pointer-events: none;
   }
   .indicator-root > * { pointer-events: auto; }
+
+  /* Home page only, desktop only: clear the bottom-right "Home base" footer
+     link (mobile has the footer in normal document flow, so no overlap). */
+  @media (min-width: 769px) {
+    .indicator-root.home-page {
+      right: 8rem;
+    }
+  }
 
   /* ── Pill ──────────────────────────────────────────────────────────────── */
   .pill {
