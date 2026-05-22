@@ -584,11 +584,89 @@ export function getHome() {
 // ── Enrich trips ──
 // TODO: split into enrichWithGeodata() (geocode/image/route I/O) and enrichWithCalculations() (pure transforms); pruneCaches() can be called explicitly after enrichment
 
-async function geocodeWaypoints(waypoints, trackSet = null) {
+// Minimal YAML-frontmatter reader for plan.md / candidates.md inside the GC
+// sweep. We can't import parsePlanFile / parseCandidatesFile from plan.js /
+// candidates.js — both modules import findTripLocation from this file, so a
+// reciprocal top-level import here creates a load-order cycle that breaks the
+// `vi.mock('$lib/server/data.js', ...)` pattern used by plan-mutations and
+// candidate-mutations tests. yamlParse is already imported above; just use it
+// directly for the two fields we care about.
+function readFrontmatterYaml(filePath) {
+  try {
+    const content = readFileSync(filePath, 'utf8');
+    const match = content.match(/^---\n([\s\S]*?)\n?---\n?/);
+    if (!match) return null;
+    return yamlParse(match[1]) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Collect every cache key that's still "live" given the current trip files.
+ *
+ * Sources:
+ *   - overview / idea frontmatter: destination, image_query (via imageQuery()),
+ *     waypoints
+ *   - planning + completed: plan.md `cover_query`, candidates.md stop/lodging
+ *     `name`s
+ *
+ * Route-cache keys are NOT seeded here — they require actual geocoded
+ * coordinates and are added by enrichTripsImpl() after geocodeWaypoints()
+ * resolves. Callers that only want the static-derivable keys (e.g. the GC test)
+ * can call this directly.
+ *
+ * @param {Array<object>} [trips] Pre-collected trip list to avoid re-walking
+ *   the FS when enrichTripsImpl() already called collectTrips().
+ */
+export function collectLiveCacheKeys(trips = collectTrips()) {
+  const images = new Set();
+  const routes = new Set();
+  const geocodes = new Set();
+
+  for (const trip of trips) {
+    if (trip.destination) geocodes.add(trip.destination);
+    const q = imageQuery(trip);
+    if (q) images.add(q);
+    if (trip.waypoints) {
+      const wps = Array.isArray(trip.waypoints) ? trip.waypoints : [trip.waypoints];
+      for (const wp of wps) if (wp) geocodes.add(wp);
+    }
+  }
+
+  // Walk planning + completed folders for plan.md (cover_query) and
+  // candidates.md (stop/lodging names → geocoded later).
+  for (const stage of ['planning', 'completed']) {
+    const stageDir = join(ROOT, stage);
+    if (!existsSync(stageDir)) continue;
+    for (const slug of readdirSync(stageDir)) {
+      const tripDir = join(stageDir, slug);
+      try {
+        if (!statSync(tripDir).isDirectory()) continue;
+      } catch { continue; }
+
+      const plan = readFrontmatterYaml(join(tripDir, 'plan.md'));
+      if (plan?.cover_query) images.add(plan.cover_query);
+
+      const cands = readFrontmatterYaml(join(tripDir, 'candidates.md'));
+      if (cands) {
+        for (const s of Array.isArray(cands.stops) ? cands.stops : []) {
+          if (s?.name) geocodes.add(s.name);
+        }
+        for (const l of Array.isArray(cands.lodging) ? cands.lodging : []) {
+          if (l?.name) geocodes.add(l.name);
+        }
+      }
+    }
+  }
+
+  return { images, routes, geocodes };
+}
+
+async function geocodeWaypoints(waypoints) {
   const wps = Array.isArray(waypoints) ? waypoints : [waypoints];
   const geocoded = [];
   for (const wp of wps) {
-    if (trackSet) trackSet.add(wp);
     const needsFetch = geocodeCache[wp] === undefined;
     try {
       const coord = await geocode(wp);
@@ -641,9 +719,10 @@ async function enrichTripsImpl() {
   const homeCoords = home?.coords ?? null;
   const trips = collectTrips();
 
-  const liveRouteKeys   = new Set();
-  const liveImageKeys   = new Set();
-  const liveGeocodeKeys = new Set();
+  // Pre-seed live-key sets from frontmatter + plan.md + candidates.md.
+  // Route keys are seeded inside the loop below once waypoints are geocoded.
+  const { images: liveImageKeys, routes: liveRouteKeys, geocodes: liveGeocodeKeys } =
+    collectLiveCacheKeys(trips);
 
   // Per-request geocode coalescing: if two trips share a destination that isn't
   // in the disk cache yet, the second trip awaits the same in-flight promise
@@ -664,9 +743,8 @@ async function enrichTripsImpl() {
   let completedEnumeration = true;
   for (const trip of trips) {
     try {
-      // Geocode
+      // Geocode (key already seeded by collectLiveCacheKeys)
       const dest = trip.destination;
-      if (dest) liveGeocodeKeys.add(dest);
       if (dest) {
         try {
           trip._coords = await geocodeCached(dest);
@@ -682,9 +760,8 @@ async function enrichTripsImpl() {
         trip._coords = null;
       }
 
-      // Image
+      // Image (key already seeded by collectLiveCacheKeys)
       const q = imageQuery(trip);
-      if (q) liveImageKeys.add(q);
       if (q) {
         const cached = readImageCacheEntry(imageCache, q);
         const raw = cached.state === 'hit' ? cached.value : await fetchImage(q);
@@ -696,7 +773,7 @@ async function enrichTripsImpl() {
 
       // Route waypoints → geocode → OSRM road geometry
       if (trip.waypoints) {
-        const geocoded = await geocodeWaypoints(trip.waypoints, liveGeocodeKeys);
+        const geocoded = await geocodeWaypoints(trip.waypoints);
         if (geocoded.length >= 2) {
           liveRouteKeys.add(routeCacheKey(geocoded));
           const route = await fetchRoute(geocoded);
