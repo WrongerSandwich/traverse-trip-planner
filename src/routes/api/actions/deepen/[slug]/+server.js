@@ -75,7 +75,7 @@ Search the web for current information: museum hours, admission prices, lodging 
 Produce four research sections inside XML tags. Be concrete and specific — name actual places, hours, prices. Note anything that requires on-site verification.
 
 <overview_prose>
-2–4 paragraphs of prose (no headers inside). What makes this trip worth doing, the actual experience, what's distinctive vs nearby alternatives.
+Keep this concise — about 3 sentences (max ~500 characters). What makes this trip worth doing, the actual experience, what's distinctive vs nearby alternatives. Save the detailed write-up for route_md / stops_md / logistics_md; this is the hook, not the encyclopedia entry. No headers inside. You may optionally prefix a single-line TL;DR (e.g. "TL;DR: …") before the prose.
 </overview_prose>
 
 <frontmatter>

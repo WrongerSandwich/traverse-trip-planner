@@ -172,6 +172,19 @@
 
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
 
+  // Overview soft cap (Phase 5 task 5.1). Prompt-side instructs the model to
+  // keep overview prose to ~3 sentences, but legacy overviews on disk can be
+  // far longer. Soft-cap the rendered view at the first paragraph when the
+  // raw text exceeds ~500 chars; the file on disk is never truncated.
+  let overviewExpanded = $state(false);
+  const overviewRaw = $derived(sections.overview ?? '');
+  const overviewIsLong = $derived(overviewRaw.length > 500);
+  const overviewDisplay = $derived(
+    overviewExpanded || !overviewIsLong
+      ? overviewRaw
+      : overviewRaw.split(/\n\n+/)[0]
+  );
+
   // Referential-integrity check: plan.md may reference candidate ids that
   // no longer exist in candidates.md (e.g. after a direct file edit). The
   // server load computes the dangling set; render a banner near the top of
@@ -1122,6 +1135,15 @@
               onaccept={() => acceptEdit(section)}
               onrevert={() => revertEdit(section)}
             />
+          {:else if section === 'overview'}
+            <div class="prose">{@html renderMarkdown(stripLeadingH1(overviewDisplay))}</div>
+            {#if overviewIsLong && !overviewExpanded}
+              <button
+                type="button"
+                class="overview-show-more"
+                onclick={() => (overviewExpanded = true)}
+              >Show more</button>
+            {/if}
           {:else}
             <div class="prose">{@html renderMarkdown(stripLeadingH1(sections[section]))}</div>
           {/if}
@@ -1630,6 +1652,20 @@
   .prose :global(th) { text-align: left; font-weight: 700; padding: 0.4rem 0.6rem; border-bottom: 2px solid var(--border-default); color: var(--text-primary); }
   .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
   .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--surface-sunken); color: var(--text-primary); padding: 0.1em 0.4em; border-radius: 3px; }
+
+  /* Overview soft-cap "Show more" — borderless inline link styled like a
+     tertiary action so it reads as a continuation cue, not a CTA. */
+  .overview-show-more {
+    margin-top: 0.25rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    font: inherit;
+    font-size: 0.86rem;
+    color: var(--accent-text);
+    cursor: pointer;
+  }
+  .overview-show-more:hover { text-decoration: underline; }
 
   /* ── Brochure error banner (replaces .brochure-error inside old brochure-zone) ── */
   .brochure-error-banner {
