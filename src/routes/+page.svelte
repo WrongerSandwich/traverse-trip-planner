@@ -164,7 +164,7 @@
   // Stage filter
   let activeFilter = $state('all');
   // Sort
-  let activeSort   = $state('date');
+  let activeSort   = $state('modified');
   // Detail panel — track slug so the panel re-renders with fresh trip data
   // after invalidateAll() (e.g. image refetch) rebuilds data.trips.
   let selectedSlug = $state(null);
@@ -595,6 +595,9 @@
     const arr = [...list];
     // All comparators use slug as a stable secondary key to prevent re-ordering
     // between renders when the primary values are equal.
+    if (by === 'modified') return arr.sort((a, b) =>
+      ((b._modified ?? 0) - (a._modified ?? 0)) ||
+      (a.slug || '').localeCompare(b.slug || ''));
     if (by === 'time') return arr.sort((a, b) =>
       ((a._drive_hours ?? 999) - (b._drive_hours ?? 999)) ||
       (a.slug || '').localeCompare(b.slug || ''));
@@ -602,6 +605,8 @@
       (costLow(a._cost) - costLow(b._cost)) ||
       (a.slug || '').localeCompare(b.slug || ''));
     if (by === 'az')   return arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    // Default = sort by created (newest first); already pre-sorted that way in
+    // collectTrips, so just pass through.
     return arr;
   }
 
@@ -969,6 +974,7 @@
           </button>
 
           <select class="sort-select" bind:value={activeSort} aria-label="Sort trips">
+            <option value="modified">Recently active</option>
             <option value="date">Date added</option>
             <option value="time">Trip time</option>
             <option value="cost">Cost</option>

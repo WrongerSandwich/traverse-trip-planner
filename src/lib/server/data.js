@@ -402,6 +402,33 @@ export function parseFrontmatter(content) {
   return parseFrontmatterFields(match[1]);
 }
 
+// Last-modified timestamp for a trip, used by the home-page "Recently active"
+// sort. For an idea (single .md file), it's that file's mtime. For a planning
+// or completed folder, it's the max mtime across all .md files in the folder
+// (overview.md, route.md, stops.md, logistics.md, brochure.md, notes.md, etc.),
+// so any section edit, brochure prepare, retro write, or job-start frontmatter
+// write bumps the trip up the list. Non-.md files (attachments, future
+// additions) are intentionally ignored.
+function tripMtimeMs(stage, slug, ideaFilePath) {
+  try {
+    if (stage === 'ideas') {
+      return statSync(ideaFilePath).mtimeMs;
+    }
+    const dir = join(ROOT, stage, slug);
+    let max = 0;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+      try {
+        const m = statSync(join(dir, entry.name)).mtimeMs;
+        if (m > max) max = m;
+      } catch { /* file vanished between readdir and stat — ignore */ }
+    }
+    return max;
+  } catch {
+    return 0;
+  }
+}
+
 // ── Collect raw trips ──
 function collectTrips() {
   const trips = [];
@@ -418,7 +445,15 @@ function collectTrips() {
       }
       if (!filePath) continue;
       const fm = parseFrontmatter(readFileSync(filePath, 'utf8'));
-      if (fm) trips.push({ ...fm, _stage: stage, _slug: entry.name.replace(/\.md$/, '') });
+      if (fm) {
+        const _slug = entry.name.replace(/\.md$/, '');
+        trips.push({
+          ...fm,
+          _stage: stage,
+          _slug,
+          _modified: tripMtimeMs(stage, _slug, filePath),
+        });
+      }
     }
   }
   return trips.sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
