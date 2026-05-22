@@ -1,8 +1,10 @@
 import { json } from '@sveltejs/kit';
 import { removeStopFromDay, moveStopToDay } from '$lib/server/plan.js';
-import { invalidateEnrichCache } from '$lib/server/data.js';
+import { invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
 
 export async function DELETE({ params }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   try {
     removeStopFromDay(params.slug, Number(params.number), params.id);
     invalidateEnrichCache();
@@ -13,6 +15,8 @@ export async function DELETE({ params }) {
 }
 
 export async function PATCH({ params, request }) {
+  const invalid = rejectInvalidSlug(params.slug);
+  if (invalid) return invalid;
   const body = await request.json().catch(() => ({}));
   if (body?.toDay == null) return json({ error: 'toDay required' }, { status: 400 });
   try {

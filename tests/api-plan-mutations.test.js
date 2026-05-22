@@ -21,7 +21,17 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('$lib/server/plan.js', () => mocks);
 
-const dataMocks = vi.hoisted(() => ({ invalidateEnrichCache: vi.fn() }));
+const dataMocks = vi.hoisted(() => ({
+  invalidateEnrichCache: vi.fn(),
+  // Mirror the real guard: reject anything containing '..', '/', or other
+  // disallowed chars. Tests use slug 't' which passes; invalid-slug tests
+  // explicitly pass '../etc/passwd' or similar.
+  rejectInvalidSlug: vi.fn((slug) =>
+    typeof slug === 'string' && /^[a-z0-9][a-z0-9-]{0,99}$/.test(slug)
+      ? null
+      : new Response('Invalid slug', { status: 400 }),
+  ),
+}));
 vi.mock('$lib/server/data.js', () => dataMocks);
 
 // Import the route handlers after mocking.
@@ -209,6 +219,25 @@ describe('plan mutation API routes', () => {
     });
     expect(mocks.unPromoteCandidate).not.toHaveBeenCalled();
     expect(res.status).toBe(400);
+  });
+
+  it('POST /api/plan/[slug] returns 400 for invalid slug and does not call addDay', async () => {
+    const res = await addDayPost({
+      params: { slug: '../etc/passwd' },
+      request: emptyReq('POST'),
+    });
+    expect(res.status).toBe(400);
+    expect(mocks.addDay).not.toHaveBeenCalled();
+    expect(dataMocks.invalidateEnrichCache).not.toHaveBeenCalled();
+  });
+
+  it('PATCH /api/plan/[slug]/day/[number] returns 400 for invalid slug and does not touch plan', async () => {
+    const res = await setMetaPatch({
+      params: { slug: 'BadSlug!', number: '1' },
+      request: jsonReq({ date: '2026-07-01' }, 'PATCH'),
+    });
+    expect(res.status).toBe(400);
+    expect(mocks.setDayMetadata).not.toHaveBeenCalled();
   });
 
   it('returns 400 when plan.js throws (e.g. unknown candidate)', async () => {
