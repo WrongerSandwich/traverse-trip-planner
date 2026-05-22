@@ -495,7 +495,7 @@
             <div class="field env-only-row">
               <div class="field-label-row">
                 <code class="field-label env-only-name">{knob.name}</code>
-                <span class="badge {knob.isSet ? 'badge-env' : 'badge-unset'}">{knob.displayValue}</span>
+                <span class="badge {knob.isActive ? 'badge-env' : 'badge-unset'}">{knob.displayValue}</span>
               </div>
               <p class="field-hint">{knob.reason}</p>
             </div>
@@ -507,16 +507,14 @@
         <span class="subsection-label">Search backend</span>
         <p class="field-hint">Which backend to use for web search (today: Research/deepen). <code>anthropic-builtin</code> uses Anthropic's native search tool but only works when the Research slot is also Anthropic. <code>tavily</code> works with any provider but needs a Tavily key above.</p>
 
-        <div class="slot-fields">
-          <div class="field">
-            <label for="search-provider" class="field-label">Provider</label>
-            <select id="search-provider" class="field-select" bind:value={searchProvider}>
-              <option value="">(inherit from .env: {data.effectiveSearchProvider})</option>
-              {#each data.supportedSearchProviders as sp}
-                <option value={sp}>{sp}</option>
-              {/each}
-            </select>
-          </div>
+        <div class="field">
+          <label for="search-provider" class="field-label">Provider</label>
+          <select id="search-provider" class="field-select" bind:value={searchProvider}>
+            <option value="">(inherit from .env: {data.effectiveSearchProvider})</option>
+            {#each data.supportedSearchProviders as sp}
+              <option value={sp}>{sp}</option>
+            {/each}
+          </select>
         </div>
         {#if searchProviderWarning}
           <p class="field-warn">{searchProviderWarning}</p>
