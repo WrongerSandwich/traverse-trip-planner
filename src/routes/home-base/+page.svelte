@@ -253,12 +253,13 @@
       <p class="section-desc">Your home, vehicles, and the prose context the planner reads on every seed, research, and chat call. Saved to <code>home.md</code>.</p>
 
       {#if homeStatus === 'loading'}
-        <p class="field-hint">Loading…</p>
+        <p class="field-hint">Loading home.md…</p>
       {:else if homeStatus === 'missing'}
         <div class="empty-state">
           <p class="empty-state-title">home.md isn't set up yet.</p>
           <p class="empty-state-body">The planner needs a home base before it can suggest trips. Set one up to enable seed, research, and chat.</p>
           <a href="/onboarding" class="btn btn-primary">Create from template</a>
+          <p class="empty-state-hint">A short walkthrough: home city, a vehicle, travelers. About five steps, no AI calls.</p>
         </div>
       {:else if homeStatus === 'error'}
         <p class="field-warn">{homeLoadError}</p>
@@ -343,7 +344,7 @@
                 bind:value={homeTravelersStr}
                 oninput={() => { homeSavedOk = false; }}
               />
-              <p class="field-hint">Comma-separated names. Used when seeding ideas and checking logistics.</p>
+              <p class="field-hint">Comma-separated. Names of who's traveling, plus context like ages or visiting dates if it helps the planner ("alex, sam, alex's brother Aug 4-12").</p>
             </div>
 
             <div class="field">
@@ -764,6 +765,13 @@
     margin: 0 auto 20px;
     line-height: 1.5;
     max-width: 50ch;
+  }
+  .empty-state-hint {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 16px auto 0;
+    line-height: 1.5;
+    max-width: 45ch;
   }
 
   /* ── Remove + confirm ── */
