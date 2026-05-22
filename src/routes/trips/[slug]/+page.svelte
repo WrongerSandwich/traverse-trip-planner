@@ -185,6 +185,19 @@
       : overviewRaw.split(/\n\n+/)[0]
   );
 
+  // Route soft cap (Phase 5 task 5.2). The page-level map is the primary
+  // visual element for the route; the prose below is annotation. Tighter
+  // threshold (~300 chars) than overview since route writeups are denser
+  // and we want eye to land on Plan + Candidates first.
+  let routeExpanded = $state(false);
+  const routeRaw = $derived(sections.route ?? '');
+  const routeIsLong = $derived(routeRaw.length > 300);
+  const routeDisplay = $derived(
+    routeExpanded || !routeIsLong
+      ? routeRaw
+      : routeRaw.split(/\n\n+/)[0]
+  );
+
   // Referential-integrity check: plan.md may reference candidate ids that
   // no longer exist in candidates.md (e.g. after a direct file edit). The
   // server load computes the dangling set; render a banner near the top of
@@ -1074,7 +1087,11 @@
       {/if}
 
       {#each canonicalSections as section}
-        <section class="section" id="section-{section}">
+        <section
+          class="section"
+          class:muted-section={section === 'logistics'}
+          id="section-{section}"
+        >
           <header class="section-header">
             <h2>{SECTION_LABELS[section] || section}</h2>
             {#if isPlanning && section !== 'candidates' && section !== 'plan' && sections[section] !== undefined && !editing[section]}
@@ -1142,6 +1159,15 @@
                 type="button"
                 class="overview-show-more"
                 onclick={() => (overviewExpanded = true)}
+              >Show more</button>
+            {/if}
+          {:else if section === 'route'}
+            <div class="prose route-prose">{@html renderMarkdown(stripLeadingH1(routeDisplay))}</div>
+            {#if routeIsLong && !routeExpanded}
+              <button
+                type="button"
+                class="overview-show-more"
+                onclick={() => (routeExpanded = true)}
               >Show more</button>
             {/if}
           {:else}
@@ -1666,6 +1692,22 @@
     cursor: pointer;
   }
   .overview-show-more:hover { text-decoration: underline; }
+
+  /* Phase 5 task 5.2 — route prose is annotation below the page-level map,
+     not the primary visual element. Tighten line-height slightly and let
+     the soft-cap collapse legacy long routes to their first paragraph so
+     the eye lands on Plan + Candidates first. */
+  .route-prose { font-size: 0.95rem; line-height: 1.65; }
+
+  /* Phase 5 task 5.3 — logistics stays freeform prose but visually muted
+     so the user's attention lands on Plan + Candidates above. Heading
+     shrinks, weight drops, and the whole section dims slightly. */
+  .muted-section { opacity: 0.92; }
+  .muted-section .section-header h2 {
+    color: var(--text-tertiary);
+    font-size: 1rem;
+    font-weight: 500;
+  }
 
   /* ── Brochure error banner (replaces .brochure-error inside old brochure-zone) ── */
   .brochure-error-banner {
