@@ -1058,7 +1058,7 @@
           {#if section === 'plan'}
             <PlanSection plan={data.plan} candidates={data.candidates} slug={data.trip._slug} />
           {:else if section === 'candidates'}
-            <CandidatesSection candidates={data.candidates} />
+            <CandidatesSection candidates={data.candidates} plan={data.plan} slug={data.trip._slug} />
           {:else if sections[section] === undefined}
             <div class="section-empty-block">
               <p class="section-empty">Not yet researched.</p>
