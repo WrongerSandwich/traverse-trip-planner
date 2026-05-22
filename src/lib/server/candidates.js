@@ -10,6 +10,8 @@ import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { atomicWrite } from './atomic-write.js';
 import { findTripLocation } from './data.js';
 import { TraverseError } from './errors.js';
+// Circular with plan.js — safe only because unPromoteCandidate is invoked lazily
+// (call-time, not module-init). Don't add top-level uses of plan.js exports here.
 import { unPromoteCandidate } from './plan.js';
 
 const CANDIDATES_FILENAME = 'candidates.md';
