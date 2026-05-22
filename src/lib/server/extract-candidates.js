@@ -14,7 +14,7 @@ import { parse as yamlParse } from 'yaml';
 import { chat } from './ai.js';
 import { getTripFiles, readHomeMd } from './data.js';
 import { writePlan, emptyPlan } from './plan.js';
-import { writeCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES } from './candidates.js';
+import { writeCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS } from './candidates.js';
 import { getEffectiveConfig } from './config.js';
 import { TraverseError } from './errors.js';
 import { MAX_TOKENS } from './promises.js';
@@ -58,8 +58,6 @@ Aim for 8–15 stop candidates spanning categories (do NOT only pick outdoors). 
 const EXTRACT_RE = /<extract>([\s\S]*?)<\/extract>/;
 const PLAN_RE = /<plan>([\s\S]*?)<\/plan>/;
 const CANDIDATES_RE = /<candidates>([\s\S]*?)<\/candidates>/;
-
-const PRICE_TIERS = ['budget', 'mid', 'splurge'];
 
 export async function extractCandidates(slug, { signal, onActivity } = {}) {
   const { files } = getTripFiles(slug);
@@ -131,7 +129,7 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
       id,
       name: raw.name,
       description: raw.description ?? '',
-      price_tier: PRICE_TIERS.includes(raw.price_tier) ? raw.price_tier : 'mid',
+      price_tier: LODGING_PRICE_TIERS.includes(raw.price_tier) ? raw.price_tier : 'mid',
       nights: typeof raw.nights === 'number' ? raw.nights : undefined,
       booking_url: raw.booking_url ?? '',
       user_added: false,

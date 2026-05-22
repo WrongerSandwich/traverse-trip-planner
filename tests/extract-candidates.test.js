@@ -24,8 +24,18 @@ vi.mock('$lib/server/candidates.js', () => ({
   emptyCandidates: () => ({ stops: [], lodging: [] }),
   writeCandidates: vi.fn(),
   readCandidates: vi.fn(() => null),
-  makeCandidateId: (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+  // Mirror real makeCandidateId disambiguation so the dedupe test exercises
+  // the across-stops-and-lodging seenIds accumulator in extract-candidates.
+  makeCandidateId: (name, existingIds) => {
+    const base = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'candidate';
+    const taken = new Set(existingIds);
+    if (!taken.has(base)) return base;
+    let n = 2;
+    while (taken.has(`${base}-${n}`)) n++;
+    return `${base}-${n}`;
+  },
   STOP_CATEGORIES: ['outdoors', 'misc'],
+  LODGING_PRICE_TIERS: ['budget', 'mid', 'splurge'],
 }));
 
 vi.mock('$lib/server/config.js', () => ({
@@ -93,5 +103,125 @@ lodging:
   it('throws TraverseError on malformed chat output', async () => {
     mockChat.mockResolvedValueOnce({ text: 'no XML here', usage: { input: 0, output: 0 } });
     await expect(extractCandidates('t')).rejects.toThrow(/extract/i);
+  });
+
+  it('throws TraverseError when <plan> block is missing inside <extract>', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<candidates>
+stops: []
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+    await expect(extractCandidates('t')).rejects.toThrow(/plan/i);
+  });
+
+  it('throws TraverseError when <candidates> block is missing inside <extract>', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: x
+</plan>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+    await expect(extractCandidates('t')).rejects.toThrow(/candidates/i);
+  });
+
+  it('throws TraverseError on malformed YAML inside <plan>', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: "unterminated
+field_guide_notes: [oops: bad
+</plan>
+<candidates>
+stops: []
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+    await expect(extractCandidates('t')).rejects.toThrow(/yaml/i);
+  });
+
+  it('defaults invalid category to "misc"', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: x
+</plan>
+<candidates>
+stops:
+  - name: Weird Place
+    category: not-a-real-category
+    description: d
+    why_recommended: w
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+
+    expect(writeCandidates).toHaveBeenCalledWith('t', expect.objectContaining({
+      stops: [expect.objectContaining({ name: 'Weird Place', category: 'misc' })],
+    }));
+  });
+
+  it('defaults invalid price_tier to "mid"', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: x
+</plan>
+<candidates>
+stops: []
+lodging:
+  - name: Fancy Stay
+    description: d
+    price_tier: ultra-luxe
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+
+    expect(writeCandidates).toHaveBeenCalledWith('t', expect.objectContaining({
+      lodging: [expect.objectContaining({ name: 'Fancy Stay', price_tier: 'mid' })],
+    }));
+  });
+
+  it('disambiguates duplicate ids across stops and lodging', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: x
+</plan>
+<candidates>
+stops:
+  - name: Inn
+    category: misc
+    description: A stop named Inn.
+    why_recommended: w
+lodging:
+  - name: Inn
+    description: A lodging also named Inn.
+    price_tier: mid
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+
+    expect(writeCandidates).toHaveBeenCalledWith('t', expect.objectContaining({
+      stops: [expect.objectContaining({ id: 'inn', name: 'Inn' })],
+      lodging: [expect.objectContaining({ id: 'inn-2', name: 'Inn' })],
+    }));
   });
 });
