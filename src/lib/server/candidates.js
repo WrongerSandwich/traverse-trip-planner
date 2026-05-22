@@ -10,6 +10,7 @@ import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { atomicWrite } from './atomic-write.js';
 import { findTripLocation } from './data.js';
 import { TraverseError } from './errors.js';
+import { unPromoteCandidate } from './plan.js';
 
 const CANDIDATES_FILENAME = 'candidates.md';
 
@@ -78,3 +79,53 @@ export const STOP_CATEGORIES = [
 ];
 
 export const LODGING_PRICE_TIERS = ['budget', 'mid', 'splurge'];
+
+function loadOrInit(slug) {
+  return readCandidates(slug) || emptyCandidates();
+}
+
+function allIds(cands) {
+  return [...cands.stops.map((s) => s.id), ...cands.lodging.map((l) => l.id)];
+}
+
+export function addCandidateStop(slug, fields) {
+  const cands = loadOrInit(slug);
+  const id = makeCandidateId(fields.name, allIds(cands));
+  cands.stops.push({
+    id,
+    name: fields.name,
+    category: fields.category || 'misc',
+    description: fields.description || '',
+    why_recommended: fields.why_recommended || '',
+    source_url: fields.source_url || '',
+    coords: fields.coords,
+    user_added: true,
+  });
+  writeCandidates(slug, cands);
+  return id;
+}
+
+export function addCandidateLodging(slug, fields) {
+  const cands = loadOrInit(slug);
+  const id = makeCandidateId(fields.name, allIds(cands));
+  cands.lodging.push({
+    id,
+    name: fields.name,
+    description: fields.description || '',
+    price_tier: fields.price_tier || 'mid',
+    nights: fields.nights,
+    booking_url: fields.booking_url || '',
+    coords: fields.coords,
+    user_added: true,
+  });
+  writeCandidates(slug, cands);
+  return id;
+}
+
+export function deleteCandidate(slug, id) {
+  unPromoteCandidate(slug, id);
+  const cands = loadOrInit(slug);
+  cands.stops = cands.stops.filter((s) => s.id !== id);
+  cands.lodging = cands.lodging.filter((l) => l.id !== id);
+  writeCandidates(slug, cands);
+}
