@@ -2,6 +2,8 @@ import { join } from 'path';
 import { error } from '@sveltejs/kit';
 import { enrichTrips, getHome, getTripFiles, isBrochureStale, isValidSlug, ROOT } from '$lib/server/data.js';
 import { readBrochure } from '$lib/server/brochure.js';
+import { readPlan } from '$lib/server/plan.js';
+import { readCandidates } from '$lib/server/candidates.js';
 
 export async function load({ params }) {
   const { slug } = params;
@@ -33,5 +35,14 @@ export async function load({ params }) {
     // Malformed brochure.md — fall through to itinerary.md legacy rendering.
   }
 
-  return { trip, home, files: files?.files || {}, stage: resolvedStage, brochureStale, brochureData };
+  return {
+    trip,
+    home,
+    files: files?.files || {},
+    stage: resolvedStage,
+    brochureStale,
+    brochureData,
+    plan: readPlan(slug),
+    candidates: readCandidates(slug),
+  };
 }
