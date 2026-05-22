@@ -24,6 +24,7 @@
   import FieldGuidePalette from '$lib/components/FieldGuidePalette.svelte';
   import SectionDiffOverlay from '$lib/components/SectionDiffOverlay.svelte';
   import CandidatesSection from '$lib/components/CandidatesSection.svelte';
+  import PlanSection from '$lib/components/PlanSection.svelte';
 
   let { data } = $props();
 
@@ -54,6 +55,7 @@
     route: 'Route',
     stops: 'Stops',
     logistics: 'Logistics',
+    plan: 'Plan',
     candidates: 'Candidates',
     itinerary: 'Itinerary',
     notes: 'Notes',
@@ -68,7 +70,7 @@
 
   // Canonical section sets per stage (itinerary handled separately above the list)
   const STAGE_SECTIONS = {
-    planning:  ['overview', 'route', 'stops', 'logistics', 'candidates'],
+    planning:  ['overview', 'route', 'stops', 'plan', 'logistics', 'candidates'],
     completed: ['overview', 'route', 'stops', 'logistics', 'notes'],
   };
 
@@ -1043,7 +1045,7 @@
         <section class="section" id="section-{section}">
           <header class="section-header">
             <h2>{SECTION_LABELS[section] || section}</h2>
-            {#if isPlanning && section !== 'candidates' && sections[section] !== undefined && !editing[section]}
+            {#if isPlanning && section !== 'candidates' && section !== 'plan' && sections[section] !== undefined && !editing[section]}
               <div class="section-header-actions">
                 <button class="btn-section-ask" onclick={() => openPalette(section)} title="Ask {data.assistantName} to edit this section">
                   Ask <kbd class="section-ask-kbd" aria-hidden="true">⌘K</kbd>
@@ -1053,7 +1055,9 @@
             {/if}
           </header>
 
-          {#if section === 'candidates'}
+          {#if section === 'plan'}
+            <PlanSection plan={data.plan} candidates={data.candidates} slug={data.trip._slug} />
+          {:else if section === 'candidates'}
             <CandidatesSection candidates={data.candidates} />
           {:else if sections[section] === undefined}
             <div class="section-empty-block">
