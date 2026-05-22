@@ -8,7 +8,7 @@
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
   import AffordanceButtons from '$lib/workflow-status/AffordanceButtons.svelte';
-  import { failureSentence } from '$lib/errors-registry.js';
+  import { failureSentence, ERROR_REGISTRY } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
@@ -171,6 +171,16 @@
   );
 
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
+
+  // Referential-integrity check: plan.md may reference candidate ids that
+  // no longer exist in candidates.md (e.g. after a direct file edit). The
+  // server load computes the dangling set; render a banner near the top of
+  // the page so the user knows to resolve them manually.
+  const danglingMessages = $derived(
+    (data.dangling ?? []).map((id) =>
+      ERROR_REGISTRY.dangling_candidate_id.sentence.replace('{candidate_id}', id)
+    )
+  );
 
   // Show the "Research this section →" button when the feature is enabled,
   // the trip is in planning, and the section is a researchable type.
@@ -958,6 +968,15 @@
 
   <div class="layout">
     <main class="content">
+      {#if danglingMessages.length}
+        <aside class="dangling-banner" role="alert" aria-label="Plan integrity warning">
+          <h4>Plan references missing candidates</h4>
+          {#each danglingMessages as msg}
+            <p>{msg}</p>
+          {/each}
+        </aside>
+      {/if}
+
       {#if isCompleted}
         <div class="callout completed-callout">
           <strong>Completed.</strong>
@@ -1663,6 +1682,31 @@
   .action-error-dismiss:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
+  }
+
+  /* ── Dangling-candidate-id integrity banner ──
+     Surfaces referential-integrity violations between plan.md and
+     candidates.md at the top of the page. Sentence text comes from
+     ERROR_REGISTRY.dangling_candidate_id; this banner is the only place
+     in the app that surfaces it. */
+  .dangling-banner {
+    padding: 0.75rem 1rem;
+    background: var(--state-danger-surface);
+    color: var(--text-primary);
+    border-left: 3px solid var(--state-danger);
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+    font-family: var(--font-sans);
+  }
+  .dangling-banner h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    color: var(--state-danger);
+  }
+  .dangling-banner p {
+    margin: 0.25rem 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
   }
 
   /* ── Field guide post-edit chip ──

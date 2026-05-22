@@ -2,7 +2,7 @@ import { join } from 'path';
 import { error } from '@sveltejs/kit';
 import { enrichTrips, getHome, getTripFiles, isBrochureStale, isValidSlug, ROOT } from '$lib/server/data.js';
 import { readBrochure } from '$lib/server/brochure.js';
-import { readPlan } from '$lib/server/plan.js';
+import { readPlan, findDanglingCandidateIds } from '$lib/server/plan.js';
 import { readCandidates } from '$lib/server/candidates.js';
 
 export async function load({ params }) {
@@ -44,5 +44,6 @@ export async function load({ params }) {
     brochureData,
     plan: readPlan(slug),
     candidates: readCandidates(slug),
+    dangling: findDanglingCandidateIds(slug),
   };
 }
