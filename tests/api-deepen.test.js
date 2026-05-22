@@ -89,6 +89,13 @@ vi.mock('$lib/server/jobs.js', () => ({
   cancelJob: mockCancelJob,
 }));
 
+// --- extract-candidates mock (chained onto research; tested in api-deepen-extract.test.js) ---
+const mockExtractCandidates = vi.hoisted(() => vi.fn());
+
+vi.mock('$lib/server/extract-candidates.js', () => ({
+  extractCandidates: mockExtractCandidates,
+}));
+
 import { TraverseError } from '../src/lib/server/errors.js';
 import { GET, POST, DELETE } from '../src/routes/api/actions/deepen/[slug]/+server.js';
 
@@ -114,6 +121,9 @@ beforeEach(() => {
   mockStartJob.mockReturnValue(makeJobHandle());
   // Default chat: resolves with minimal valid response.
   mockChat.mockResolvedValue({ text: '<overview_prose>prose</overview_prose>', usage: { input_tokens: 100, output_tokens: 50 } });
+  // Default extract: resolves cleanly with no extra usage so the existing
+  // research-only token assertions in this file stay correct.
+  mockExtractCandidates.mockResolvedValue({ usage: undefined });
 });
 
 // ── GET ────────────────────────────────────────────────────────────────────────

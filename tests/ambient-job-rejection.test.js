@@ -100,6 +100,14 @@ vi.mock('$lib/server/brochure.js', () => ({
   prepareBrochure: mockPrepareBrochure,
 }));
 
+// extract-candidates mock (chained onto the deepen research job; this file
+// only cares about completeJob/failJob bookkeeping, so a no-op resolution
+// is enough).
+const mockExtractCandidates = vi.hoisted(() => vi.fn());
+vi.mock('$lib/server/extract-candidates.js', () => ({
+  extractCandidates: mockExtractCandidates,
+}));
+
 // ─── Imports under test ───────────────────────────────────────────────────────
 
 import { POST as deepenPost } from '../src/routes/api/actions/deepen/[slug]/+server.js';
@@ -161,6 +169,9 @@ beforeEach(() => {
     data: {},
     usage: { input_tokens: 100, output_tokens: 200 },
   });
+
+  // Default extract: success with no extra usage (keeps existing token math).
+  mockExtractCandidates.mockResolvedValue({ usage: undefined });
 });
 
 afterEach(() => {

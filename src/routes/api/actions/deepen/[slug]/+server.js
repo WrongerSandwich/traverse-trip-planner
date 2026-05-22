@@ -34,6 +34,7 @@ import { cleanupLLMMarkdown } from '$lib/server/markdown-cleanup.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
+import { extractCandidates } from '$lib/server/extract-candidates.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
@@ -220,32 +221,34 @@ export async function POST(event) {
   // signal flows into chat() so /api/jobs/cancel can interrupt mid-run.
   const job = startJob('deepen', slug, { est_seconds: _promise.time_seconds });
 
-  // Fire-and-forget. Use the two-callback form of .then() so that a throw
-  // inside completeJob (e.g. disk I/O failure in clearRunningFlag/atomicWrite)
-  // routes to the rejection handler rather than producing an unhandled rejection
-  // that would kill the server under Node 15+.
-  doResearch(slug, ideaPath, job.controller.signal)
-    .then(
-      (result) => {
-        try {
-          completeJob('deepen', slug, { tokens: usageToTokens(result?.usage) });
-        } catch (e) {
-          console.error(`[deepen] ${slug}: completeJob threw after success:`, e?.message ?? e);
-        }
-      },
-      (err) => {
-        if (isAbort(err)) return; // cancelJob() owns the failure event
-        const code = err instanceof TraverseError ? err.code : 'unknown';
-        // Log the raw error server-side; send only a safe public message to the client.
-        console.error(`[deepen] ${slug}: research failed (${code}):`, err?.message ?? err);
-        const publicMessage = err instanceof TraverseError ? err.message : 'Research failed — try again.';
-        try {
-          failJob('deepen', slug, { code, message: publicMessage });
-        } catch (e) {
-          console.error(`[deepen] ${slug}: failJob threw after failure:`, e?.message ?? e);
-        }
-      },
-    );
+  // Fire-and-forget. Single job spans BOTH passes: doResearch writes the prose
+  // files into planning/, then extractCandidates() runs over those files to
+  // produce plan.md + candidates.md. Tokens from both passes sum into the one
+  // completeJob call. If the extractor fails after research succeeds we still
+  // failJob — the prose files stay on disk; we don't roll back partial state.
+  (async () => {
+    try {
+      const researchResult = await doResearch(slug, ideaPath, job.controller.signal);
+      const extractResult  = await extractCandidates(slug, { signal: job.controller.signal });
+      const totalTokens = usageToTokens(researchResult?.usage) + usageToTokens(extractResult?.usage);
+      try {
+        completeJob('deepen', slug, { tokens: totalTokens });
+      } catch (e) {
+        console.error(`[deepen] ${slug}: completeJob threw after success:`, e?.message ?? e);
+      }
+    } catch (err) {
+      if (isAbort(err)) return; // cancelJob() owns the failure event
+      const code = err instanceof TraverseError ? err.code : 'unknown';
+      // Log the raw error server-side; send only a safe public message to the client.
+      console.error(`[deepen] ${slug}: research+extract failed (${code}):`, err?.message ?? err);
+      const publicMessage = err instanceof TraverseError ? err.message : 'Research failed — try again.';
+      try {
+        failJob('deepen', slug, { code, message: publicMessage });
+      } catch (e) {
+        console.error(`[deepen] ${slug}: failJob threw after failure:`, e?.message ?? e);
+      }
+    }
+  })();
 
   return new Response(null, { status: 202 });
 }
