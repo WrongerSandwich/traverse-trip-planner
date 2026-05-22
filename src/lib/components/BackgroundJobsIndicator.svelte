@@ -11,7 +11,7 @@
   import { afterNavigate, goto } from '$app/navigation';
   import { page } from '$app/state';
   import { failureSentence } from '$lib/errors-registry.js';
-  import { createJobsClient, keyFor } from '$lib/utils/jobs-store.js';
+  import { createJobsClient, keyFor, onJobsNudge } from '$lib/utils/jobs-store.js';
 
   /** Workflow → user-facing label. Bare slug → friendly capital. Used in the
    *  drawer rows and toast bodies. Falls back to title-cased workflow.
@@ -135,8 +135,13 @@
       nowTick = Date.now();
     }, 1000);
 
+    // Listen for nudges from call sites that just started a background job
+    // (e.g. /api/actions/deepen). Skip waiting for the next 10s poll.
+    const unsubNudge = onJobsNudge(() => client?.refresh());
+
     return () => {
       unsub();
+      unsubNudge();
       client?.stop();
       clearInterval(tickHandle);
     };

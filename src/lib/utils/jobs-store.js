@@ -21,6 +21,21 @@ export function keyFor(workflow, slug) {
   return `${workflow}:${slug}`;
 }
 
+// Loose coupling so any call site that just *started* a background job can
+// ask the global indicator to skip its next 10s poll wait. The global
+// BackgroundJobsIndicator component subscribes to this event in onMount and
+// calls its client.refresh() in response. No-op on the server.
+const NUDGE_EVENT = 'traverse:nudge-jobs-poll';
+export function nudgeJobsPoll() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(NUDGE_EVENT));
+}
+export function onJobsNudge(handler) {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(NUDGE_EVENT, handler);
+  return () => window.removeEventListener(NUDGE_EVENT, handler);
+}
+
 // ─── Pure helpers ────────────────────────────────────────────────────────────
 
 /**

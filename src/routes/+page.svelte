@@ -11,6 +11,7 @@
   import { browser } from '$app/environment';
   import { onMount } from 'svelte';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
+  import { nudgeJobsPoll, onJobsNudge } from '$lib/utils/jobs-store.js';
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import { focusTrap } from '$lib/actions/focusTrap.js';
@@ -123,7 +124,11 @@
     }
     fetchJobs();
     const timer = setInterval(fetchJobs, 10_000);
-    return () => { cancelled = true; clearInterval(timer); };
+    // Same nudge channel the global indicator listens on. Lets jobs started
+    // from elsewhere (brochure prepare, mark-as-completed) refresh per-card
+    // badges without waiting for the 10s tick.
+    const unsubNudge = onJobsNudge(fetchJobs);
+    return () => { cancelled = true; clearInterval(timer); unsubNudge(); };
   });
 
   // Drop optimistic flags once the underlying trip has left the idea stage —
@@ -368,6 +373,13 @@
     seedTokens    = null;
     seedLog       = [];
 
+    // Collect success state inside the stream callback; finalize after
+     // streamAction returns so we can await invalidateAll before flipping the
+     // toast. Without the await, the "✓ 5 ideas added" toast renders before
+     // the trip cards refetch, and the user sees the message before the cards.
+    let resolvedTokens = null;
+    let resolvedError = null;
+
     try {
       await streamAction('/api/actions/seed', (event) => {
         const { msg, done, tokens } = event;
@@ -375,21 +387,24 @@
 
         if (done) {
           const isErr = typeof msg === 'string' && msg.toLowerCase().startsWith('error');
-          if (isErr) {
-            seedStatus    = 'failure';
-            seedErrorCode = 'network_error';
-          } else {
-            seedStatus = 'success';
-            seedTokens = tokens ?? null;
-            invalidateAll();
-            // Auto-dismiss the success state after 4s
-            seedToastTimer = setTimeout(() => {
-              seedStatus     = 'idle';
-              seedToastTimer = null;
-            }, 4000);
-          }
+          if (isErr) resolvedError = 'network_error';
+          else resolvedTokens = tokens ?? null;
         }
       }, { prompt });
+
+      if (resolvedError) {
+        seedStatus = 'failure';
+        seedErrorCode = resolvedError;
+      } else {
+        await invalidateAll();
+        seedStatus = 'success';
+        seedTokens = resolvedTokens;
+        // Auto-dismiss the success state after 4s
+        seedToastTimer = setTimeout(() => {
+          seedStatus     = 'idle';
+          seedToastTimer = null;
+        }, 4000);
+      }
     } catch {
       // Don't leak err.message into the user-visible log — the failureSentence
       // for `network_error` is rendered separately (#269).
@@ -421,6 +436,12 @@
     addTokens    = null;
     addLog       = [];
 
+    // See runSeed: same finalize-after-streamAction pattern so invalidateAll
+    // resolves before the success toast renders, keeping the new card and
+    // the "Idea added" message in sync.
+    let resolvedTokens = null;
+    let resolvedError = null;
+
     try {
       await streamAction('/api/actions/add', (event) => {
         const { msg, done, tokens } = event;
@@ -428,24 +449,27 @@
 
         if (done) {
           const isErr = typeof msg === 'string' && msg.toLowerCase().startsWith('error');
-          if (isErr) {
-            addStatus    = 'failure';
-            addErrorCode = 'network_error';
-          } else {
-            addStatus = 'success';
-            addTokens = tokens ?? null;
-            invalidateAll();
-            // Close the form and reset input on success
-            pinFormOpen = false;
-            pinDest     = '';
-            // Auto-dismiss the success state after 4s
-            addToastTimer = setTimeout(() => {
-              addStatus     = 'idle';
-              addToastTimer = null;
-            }, 4000);
-          }
+          if (isErr) resolvedError = 'network_error';
+          else resolvedTokens = tokens ?? null;
         }
       }, { destination: dest });
+
+      if (resolvedError) {
+        addStatus = 'failure';
+        addErrorCode = resolvedError;
+      } else {
+        await invalidateAll();
+        addStatus = 'success';
+        addTokens = resolvedTokens;
+        // Close the form and reset input on success
+        pinFormOpen = false;
+        pinDest     = '';
+        // Auto-dismiss the success state after 4s
+        addToastTimer = setTimeout(() => {
+          addStatus     = 'idle';
+          addToastTimer = null;
+        }, 4000);
+      }
     } catch {
       // Don't leak err.message into the user-visible log — the failureSentence
       // for `network_error` is rendered separately (#269).
@@ -489,9 +513,11 @@
         actionError = { code: 'action_failed', ctx: { action: 'start research' } };
         return;
       }
-      // 202 accepted. The optimistic flag bridges the gap until the next
-      // jobs poll surfaces the real job; the polling $effect also calls
-      // invalidateAll() when deepen completes, so no manual refresh here.
+      // 202 accepted. The optimistic flag bridges the per-card badge gap;
+      // nudging the global jobs poll skips its 10s wait so the "N running"
+      // pill in the bottom-right appears immediately instead of after the
+      // next /api/jobs cycle.
+      nudgeJobsPoll();
     } catch (e) {
       clearOptimisticDeepen(trip._slug);
       console.error(e);
