@@ -2,8 +2,10 @@
 //
 // `plan.md` per trip holds the curated trip: day-by-day stops + lodging
 // assignments, plus trip-wide bits (cover_query, field_guide_notes, gotchas).
-// References candidate ids from candidates.md. See referential-integrity
-// rules in spec 2026-05-22-planning-plan-and-candidates-design.md.
+// Stored as structured YAML in frontmatter; body is currently unused but
+// tolerated for forward compatibility. References candidate ids from
+// candidates.md. See referential-integrity rules in spec
+// 2026-05-22-planning-plan-and-candidates-design.md.
 
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
@@ -32,7 +34,7 @@ export function readPlan(slug) {
 }
 
 export function parsePlanFile(content) {
-  const match = content.match(/^---\n([\s\S]*?)\n?---\n?$/) || content.match(/^---\n([\s\S]*?)\n?---\n?([\s\S]*)$/);
+  const match = content.match(/^---\n([\s\S]*?)\n?---\n?([\s\S]*)$/);
   if (!match) return null;
   let data;
   try {

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, existsSync } from 'fs';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -17,11 +17,16 @@ vi.mock('$lib/server/data.js', async () => {
 });
 
 import { readPlan, writePlan, emptyPlan } from '../src/lib/server/plan.js';
+import { TraverseError } from '../src/lib/server/errors.js';
 
 describe('plan.js', () => {
   beforeEach(() => {
     ROOT = mkdtempSync(join(tmpdir(), 'plan-test-'));
     mkdirSync(join(ROOT, 'planning', 'mytrip'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(ROOT, { recursive: true, force: true });
   });
 
   it('returns null when plan.md is absent', () => {
@@ -54,5 +59,13 @@ describe('plan.js', () => {
 
   it('throws when writing for a non-folder trip', () => {
     expect(() => writePlan('nonexistent', emptyPlan())).toThrow(/no folder stage/);
+  });
+
+  it('throws TraverseError on malformed YAML', () => {
+    writeFileSync(join(ROOT, 'planning', 'mytrip', 'plan.md'), '---\n: : invalid yaml\n---\n');
+    let caught;
+    try { readPlan('mytrip'); } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(TraverseError);
+    expect(caught.code).toBe('model_returned_invalid_yaml');
   });
 });
