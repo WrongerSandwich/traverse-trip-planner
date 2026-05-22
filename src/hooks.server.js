@@ -120,7 +120,7 @@ function printConfigBanner() {
   for (const [name, info] of Object.entries(d.features)) {
     const status = info.ok ? '✓' : '✗';
     const detail = `${info.provider}/${info.model}${info.overridden ? ' (override)' : ''}`;
-    const tail = info.ok ? '' : ' (unavailable — configure in .env or /settings)';
+    const tail = info.ok ? '' : ' (unavailable — configure in .env or /configuration)';
     console.log(`    ${name.padEnd(7)} ${status} ${detail}${tail}`);
   }
   if (d.issues.length > 0) {

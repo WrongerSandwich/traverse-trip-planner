@@ -622,7 +622,7 @@
       <div class="welcome-banner-body">
         <p class="welcome-banner-title">Welcome to Traverse — add a model provider key to get started.</p>
         <p class="welcome-banner-text">
-          Two ways: open the <a href="/settings#server-config" class="welcome-banner-link">Settings page</a> and paste a key, or edit
+          Two ways: open the <a href="/configuration" class="welcome-banner-link">configuration page</a> and paste a key, or edit
           <code>.env</code> on the host (see <code>.env.example</code>). Both work; settings.json wins when both are set.
         </p>
       </div>
@@ -640,7 +640,7 @@
       <span class="pexels-banner-text">
         Hero photos aren't loading because Pexels isn't configured.
       </span>
-      <a class="pexels-banner-cta" href="/settings#server-config">Open settings →</a>
+      <a class="pexels-banner-cta" href="/configuration">Open configuration →</a>
     </div>
   {/if}
 
@@ -699,7 +699,7 @@
           Set up home base
         </a>
       {:else if !data.features?.seed && !data.features?.add}
-        <a class="ai-setup-cta" href="/settings#server-config">
+        <a class="ai-setup-cta" href="/configuration">
           Configure AI →
         </a>
       {:else}
@@ -747,7 +747,7 @@
           </button>
         </PromiseTooltip>
         {#if !data.features?.seed || !data.features?.add}
-          <a class="ai-partial-cta" href="/settings#server-config" title="Some AI features are unavailable until configured">
+          <a class="ai-partial-cta" href="/configuration" title="Some AI features are unavailable until configured">
             Configure AI →
           </a>
         {/if}
@@ -1057,7 +1057,7 @@
            header cluster; moving it here gets it out of the primary-action
            cluster and matches the "rare nav" register it deserves. -->
       <footer class="page-footer">
-        <a href="/settings" class="footer-link">Settings</a>
+        <a href="/home-base" class="footer-link">Home base</a>
       </footer>
     </div>
   </div>

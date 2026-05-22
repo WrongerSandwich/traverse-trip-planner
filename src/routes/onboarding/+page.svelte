@@ -309,7 +309,7 @@
           <h2>Welcome to Traverse.</h2>
           <p>This is a self-hosted road-trip filing cabinet — trips live as plain markdown, and an LLM helps you generate, research, and reflect on them.</p>
           <p>Before any of the AI features can help, you need a <code>home.md</code> file that says where you live, who's coming along, what you drive, and what makes a trip a good one for you. The next four screens build that file. The whole thing takes ~2 minutes.</p>
-          <p class="muted">You can edit any of this later under <code>/settings</code> or by opening <code>home.md</code> directly.</p>
+          <p class="muted">You can edit any of this later under <code>/home-base</code> or by opening <code>home.md</code> directly.</p>
         {:else if step === 2}
           <h2>Where's home?</h2>
           <p class="muted">Used to compute drive times and filter trip ideas by distance.</p>
@@ -356,7 +356,7 @@
           </div>
         {:else if step === 4}
           <h2>What do you drive?</h2>
-          <p class="muted">Just one vehicle to start. You can add more later from <code>/settings</code>.</p>
+          <p class="muted">Just one vehicle to start. You can add more later from <code>/home-base</code>.</p>
           <div class="field">
             <label for="ob-vkey" class="field-label">Slug</label>
             <input
@@ -445,7 +445,7 @@
           </div>
         {:else if step === 6}
           <h2>Review and write</h2>
-          <p class="muted">This is exactly what will land in <code>home.md</code>. You can edit any of this later under <code>/settings</code>.</p>
+          <p class="muted">This is exactly what will land in <code>home.md</code>. You can edit any of this later under <code>/home-base</code>.</p>
           <pre class="preview"><code>{previewYaml}</code></pre>
           {#if writeError}
             <p class="field-error">{writeError}</p>

@@ -106,7 +106,7 @@ export const ERROR_REGISTRY = {
     affordances: ['retry', 'dismiss'],
   },
   image_search_unconfigured: {
-    sentence: 'Image search is not configured. Add a Pexels key in .env or via the Settings page.',
+    sentence: 'Image search is not configured. Add a Pexels key in .env or via the configuration page.',
     affordances: ['dismiss'],
   },
   image_save_failed: {
