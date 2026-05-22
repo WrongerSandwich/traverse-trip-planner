@@ -126,6 +126,11 @@ export const ERROR_REGISTRY = {
     sentence: 'Internal error: requested token budget exceeds the safety ceiling. Please report this.',
     affordances: ['dismiss'],
   },
+  dangling_candidate_id: {
+    sentence: 'Plan references candidate "{candidate_id}" not found in candidates.md. Resolve manually.',
+    affordances: ['edit', 'dismiss'],
+    interpolate: ['candidate_id'],
+  },
 };
 
 /**
