@@ -94,9 +94,15 @@
 
           // Detect deepen completions (slug present before, absent now) and
           // refresh trip data so the card switches to its planning state.
+          // Each completed slug also gets a "fresh" highlight so the user
+          // can find the trip that just finished without scanning.
           let anyDeepenCompleted = false;
+          const completedDeepenSlugs = [];
           for (const slug of prevDeepenSlugs) {
-            if (!nextDeepenSlugs.has(slug)) anyDeepenCompleted = true;
+            if (!nextDeepenSlugs.has(slug)) {
+              anyDeepenCompleted = true;
+              completedDeepenSlugs.push(slug);
+            }
           }
 
           // Drop optimistic flags that are either superseded by a real job or
@@ -118,7 +124,10 @@
           allJobs = next;
           prevDeepenSlugs = nextDeepenSlugs;
 
-          if (anyDeepenCompleted) invalidateAll();
+          if (anyDeepenCompleted) {
+            invalidateAll();
+            markFreshMany(completedDeepenSlugs);
+          }
         }
       } catch { /* network blip — keep stale state */ }
     }
@@ -172,6 +181,34 @@
     selectedSlug ? data.trips.find(t => t._slug === selectedSlug) ?? null : null
   );
   let hoveredSlug  = $state(null);
+
+  // "Newly active" highlights: slugs the user hasn't yet acknowledged.
+  // Set when seed/add adds a trip, or when a deepen completes. Cleared on
+  // hover or click of the affected card. In-memory only (resets on page
+  // refresh) — once the user comes back later, the highlight has served
+  // its purpose; the user's now scanning for whatever's currently on top.
+  let highlightedSlugs = $state(new Set());
+
+  function markFresh(slug) {
+    if (highlightedSlugs.has(slug)) return;
+    const next = new Set(highlightedSlugs);
+    next.add(slug);
+    highlightedSlugs = next;
+  }
+
+  function markFreshMany(slugs) {
+    if (slugs.length === 0) return;
+    const next = new Set(highlightedSlugs);
+    for (const s of slugs) next.add(s);
+    highlightedSlugs = next;
+  }
+
+  function clearFresh(slug) {
+    if (!highlightedSlugs.has(slug)) return;
+    const next = new Set(highlightedSlugs);
+    next.delete(slug);
+    highlightedSlugs = next;
+  }
   // Extended filters
   let filterOpen   = $state(false);
   let activeDist   = $state('any');   // 'any' | 'u3' | '3-6' | '6plus'
@@ -396,7 +433,12 @@
         seedStatus = 'failure';
         seedErrorCode = resolvedError;
       } else {
+        // Snapshot pre-invalidate slugs so we can highlight whatever the seed
+        // produced. After invalidateAll(), data.trips reflects the new list.
+        const prevSlugs = new Set(data.trips.map(t => t._slug));
         await invalidateAll();
+        const newSlugs = data.trips.filter(t => !prevSlugs.has(t._slug)).map(t => t._slug);
+        markFreshMany(newSlugs);
         seedStatus = 'success';
         seedTokens = resolvedTokens;
         // Auto-dismiss the success state after 4s
@@ -458,7 +500,11 @@
         addStatus = 'failure';
         addErrorCode = resolvedError;
       } else {
+        // Snapshot pre-invalidate slugs so we can highlight the new card.
+        const prevSlugs = new Set(data.trips.map(t => t._slug));
         await invalidateAll();
+        const newSlugs = data.trips.filter(t => !prevSlugs.has(t._slug)).map(t => t._slug);
+        markFreshMany(newSlugs);
         addStatus = 'success';
         addTokens = resolvedTokens;
         // Close the form and reset input on success
@@ -548,6 +594,7 @@
   }
 
   function openTrip(trip) {
+    clearFresh(trip._slug);
     const stage = trip._stage || trip.status;
     if (stage === 'planning') {
       goto(`/trips/${encodeURIComponent(trip._slug)}`);
@@ -1067,8 +1114,9 @@
             <TripCard {trip}
               starred={isStarred(trip)}
               jobs={jobsForTrip(trip._slug)}
+              fresh={highlightedSlugs.has(trip._slug)}
               onclick={() => openTrip(trip)}
-              onhover={() => hoveredSlug = trip._slug}
+              onhover={() => { hoveredSlug = trip._slug; clearFresh(trip._slug); }}
               onleave={() => hoveredSlug = null}
               onbookmark={(e) => toggleBookmark(trip, e)}
               ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}

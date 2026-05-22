@@ -4,7 +4,18 @@
   import TripJobBadge from './TripJobBadge.svelte';
   import { tripColor } from '$lib/utils/colors.js';
 
-  let { trip, starred = false, jobs = [], onclick, onhover, onleave, onbookmark, ondeepen, oncancel } = $props();
+  let {
+    trip,
+    starred = false,
+    jobs = [],
+    fresh = false,
+    onclick,
+    onhover,
+    onleave,
+    onbookmark,
+    ondeepen,
+    oncancel,
+  } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
 
@@ -42,9 +53,10 @@
   }
 </script>
 
-<article class="card" id="card-{trip._slug}"
+<article class="card" class:fresh id="card-{trip._slug}"
   onmouseenter={onhover}
-  onmouseleave={onleave}>
+  onmouseleave={onleave}
+  aria-label={fresh ? `${trip.title || trip._slug} (newly active)` : undefined}>
 
   <button
     class="card-overlay"
@@ -186,6 +198,20 @@
     transition-duration: 0.05s;
   }
   .card:global(.highlight) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+  /* Newly-seeded or just-researched trip. Parent (home page) sets this when
+     the user hasn't yet acknowledged the new card — clearing happens on
+     mouseenter (the onhover callback) or click. Outline is inset so it
+     doesn't poke into neighboring cards; the soft accent glow makes the
+     card pop against the grid without competing with the existing hover. */
+  .card.fresh {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    box-shadow:
+      0 0 24px color-mix(in oklab, var(--accent) 18%, transparent),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 3px 10px rgba(0, 0, 0, 0.05);
+  }
 
   /* ── Thumbnail ── */
   .thumb {
