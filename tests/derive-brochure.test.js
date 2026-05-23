@@ -29,7 +29,7 @@ describe('deriveBrochure', () => {
         { id: 'a', name: 'A', category: 'outdoors', description: 'Place A', coords: { lat: 1, lng: 1 }, user_added: false },
         { id: 'b', name: 'B', category: 'food', description: 'Place B', user_added: false },
       ],
-      lodging: [{ id: 'inn', name: 'Inn', price_tier: 'mid', user_added: false }],
+      lodging: [{ id: 'inn', name: 'Inn', price_tier: 'mid', nights: 2, user_added: false }],
     });
     const plan = emptyPlan();
     plan.cover_query = 'Glacier mountains';
@@ -54,6 +54,10 @@ describe('deriveBrochure', () => {
     expect(b.days[0].lodging.name).toBe('Inn');
     expect(b.stops.map((s) => s.name)).toEqual(['A', 'B']);
     expect(b.lodging.map((l) => l.name)).toEqual(['Inn']);
+    // nights survives the projection so the brochure can render the badge
+    expect(b.lodging[0].nights).toBe(2);
+    // synthetic block.period is null so BrochureDayBlocks skips rendering a heading
+    expect(b.days[0].blocks[0].period).toBeNull();
   });
 
   it('returns null when plan.md or candidates.md absent', () => {

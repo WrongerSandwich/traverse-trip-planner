@@ -69,10 +69,12 @@ export function deriveBrochure(slug) {
       lodging: dayLodging,
       // Synthetic single-block projection for BrochureDayBlocks. Each stop
       // becomes a no-time item so the existing component can iterate without
-      // a rewrite. Empty when the day has no stops.
+      // a rewrite. Empty when the day has no stops. `period: null` so the
+      // component's optional period-header renders nothing (legacy brochures
+      // used 'morning'/'afternoon'/'evening'; derived ones have no analog).
       blocks: dayStops.length
         ? [{
-            period: 'plan',
+            period: null,
             items: dayStops.map((s) => ({ time: null, activity: s.name })),
           }]
         : [],
@@ -105,6 +107,7 @@ export function deriveBrochure(slug) {
         seenLodging.add(lid);
         topLodging.push({
           name: c.name,
+          nights: typeof c.nights === 'number' ? c.nights : undefined,
           coords: c.coords ?? null,
         });
       }
