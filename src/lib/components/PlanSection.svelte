@@ -127,7 +127,11 @@
   <p class="banner-error" role="alert">{error}</p>
 {/if}
 
-{#if !plan || plan.days.length === 0}
+{#if !plan}
+  <div class="empty">
+    <p>Plan will appear after extraction completes.</p>
+  </div>
+{:else if plan.days.length === 0}
   <div class="empty">
     <p>No days planned yet.</p>
     <button class="btn-inline" onclick={addDay} disabled={working || readonly}>+ Add Day 1</button>
