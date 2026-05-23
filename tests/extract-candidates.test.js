@@ -43,8 +43,8 @@ vi.mock('$lib/server/config.js', () => ({
 }));
 
 import { extractCandidates } from '../src/lib/server/extract-candidates.js';
-import { writePlan } from '../src/lib/server/plan.js';
-import { writeCandidates } from '../src/lib/server/candidates.js';
+import { writePlan, readPlan } from '../src/lib/server/plan.js';
+import { writeCandidates, readCandidates } from '../src/lib/server/candidates.js';
 
 describe('extractCandidates', () => {
   beforeEach(() => { vi.clearAllMocks(); });
@@ -223,5 +223,108 @@ lodging:
       stops: [expect.objectContaining({ id: 'inn', name: 'Inn' })],
       lodging: [expect.objectContaining({ id: 'inn-2', name: 'Inn' })],
     }));
+  });
+
+  it('preserves user_added candidates on re-extract', async () => {
+    readCandidates.mockReturnValueOnce({
+      stops: [
+        { id: 'lake', name: 'Lake', category: 'outdoors', user_added: false },
+        { id: 'my-pick', name: 'My Pick', category: 'misc', user_added: true },
+      ],
+      lodging: [{ id: 'my-inn', name: 'My Inn', price_tier: 'mid', user_added: true }],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: q
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: New Stop
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+
+    const writtenCands = writeCandidates.mock.calls[0][1];
+    const ids = [...writtenCands.stops.map((s) => s.id), ...writtenCands.lodging.map((l) => l.id)];
+    expect(ids).toContain('my-pick');     // user-added preserved
+    expect(ids).toContain('my-inn');      // user-added lodging preserved
+    expect(ids).toContain('new-stop');    // new researcher candidate
+    expect(ids).not.toContain('lake');    // prior researcher replaced
+  });
+
+  it('preserves plan.days on re-extract', async () => {
+    readPlan.mockReturnValueOnce({
+      cover_query: 'old',
+      field_guide_notes: 'old notes',
+      gotchas: 'old gotchas',
+      days: [{ number: 1, stops: ['my-pick'], lodging_id: 'my-inn' }],
+    });
+    readCandidates.mockReturnValueOnce({
+      stops: [{ id: 'my-pick', name: 'My Pick', category: 'misc', user_added: true }],
+      lodging: [{ id: 'my-inn', name: 'My Inn', price_tier: 'mid', user_added: true }],
+    });
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: new
+field_guide_notes: new notes
+gotchas: new gotchas
+</plan>
+<candidates>
+stops: []
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+    const writtenPlan = writePlan.mock.calls[0][1];
+    expect(writtenPlan.days).toEqual([{ number: 1, stops: ['my-pick'], lodging_id: 'my-inn' }]);
+    expect(writtenPlan.cover_query).toBe('new');
+    expect(writtenPlan.field_guide_notes).toBe('new notes');
+  });
+
+  it('reassigns user-added id on collision with new researcher id', async () => {
+    readCandidates.mockReturnValueOnce({
+      stops: [{ id: 'lake', name: 'Lake', category: 'outdoors', user_added: true }],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: q
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Lake
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+    const writtenCands = writeCandidates.mock.calls[0][1];
+    const ids = writtenCands.stops.map((s) => s.id);
+    expect(ids).toContain('lake');     // researcher's new entry keeps the slug
+    expect(ids).toContain('lake-2');   // user-added reassigned to avoid collision
   });
 });

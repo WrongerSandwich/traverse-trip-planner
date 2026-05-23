@@ -13,8 +13,8 @@
 import { parse as yamlParse } from 'yaml';
 import { chat } from './ai.js';
 import { getTripFiles, readHomeMd } from './data.js';
-import { writePlan, emptyPlan } from './plan.js';
-import { writeCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS } from './candidates.js';
+import { writePlan, readPlan, emptyPlan } from './plan.js';
+import { writeCandidates, readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS } from './candidates.js';
 import { getEffectiveConfig } from './config.js';
 import { TraverseError } from './errors.js';
 import { MAX_TOKENS } from './promises.js';
@@ -134,6 +134,39 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
       booking_url: raw.booking_url ?? '',
       user_added: false,
     });
+  }
+
+  // Merge with prior plan + candidates so re-extracting doesn't blow away the
+  // user's day-by-day work or anything they added manually.
+  // Rules (see Task 7.1):
+  //   - plan.days is preserved untouched (never auto-unpromoted; orphan ids
+  //     become "dangling" and surface in the UI banner).
+  //   - Researcher-sourced candidates (user_added: false) are wholesale-replaced
+  //     by the new extraction (already the case, since `cands` is built fresh).
+  //   - User-added candidates (user_added: true) are preserved, with ids
+  //     reassigned via makeCandidateId on collision with new researcher ids.
+  const existingPlan = readPlan(slug);
+  const existingCands = readCandidates(slug);
+
+  if (existingPlan) {
+    plan.days = existingPlan.days;
+  }
+
+  if (existingCands) {
+    const userAddedStops = (existingCands.stops ?? []).filter((s) => s.user_added);
+    const userAddedLodging = (existingCands.lodging ?? []).filter((l) => l.user_added);
+    const newIds = new Set([...cands.stops.map((s) => s.id), ...cands.lodging.map((l) => l.id)]);
+
+    for (const u of userAddedStops) {
+      const idToUse = newIds.has(u.id) ? makeCandidateId(u.name, [...newIds]) : u.id;
+      newIds.add(idToUse);
+      cands.stops.push({ ...u, id: idToUse });
+    }
+    for (const u of userAddedLodging) {
+      const idToUse = newIds.has(u.id) ? makeCandidateId(u.name, [...newIds]) : u.id;
+      newIds.add(idToUse);
+      cands.lodging.push({ ...u, id: idToUse });
+    }
   }
 
   writePlan(slug, plan);
