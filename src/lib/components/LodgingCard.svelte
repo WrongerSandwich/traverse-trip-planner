@@ -92,7 +92,10 @@
 
     <footer>
       {#if showDragHandle && !readonly}
-        <span class="drag-handle" aria-hidden="true" title="Drag onto a day card to assign">⋮⋮</span>
+        <span class="drag-handle" aria-hidden="true" title="Drag onto a day card to assign">
+          <span class="drag-dots">⋮⋮</span>
+          <span class="drag-label">drag</span>
+        </span>
       {/if}
       <button
         type="button"
@@ -272,16 +275,38 @@
     flex-wrap: wrap;
     margin-top: 0.1rem;
   }
+  /* Labeled drag affordance ("⋮⋮ drag") + hidden on touch. Same pattern
+     as StopCard — see comment there for rationale. */
   .drag-handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
     color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    line-height: 1;
+    cursor: grab;
+    padding: 3px 7px;
+    border-radius: 4px;
+    user-select: none;
+    transition: background-color 0.12s, color 0.12s;
+  }
+  .drag-handle:hover { background: var(--surface-sunken); color: var(--text-secondary); }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-dots {
     font-size: 0.85rem;
     line-height: 1;
     letter-spacing: -2px;
-    cursor: grab;
-    padding: 0 0.15rem;
-    user-select: none;
   }
-  .drag-handle:active { cursor: grabbing; }
+  .drag-label {
+    line-height: 1;
+  }
+  @media (pointer: coarse) {
+    .drag-handle { display: none; }
+  }
 
   .action {
     background: transparent;

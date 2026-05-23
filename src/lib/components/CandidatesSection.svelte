@@ -424,7 +424,7 @@
                       {#if option.date}<span class="day-date">{option.date}</span>{/if}
                       <div class="day-meta">
                         {#if option.currentlySet}
-                          <span class="day-lodging currently">Currently set — click to clear</span>
+                          <span class="day-lodging currently">Currently set. Click to clear.</span>
                         {:else if option.lodgingName}
                           <span class="day-lodging">{option.lodgingName} (will replace)</span>
                         {:else}
@@ -452,9 +452,9 @@
       onclick={() => (showHidden = !showHidden)}
     >
       {#if showHidden}
-        Hide {hiddenCount} hidden — collapse
+        Collapse {hiddenCount} hidden
       {:else}
-        {hiddenCount} hidden — show
+        Show {hiddenCount} hidden
       {/if}
     </button>
   {/if}
@@ -677,7 +677,8 @@
     padding: 0.4rem;
     background: var(--surface-sunken);
     border-radius: 5px;
-    border-left: 1px solid var(--border-default);
+    /* No side-stripe; the sunken surface + indent already signals
+       "nested under this card" structurally. */
   }
   .day-option {
     position: relative;

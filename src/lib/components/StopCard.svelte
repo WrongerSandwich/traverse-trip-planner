@@ -76,10 +76,8 @@
   {ondragend}
   aria-label="Candidate stop: {stop.name}"
 >
-  <span class="leading-edge" aria-hidden="true"></span>
-
   <div class="head">
-    <span class="glyph" aria-hidden="true">{glyph}</span>
+    <span class="cat-badge" aria-hidden="true" title={stop.category}>{glyph}</span>
     <h4 class="name">{stop.name}</h4>
     {#if distance != null}
       <span class="distance" title="Distance from destination">{distance} mi</span>
@@ -95,7 +93,10 @@
 
   <footer>
     {#if showDragHandle && !readonly}
-      <span class="drag-handle" aria-hidden="true" title="Drag onto a day card to promote">⋮⋮</span>
+      <span class="drag-handle" aria-hidden="true" title="Drag onto a day card to promote">
+        <span class="drag-dots">⋮⋮</span>
+        <span class="drag-label">drag</span>
+      </span>
     {/if}
     {#if promoted}
       <button
@@ -129,15 +130,17 @@
 </article>
 
 <style>
-  /* Card chassis — category color drives the leading-edge stripe and the
-     glyph; the body stays on the page surface so the category color is
-     an accent, not a full wash. */
+  /* Card chassis — category color lives on the .cat-badge (filled circular
+     glyph chip) and the action-button hover; the card chrome stays neutral
+     so the row reads as a list of distinct items, not a stripe rhythm. The
+     previous .leading-edge bar was structurally a side-stripe and tripped
+     the impeccable absolute ban — replaced with the badge approach. */
   .stop-card {
     position: relative;
     display: grid;
     grid-template-columns: 1fr;
     gap: 0.35rem;
-    padding: 0.65rem 0.85rem 0.55rem 1.05rem;
+    padding: 0.6rem 0.85rem 0.55rem 0.85rem;
     background: var(--surface-raised);
     border: 1px solid var(--border-subtle);
     border-radius: 5px;
@@ -175,32 +178,33 @@
     cursor: grabbing;
   }
 
-  /* Category color stripe on the leading edge — replaces the impeccable-
-     banned side-stripe border with a deliberate full bar that reads as
-     an intentional badge, not a decorative accent. 4px wide on the
-     inside-left of the card. */
-  .leading-edge {
-    position: absolute;
-    top: 0.45rem;
-    bottom: 0.45rem;
-    left: 0.3rem;
-    width: 3px;
-    border-radius: 2px;
-    background: var(--c, var(--border-default));
-    opacity: 0.85;
-  }
-
   .head {
     display: flex;
-    align-items: baseline;
-    gap: 0.45rem;
+    align-items: center;
+    gap: 0.55rem;
     flex-wrap: wrap;
   }
-  .glyph {
-    color: var(--c, var(--text-tertiary));
-    font-size: 0.95rem;
+  /* Category badge — filled circular chip in the category tint with the
+     glyph in the on-color. Replaces the leading-edge bar; carries the
+     category signal as a deliberate object rather than a side-stripe
+     accent. Sits where the glyph used to live so the row visual mass
+     and the name baseline are preserved. */
+  .cat-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--c-tint, var(--surface-sunken));
+    color: var(--c-on, var(--text-tertiary));
+    font-size: 0.78rem;
     line-height: 1;
     flex-shrink: 0;
+    /* The category-color saturated stop reads as a thin ring around the
+       tint fill — quiet but legible signal that this is the same family
+       as the matching pin on the map. */
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c, var(--border-default)) 35%, transparent);
   }
   .name {
     margin: 0;
@@ -252,16 +256,41 @@
     flex-wrap: wrap;
     margin-top: 0.1rem;
   }
+  /* Drag handle is a labeled affordance ("⋮⋮ drag"), not a glyph-only chip,
+     so users discover the gesture without a tooltip. Hidden entirely on
+     coarse pointers since HTML5 DnD doesn't fire on touch — surfacing a
+     non-functional affordance is worse than hiding it (the click-flow
+     "Promote to day…" remains primary on phone). */
   .drag-handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
     color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    line-height: 1;
+    cursor: grab;
+    padding: 3px 7px;
+    border-radius: 4px;
+    user-select: none;
+    transition: background-color 0.12s, color 0.12s;
+  }
+  .drag-handle:hover { background: var(--surface-sunken); color: var(--text-secondary); }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-dots {
     font-size: 0.85rem;
     line-height: 1;
     letter-spacing: -2px;
-    cursor: grab;
-    padding: 0 0.15rem;
-    user-select: none;
   }
-  .drag-handle:active { cursor: grabbing; }
+  .drag-label {
+    line-height: 1;
+  }
+  @media (pointer: coarse) {
+    .drag-handle { display: none; }
+  }
 
   /* Action buttons — compact density variant matching the .btn-inline
      vocabulary the rest of the planning page uses. */
