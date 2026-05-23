@@ -11,11 +11,15 @@ const mocks = vi.hoisted(() => ({
   addCandidateStop: vi.fn(() => 'new-id'),
   addCandidateLodging: vi.fn(() => 'inn-id'),
   deleteCandidate: vi.fn(),
+  deleteCandidateStop: vi.fn(),
+  deleteCandidateLodging: vi.fn(),
 }));
 vi.mock('$lib/server/candidates.js', () => ({
   addCandidateStop: mocks.addCandidateStop,
   addCandidateLodging: mocks.addCandidateLodging,
   deleteCandidate: mocks.deleteCandidate,
+  deleteCandidateStop: mocks.deleteCandidateStop,
+  deleteCandidateLodging: mocks.deleteCandidateLodging,
 }));
 
 const dataMocks = vi.hoisted(() => ({
@@ -83,9 +87,9 @@ describe('candidate mutation API routes', () => {
     expect(mocks.addCandidateStop).not.toHaveBeenCalled();
   });
 
-  it('DELETE /api/candidates/[slug]/stops/[id] calls deleteCandidate', async () => {
+  it('DELETE /api/candidates/[slug]/stops/[id] calls deleteCandidateStop', async () => {
     const res = await deleteStop({ params: { slug: 't', id: 'lake' } });
-    expect(mocks.deleteCandidate).toHaveBeenCalledWith('t', 'lake');
+    expect(mocks.deleteCandidateStop).toHaveBeenCalledWith('t', 'lake');
     expect(res.status).toBe(200);
     expect(dataMocks.invalidateEnrichCache).toHaveBeenCalled();
   });
@@ -93,7 +97,7 @@ describe('candidate mutation API routes', () => {
   it('DELETE /api/candidates/[slug]/stops/[id] returns 400 for invalid slug', async () => {
     const res = await deleteStop({ params: { slug: '../etc', id: 'lake' } });
     expect(res.status).toBe(400);
-    expect(mocks.deleteCandidate).not.toHaveBeenCalled();
+    expect(mocks.deleteCandidateStop).not.toHaveBeenCalled();
   });
 
   it('POST /api/candidates/[slug]/lodging calls addCandidateLodging', async () => {
@@ -128,9 +132,9 @@ describe('candidate mutation API routes', () => {
     expect(mocks.addCandidateLodging).not.toHaveBeenCalled();
   });
 
-  it('DELETE /api/candidates/[slug]/lodging/[id] calls deleteCandidate', async () => {
+  it('DELETE /api/candidates/[slug]/lodging/[id] calls deleteCandidateLodging', async () => {
     const res = await deleteLodging({ params: { slug: 't', id: 'inn' } });
-    expect(mocks.deleteCandidate).toHaveBeenCalledWith('t', 'inn');
+    expect(mocks.deleteCandidateLodging).toHaveBeenCalledWith('t', 'inn');
     expect(res.status).toBe(200);
     expect(dataMocks.invalidateEnrichCache).toHaveBeenCalled();
   });
@@ -138,7 +142,7 @@ describe('candidate mutation API routes', () => {
   it('DELETE /api/candidates/[slug]/lodging/[id] returns 400 for invalid slug', async () => {
     const res = await deleteLodging({ params: { slug: '../etc', id: 'inn' } });
     expect(res.status).toBe(400);
-    expect(mocks.deleteCandidate).not.toHaveBeenCalled();
+    expect(mocks.deleteCandidateLodging).not.toHaveBeenCalled();
   });
 
   it('returns 400 when candidates.js throws (e.g. duplicate name)', async () => {

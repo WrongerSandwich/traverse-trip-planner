@@ -72,11 +72,21 @@ function loadOrInit(slug) {
   return readPlan(slug) || emptyPlan();
 }
 
-function requireCandidate(slug, id) {
+function requireCandidate(slug, id, kind) {
   const cands = readCandidates(slug);
   if (!cands) throw new Error(`Candidate "${id}" not in candidates.md — file missing.`);
-  if (!cands.stops.some((s) => s.id === id) && !cands.lodging.some((l) => l.id === id)) {
-    throw new Error(`Candidate "${id}" not in candidates.md.`);
+  if (kind === 'stop') {
+    if (!cands.stops.some((s) => s.id === id)) {
+      throw new Error(`Candidate "${id}" is not a stop candidate.`);
+    }
+  } else if (kind === 'lodging') {
+    if (!cands.lodging.some((l) => l.id === id)) {
+      throw new Error(`Candidate "${id}" is not a lodging candidate.`);
+    }
+  } else {
+    if (!cands.stops.some((s) => s.id === id) && !cands.lodging.some((l) => l.id === id)) {
+      throw new Error(`Candidate "${id}" not in candidates.md.`);
+    }
   }
 }
 
@@ -112,7 +122,7 @@ export function removeDay(slug, number) {
 }
 
 export function addStopToDay(slug, dayNumber, candidateId) {
-  requireCandidate(slug, candidateId);
+  requireCandidate(slug, candidateId, 'stop');
   const plan = loadOrInit(slug);
   const day = findDay(plan, dayNumber);
   if (!day.stops.includes(candidateId)) day.stops.push(candidateId);
@@ -160,7 +170,7 @@ export function setDayMetadata(slug, dayNumber, patch) {
 }
 
 export function setLodgingForDay(slug, dayNumber, candidateId) {
-  if (candidateId != null) requireCandidate(slug, candidateId);
+  if (candidateId != null) requireCandidate(slug, candidateId, 'lodging');
   const plan = loadOrInit(slug);
   const day = findDay(plan, dayNumber);
   if (candidateId == null) delete day.lodging_id;

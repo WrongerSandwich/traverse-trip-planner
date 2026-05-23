@@ -10,11 +10,12 @@
 // at the outer layer and structured YAML at the inner — the same dual-format
 // shape the deepen call uses for its section tags.
 
+import { writeFileSync, renameSync } from 'node:fs';
 import { parse as yamlParse } from 'yaml';
 import { chat } from './ai.js';
 import { getTripFiles, readHomeMd, geocode, parseFrontmatter } from './data.js';
-import { writePlan, readPlan, emptyPlan } from './plan.js';
-import { writeCandidates, readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS } from './candidates.js';
+import { readPlan, emptyPlan, planPath, serializePlanFile } from './plan.js';
+import { readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS, candidatesPath, serializeCandidatesFile } from './candidates.js';
 import { getEffectiveConfig } from './config.js';
 import { TraverseError } from './errors.js';
 import { MAX_TOKENS } from './promises.js';
@@ -59,7 +60,9 @@ const PLAN_RE = /<plan>([\s\S]*?)<\/plan>/;
 const CANDIDATES_RE = /<candidates>([\s\S]*?)<\/candidates>/;
 
 export async function extractCandidates(slug, { signal, onActivity } = {}) {
-  const { files } = getTripFiles(slug);
+  const tripResult = getTripFiles(slug);
+  if (!tripResult) throw new TraverseError('trip_not_found', `extractCandidates: trip "${slug}" not found.`);
+  const { files } = tripResult;
   const home = readHomeMd();
   const userMessage = `# home.md\n${home}\n\n# overview.md\n${files.overview ?? ''}\n\n# route.md\n${files.route ?? ''}\n\n# stops.md\n${files.stops ?? ''}\n\n# logistics.md\n${files.logistics ?? ''}`;
 
@@ -192,8 +195,17 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   const destinationContext = overviewFm.destination ?? '';
   await geocodeCandidates(cands, destinationContext);
 
-  writePlan(slug, plan);
-  writeCandidates(slug, cands);
+  // Write both files atomically: stage each to a .tmp first, then rename both
+  // so a mid-write crash cannot leave plan.md updated while candidates.md is stale.
+  const pPath = planPath(slug);
+  const cPath = candidatesPath(slug);
+  if (!pPath || !cPath) throw new Error(`Cannot write plan/candidates for trip "${slug}" — no folder stage found.`);
+  const pTmp = `${pPath}.tmp`;
+  const cTmp = `${cPath}.tmp`;
+  writeFileSync(pTmp, serializePlanFile(plan));
+  writeFileSync(cTmp, serializeCandidatesFile(cands));
+  renameSync(pTmp, pPath);
+  renameSync(cTmp, cPath);
 
   return { usage };
 }

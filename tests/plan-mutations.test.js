@@ -86,7 +86,17 @@ describe('plan mutations', () => {
 
   it('addStopToDay rejects unknown candidate ids', () => {
     addDay('t');
-    expect(() => addStopToDay('t', 1, 'nope')).toThrow(/not in candidates/);
+    expect(() => addStopToDay('t', 1, 'nope')).toThrow(/not a stop candidate/);
+  });
+
+  it('addStopToDay rejects lodging ids (kind guard)', () => {
+    addDay('t');
+    expect(() => addStopToDay('t', 1, 'inn')).toThrow(/not a stop candidate/);
+  });
+
+  it('setLodgingForDay rejects stop ids (kind guard)', () => {
+    addDay('t');
+    expect(() => setLodgingForDay('t', 1, 'a')).toThrow(/not a lodging candidate/);
   });
 
   it('removeStopFromDay removes by id', () => {

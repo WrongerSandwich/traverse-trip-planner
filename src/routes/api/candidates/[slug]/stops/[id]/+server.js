@@ -1,12 +1,12 @@
 import { json } from '@sveltejs/kit';
-import { deleteCandidate } from '$lib/server/candidates.js';
+import { deleteCandidateStop } from '$lib/server/candidates.js';
 import { invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
 
 export async function DELETE({ params }) {
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
   try {
-    deleteCandidate(params.slug, params.id);
+    deleteCandidateStop(params.slug, params.id);
     invalidateEnrichCache();
     return json({ ok: true });
   } catch (err) {

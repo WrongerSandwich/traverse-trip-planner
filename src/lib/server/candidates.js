@@ -96,7 +96,7 @@ export function addCandidateStop(slug, fields) {
   cands.stops.push({
     id,
     name: fields.name,
-    category: fields.category || 'misc',
+    category: STOP_CATEGORIES.includes(fields.category) ? fields.category : 'misc',
     description: fields.description || '',
     why_recommended: fields.why_recommended || '',
     source_url: fields.source_url || '',
@@ -114,7 +114,7 @@ export function addCandidateLodging(slug, fields) {
     id,
     name: fields.name,
     description: fields.description || '',
-    price_tier: fields.price_tier || 'mid',
+    price_tier: LODGING_PRICE_TIERS.includes(fields.price_tier) ? fields.price_tier : 'mid',
     nights: fields.nights,
     booking_url: fields.booking_url || '',
     coords: fields.coords,
@@ -125,9 +125,31 @@ export function addCandidateLodging(slug, fields) {
 }
 
 export function deleteCandidate(slug, id) {
+  const existing = readCandidates(slug);
+  const inStops = existing?.stops.some((s) => s.id === id) ?? false;
+  const inLodging = existing?.lodging.some((l) => l.id === id) ?? false;
+  if (!inStops && !inLodging) return; // id matches nothing; avoid materializing empty files
   unPromoteCandidate(slug, id);
   const cands = loadOrInit(slug);
   cands.stops = cands.stops.filter((s) => s.id !== id);
+  cands.lodging = cands.lodging.filter((l) => l.id !== id);
+  writeCandidates(slug, cands);
+}
+
+export function deleteCandidateStop(slug, id) {
+  const existing = readCandidates(slug);
+  if (!existing?.stops.some((s) => s.id === id)) return; // not a stop; no-op
+  unPromoteCandidate(slug, id);
+  const cands = loadOrInit(slug);
+  cands.stops = cands.stops.filter((s) => s.id !== id);
+  writeCandidates(slug, cands);
+}
+
+export function deleteCandidateLodging(slug, id) {
+  const existing = readCandidates(slug);
+  if (!existing?.lodging.some((l) => l.id === id)) return; // not a lodging; no-op
+  unPromoteCandidate(slug, id);
+  const cands = loadOrInit(slug);
   cands.lodging = cands.lodging.filter((l) => l.id !== id);
   writeCandidates(slug, cands);
 }
