@@ -105,17 +105,6 @@ afterEach(() => {
 });
 
 describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
-  it('picks up cover_query from plan.md as an image key', () => {
-    ensureDir(`${ROOT}/planning/t`);
-    seedFile(`${ROOT}/planning/t/overview.md`,
-      '---\ntitle: T\nstatus: planning\ndestination: Whitefish MT\nwaypoints: [Whitefish MT]\n---\n');
-    seedFile(`${ROOT}/planning/t/plan.md`,
-      '---\ncover_query: Glacier mountains\ndays: []\n---\n');
-
-    const keys = collectLiveCacheKeys();
-    expect(keys.images.has('Glacier mountains')).toBe(true);
-  });
-
   it('picks up candidate stop and lodging names as geocode keys', () => {
     ensureDir(`${ROOT}/planning/t`);
     seedFile(`${ROOT}/planning/t/overview.md`,
@@ -150,13 +139,21 @@ describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
     ensureDir(`${ROOT}/completed/done`);
     seedFile(`${ROOT}/completed/done/overview.md`,
       '---\ntitle: Done\nstatus: completed\ndestination: Moab UT\n---\n');
-    seedFile(`${ROOT}/completed/done/plan.md`,
-      '---\ncover_query: Arches red rock\n---\n');
     seedFile(`${ROOT}/completed/done/candidates.md`,
       '---\nstops:\n  - id: dg\n    name: Delicate Arch\n    coords:\n      lat: 38.7\n      lng: -109.5\nlodging: []\n---\n');
 
     const keys = collectLiveCacheKeys();
-    expect(keys.images.has('Arches red rock')).toBe(true);
     expect(keys.geocodes.has('Delicate Arch')).toBe(true);
+  });
+
+  it('skips orphan dirs without overview.md (mirrors collectTrips contract)', () => {
+    // Orphan dir: has candidates.md but no overview.md (half-failed promotion).
+    ensureDir(`${ROOT}/planning/orphan`);
+    seedFile(`${ROOT}/planning/orphan/candidates.md`,
+      '---\nstops:\n  - id: ghost\n    name: Ghost Stop\nlodging: []\n---\n');
+
+    const keys = collectLiveCacheKeys();
+    // Ghost Stop must NOT appear — the dir was skipped for lack of overview.md.
+    expect(keys.geocodes.has('Ghost Stop')).toBe(false);
   });
 });

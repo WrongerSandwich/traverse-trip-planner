@@ -2,7 +2,7 @@
 // and candidates.md from the prose research output.
 //
 // Inputs: home.md + the four research sections (overview/route/stops/logistics).
-// Outputs: plan.md (cover_query, field_guide_notes, gotchas; days empty) and
+// Outputs: plan.md (field_guide_notes, gotchas; days empty) and
 // candidates.md (stops + lodging, with assigned ids and `user_added: false`).
 //
 // The prompt asks the model for a fixed XML envelope (<extract><plan>YAML</plan>
@@ -29,7 +29,6 @@ OUTPUT exactly one XML block, nothing else:
 
 <extract>
 <plan>
-cover_query: <2-4 visual nouns for a Pexels hero photo>
 field_guide_notes: |
   Trip-wide notes worth surfacing on the printable brochure.
 gotchas: |
@@ -98,7 +97,6 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
 
   // Build plan: prose fields, days empty. The user assembles days in the UI.
   const plan = emptyPlan();
-  plan.cover_query = planData.cover_query ?? '';
   plan.field_guide_notes = planData.field_guide_notes ?? '';
   plan.gotchas = planData.gotchas ?? '';
 

@@ -27,7 +27,7 @@ vi.mock('$lib/server/data.js', () => ({
 }));
 
 vi.mock('$lib/server/plan.js', () => ({
-  emptyPlan: () => ({ cover_query: '', field_guide_notes: '', gotchas: '', days: [] }),
+  emptyPlan: () => ({ field_guide_notes: '', gotchas: '', days: [] }),
   writePlan: vi.fn(),
   readPlan: vi.fn(() => null),
 }));
@@ -65,7 +65,6 @@ describe('extractCandidates', () => {
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: Glacier mountains
 field_guide_notes: |
   Park notes here.
 gotchas: |
@@ -98,7 +97,6 @@ lodging:
     }));
 
     expect(writePlan).toHaveBeenCalledWith('t', expect.objectContaining({
-      cover_query: 'Glacier mountains',
       field_guide_notes: expect.stringContaining('Park notes'),
       gotchas: expect.stringContaining('Cell dead'),
       days: [],
@@ -134,7 +132,7 @@ lodging: []
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: x
+field_guide_notes: ""
 </plan>
 </extract>`,
       usage: { input: 0, output: 0 },
@@ -146,7 +144,6 @@ cover_query: x
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: "unterminated
 field_guide_notes: [oops: bad
 </plan>
 <candidates>
@@ -163,7 +160,7 @@ lodging: []
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: x
+field_guide_notes: ""
 </plan>
 <candidates>
 stops:
@@ -188,7 +185,7 @@ lodging: []
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: x
+field_guide_notes: ""
 </plan>
 <candidates>
 stops: []
@@ -212,7 +209,7 @@ lodging:
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: x
+field_guide_notes: ""
 </plan>
 <candidates>
 stops:
@@ -249,7 +246,6 @@ lodging:
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: q
 field_guide_notes: ""
 gotchas: ""
 </plan>
@@ -277,7 +273,6 @@ lodging: []
 
   it('preserves plan.days on re-extract', async () => {
     readPlan.mockReturnValueOnce({
-      cover_query: 'old',
       field_guide_notes: 'old notes',
       gotchas: 'old gotchas',
       days: [{ number: 1, stops: ['my-pick'], lodging_id: 'my-inn' }],
@@ -289,7 +284,6 @@ lodging: []
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: new
 field_guide_notes: new notes
 gotchas: new gotchas
 </plan>
@@ -304,7 +298,6 @@ lodging: []
     await extractCandidates('t');
     const writtenPlan = writePlan.mock.calls[0][1];
     expect(writtenPlan.days).toEqual([{ number: 1, stops: ['my-pick'], lodging_id: 'my-inn' }]);
-    expect(writtenPlan.cover_query).toBe('new');
     expect(writtenPlan.field_guide_notes).toBe('new notes');
   });
 
@@ -317,7 +310,6 @@ lodging: []
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: q
 field_guide_notes: ""
 gotchas: ""
 </plan>
@@ -347,7 +339,6 @@ lodging: []
       lodging: [],
     });
     readPlan.mockReturnValueOnce({
-      cover_query: 'old',
       field_guide_notes: 'old',
       gotchas: 'old',
       days: [{ number: 1, stops: ['pine-lodge'], lodging_id: null }],
@@ -356,7 +347,6 @@ lodging: []
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: q
 field_guide_notes: ""
 gotchas: ""
 </plan>
@@ -391,7 +381,6 @@ lodging: []
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
-cover_query: q
 field_guide_notes: ""
 gotchas: ""
 </plan>
@@ -430,7 +419,7 @@ lodging:
     });
     readPlan.mockReturnValueOnce(null);
     mockChat.mockResolvedValueOnce({
-      text: '<extract><plan>\ncover_query: q\nfield_guide_notes: ""\ngotchas: ""\n</plan><candidates>\nstops: []\nlodging: []\n</candidates></extract>',
+      text: '<extract><plan>\nfield_guide_notes: ""\ngotchas: ""\n</plan><candidates>\nstops: []\nlodging: []\n</candidates></extract>',
       usage: { input: 0, output: 0 },
     });
     mockGeocode.mockResolvedValue(null);
