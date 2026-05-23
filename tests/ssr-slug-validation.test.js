@@ -23,16 +23,19 @@ vi.mock('$lib/server/data.js', () => ({
   enrichTrips: mockEnrichTrips,
   getHome: () => ({}),
   getTripFiles: vi.fn(() => null),
-  isBrochureStale: vi.fn(() => false),
   isValidSlug: mockIsValidSlug,
   getTripRoute: vi.fn(() => null),
   geocode: vi.fn(() => null),
   ROOT: '/test-root',
 }));
 
-// --- brochure mock ---
-vi.mock('$lib/server/brochure.js', () => ({
-  readBrochure: vi.fn(() => null),
+// --- plan + candidates mocks ---
+vi.mock('$lib/server/plan.js', () => ({
+  readPlan: vi.fn(() => null),
+  findDanglingCandidateIds: vi.fn(() => []),
+}));
+vi.mock('$lib/server/candidates.js', () => ({
+  readCandidates: vi.fn(() => null),
 }));
 
 // --- stadia mock ---
@@ -124,24 +127,3 @@ describe('trips/[slug]/brochure/+page.server.js — invalid slug → 404 before 
   });
 });
 
-// ── /trips/[slug]/brochure/prepare ───────────────────────────────────────────
-
-describe('trips/[slug]/brochure/prepare/+page.server.js — invalid slug → 404 before enrichTrips', () => {
-  let load;
-  beforeEach(async () => {
-    ({ load } = await import('../src/routes/trips/[slug]/brochure/prepare/+page.server.js'));
-  });
-
-  for (const slug of INVALID_SLUGS) {
-    it(`rejects slug "${slug}"`, async () => {
-      await assertThrows404(load, slug);
-    });
-  }
-
-  it('proceeds to enrichTrips for a valid slug', async () => {
-    mockIsValidSlug.mockReturnValue(true);
-    mockEnrichTrips.mockResolvedValue([]);
-    try { await load({ params: { slug: 'glacier-loop' } }); } catch { /* expected */ }
-    expect(mockEnrichTrips).toHaveBeenCalled();
-  });
-});

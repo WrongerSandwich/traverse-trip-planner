@@ -20,8 +20,6 @@
    *  'deepen-section:stops'); we strip the suffix before lookup so they map
    *  to the bare-workflow label. See src/lib/server/jobs.js header. */
   const WORKFLOW_LABELS = {
-    brochure: 'Brochure',
-    'brochure-prepare': 'Brochure',
     deepen: 'Deepen',
     'deepen-section': 'Deepen section',
     lock: 'Lock',
@@ -50,8 +48,6 @@
   // "estimated remaining" in the drawer row. Conservative — better to
   // undershoot than to make the UI feel late.
   const ESTIMATES_S = {
-    brochure: 45,
-    'brochure-prepare': 45,
     deepen: 90,
     'deepen-section': 35,
     lock: 30,

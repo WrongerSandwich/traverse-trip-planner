@@ -534,22 +534,39 @@
     addErrorCode = null;
   }
 
-  async function runDeepen(trip) {
-    const ok = await showConfirm({
-      title:        `Research "${trip.title || trip._slug}"?`,
-      body:         'Searches the web for hours, prices, lodging, and route highlights. Runs in the background; you can navigate away.',
-      confirmLabel: 'Start research',
-      danger:       false,
-    });
-    if (!ok) return;
+  async function runDeepen(trip, { force = false } = {}) {
+    if (!force) {
+      const ok = await showConfirm({
+        title:        `Research "${trip.title || trip._slug}"?`,
+        body:         'Searches the web for hours, prices, lodging, and route highlights. Runs in the background; you can navigate away.',
+        confirmLabel: 'Start research',
+        danger:       false,
+      });
+      if (!ok) return;
+    }
     // Flip the card to "Researching…" before the POST returns so a second
     // click can't fire while the request is in flight or the next /api/jobs
     // poll is still pending.
     setOptimisticDeepen(trip._slug);
     try {
-      const res = await fetch(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      const url = `/api/actions/deepen/${encodeURIComponent(trip._slug)}${force ? '?force=true' : ''}`;
+      const res = await fetch(url, { method: 'POST' });
       if (res.status === 409) {
         clearOptimisticDeepen(trip._slug);
+        // Distinguish the re-research gate from already-running so the user
+        // can opt into overwriting plan-level prose with a confirm prompt.
+        let body = null;
+        try { body = await res.json(); } catch { /* tolerate empty body */ }
+        if (body?.error === 'plan_prose_present') {
+          const ok = await showConfirm({
+            title:        'Re-research will overwrite plan prose',
+            body:         body.message ?? 'This trip already has field guide notes / gotchas. Re-research will overwrite them.',
+            confirmLabel: 'Re-research anyway',
+            danger:       true,
+          });
+          if (ok) await runDeepen(trip, { force: true });
+          return;
+        }
         actionError = { code: 'already_running' };
         return;
       }

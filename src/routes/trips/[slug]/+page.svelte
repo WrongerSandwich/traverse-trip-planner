@@ -8,7 +8,7 @@
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
   import AffordanceButtons from '$lib/workflow-status/AffordanceButtons.svelte';
-  import { failureSentence } from '$lib/errors-registry.js';
+  import { failureSentence, ERROR_REGISTRY } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
@@ -17,12 +17,12 @@
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { isSectionsDirty } from '$lib/utils/sectionDirty.js';
   import { browser } from '$app/environment';
-  import BrochureDayBlocks from '$lib/components/BrochureDayBlocks.svelte';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
-  import EmptyItineraryCTA from '$lib/components/EmptyItineraryCTA.svelte';
   import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
   import FieldGuidePalette from '$lib/components/FieldGuidePalette.svelte';
   import SectionDiffOverlay from '$lib/components/SectionDiffOverlay.svelte';
+  import CandidatesSection from '$lib/components/CandidatesSection.svelte';
+  import PlanSection from '$lib/components/PlanSection.svelte';
 
   let { data } = $props();
 
@@ -53,6 +53,8 @@
     route: 'Route',
     stops: 'Stops',
     logistics: 'Logistics',
+    plan: 'Plan',
+    candidates: 'Candidates',
     itinerary: 'Itinerary',
     notes: 'Notes',
   };
@@ -64,10 +66,12 @@
     return (md || '').replace(/^\s*#(?!#)\s+[^\n]*\n+/, '');
   }
 
-  // Canonical section sets per stage (itinerary handled separately above the list)
+  // Canonical section sets per stage (itinerary handled separately above the list).
+  // Completed trips include plan + candidates so the user can still see what they
+  // built — the components render read-only via the `readonly` prop below.
   const STAGE_SECTIONS = {
-    planning:  ['overview', 'route', 'stops', 'logistics'],
-    completed: ['overview', 'route', 'stops', 'logistics', 'notes'],
+    planning:  ['overview', 'route', 'stops', 'plan', 'logistics', 'candidates'],
+    completed: ['overview', 'route', 'stops', 'plan', 'logistics', 'candidates', 'notes'],
   };
 
   const trip = $derived(data.trip);
@@ -168,6 +172,42 @@
 
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
 
+  // Overview soft cap (Phase 5 task 5.1). Prompt-side instructs the model to
+  // keep overview prose to ~3 sentences, but legacy overviews on disk can be
+  // far longer. Soft-cap the rendered view at the first paragraph when the
+  // raw text exceeds ~500 chars; the file on disk is never truncated.
+  let overviewExpanded = $state(false);
+  const overviewRaw = $derived(sections.overview ?? '');
+  const overviewIsLong = $derived(overviewRaw.length > 500);
+  const overviewDisplay = $derived(
+    overviewExpanded || !overviewIsLong
+      ? overviewRaw
+      : overviewRaw.split(/\n\n+/)[0]
+  );
+
+  // Route soft cap (Phase 5 task 5.2). The page-level map is the primary
+  // visual element for the route; the prose below is annotation. Tighter
+  // threshold (~300 chars) than overview since route writeups are denser
+  // and we want eye to land on Plan + Candidates first.
+  let routeExpanded = $state(false);
+  const routeRaw = $derived(sections.route ?? '');
+  const routeIsLong = $derived(routeRaw.length > 300);
+  const routeDisplay = $derived(
+    routeExpanded || !routeIsLong
+      ? routeRaw
+      : routeRaw.split(/\n\n+/)[0]
+  );
+
+  // Referential-integrity check: plan.md may reference candidate ids that
+  // no longer exist in candidates.md (e.g. after a direct file edit). The
+  // server load computes the dangling set; render a banner near the top of
+  // the page so the user knows to resolve them manually.
+  const danglingMessages = $derived(
+    (data.dangling ?? []).map((id) =>
+      ERROR_REGISTRY.dangling_candidate_id.sentence.replace('{candidate_id}', id)
+    )
+  );
+
   // Show the "Research this section →" button when the feature is enabled,
   // the trip is in planning, and the section is a researchable type.
   const RESEARCHABLE = new Set(['route', 'stops', 'logistics']);
@@ -197,9 +237,9 @@
   );
 
   // Trigger invalidateAll() when a tripJobs entry disappears between polls —
-  // that means an Ambient Background job for this trip (deepen-section,
-  // brochure) finished or failed and its file was written. Without this the
-  // user has to manually refresh to see the new section content.
+  // that means an Ambient Background job for this trip (deepen-section)
+  // finished or failed and its file was written. Without this the user has
+  // to manually refresh to see the new section content.
   // The set comparison handles the multi-job case (one finishes while another
   // is still running) without firing on job starts.
   let prevJobKeys = new Set();
@@ -730,63 +770,6 @@
   const RECEIPTS_PROMISE = $derived(data.promises?.receipts ?? RECEIPTS_FALLBACK);
 
   // ── Archive ──
-  // ── Brochure prepare (Ambient Background) ──
-  // The route returns 202 immediately and the global jobs indicator surfaces
-  // progress + the success toast. Telemetry-resolved values come from
-  // `data.promises['brochure-prepare']`; the fallback keeps the UI working
-  // before the server-load round-trip completes.
-  const BROCHURE_FALLBACK = {
-    verb: 'Prepare brochure',
-    produces: 'A structured brochure draft (stops with map pins, lodging, field guide notes, gotchas), ready to review before saving.',
-    time_seconds: 45,
-    tokens_range: [2000, 5000],
-  };
-  const BROCHURE_PROMISE = $derived(
-    data.promises?.['brochure-prepare'] ?? BROCHURE_FALLBACK,
-  );
-
-  // True while a brochure job is in flight for this trip. Drives the disabled
-  // state on the trigger button so the user can't kick off a second run.
-  const brochureRunning = $derived(
-    tripJobs.some(j => j.workflow === 'brochure'),
-  );
-
-  let brochureError = $state(/** @type {{code: string, ctx?: object}|null} */ (null));
-
-  async function prepareBrochure() {
-    if (!trip || brochureRunning) return;
-    const ok = await showConfirm({
-      title: 'Prepare brochure?',
-      promise: BROCHURE_PROMISE,
-      confirmLabel: 'Prepare in background',
-    });
-    if (!ok) return;
-    brochureError = null;
-    try {
-      const res = await fetch(`/api/brochure/prepare/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
-      if (res.status === 409) {
-        brochureError = { code: 'already_running' };
-        return;
-      }
-      if (!res.ok && res.status !== 202) {
-        brochureError = { code: 'action_failed' };
-        return;
-      }
-      // 202 Accepted — the global indicator takes over from here. Refresh the
-      // jobs poll immediately so the per-trip badge appears without waiting
-      // for the next 10s tick.
-      try {
-        const jobsRes = await fetch('/api/jobs');
-        if (jobsRes.ok) {
-          const body = await jobsRes.json();
-          allJobs = body.jobs ?? [];
-        }
-      } catch { /* the 10s poll will pick it up */ }
-    } catch {
-      brochureError = { code: 'network_error' };
-    }
-  }
-
   async function archiveTrip() {
     if (!trip) return;
     const label = trip.title || trip._slug;
@@ -897,7 +880,7 @@
   <title>{trip?.title || trip?._slug} · Traverse</title>
 </svelte:head>
 
-<div class="page" class:has-brochure-days={!!data.brochureData?.days}>
+<div class="page">
   <header>
     <button class="back" onclick={() => goto('/')} aria-label="Back to all trips">← All trips</button>
     <span class="stage-pill">{stage || 'planning'}</span>
@@ -954,6 +937,15 @@
 
   <div class="layout">
     <main class="content">
+      {#if danglingMessages.length}
+        <aside class="dangling-banner" role="alert" aria-label="Plan integrity warning">
+          <h4>Plan references missing candidates</h4>
+          {#each danglingMessages as msg}
+            <p>{msg}</p>
+          {/each}
+        </aside>
+      {/if}
+
       {#if isCompleted}
         <div class="callout completed-callout">
           <strong>Completed.</strong>
@@ -1001,23 +993,13 @@
           <TripDetailMap
             {trip}
             home={data.home?.coords}
-            stops={data.brochureData?.stops}
             color={markerColor}
             interactive={true}
           />
         </div>
       {/if}
 
-      {#if data.brochureData?.days}
-        <div class="itinerary-view">
-          <div class="itinerary-toolbar no-print">
-            <button class="btn btn-secondary btn-compact" onclick={() => window.print()}>
-              Print / Save PDF
-            </button>
-          </div>
-          <BrochureDayBlocks days={data.brochureData.days} />
-        </div>
-      {:else if sections.itinerary}
+      {#if sections.itinerary}
         <div class="itinerary-view">
           <div class="itinerary-toolbar no-print">
             <button class="btn btn-secondary btn-compact" onclick={() => window.print()}>
@@ -1025,23 +1007,32 @@
             </button>
           </div>
           {@html renderMarkdown(sections.itinerary)}
-          <p class="itinerary-legacy-cta no-print">
-            <a href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Prepare brochure to enable editing</a>
-          </p>
         </div>
-      {:else if isPlanning && data.features?.homeMdReady !== false}
-        <EmptyItineraryCTA
-          onprepare={prepareBrochure}
-          busy={brochureRunning}
-          promise={BROCHURE_PROMISE}
-        />
+      {:else if data.plan?.days?.length}
+        <!--
+          New-flow trips (plan.md but no legacy itinerary.md) print via the
+          dedicated /brochure route — the detail page itself is full of editor
+          chrome that doesn't belong on paper.
+        -->
+        <div class="itinerary-toolbar no-print">
+          <a
+            class="btn btn-secondary btn-compact"
+            href="/trips/{encodeURIComponent(trip._slug)}/brochure"
+            target="_blank"
+            rel="noopener"
+          >↗ View brochure (for print)</a>
+        </div>
       {/if}
 
       {#each canonicalSections as section}
-        <section class="section" id="section-{section}">
+        <section
+          class="section"
+          class:muted-section={section === 'logistics'}
+          id="section-{section}"
+        >
           <header class="section-header">
             <h2>{SECTION_LABELS[section] || section}</h2>
-            {#if isPlanning && sections[section] !== undefined && !editing[section]}
+            {#if isPlanning && section !== 'candidates' && section !== 'plan' && sections[section] !== undefined && !editing[section]}
               <div class="section-header-actions">
                 <button class="btn-section-ask" onclick={() => openPalette(section)} title="Ask {data.assistantName} to edit this section">
                   Ask <kbd class="section-ask-kbd" aria-hidden="true">⌘K</kbd>
@@ -1051,7 +1042,11 @@
             {/if}
           </header>
 
-          {#if sections[section] === undefined}
+          {#if section === 'plan'}
+            <PlanSection plan={data.plan} candidates={data.candidates} slug={data.trip._slug} readonly={isCompleted} />
+          {:else if section === 'candidates'}
+            <CandidatesSection candidates={data.candidates} plan={data.plan} slug={data.trip._slug} readonly={isCompleted} />
+          {:else if sections[section] === undefined}
             <div class="section-empty-block">
               <p class="section-empty">Not yet researched.</p>
               {#if canResearchSection && RESEARCHABLE.has(section)}
@@ -1095,6 +1090,24 @@
               onaccept={() => acceptEdit(section)}
               onrevert={() => revertEdit(section)}
             />
+          {:else if section === 'overview'}
+            <div class="prose">{@html renderMarkdown(stripLeadingH1(overviewDisplay))}</div>
+            {#if overviewIsLong && !overviewExpanded}
+              <button
+                type="button"
+                class="overview-show-more"
+                onclick={() => (overviewExpanded = true)}
+              >Show more</button>
+            {/if}
+          {:else if section === 'route'}
+            <div class="prose route-prose">{@html renderMarkdown(stripLeadingH1(routeDisplay))}</div>
+            {#if routeIsLong && !routeExpanded}
+              <button
+                type="button"
+                class="overview-show-more"
+                onclick={() => (routeExpanded = true)}
+              >Show more</button>
+            {/if}
           {:else}
             <div class="prose">{@html renderMarkdown(stripLeadingH1(sections[section]))}</div>
           {/if}
@@ -1105,10 +1118,6 @@
         <div class="deepen-section-error" role="alert">{failureSentence(deepenSectionError.code, deepenSectionError.ctx ?? {})}</div>
       {/if}
 
-      {#if brochureError}
-        <div class="brochure-error-banner" role="alert">{failureSentence(brochureError.code, brochureError.ctx ?? {})}</div>
-      {/if}
-
       {#if actionError}
         <div class="action-error-banner" role="alert" aria-live="polite">
           <span class="action-error-text">{failureSentence(actionError.code, actionError.ctx ?? {})}</span>
@@ -1116,20 +1125,6 @@
         </div>
       {/if}
 
-      <!-- Brochure-stale notice is no longer Edit-mode-gated; staleness is a
-           correctness signal for any reader, and the Re-prepare action is a
-           content-producing workflow rather than authoring. -->
-      {#if data.brochureStale && !brochureRunning && data.features?.homeMdReady !== false}
-        <div class="brochure-stale-notice">
-          <span>Sections have changed. Re-prepare?</span>
-          <PromiseTooltip promise={BROCHURE_PROMISE}>
-            <button
-              class="btn btn-secondary btn-compact"
-              onclick={prepareBrochure}
-            >Re-prepare brochure</button>
-          </PromiseTooltip>
-        </div>
-      {/if}
     </main>
   </div>
 
@@ -1461,10 +1456,10 @@
     color: var(--text-primary);
     line-height: 1.4;
   }
-  /* The map now carries route geometry, home + destination markers, and
-     numbered stop pins when a brochure exists. Claiming ~40vh on desktop
-     gives the route enough room to read; the parent height clamps prevent
-     it from dominating short viewports. */
+  /* The map carries route geometry, home + destination markers, and
+     optional numbered stop pins. Claiming ~40vh on desktop gives the
+     route enough room to read; the parent height clamps prevent it from
+     dominating short viewports. */
   .map-section {
     height: 40vh;
     min-height: 280px;
@@ -1604,15 +1599,34 @@
   .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
   .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--surface-sunken); color: var(--text-primary); padding: 0.1em 0.4em; border-radius: 3px; }
 
-  /* ── Brochure error banner (replaces .brochure-error inside old brochure-zone) ── */
-  .brochure-error-banner {
-    padding: 0.55rem 0.85rem;
-    background: var(--state-danger-surface);
-    border: 1px solid var(--state-danger);
-    border-radius: 4px;
-    font-size: 0.82rem;
-    color: var(--state-danger);
-    line-height: 1.45;
+  /* Overview soft-cap "Show more" — borderless inline link styled like a
+     tertiary action so it reads as a continuation cue, not a CTA. */
+  .overview-show-more {
+    margin-top: 0.25rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    font: inherit;
+    font-size: 0.86rem;
+    color: var(--accent-text);
+    cursor: pointer;
+  }
+  .overview-show-more:hover { text-decoration: underline; }
+
+  /* Phase 5 task 5.2 — route prose is annotation below the page-level map,
+     not the primary visual element. Tighten line-height slightly and let
+     the soft-cap collapse legacy long routes to their first paragraph so
+     the eye lands on Plan + Candidates first. */
+  .route-prose { font-size: 0.95rem; line-height: 1.65; }
+
+  /* Phase 5 task 5.3 — logistics stays freeform prose but visually muted
+     so the user's attention lands on Plan + Candidates above. Heading
+     shrinks, weight drops, and the whole section dims slightly. */
+  .muted-section { opacity: 0.92; }
+  .muted-section .section-header h2 {
+    color: var(--text-tertiary);
+    font-size: 1rem;
+    font-weight: 500;
   }
 
   .deepen-section-error {
@@ -1655,6 +1669,31 @@
   .action-error-dismiss:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
+  }
+
+  /* ── Dangling-candidate-id integrity banner ──
+     Surfaces referential-integrity violations between plan.md and
+     candidates.md at the top of the page. Sentence text comes from
+     ERROR_REGISTRY.dangling_candidate_id; this banner is the only place
+     in the app that surfaces it. */
+  .dangling-banner {
+    padding: 0.75rem 1rem;
+    background: var(--state-danger-surface);
+    color: var(--text-primary);
+    border-left: 3px solid var(--state-danger);
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+    font-family: var(--font-sans);
+  }
+  .dangling-banner h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    color: var(--state-danger);
+  }
+  .dangling-banner p {
+    margin: 0.25rem 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
   }
 
   /* ── Field guide post-edit chip ──
@@ -1737,8 +1776,8 @@
      absolute ban. Bottom border keeps the seam visible. */
   /* Day-heading band uses the warning-surface palette. Structurally
      unambiguous (rounded top of an itinerary block, not an inline
-     notice) so it doesn't collide with the brochure-stale notice or
-     .callout.warn even though they share the warm-orange palette. */
+     notice) so it doesn't collide with .callout.warn even though they
+     share the warm-orange palette. */
   .itinerary-view :global(h2) {
     font-size: 1rem;
     font-weight: 800;
@@ -1777,28 +1816,6 @@
   .itinerary-view :global(li:last-child) { border-bottom: none; }
   .itinerary-view :global(strong) { font-weight: 700; color: var(--text-primary); }
 
-  /* ── Legacy itinerary CTA (shown below prose itinerary when no brochure exists) ── */
-  .itinerary-legacy-cta {
-    margin-top: 1rem;
-    font-size: 0.85rem;
-    color: var(--text-secondary, #64748b);
-  }
-
-  /* ── Brochure staleness notice ── */
-  .brochure-stale-notice {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    background: var(--state-warning-surface);
-    border: 1px solid var(--state-warning);
-    border-radius: 6px;
-    font-size: 0.85rem;
-    color: var(--state-warning);
-    margin-top: 0.5rem;
-  }
-  .brochure-stale-notice span { flex: 1; }
-
   /* ── Print styles ── */
   @media print {
     .page > header,
@@ -1807,12 +1824,6 @@
     .hero,
     .palette-chip,
     .no-print { display: none !important; }
-
-    /* When a brochure day-by-day exists, the canonical sections (overview,
-       route, stops, logistics, notes) print as duplicate content alongside
-       the day-by-day. Hide them in that case (#268). Without a brochure
-       the sections ARE the printable content, so they stay visible. */
-    .page.has-brochure-days .section { display: none !important; }
 
     .page { background: var(--bone-50); color: var(--bark-900); }
     .layout { padding: 0; }

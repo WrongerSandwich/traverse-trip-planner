@@ -4,10 +4,6 @@ import { jobLabel, filterJobsForSlug } from '../src/lib/utils/jobLabels.js';
 // ─── jobLabel ─────────────────────────────────────────────────────────────────
 
 describe('jobLabel', () => {
-  it('maps brochure to "Preparing brochure…"', () => {
-    expect(jobLabel('brochure')).toBe('Preparing brochure…');
-  });
-
   it('maps deepen to "Researching…"', () => {
     expect(jobLabel('deepen')).toBe('Researching…');
   });

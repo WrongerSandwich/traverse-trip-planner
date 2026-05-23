@@ -156,45 +156,6 @@ describe('DEFAULT_LIMITS — new explicit entries', () => {
   });
 });
 
-describe('rateLimitResponse — brochure endpoint (slugKey isolation)', () => {
-  function makeEvent(ip = '10.1.1.1') {
-    return { getClientAddress: () => ip };
-  }
-
-  it('allows up to brochure capacity then denies for the same slug', () => {
-    const event = makeEvent('10.2.2.2');
-    const cap = DEFAULT_LIMITS.brochure.capacity;
-    for (let i = 0; i < cap; i++) {
-      expect(rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-a' })).toBeNull();
-    }
-    const denied = rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-a' });
-    expect(denied).toBeInstanceOf(Response);
-    expect(denied.status).toBe(429);
-  });
-
-  it('a drained slug bucket does not affect a different slug from the same IP', () => {
-    const event = makeEvent('10.3.3.3');
-    const cap = DEFAULT_LIMITS.brochure.capacity;
-    for (let i = 0; i < cap; i++) {
-      rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-x' });
-    }
-    // slug trip-x is drained; trip-y should still be allowed
-    expect(rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-y' })).toBeNull();
-  });
-
-  it('returns 429 with Retry-After header on denial', async () => {
-    const event = makeEvent('10.4.4.4');
-    const cap = DEFAULT_LIMITS.brochure.capacity;
-    for (let i = 0; i < cap; i++) {
-      rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-b' });
-    }
-    const denied = rateLimitResponse({ event, endpoint: 'brochure', slugKey: 'trip-b' });
-    expect(denied.headers.get('Retry-After')).toMatch(/^\d+$/);
-    const body = await denied.json();
-    expect(body.code).toBe('rate_limited');
-  });
-});
-
 describe('rateLimitResponse — image-search endpoint (per-IP, no slugKey)', () => {
   function makeEvent(ip = '10.5.5.5') {
     return { getClientAddress: () => ip };

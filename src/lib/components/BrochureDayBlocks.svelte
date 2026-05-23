@@ -21,7 +21,7 @@
       {#each day.blocks ?? [] as block}
         {#if block.items?.length}
           <div class="block">
-            <h3 class="block-period">{block.period}</h3>
+            {#if block.period}<h3 class="block-period">{block.period}</h3>{/if}
             <ul class="block-items">
               {#each block.items as item}
                 <li>

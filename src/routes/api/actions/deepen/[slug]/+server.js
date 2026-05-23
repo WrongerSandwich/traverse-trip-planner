@@ -34,6 +34,8 @@ import { cleanupLLMMarkdown } from '$lib/server/markdown-cleanup.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
+import { extractCandidates } from '$lib/server/extract-candidates.js';
+import { readPlan } from '$lib/server/plan.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
@@ -74,7 +76,7 @@ Search the web for current information: museum hours, admission prices, lodging 
 Produce four research sections inside XML tags. Be concrete and specific — name actual places, hours, prices. Note anything that requires on-site verification.
 
 <overview_prose>
-2–4 paragraphs of prose (no headers inside). What makes this trip worth doing, the actual experience, what's distinctive vs nearby alternatives.
+Keep this concise — about 3 sentences (max ~500 characters). What makes this trip worth doing, the actual experience, what's distinctive vs nearby alternatives. Save the detailed write-up for route_md / stops_md / logistics_md; this is the hook, not the encyclopedia entry. No headers inside. You may optionally prefix a single-line TL;DR (e.g. "TL;DR: …") before the prose.
 </overview_prose>
 
 <frontmatter>
@@ -175,7 +177,10 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   if (cleanStops)     atomicWrite(join(dir, 'stops.md'),     cleanStops     + '\n');
   if (cleanLogistics) atomicWrite(join(dir, 'logistics.md'), cleanLogistics + '\n');
 
-  unlinkSync(ideaPath);
+  // NOTE: We deliberately do NOT unlink ideaPath here. If extractCandidates
+  // fails downstream we'd leave the trip stuck in planning/ with no plan.md
+  // and no way to retry (the deepen POST handler 404s without an idea file).
+  // The unlink happens in the POST handler after extractCandidates succeeds.
   invalidateEnrichCache();
 
   console.log(`[deepen] ${fm.title || slug}: research complete. ${formatUsage(usage)}`);
@@ -192,7 +197,7 @@ export function GET({ params }) {
 }
 
 export async function POST(event) {
-  const { params } = event;
+  const { params, url } = event;
   if (!getFeatureAvailability().homeMdReady) {
     return json({ code: 'home_not_configured' }, { status: 412 });
   }
@@ -215,37 +220,58 @@ export async function POST(event) {
     throw err;
   }
 
+  // Re-research guard: if the trip already has plan-level prose (field guide
+  // notes / gotchas), refuse to overwrite without an explicit ?force=true.
+  // readPlan returns null for fresh ideas, so this only fires on re-research.
+  const existingPlan = readPlan(slug);
+  const force = url.searchParams.get('force') === 'true';
+  if (existingPlan && (existingPlan.field_guide_notes || existingPlan.gotchas) && !force) {
+    return json({
+      error: 'plan_prose_present',
+      message: 'This trip already has field guide notes / gotchas. Re-research will overwrite them. Pass ?force=true to continue.',
+    }, { status: 409 });
+  }
+
   // Register the in-flight job. startJob writes `running: 'deepen'` to
   // frontmatter (standard per-trip badge reads this). The AbortController
   // signal flows into chat() so /api/jobs/cancel can interrupt mid-run.
   const job = startJob('deepen', slug, { est_seconds: _promise.time_seconds });
 
-  // Fire-and-forget. Use the two-callback form of .then() so that a throw
-  // inside completeJob (e.g. disk I/O failure in clearRunningFlag/atomicWrite)
-  // routes to the rejection handler rather than producing an unhandled rejection
-  // that would kill the server under Node 15+.
-  doResearch(slug, ideaPath, job.controller.signal)
-    .then(
-      (result) => {
-        try {
-          completeJob('deepen', slug, { tokens: usageToTokens(result?.usage) });
-        } catch (e) {
-          console.error(`[deepen] ${slug}: completeJob threw after success:`, e?.message ?? e);
-        }
-      },
-      (err) => {
-        if (isAbort(err)) return; // cancelJob() owns the failure event
-        const code = err instanceof TraverseError ? err.code : 'unknown';
-        // Log the raw error server-side; send only a safe public message to the client.
-        console.error(`[deepen] ${slug}: research failed (${code}):`, err?.message ?? err);
-        const publicMessage = err instanceof TraverseError ? err.message : 'Research failed — try again.';
-        try {
-          failJob('deepen', slug, { code, message: publicMessage });
-        } catch (e) {
-          console.error(`[deepen] ${slug}: failJob threw after failure:`, e?.message ?? e);
-        }
-      },
-    );
+  // Fire-and-forget. Single job spans BOTH passes: doResearch writes the prose
+  // files into planning/, then extractCandidates() runs over those files to
+  // produce plan.md + candidates.md. Tokens from both passes sum into the one
+  // completeJob call. If the extractor fails after research succeeds we still
+  // failJob — the prose files stay on disk; we don't roll back partial state.
+  (async () => {
+    try {
+      const researchResult = await doResearch(slug, ideaPath, job.controller.signal);
+      const extractResult  = await extractCandidates(slug, { signal: job.controller.signal });
+      // Only unlink the idea file once BOTH passes have succeeded. If extract
+      // failed we'd otherwise leave the trip wedged in planning/ with no plan.md
+      // and no way to retry — a fresh POST 404s on findIdeaFile.
+      try { unlinkSync(ideaPath); } catch (e) {
+        console.warn(`[deepen] ${slug}: idea unlink after success failed:`, e?.message ?? e);
+      }
+      invalidateEnrichCache();
+      const totalTokens = usageToTokens(researchResult?.usage) + usageToTokens(extractResult?.usage);
+      try {
+        completeJob('deepen', slug, { tokens: totalTokens });
+      } catch (e) {
+        console.error(`[deepen] ${slug}: completeJob threw after success:`, e?.message ?? e);
+      }
+    } catch (err) {
+      if (isAbort(err)) return; // cancelJob() owns the failure event
+      const code = err instanceof TraverseError ? err.code : 'unknown';
+      // Log the raw error server-side; send only a safe public message to the client.
+      console.error(`[deepen] ${slug}: research+extract failed (${code}):`, err?.message ?? err);
+      const publicMessage = err instanceof TraverseError ? err.message : 'Research failed — try again.';
+      try {
+        failJob('deepen', slug, { code, message: publicMessage });
+      } catch (e) {
+        console.error(`[deepen] ${slug}: failJob threw after failure:`, e?.message ?? e);
+      }
+    }
+  })();
 
   return new Response(null, { status: 202 });
 }

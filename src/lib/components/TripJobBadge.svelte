@@ -43,8 +43,6 @@
   // Hand-calibrated p50 estimates per workflow. Mirrored from
   // BackgroundJobsIndicator so the two surfaces agree on "remaining" math.
   const ESTIMATES_S = {
-    brochure: 45,
-    'brochure-prepare': 45,
     deepen: 90,
     'deepen-section': 35,
   };
