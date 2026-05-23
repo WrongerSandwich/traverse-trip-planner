@@ -3,15 +3,27 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockChat = vi.hoisted(() => vi.fn());
 vi.mock('$lib/server/ai.js', () => ({ chat: mockChat }));
 
+const mockGeocode = vi.hoisted(() => vi.fn(async () => null));
 vi.mock('$lib/server/data.js', () => ({
   ROOT: '/test',
   readHomeMd: () => '---\ntravelers: [you]\n---\n',
   getTripFiles: () => ({
     slug: 't',
     stage: 'planning',
-    files: { overview: 'Glacier prose', route: 'Drive prose', stops: 'Stop prose', logistics: 'Logistics prose' },
+    files: { overview: '---\ndestination: Glacier MT\n---\nGlacier prose', route: 'Drive prose', stops: 'Stop prose', logistics: 'Logistics prose' },
   }),
   findTripLocation: () => ({ kind: 'dir', path: '/test/planning/t', stage: 'planning' }),
+  geocode: mockGeocode,
+  parseFrontmatter: (text) => {
+    const match = text.match(/^---\n([\s\S]*?)\n---/);
+    if (!match) return null;
+    const fm = {};
+    for (const line of match[1].split('\n')) {
+      const m = line.match(/^([^:]+):\s*(.*)$/);
+      if (m) fm[m[1].trim()] = m[2].trim();
+    }
+    return fm;
+  },
 }));
 
 vi.mock('$lib/server/plan.js', () => ({
@@ -326,5 +338,107 @@ lodging: []
     const ids = writtenCands.stops.map((s) => s.id);
     expect(ids).toContain('lake');     // researcher's new entry keeps the slug
     expect(ids).toContain('lake-2');   // user-added reassigned to avoid collision
+  });
+
+  it('rewrites plan.days references when a user-added id is reassigned on collision', async () => {
+    // User added 'Pine Lodge' → 'pine-lodge', promoted to day 1.
+    readCandidates.mockReturnValueOnce({
+      stops: [{ id: 'pine-lodge', name: 'Pine Lodge', category: 'outdoors', user_added: true }],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce({
+      cover_query: 'old',
+      field_guide_notes: 'old',
+      gotchas: 'old',
+      days: [{ number: 1, stops: ['pine-lodge'], lodging_id: null }],
+    });
+    // Researcher's new extraction includes a different 'Pine Lodge' that slugifies to 'pine-lodge'.
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: q
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Pine Lodge
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+
+    // User-added candidate got reassigned to 'pine-lodge-2' …
+    const writtenCands = writeCandidates.mock.calls[0][1];
+    const userAdded = writtenCands.stops.find((s) => s.user_added);
+    expect(userAdded.id).toBe('pine-lodge-2');
+    // … and plan.days[0].stops should now point at 'pine-lodge-2', not the
+    // researcher's new 'pine-lodge'. This is the core fix — without the rewrite
+    // the user's promoted stop silently rebinds to a different real-world place.
+    const writtenPlan = writePlan.mock.calls[0][1];
+    expect(writtenPlan.days[0].stops).toEqual(['pine-lodge-2']);
+  });
+
+  it('geocodes candidate names that arrive without coords', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: q
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Lake McDonald
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging:
+  - name: Whitefish Inn
+    price_tier: mid
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+    mockGeocode.mockImplementation(async (q) => {
+      if (q === 'Lake McDonald') return [48.5, -113.9];
+      if (q === 'Whitefish Inn, Glacier MT') return [48.41, -114.34];
+      return null;
+    });
+
+    await extractCandidates('t');
+
+    const writtenCands = writeCandidates.mock.calls[0][1];
+    expect(writtenCands.stops[0].coords).toEqual({ lat: 48.5, lng: -113.9 });
+    // Whitefish Inn: first call returns null, falls back to name+destination.
+    expect(writtenCands.lodging[0].coords).toEqual({ lat: 48.41, lng: -114.34 });
+  });
+
+  it('preserves pre-existing coords on user-added candidates instead of re-geocoding', async () => {
+    const preCoords = { lat: 1, lng: 2 };
+    readCandidates.mockReturnValueOnce({
+      stops: [{ id: 'a', name: 'A', category: 'outdoors', user_added: true, coords: preCoords }],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: '<extract><plan>\ncover_query: q\nfield_guide_notes: ""\ngotchas: ""\n</plan><candidates>\nstops: []\nlodging: []\n</candidates></extract>',
+      usage: { input: 0, output: 0 },
+    });
+    mockGeocode.mockResolvedValue(null);
+
+    await extractCandidates('t');
+
+    const writtenCands = writeCandidates.mock.calls[0][1];
+    const a = writtenCands.stops.find((s) => s.id === 'a');
+    expect(a.coords).toEqual(preCoords);
   });
 });

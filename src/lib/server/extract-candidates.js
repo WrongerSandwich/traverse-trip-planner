@@ -12,7 +12,7 @@
 
 import { parse as yamlParse } from 'yaml';
 import { chat } from './ai.js';
-import { getTripFiles, readHomeMd } from './data.js';
+import { getTripFiles, readHomeMd, geocode, parseFrontmatter } from './data.js';
 import { writePlan, readPlan, emptyPlan } from './plan.js';
 import { writeCandidates, readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS } from './candidates.js';
 import { getEffectiveConfig } from './config.js';
@@ -156,21 +156,57 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
     const userAddedStops = (existingCands.stops ?? []).filter((s) => s.user_added);
     const userAddedLodging = (existingCands.lodging ?? []).filter((l) => l.user_added);
     const newIds = new Set([...cands.stops.map((s) => s.id), ...cands.lodging.map((l) => l.id)]);
+    // Track id renames so we can rewrite plan.days references — without this,
+    // a user's promoted day silently re-binds to whichever researcher candidate
+    // took the original slug (real data corruption, no dangling-banner warning).
+    const renames = new Map();
 
     for (const u of userAddedStops) {
       const idToUse = newIds.has(u.id) ? makeCandidateId(u.name, [...newIds]) : u.id;
+      if (idToUse !== u.id) renames.set(u.id, idToUse);
       newIds.add(idToUse);
       cands.stops.push({ ...u, id: idToUse });
     }
     for (const u of userAddedLodging) {
       const idToUse = newIds.has(u.id) ? makeCandidateId(u.name, [...newIds]) : u.id;
+      if (idToUse !== u.id) renames.set(u.id, idToUse);
       newIds.add(idToUse);
       cands.lodging.push({ ...u, id: idToUse });
     }
+
+    if (renames.size > 0) {
+      plan.days = plan.days.map((d) => {
+        const next = { ...d };
+        next.stops = (d.stops ?? []).map((id) => renames.get(id) ?? id);
+        if (d.lodging_id && renames.has(d.lodging_id)) {
+          next.lodging_id = renames.get(d.lodging_id);
+        }
+        return next;
+      });
+    }
   }
+
+  // Geocode every candidate that doesn't already have coords. Without this,
+  // every brochure stop renders as "unmapped" and the destination map is empty.
+  // We use the trip's destination as a fallback query to disambiguate places
+  // with common names ("Lake McDonald" alone hits dozens of lakes).
+  const overviewFm = parseFrontmatter(files.overview ?? '') || {};
+  const destinationContext = overviewFm.destination ?? '';
+  await geocodeCandidates(cands, destinationContext);
 
   writePlan(slug, plan);
   writeCandidates(slug, cands);
 
   return { usage };
+}
+
+// Sequential geocoding — Nominatim rate-limits to 1 req/sec. The geocode()
+// helper caches results so repeat runs are cheap. Cache hits short-circuit
+// without a network call, so re-extraction stays fast even with the loop.
+async function geocodeCandidates(cands, destinationContext) {
+  for (const c of [...cands.stops, ...cands.lodging]) {
+    if (c.coords) continue; // preserve any pre-geocoded coords
+    const coords = (await geocode(c.name)) ?? (destinationContext ? await geocode(`${c.name}, ${destinationContext}`) : null);
+    if (coords) c.coords = { lat: coords[0], lng: coords[1] };
+  }
 }

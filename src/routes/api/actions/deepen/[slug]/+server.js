@@ -177,7 +177,10 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   if (cleanStops)     atomicWrite(join(dir, 'stops.md'),     cleanStops     + '\n');
   if (cleanLogistics) atomicWrite(join(dir, 'logistics.md'), cleanLogistics + '\n');
 
-  unlinkSync(ideaPath);
+  // NOTE: We deliberately do NOT unlink ideaPath here. If extractCandidates
+  // fails downstream we'd leave the trip stuck in planning/ with no plan.md
+  // and no way to retry (the deepen POST handler 404s without an idea file).
+  // The unlink happens in the POST handler after extractCandidates succeeds.
   invalidateEnrichCache();
 
   console.log(`[deepen] ${fm.title || slug}: research complete. ${formatUsage(usage)}`);
@@ -243,6 +246,13 @@ export async function POST(event) {
     try {
       const researchResult = await doResearch(slug, ideaPath, job.controller.signal);
       const extractResult  = await extractCandidates(slug, { signal: job.controller.signal });
+      // Only unlink the idea file once BOTH passes have succeeded. If extract
+      // failed we'd otherwise leave the trip wedged in planning/ with no plan.md
+      // and no way to retry — a fresh POST 404s on findIdeaFile.
+      try { unlinkSync(ideaPath); } catch (e) {
+        console.warn(`[deepen] ${slug}: idea unlink after success failed:`, e?.message ?? e);
+      }
+      invalidateEnrichCache();
       const totalTokens = usageToTokens(researchResult?.usage) + usageToTokens(extractResult?.usage);
       try {
         completeJob('deepen', slug, { tokens: totalTokens });
