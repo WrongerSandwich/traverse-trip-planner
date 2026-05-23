@@ -48,12 +48,21 @@ function findIdeaFile(slug) {
   return existsSync(p) ? p : null;
 }
 
+function findPlanningOverview(slug) {
+  const p = join(ROOT, 'planning', slug, 'overview.md');
+  return existsSync(p) ? p : null;
+}
+
+function planningHasPlan(slug) {
+  return existsSync(join(ROOT, 'planning', slug, 'plan.md'));
+}
+
 function parseSection(text, tag) {
   const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
   return m?.[1]?.trim() ?? null;
 }
 
-async function doResearch(slug, ideaPath, signal) {
+async function doResearch(slug, ideaPath, signal, { unlinkIdea = true } = {}) {
   const ideaContent = readFileSync(ideaPath, 'utf8');
   const homeMd = readHomeMd();
   const homeFm = parseFrontmatter(homeMd) || {};
@@ -176,10 +185,15 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   if (cleanStops)     atomicWrite(join(dir, 'stops.md'),     cleanStops     + '\n');
   if (cleanLogistics) atomicWrite(join(dir, 'logistics.md'), cleanLogistics + '\n');
 
-  // NOTE: We deliberately do NOT unlink ideaPath here. If extractCandidates
-  // fails downstream we'd leave the trip stuck in planning/ with no plan.md
-  // and no way to retry (the deepen POST handler 404s without an idea file).
-  // The unlink happens in the POST handler after extractCandidates succeeds.
+  // Unlink the idea file as soon as the planning folder is written — this is
+  // the real stage-transition moment. If extractCandidates fails downstream
+  // the trip is still recoverable: a fresh POST on a planning-stage trip with
+  // no plan.md runs the extract leg only (no expensive re-research needed).
+  if (unlinkIdea) {
+    try { unlinkSync(ideaPath); } catch (e) {
+      console.warn(`[deepen] ${slug}: idea unlink after research failed:`, e?.message ?? e);
+    }
+  }
   invalidateEnrichCache();
 
   console.log(`[deepen] ${fm.title || slug}: research complete. ${formatUsage(usage)}`);
@@ -203,8 +217,15 @@ export async function POST(event) {
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
   const { slug } = params;
-  const ideaPath = findIdeaFile(slug);
-  if (!ideaPath) return new Response('Not found', { status: 404 });
+
+  // Determine mode: idea-stage (full research + extract), planning-stage with
+  // no plan.md (extract-only recovery), or planning-stage with plan.md (full
+  // re-research). 404 only when neither source exists.
+  const ideaPath       = findIdeaFile(slug);
+  const overviewPath   = !ideaPath ? findPlanningOverview(slug) : null;
+  const hasPlan        = overviewPath ? planningHasPlan(slug) : false;
+
+  if (!ideaPath && !overviewPath) return new Response('Not found', { status: 404 });
 
   const limited = rateLimitResponse({ event, endpoint: 'deepen', slugKey: slug });
   if (limited) return limited;
@@ -224,21 +245,28 @@ export async function POST(event) {
   // signal flows into chat() so /api/jobs/cancel can interrupt mid-run.
   const job = startJob('deepen', slug, { est_seconds: _promise.time_seconds });
 
-  // Fire-and-forget. Single job spans BOTH passes: doResearch writes the prose
-  // files into planning/, then extractCandidates() runs over those files to
-  // produce plan.md + candidates.md. Tokens from both passes sum into the one
-  // completeJob call. If the extractor fails after research succeeds we still
-  // failJob — the prose files stay on disk; we don't roll back partial state.
+  // Fire-and-forget. Three modes depending on what's on disk:
+  // 1. idea-stage (ideaPath set): doResearch writes planning/ and unlinks the
+  //    idea file atomically with the promotion, then extractCandidates runs.
+  // 2. planning-stage, no plan.md (overviewPath set, !hasPlan): extract-only
+  //    recovery — research already succeeded last time; skip the expensive leg.
+  // 3. planning-stage with plan.md (overviewPath set, hasPlan): full
+  //    re-research — doResearch overwrites planning/ files, then re-extracts.
   (async () => {
     try {
-      const researchResult = await doResearch(slug, ideaPath, job.controller.signal);
-      const extractResult  = await extractCandidates(slug, { signal: job.controller.signal });
-      // Only unlink the idea file once BOTH passes have succeeded. If extract
-      // failed we'd otherwise leave the trip wedged in planning/ with no plan.md
-      // and no way to retry — a fresh POST 404s on findIdeaFile.
-      try { unlinkSync(ideaPath); } catch (e) {
-        console.warn(`[deepen] ${slug}: idea unlink after success failed:`, e?.message ?? e);
+      let researchResult = { usage: undefined };
+
+      if (ideaPath) {
+        // Full flow: research promotes idea → planning, unlinks idea file.
+        researchResult = await doResearch(slug, ideaPath, job.controller.signal);
+      } else if (hasPlan) {
+        // Re-research path: planning folder exists with plan.md — redo both legs.
+        // Read the overview as the "idea" source so doResearch has content.
+        researchResult = await doResearch(slug, overviewPath, job.controller.signal, { unlinkIdea: false });
       }
+      // else: extract-only recovery — skip doResearch entirely.
+
+      const extractResult = await extractCandidates(slug, { signal: job.controller.signal });
       invalidateEnrichCache();
       const totalTokens = usageToTokens(researchResult?.usage) + usageToTokens(extractResult?.usage);
       try {
