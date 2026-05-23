@@ -1,7 +1,7 @@
 <script>
   import { invalidateAll } from '$app/navigation';
 
-  let { plan, candidates, slug } = $props();
+  let { plan, candidates, slug, readonly = false } = $props();
 
   function candidateById(id) {
     return (
@@ -108,7 +108,7 @@
 {#if !plan || plan.days.length === 0}
   <div class="empty">
     <p>No days planned yet.</p>
-    <button class="btn-inline" onclick={addDay} disabled={working}>+ Add Day 1</button>
+    <button class="btn-inline" onclick={addDay} disabled={working || readonly}>+ Add Day 1</button>
   </div>
 {:else}
   {#each plan.days as day (day.number)}
@@ -118,12 +118,12 @@
         <button
           class="btn-inline"
           onclick={() => (editing = editing === day.number ? null : day.number)}
-          disabled={working}
+          disabled={working || readonly}
         >Edit</button>
         <button
           class="btn-inline btn-icon"
           onclick={() => removeDay(day.number)}
-          disabled={working}
+          disabled={working || readonly}
           aria-label="Remove day"
         >×</button>
       </header>
@@ -150,12 +150,12 @@
           />
           <textarea name="notes" placeholder="Notes" rows="3">{day.notes ?? ''}</textarea>
           <div class="form-actions">
-            <button class="btn-inline btn-primary" type="submit" disabled={working}>Save</button>
+            <button class="btn-inline btn-primary" type="submit" disabled={working || readonly}>Save</button>
             <button
               class="btn-inline"
               type="button"
               onclick={() => (editing = null)}
-              disabled={working}
+              disabled={working || readonly}
             >Cancel</button>
           </div>
         </form>
@@ -175,19 +175,19 @@
               <button
                 class="btn-inline btn-icon"
                 onclick={() => moveStop(day.number, id, -1)}
-                disabled={i === 0 || working}
+                disabled={i === 0 || working || readonly}
                 aria-label="Move up"
               >↑</button>
               <button
                 class="btn-inline btn-icon"
                 onclick={() => moveStop(day.number, id, 1)}
-                disabled={i === day.stops.length - 1 || working}
+                disabled={i === day.stops.length - 1 || working || readonly}
                 aria-label="Move down"
               >↓</button>
               <button
                 class="btn-inline btn-icon"
                 onclick={() => removeStop(day.number, id)}
-                disabled={working}
+                disabled={working || readonly}
                 aria-label="Remove"
               >×</button>
             </li>
@@ -198,7 +198,7 @@
       <button
         class="btn-inline add-stop"
         onclick={() => (pickerOpen = pickerOpen === day.number ? null : day.number)}
-        disabled={working}
+        disabled={working || readonly}
       >+ Add stop</button>
 
       <div class="lodging">
@@ -213,7 +213,7 @@
           <button
             class="btn-inline"
             onclick={() => setLodging(day.number, null)}
-            disabled={working}
+            disabled={working || readonly}
           >clear</button>
         {:else}
           <button
@@ -221,7 +221,7 @@
             onclick={() =>
               (pickerOpen =
                 pickerOpen === `lodging:${day.number}` ? null : `lodging:${day.number}`)}
-            disabled={working}
+            disabled={working || readonly}
           >+ Add lodging</button>
         {/if}
       </div>
@@ -230,7 +230,7 @@
         <div class="picker">
           <h5>Add a stop to Day {day.number}</h5>
           {#each unpromotedStops() as s (s.id)}
-            <button onclick={() => addStop(day.number, s.id)} class="picker-item" disabled={working}>
+            <button onclick={() => addStop(day.number, s.id)} class="picker-item" disabled={working || readonly}>
               <span class="cat">{s.category}</span> {s.name}
             </button>
           {/each}
@@ -242,7 +242,7 @@
         <div class="picker">
           <h5>Set lodging for Day {day.number}</h5>
           {#each unpromotedLodging() as l (l.id)}
-            <button onclick={() => setLodging(day.number, l.id)} class="picker-item" disabled={working}>
+            <button onclick={() => setLodging(day.number, l.id)} class="picker-item" disabled={working || readonly}>
               <span class="cat">{l.price_tier}</span> {l.name}
             </button>
           {/each}
@@ -253,7 +253,7 @@
       {/if}
     </article>
   {/each}
-  <button class="btn-inline add-day" onclick={addDay} disabled={working}>+ Add day</button>
+  <button class="btn-inline add-day" onclick={addDay} disabled={working || readonly}>+ Add day</button>
 {/if}
 
 <style>

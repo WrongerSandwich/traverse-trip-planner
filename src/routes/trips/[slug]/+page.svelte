@@ -66,10 +66,12 @@
     return (md || '').replace(/^\s*#(?!#)\s+[^\n]*\n+/, '');
   }
 
-  // Canonical section sets per stage (itinerary handled separately above the list)
+  // Canonical section sets per stage (itinerary handled separately above the list).
+  // Completed trips include plan + candidates so the user can still see what they
+  // built — the components render read-only via the `readonly` prop below.
   const STAGE_SECTIONS = {
     planning:  ['overview', 'route', 'stops', 'plan', 'logistics', 'candidates'],
-    completed: ['overview', 'route', 'stops', 'logistics', 'notes'],
+    completed: ['overview', 'route', 'stops', 'plan', 'logistics', 'candidates', 'notes'],
   };
 
   const trip = $derived(data.trip);
@@ -1006,6 +1008,20 @@
           </div>
           {@html renderMarkdown(sections.itinerary)}
         </div>
+      {:else if data.plan?.days?.length}
+        <!--
+          New-flow trips (plan.md but no legacy itinerary.md) print via the
+          dedicated /brochure route — the detail page itself is full of editor
+          chrome that doesn't belong on paper.
+        -->
+        <div class="itinerary-toolbar no-print">
+          <a
+            class="btn btn-secondary btn-compact"
+            href="/trips/{encodeURIComponent(trip._slug)}/brochure"
+            target="_blank"
+            rel="noopener"
+          >↗ View brochure (for print)</a>
+        </div>
       {/if}
 
       {#each canonicalSections as section}
@@ -1027,9 +1043,9 @@
           </header>
 
           {#if section === 'plan'}
-            <PlanSection plan={data.plan} candidates={data.candidates} slug={data.trip._slug} />
+            <PlanSection plan={data.plan} candidates={data.candidates} slug={data.trip._slug} readonly={isCompleted} />
           {:else if section === 'candidates'}
-            <CandidatesSection candidates={data.candidates} plan={data.plan} slug={data.trip._slug} />
+            <CandidatesSection candidates={data.candidates} plan={data.plan} slug={data.trip._slug} readonly={isCompleted} />
           {:else if sections[section] === undefined}
             <div class="section-empty-block">
               <p class="section-empty">Not yet researched.</p>

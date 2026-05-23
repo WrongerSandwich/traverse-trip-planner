@@ -1,7 +1,7 @@
 <script>
   import { invalidateAll } from '$app/navigation';
 
-  let { candidates, plan = null, slug } = $props();
+  let { candidates, plan = null, slug, readonly = false } = $props();
 
   let tab = $state('stops');
   let categoryFilter = $state(null);
@@ -95,13 +95,13 @@
             <button
               class="btn-inline"
               onclick={() => unPromoteStop(stop.id)}
-              disabled={working}
+              disabled={working || readonly}
             >Un-promote</button>
           {:else}
             <button
               class="btn-inline"
               onclick={() => (promoteFor = promoteFor === stop.id ? null : stop.id)}
-              disabled={working}
+              disabled={working || readonly}
             >Promote to day…</button>
           {/if}
         </header>
@@ -114,14 +114,14 @@
               <button
                 class="picker-item"
                 onclick={() => promoteStop(stop.id, d.number)}
-                disabled={working}
+                disabled={working || readonly}
               >Day {d.number}</button>
             {/each}
             {#if !(plan?.days?.length)}
               <button
                 class="picker-item"
                 onclick={() => promoteStop(stop.id, null)}
-                disabled={working}
+                disabled={working || readonly}
               >Create Day 1</button>
             {/if}
           </div>
@@ -142,7 +142,7 @@
           <button
             class="btn-inline"
             onclick={() => (promoteFor = promoteFor === l.id ? null : l.id)}
-            disabled={working}
+            disabled={working || readonly}
           >Set lodging for day…</button>
         </header>
         <p class="desc">{l.description}</p>
@@ -153,14 +153,14 @@
               <button
                 class="picker-item"
                 onclick={() => setLodgingForDay(d.number, l.id)}
-                disabled={working}
+                disabled={working || readonly}
               >Day {d.number}{#if d.lodging_id === l.id} (currently set){/if}</button>
             {/each}
             {#each daysUsed as n (n)}
               <button
                 class="picker-item"
                 onclick={() => setLodgingForDay(n, null)}
-                disabled={working}
+                disabled={working || readonly}
               >Clear from Day {n}</button>
             {/each}
             {#if !(plan?.days?.length)}
