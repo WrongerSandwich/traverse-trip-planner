@@ -507,6 +507,189 @@ lodging:
     expect(a.coords).toEqual(preCoords);
   });
 
+  // ── Geocode disambiguation ────────────────────────────────────────────
+  //
+  // Regression suite for the bare-name-first bug (#347 / "Blue Sprint
+  // Circuit had candidates pinned in West Virginia and Alaska"). The
+  // geocoder now tries the destination-scoped query first AND sanity-
+  // checks each result against the destination's reference coords.
+
+  it('prefers destination-scoped result when bare-name geocode lands far away', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Bear Lake
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+    // Destination "Glacier MT" → reference coords; "Bear Lake" alone
+    // matches a place in West Virginia (~1800mi from Glacier); scoped
+    // query lands the actual Bear Lake in Montana.
+    mockGeocode.mockImplementation(async (q) => {
+      if (q === 'Glacier MT') return [48.7, -114.0];
+      if (q === 'Bear Lake, Glacier MT') return [48.6, -113.9];
+      if (q === 'Bear Lake') return [37.6, -80.5]; // West Virginia
+      return null;
+    });
+
+    await extractCandidates('t');
+
+    const stop = capturedCands.value.stops[0];
+    expect(stop.coords).toEqual({ lat: 48.6, lng: -113.9 });
+  });
+
+  it('drops coords when both scoped and bare results are far from destination', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Mystery Place
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+    mockGeocode.mockImplementation(async (q) => {
+      if (q === 'Glacier MT') return [48.7, -114.0];
+      // Both attempts return Alaska — way beyond the 200mi sanity threshold
+      if (q === 'Mystery Place, Glacier MT') return [61.0, -149.0];
+      if (q === 'Mystery Place') return [61.0, -149.0];
+      return null;
+    });
+
+    await extractCandidates('t');
+
+    const stop = capturedCands.value.stops[0];
+    expect(stop.coords).toBeUndefined();
+  });
+
+  it('re-extract fixes researcher candidates that had bad coords on disk', async () => {
+    // The user's Blue Sprint Circuit symptom: candidates.md has researcher
+    // candidates pinned in West Virginia / Alaska from a previous (bugged)
+    // extract. On re-extract, researcher candidates are rebuilt fresh from
+    // the AI output and re-geocoded — the new disambiguation logic should
+    // resolve them correctly even though the old file had wrong coords.
+    readCandidates.mockReturnValueOnce({
+      stops: [{
+        id: 'bear-lake',
+        name: 'Bear Lake',
+        category: 'outdoors',
+        user_added: false,
+        coords: { lat: 37.6, lng: -80.5 }, // West Virginia — wrong, from previous extract
+      }],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Bear Lake
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+    mockGeocode.mockImplementation(async (q) => {
+      if (q === 'Glacier MT') return [48.7, -114.0];
+      if (q === 'Bear Lake, Glacier MT') return [48.6, -113.9];
+      if (q === 'Bear Lake') return [37.6, -80.5];
+      return null;
+    });
+
+    await extractCandidates('t');
+
+    const stop = capturedCands.value.stops[0];
+    expect(stop.coords).toEqual({ lat: 48.6, lng: -113.9 });
+  });
+
+  it('self-heals user-added candidate coords that are far from destination', async () => {
+    // user_added candidates ARE preserved through merge (unlike researcher
+    // candidates). If a user typo'd coords or pasted from the wrong place,
+    // the self-heal branch should re-geocode them on next extract.
+    readCandidates.mockReturnValueOnce({
+      stops: [{
+        id: 'bear-lake',
+        name: 'Bear Lake',
+        category: 'outdoors',
+        user_added: true,
+        coords: { lat: 37.6, lng: -80.5 }, // West Virginia — well beyond 200mi
+      }],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: '<extract><plan>\nfield_guide_notes: ""\ngotchas: ""\n</plan><candidates>\nstops: []\nlodging: []\n</candidates></extract>',
+      usage: { input: 0, output: 0 },
+    });
+    mockGeocode.mockImplementation(async (q) => {
+      if (q === 'Glacier MT') return [48.7, -114.0];
+      if (q === 'Bear Lake, Glacier MT') return [48.6, -113.9];
+      return null;
+    });
+
+    await extractCandidates('t');
+
+    const stop = capturedCands.value.stops[0];
+    expect(stop.coords).toEqual({ lat: 48.6, lng: -113.9 });
+  });
+
+  it('preserves user-added candidate coords when they pass the distance sanity check', async () => {
+    // No re-geocoding cost when existing coords look plausible.
+    readCandidates.mockReturnValueOnce({
+      stops: [{
+        id: 'lake-mcdonald',
+        name: 'Lake McDonald',
+        category: 'outdoors',
+        user_added: true,
+        coords: { lat: 48.55, lng: -113.95 },
+      }],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: '<extract><plan>\nfield_guide_notes: ""\ngotchas: ""\n</plan><candidates>\nstops: []\nlodging: []\n</candidates></extract>',
+      usage: { input: 0, output: 0 },
+    });
+    mockGeocode.mockImplementation(async (q) => {
+      if (q === 'Glacier MT') return [48.7, -114.0];
+      throw new Error(`unexpected geocode call: ${q}`); // any extra query is a bug
+    });
+
+    await extractCandidates('t');
+
+    const stop = capturedCands.value.stops[0];
+    expect(stop.coords).toEqual({ lat: 48.55, lng: -113.95 });
+  });
+
   it('throws TraverseError when getTripFiles returns null (trip not found)', async () => {
     // We need to override the getTripFiles mock for this one test.
     // The mock at the top always returns a valid object. We test the guard

@@ -215,10 +215,97 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
 // Sequential geocoding — Nominatim rate-limits to 1 req/sec. The geocode()
 // helper caches results so repeat runs are cheap. Cache hits short-circuit
 // without a network call, so re-extraction stays fast even with the loop.
+//
+// Disambiguation: Nominatim almost always returns *something* for a bare
+// name query, even when the name collides across regions (e.g. "Bear Lake"
+// hits dozens of lakes worldwide). The previous order tried the bare name
+// first and fell back to scoped only on null — which meant the scoped
+// fallback never ran, and same-name places thousands of miles away
+// hijacked the result (#347). We now try the scoped query first AND
+// sanity-check every result against the destination's coords. Anything
+// beyond MAX_CANDIDATE_DISTANCE_MI is treated as a same-name collision
+// and dropped rather than pinned to the wrong continent.
+const MAX_CANDIDATE_DISTANCE_MI = 200;
+
+function distanceMi(a, b) {
+  const lat1 = a[0], lng1 = a[1];
+  const lat2 = b[0], lng2 = b[1];
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Infinity;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 3959;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+/**
+ * Geocode a candidate with destination-scoped disambiguation and a
+ * distance sanity check. Returns `[lat, lng]` or `null`.
+ *
+ * Order of attempts:
+ *   1. "<name>, <destination>" — scoped query first so common names
+ *      resolve to the right region
+ *   2. "<name>" alone — bare fallback, only accepted if it lands within
+ *      MAX_CANDIDATE_DISTANCE_MI of the reference coords
+ *
+ * Either attempt is rejected if its result is too far from `refCoords`.
+ * When `refCoords` is null (rare — destination didn't geocode itself),
+ * we skip the distance check and accept the first non-null result.
+ */
+async function geocodeWithDisambiguation(name, destinationContext, refCoords) {
+  if (destinationContext) {
+    const scoped = await geocode(`${name}, ${destinationContext}`);
+    if (scoped && (!refCoords || distanceMi(scoped, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {
+      return scoped;
+    }
+  }
+  const bare = await geocode(name);
+  if (bare && (!refCoords || distanceMi(bare, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {
+    return bare;
+  }
+  if (bare && refCoords) {
+    console.warn(
+      `extract-candidates: dropped "${name}" geocode — bare result was ${Math.round(distanceMi(bare, refCoords))}mi from destination "${destinationContext}" (likely a same-name collision)`
+    );
+  }
+  return null;
+}
+
 async function geocodeCandidates(cands, destinationContext) {
+  // Reference point for the sanity check. Skip if there's no destination
+  // string or if it can't be geocoded (rare; the trip wouldn't render its
+  // overview map either in that case).
+  const refCoords = destinationContext ? await geocode(destinationContext) : null;
+
   for (const c of [...cands.stops, ...cands.lodging]) {
-    if (c.coords) continue; // preserve any pre-geocoded coords
-    const coords = (await geocode(c.name)) ?? (destinationContext ? await geocode(`${c.name}, ${destinationContext}`) : null);
-    if (coords) c.coords = { lat: coords[0], lng: coords[1] };
+    // Self-heal pre-existing bad coords: if a candidate already has coords
+    // but they're far from the destination, they were almost certainly
+    // mis-geocoded by the previous (bare-first) logic. Re-geocode through
+    // the new disambiguation path. If the existing coords look plausible,
+    // leave them alone.
+    if (c.coords && refCoords) {
+      const existing = [Number(c.coords.lat), Number(c.coords.lng)];
+      if (distanceMi(existing, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) continue;
+      console.warn(
+        `extract-candidates: re-geocoding "${c.name}" — existing coords were ${Math.round(distanceMi(existing, refCoords))}mi from destination (above ${MAX_CANDIDATE_DISTANCE_MI}mi sanity threshold)`
+      );
+    } else if (c.coords) {
+      // No reference to validate against; trust the existing coords.
+      continue;
+    }
+    const coords = await geocodeWithDisambiguation(c.name, destinationContext, refCoords);
+    if (coords) {
+      c.coords = { lat: coords[0], lng: coords[1] };
+    } else if (c.coords) {
+      // We're here because we tried to re-geocode an existing-but-suspicious
+      // coord and got nothing usable. Remove the bad coord so the map shows
+      // the candidate as unmapped rather than pinned to the wrong continent.
+      delete c.coords;
+    }
   }
 }
+
+// Exported for tests; the disambiguation behavior is the contract that
+// matters here, not the unit's internal call signature.
+export const __testing__ = { geocodeCandidates, geocodeWithDisambiguation, distanceMi, MAX_CANDIDATE_DISTANCE_MI };
