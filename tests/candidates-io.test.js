@@ -16,7 +16,8 @@ vi.mock('$lib/server/data.js', async () => {
   };
 });
 
-import { readCandidates, writeCandidates, emptyCandidates, makeCandidateId } from '../src/lib/server/candidates.js';
+import { readCandidates, writeCandidates, emptyCandidates, makeCandidateId, addCandidateStop, addCandidateLodging, deleteCandidate, deleteCandidateStop, deleteCandidateLodging } from '../src/lib/server/candidates.js';
+import { writePlan, emptyPlan } from '../src/lib/server/plan.js';
 import { TraverseError } from '../src/lib/server/errors.js';
 
 describe('candidates.js', () => {
@@ -71,5 +72,83 @@ describe('candidates.js', () => {
     try { readCandidates('mytrip'); } catch (e) { caught = e; }
     expect(caught).toBeInstanceOf(TraverseError);
     expect(caught.code).toBe('model_returned_invalid_yaml');
+  });
+
+  it('addCandidateStop clamps invalid category to "misc"', () => {
+    const id = addCandidateStop('mytrip', { name: 'Weird Place', category: 'bogus-category' });
+    const cands = readCandidates('mytrip');
+    const stop = cands.stops.find((s) => s.id === id);
+    expect(stop.category).toBe('misc');
+  });
+
+  it('addCandidateStop preserves valid category', () => {
+    const id = addCandidateStop('mytrip', { name: 'A Park', category: 'outdoors' });
+    const cands = readCandidates('mytrip');
+    expect(cands.stops.find((s) => s.id === id).category).toBe('outdoors');
+  });
+
+  it('addCandidateLodging clamps invalid price_tier to "mid"', () => {
+    const id = addCandidateLodging('mytrip', { name: 'Ultra Inn', price_tier: 'ultra-luxe' });
+    const cands = readCandidates('mytrip');
+    expect(cands.lodging.find((l) => l.id === id).price_tier).toBe('mid');
+  });
+
+  it('deleteCandidate is a no-op when neither file exists', () => {
+    // No plan.md or candidates.md — should not throw or create files.
+    expect(() => deleteCandidate('mytrip', 'ghost')).not.toThrow();
+    expect(readCandidates('mytrip')).toBeNull();
+  });
+
+  it('deleteCandidate is a no-op when id matches nothing in candidates.md', () => {
+    writeCandidates('mytrip', { stops: [{ id: 'a', name: 'A', user_added: false }], lodging: [] });
+    deleteCandidate('mytrip', 'nonexistent');
+    // 'a' should still be there
+    expect(readCandidates('mytrip').stops).toHaveLength(1);
+  });
+
+  it('deleteCandidateStop removes only from stops array and does not touch lodging', () => {
+    writePlan('mytrip', emptyPlan());
+    writeCandidates('mytrip', {
+      stops: [{ id: 's1', name: 'S1', user_added: false }],
+      lodging: [{ id: 'l1', name: 'L1', user_added: false }],
+    });
+    deleteCandidateStop('mytrip', 's1');
+    const cands = readCandidates('mytrip');
+    expect(cands.stops).toHaveLength(0);
+    expect(cands.lodging).toHaveLength(1); // lodging untouched
+  });
+
+  it('deleteCandidateStop is a no-op when id is a lodging id', () => {
+    writePlan('mytrip', emptyPlan());
+    writeCandidates('mytrip', {
+      stops: [],
+      lodging: [{ id: 'l1', name: 'L1', user_added: false }],
+    });
+    deleteCandidateStop('mytrip', 'l1');
+    const cands = readCandidates('mytrip');
+    expect(cands.lodging).toHaveLength(1); // lodging untouched
+  });
+
+  it('deleteCandidateLodging removes only from lodging array and does not touch stops', () => {
+    writePlan('mytrip', emptyPlan());
+    writeCandidates('mytrip', {
+      stops: [{ id: 's1', name: 'S1', user_added: false }],
+      lodging: [{ id: 'l1', name: 'L1', user_added: false }],
+    });
+    deleteCandidateLodging('mytrip', 'l1');
+    const cands = readCandidates('mytrip');
+    expect(cands.lodging).toHaveLength(0);
+    expect(cands.stops).toHaveLength(1); // stops untouched
+  });
+
+  it('deleteCandidateLodging is a no-op when id is a stop id', () => {
+    writePlan('mytrip', emptyPlan());
+    writeCandidates('mytrip', {
+      stops: [{ id: 's1', name: 'S1', user_added: false }],
+      lodging: [],
+    });
+    deleteCandidateLodging('mytrip', 's1');
+    const cands = readCandidates('mytrip');
+    expect(cands.stops).toHaveLength(1); // stops untouched
   });
 });
