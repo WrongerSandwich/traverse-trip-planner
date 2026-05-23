@@ -96,6 +96,33 @@
     dragOverDay = null;
     dragOverLodging = null;
     activeDragType = null;
+
+    // Cross-day reorder takes priority: if the drag source is one of our
+    // own stop rows and it landed on a different day card, perform a
+    // move (DELETE source + POST target). Same-day drops on the day-card
+    // background (not on a stop row) are a no-op — the within-row drop
+    // handler owns same-day reorder. Reorder + non-stop-row + same day
+    // shouldn't normally fire because the row handler stops propagation.
+    let reorder = null;
+    try {
+      const raw = e.dataTransfer?.getData('application/x-traverse-reorder');
+      if (raw) reorder = JSON.parse(raw);
+    } catch { /* tolerate */ }
+    if (reorder?.stopId && Number.isFinite(reorder.dayNumber)) {
+      if (reorder.dayNumber === dayNumber) {
+        // Same-day drop on the day background — within-row handler should
+        // have taken it. Drop fell through; treat as no-op.
+        reorderDrag = null;
+        reorderOverIdx = null;
+        return;
+      }
+      await moveStopAcrossDays(reorder.dayNumber, dayNumber, reorder.stopId);
+      reorderDrag = null;
+      reorderOverIdx = null;
+      return;
+    }
+
+    // Otherwise, this is a cross-card drop from CandidatesSection.
     let payload = null;
     try {
       const raw = e.dataTransfer?.getData('application/x-traverse-candidate');
@@ -111,6 +138,47 @@
     if (!payload?.type) return;
     if (payload.type === 'stop') await addStop(dayNumber, payload.id);
     else if (payload.type === 'lodging') await setLodging(dayNumber, payload.id);
+  }
+
+  /**
+   * Move a stop from one day to another. Two sequential calls because
+   * there's no single atomic move endpoint:
+   *   1. DELETE the stop from the source day
+   *   2. POST it onto the target day
+   * If step 2 fails the stop is briefly orphaned (gone from source, not
+   * added to target) but it's still in the candidate pool, so the user
+   * can re-promote. The optimistic-but-not-atomic semantics are
+   * acceptable for a low-frequency manual gesture.
+   */
+  async function moveStopAcrossDays(fromDay, toDay, stopId) {
+    working = true;
+    errorCode = null;
+    errorCtx = {};
+    try {
+      const delRes = await fetch(`/api/plan/${slug}/day/${fromDay}/stops/${stopId}`, { method: 'DELETE' });
+      if (!delRes.ok) {
+        const body = await delRes.json().catch(() => ({}));
+        errorCode = body.code || 'action_failed';
+        errorCtx = body.context || { action: 'move the stop between days' };
+        return;
+      }
+      const addRes = await fetch(`/api/plan/${slug}/day/${toDay}/stops`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: stopId }),
+      });
+      if (!addRes.ok) {
+        const body = await addRes.json().catch(() => ({}));
+        errorCode = body.code || 'action_failed';
+        errorCtx = body.context || { action: 'finish moving the stop (it was removed from the source day but the destination add failed; re-promote from Candidates)' };
+        return;
+      }
+      await invalidate('app:trip');
+    } catch {
+      errorCode = 'network_error';
+    } finally {
+      working = false;
+    }
   }
 
   async function onLodgingDrop(dayNumber, e) {
@@ -392,8 +460,8 @@
     {@const header = formatDayHeader(day)}
     <article
       class="day-card"
-      class:drop-target-active={dragOverDay === day.number}
-      class:drop-stop={dragOverDay === day.number && activeDragType !== 'lodging'}
+      class:drop-target-active={dragOverDay === day.number && reorderDrag?.dayNumber !== day.number}
+      class:drop-stop={dragOverDay === day.number && activeDragType !== 'lodging' && reorderDrag?.dayNumber !== day.number}
       class:drop-lodging={dragOverDay === day.number && activeDragType === 'lodging'}
       ondragenter={(e) => onDayDragEnter(day.number, e)}
       ondragover={(e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }}
@@ -529,7 +597,7 @@
                   <!-- A lodging accidentally in a day's stops list is a
                        schema oddity; render as dangling so the dangling
                        banner has a path to surface it. -->
-                  <div class="dangling-row" role="alert" title="Lodging in stops list — move it to the lodging slot.">
+                  <div class="dangling-row" role="alert" title="Lodging in stops list. Move it to the lodging slot.">
                     ⚠ {cand.name} is filed as a stop but is a lodging
                   </div>
                 {/if}
@@ -599,7 +667,7 @@
               </svg>
             </span>
             <span class="lodging-empty-label">+ Add lodging</span>
-            <span class="lodging-empty-hint">or drag a place to stay</span>
+            <span class="lodging-empty-hint">Or drag a place to stay</span>
           </button>
         {/if}
       </div>
@@ -631,9 +699,18 @@
         </div>
       {/if}
 
-      <!-- Drop label, shown only while a candidate is mid-drag over this day. -->
-      {#if dragOverDay === day.number && activeDragType !== 'lodging'}
-        <div class="drop-label" aria-hidden="true">Drop to add to {header.primary}</div>
+      <!-- Drop label, shown only while a candidate or cross-day reorder
+           is mid-drag over this day. Suppressed when the drag source
+           is a stop row in THIS day (within-row reorder owns the
+           visual signal via the insertion marker). -->
+      {#if dragOverDay === day.number && activeDragType !== 'lodging' && reorderDrag?.dayNumber !== day.number}
+        <div class="drop-label" aria-hidden="true">
+          {#if reorderDrag}
+            Move to {header.primary}
+          {:else}
+            Drop to add to {header.primary}
+          {/if}
+        </div>
       {/if}
     </article>
   {/each}
@@ -754,22 +831,27 @@
     border-radius: 4px;
     pointer-events: none;
   }
+  /* Drop label sits inside the day card during drag. The card already
+     has accent border + accent wash + dashed inset outline doing the
+     celebratory work; the pill is for the *label*, not the celebration.
+     Quiet chip treatment (page surface + accent text) keeps the
+     centered text readable without piling on a fourth visual signal. */
   .drop-label {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: var(--accent);
-    color: var(--text-inverse);
-    padding: 0.4rem 0.8rem;
+    background: var(--surface-page);
+    color: var(--accent-text);
+    border: 1px solid color-mix(in oklab, var(--accent) 40%, var(--border-default));
+    padding: 0.32rem 0.7rem;
     border-radius: 999px;
     font-family: var(--font-sans);
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     pointer-events: none;
     z-index: 5;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
   }
 
   /* ── Day header ─────────────────────────────────────────────────────── */
@@ -964,11 +1046,11 @@
   }
   .stop-row {
     position: relative;
-    transition: padding-top 0.15s ease;
   }
-  /* Insertion marker for within-day reorder. The row above the marker
-     gets a top accent line and slight padding bump so the drop position
-     is unambiguous. */
+  /* Insertion marker for within-day reorder — a 2px accent line above
+     the target row. No layout-property transition (animating padding
+     trips the impeccable layout-animation ban); the line alone is the
+     drop signal. */
   .stop-row.reorder-target::before {
     content: '';
     position: absolute;

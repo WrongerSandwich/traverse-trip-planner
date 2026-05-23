@@ -239,9 +239,9 @@
   .stop-card.compact .drag-handle {
     padding: 2px 5px;
     font-size: 9.5px;
-  }
-  .stop-card.compact .drag-handle .drag-label {
-    display: none;
+    /* Within-day reorder is a new gesture; keep the "drag" label so the
+       affordance is discoverable from inside a day card, not just from
+       the candidate-side rows the user already learned the gesture on. */
   }
   .stop-card.compact .drag-dots {
     font-size: 0.75rem;
