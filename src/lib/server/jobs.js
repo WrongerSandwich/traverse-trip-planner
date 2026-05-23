@@ -128,7 +128,7 @@ function writeRunningFlag(slug, workflow) {
   invalidateEnrichCache();
 }
 
-function clearRunningFlag(slug, extraFields = {}) {
+function clearRunningFlag(slug, extraFields = {}, removeFields = []) {
   const path = tripFilePath(slug);
   if (!path) return;
   let content = readTripFile(path);
@@ -136,6 +136,9 @@ function clearRunningFlag(slug, extraFields = {}) {
   if (!parseFrontmatter(content)) return;
 
   content = removeFrontmatterField(content, 'running');
+  for (const field of removeFields) {
+    content = removeFrontmatterField(content, field);
+  }
   for (const [field, value] of Object.entries(extraFields)) {
     content = setFrontmatterField(content, field, value);
   }
@@ -199,7 +202,9 @@ export function completeJob(workflow, slug, result = {}) {
            + (result.usage.output_tokens ?? result.usage.output ?? 0);
   }
   if (tokens > 0) extras.last_run_tokens = String(tokens);
-  clearRunningFlag(slug, extras);
+  // A successful run supersedes any earlier failure; clear the stale error
+  // fields so the planning page banner reflects current state, not history.
+  clearRunningFlag(slug, extras, ['last_run_error', 'last_run_error_at', 'last_run_message']);
 
   pushEvent({
     workflow,

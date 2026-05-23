@@ -16,7 +16,7 @@ vi.mock('$lib/server/data.js', async () => {
   };
 });
 
-import { readCandidates, writeCandidates, emptyCandidates, makeCandidateId, addCandidateStop, addCandidateLodging, deleteCandidate, deleteCandidateStop, deleteCandidateLodging } from '../src/lib/server/candidates.js';
+import { readCandidates, writeCandidates, emptyCandidates, makeCandidateId, addCandidateStop, addCandidateLodging, deleteCandidate, deleteCandidateStop, deleteCandidateLodging, setCandidateHidden } from '../src/lib/server/candidates.js';
 import { writePlan, emptyPlan } from '../src/lib/server/plan.js';
 import { TraverseError } from '../src/lib/server/errors.js';
 
@@ -150,5 +150,66 @@ describe('candidates.js', () => {
     deleteCandidateLodging('mytrip', 's1');
     const cands = readCandidates('mytrip');
     expect(cands.stops).toHaveLength(1); // stops untouched
+  });
+
+  // ── setCandidateHidden ──────────────────────────────────────────────────
+
+  it('setCandidateHidden(true) writes hidden: true on a stop', () => {
+    writePlan('mytrip', emptyPlan());
+    writeCandidates('mytrip', {
+      stops: [{ id: 's1', name: 'S1', user_added: false }],
+      lodging: [],
+    });
+    const updated = setCandidateHidden('mytrip', 's1', true);
+    expect(updated).toMatchObject({ id: 's1', hidden: true });
+    const cands = readCandidates('mytrip');
+    expect(cands.stops[0].hidden).toBe(true);
+  });
+
+  it('setCandidateHidden(true) writes hidden: true on a lodging', () => {
+    writePlan('mytrip', emptyPlan());
+    writeCandidates('mytrip', {
+      stops: [],
+      lodging: [{ id: 'l1', name: 'L1', user_added: false }],
+    });
+    const updated = setCandidateHidden('mytrip', 'l1', true);
+    expect(updated).toMatchObject({ id: 'l1', hidden: true });
+    const cands = readCandidates('mytrip');
+    expect(cands.lodging[0].hidden).toBe(true);
+  });
+
+  it('setCandidateHidden(false) removes the hidden field', () => {
+    writePlan('mytrip', emptyPlan());
+    writeCandidates('mytrip', {
+      stops: [{ id: 's1', name: 'S1', hidden: true, user_added: false }],
+      lodging: [],
+    });
+    const updated = setCandidateHidden('mytrip', 's1', false);
+    expect(updated.id).toBe('s1');
+    expect('hidden' in updated).toBe(false);
+    const cands = readCandidates('mytrip');
+    expect('hidden' in cands.stops[0]).toBe(false);
+  });
+
+  it('setCandidateHidden returns null when id matches nothing', () => {
+    writePlan('mytrip', emptyPlan());
+    writeCandidates('mytrip', { stops: [], lodging: [] });
+    expect(setCandidateHidden('mytrip', 'no-such-id', true)).toBeNull();
+  });
+
+  it('hiding a promoted candidate un-promotes it from the plan', async () => {
+    writePlan('mytrip', {
+      days: [
+        { number: 1, stops: ['s1'], lodging_id: null, notes: '', gotchas: '' },
+      ],
+    });
+    writeCandidates('mytrip', {
+      stops: [{ id: 's1', name: 'S1', user_added: false }],
+      lodging: [],
+    });
+    setCandidateHidden('mytrip', 's1', true);
+    const { readPlan } = await import('../src/lib/server/plan.js');
+    const plan = readPlan('mytrip');
+    expect(plan.days[0].stops).not.toContain('s1');
   });
 });

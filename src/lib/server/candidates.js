@@ -153,3 +153,43 @@ export function deleteCandidateLodging(slug, id) {
   cands.lodging = cands.lodging.filter((l) => l.id !== id);
   writeCandidates(slug, cands);
 }
+
+/**
+ * Toggle the `hidden` flag on a candidate (stop or lodging). The flag is
+ * the persistence layer for the "whittle" gesture in CandidatesSection —
+ * users discard candidates they don't want without deleting the file
+ * record, so the seeder still avoids re-suggesting them and the user can
+ * un-hide if they change their mind.
+ *
+ * `hidden: false` is normalized to deleting the field so a fresh file
+ * stays clean (default-visible). `hidden: true` writes the field.
+ *
+ * Returns the updated candidate object, or `null` if `id` matches
+ * nothing in either array.
+ */
+export function setCandidateHidden(slug, id, hidden) {
+  const cands = loadOrInit(slug);
+  let updated = null;
+  for (const s of cands.stops) {
+    if (s.id !== id) continue;
+    if (hidden) s.hidden = true;
+    else delete s.hidden;
+    updated = s;
+    break;
+  }
+  if (!updated) {
+    for (const l of cands.lodging) {
+      if (l.id !== id) continue;
+      if (hidden) l.hidden = true;
+      else delete l.hidden;
+      updated = l;
+      break;
+    }
+  }
+  if (!updated) return null;
+  // Hiding a promoted candidate is contradictory — un-promote first so plan.md
+  // doesn't reference an invisible candidate. Un-hiding doesn't touch the plan.
+  if (hidden) unPromoteCandidate(slug, id);
+  writeCandidates(slug, cands);
+  return updated;
+}

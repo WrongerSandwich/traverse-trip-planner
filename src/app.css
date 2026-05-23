@@ -121,6 +121,53 @@
   --completed-bg:   var(--bark-100);
   --completed-text: var(--bark-600);
 
+  /* ── Stop categories ─────────────────────────────────────────────────────
+     Per the candidates-section shape brief, each stop category maps to a
+     brand-family ramp so a user scanning candidates can read "what kind of
+     trip is forming" by color. Three tokens per category:
+       --cat-X        — saturated pin color (used on the map and as the
+                        card's leading edge); reads on bone/forest surfaces
+       --cat-X-tint   — light tint for the category chip background
+       --cat-X-on     — text color readable on the tint
+     Categories deliberately reuse brand families (historic/cultural → bark,
+     food/entertainment → sunset, outdoors → forest, view/quirky → sky,
+     shopping/misc → bone) so the palette stays inside Dusk. */
+  --cat-historic:           var(--bark-600);
+  --cat-historic-tint:      var(--bark-100);
+  --cat-historic-on:        var(--bark-800);
+
+  --cat-cultural:           var(--bark-400);
+  --cat-cultural-tint:      var(--bark-50);
+  --cat-cultural-on:        var(--bark-800);
+
+  --cat-food:               var(--sunset-600);
+  --cat-food-tint:          var(--sunset-100);
+  --cat-food-on:            var(--sunset-800);
+
+  --cat-entertainment:      var(--sunset-800);
+  --cat-entertainment-tint: var(--sunset-200);
+  --cat-entertainment-on:   var(--sunset-900);
+
+  --cat-outdoors:           var(--forest-600);
+  --cat-outdoors-tint:      var(--forest-100);
+  --cat-outdoors-on:        var(--forest-800);
+
+  --cat-view:               var(--sky-400);
+  --cat-view-tint:          var(--sky-100);
+  --cat-view-on:            var(--sky-800);
+
+  --cat-quirky:             var(--sky-600);
+  --cat-quirky-tint:        var(--sky-50);
+  --cat-quirky-on:          var(--sky-900);
+
+  --cat-shopping:           var(--bone-600);
+  --cat-shopping-tint:      var(--bone-200);
+  --cat-shopping-on:        var(--bone-900);
+
+  --cat-misc:               var(--bone-400);
+  --cat-misc-tint:          var(--bone-100);
+  --cat-misc-on:            var(--bone-800);
+
   /* ── Typography ──────────────────────────────────────────────────────── */
   --font-serif: 'Fraunces', ui-serif, Georgia, serif;
   --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -212,6 +259,47 @@
   --planning-text:  var(--forest-200);
   --completed-bg:   var(--bark-800);
   --completed-text: var(--bark-200);
+
+  /* Stop categories — pin colors shift to lighter stops (readable on dark
+     map tiles), tints shift to dark surface stops, ink shifts to lighter
+     stops in the same family. Same family map as light: historic/cultural
+     → bark, food/entertainment → sunset, outdoors → forest, view/quirky
+     → sky, shopping/misc → bone. */
+  --cat-historic:           var(--bark-200);
+  --cat-historic-tint:      var(--bark-800);
+  --cat-historic-on:        var(--bark-100);
+
+  --cat-cultural:           var(--bark-200);
+  --cat-cultural-tint:      var(--bark-900);
+  --cat-cultural-on:        var(--bark-100);
+
+  --cat-food:               var(--sunset-400);
+  --cat-food-tint:          var(--sunset-800);
+  --cat-food-on:            var(--sunset-200);
+
+  --cat-entertainment:      var(--sunset-200);
+  --cat-entertainment-tint: var(--sunset-900);
+  --cat-entertainment-on:   var(--sunset-100);
+
+  --cat-outdoors:           var(--forest-200);
+  --cat-outdoors-tint:      var(--forest-800);
+  --cat-outdoors-on:        var(--forest-100);
+
+  --cat-view:               var(--sky-200);
+  --cat-view-tint:          var(--sky-800);
+  --cat-view-on:            var(--sky-100);
+
+  --cat-quirky:             var(--sky-200);
+  --cat-quirky-tint:        var(--sky-900);
+  --cat-quirky-on:          var(--sky-100);
+
+  --cat-shopping:           var(--bone-200);
+  --cat-shopping-tint:      var(--bone-800);
+  --cat-shopping-on:        var(--bone-100);
+
+  --cat-misc:               var(--bone-200);
+  --cat-misc-tint:          var(--bone-900);
+  --cat-misc-on:            var(--bone-100);
 }
 
 body {

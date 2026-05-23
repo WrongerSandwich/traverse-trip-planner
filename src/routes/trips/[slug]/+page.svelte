@@ -69,8 +69,14 @@
   // Canonical section sets per stage (itinerary handled separately above the list).
   // Completed trips include plan + candidates so the user can still see what they
   // built — the components render read-only via the `readonly` prop below.
+  //
+  // `stops` is no longer in planning's canonical list: Research stopped writing
+  // stops.md once plan.md + candidates.md took over, and the prose blob became
+  // redundant alongside the structured Plan/Candidates surfaces. Legacy stops.md
+  // files are still rendered for planning trips, but as a collapsed disclosure
+  // below the canonical sections — see the `legacy-stops` block in the template.
   const STAGE_SECTIONS = {
-    planning:  ['overview', 'route', 'stops', 'plan', 'logistics', 'candidates'],
+    planning:  ['overview', 'route', 'plan', 'logistics', 'candidates'],
     completed: ['overview', 'route', 'stops', 'plan', 'logistics', 'candidates', 'notes'],
   };
 
@@ -209,9 +215,45 @@
     )
   );
 
+  // Surface a failed background run that wasn't followed by a success. The
+  // jobs module clears these fields on next successful run, so seeing them
+  // here means the last completed job for this trip failed and the user
+  // never got a visible signal — the dropped EACCES / provider_error etc.
+  // is the classic "silent error" surface this banner exists to fix.
+  const lastRunFailed = $derived.by(() => {
+    const code = trip?.last_run_error;
+    if (!code) return null;
+    const failedAt = trip?.last_run_error_at;
+    const succeededAt = trip?.last_run_success_at;
+    if (failedAt && succeededAt && failedAt < succeededAt) return null;
+    return {
+      code,
+      at: failedAt ?? null,
+      message: trip?.last_run_message ?? null,
+    };
+  });
+  const lastRunFailedSentence = $derived(
+    lastRunFailed ? failureSentence(lastRunFailed.code, {}) : ''
+  );
+  /** Human-relative timestamp ("3 minutes ago", "2 days ago"). */
+  function relativeTime(iso) {
+    if (!iso) return '';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (!Number.isFinite(ms) || ms < 0) return '';
+    const sec = Math.floor(ms / 1000);
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const day = Math.floor(hr / 24);
+    return `${day}d ago`;
+  }
+
   // Show the "Research this section →" button when the feature is enabled,
   // the trip is in planning, and the section is a researchable type.
-  const RESEARCHABLE = new Set(['route', 'stops', 'logistics']);
+  // (stops is intentionally absent — see STAGE_SECTIONS comment above.)
+  const RESEARCHABLE = new Set(['route', 'logistics']);
   const canResearchSection = $derived(
     stage === 'planning' &&
     Boolean(data.features?.deepen) &&
@@ -971,7 +1013,10 @@
       }
     }
 
-    // Lifecycle group
+    // Lifecycle group. Re-research has its own header button on planning
+    // trips (creative do-over, mid-planning action); the kebab keeps the
+    // less-frequent archival/output entries so it doesn't compete with the
+    // primary in-page workflow.
     const lifecycleItems = [];
     if (isPlanning) {
       lifecycleItems.push({
@@ -980,14 +1025,6 @@
         onclick: completeTrip,
         disabled: completing,
       });
-      if (data.features?.deepen && data.features?.homeMdReady !== false) {
-        lifecycleItems.push({
-          type: 'button',
-          label: reResearching ? 'Starting re-research…' : '↺ Re-research →',
-          onclick: () => reResearch(),
-          disabled: reResearching,
-        });
-      }
     }
     lifecycleItems.push({
       type: 'button',
@@ -1000,6 +1037,13 @@
 
     return groups;
   });
+
+  // Re-research is the canonical mid-planning action (cf. Mark-as-completed
+  // and Archive, which are end-of-life). Showing it in the same row as the
+  // Ask palette anchors both AI-driven workflows in the header chrome.
+  const canReResearch = $derived(
+    isPlanning && data.features?.deepen && data.features?.homeMdReady !== false,
+  );
 </script>
 
 <svelte:head>
@@ -1008,7 +1052,7 @@
 
 <div class="page">
   <header>
-    <button class="back" onclick={() => goto('/')} aria-label="Back to all trips">← All trips</button>
+    <button class="header-pill back" onclick={() => goto('/')} aria-label="Back to all trips">← All trips</button>
     <span class="stage-pill">{stage || 'planning'}</span>
     <h1>{trip?.title || trip?._slug}</h1>
     <div class="meta">
@@ -1034,7 +1078,7 @@
     {/if}
     {#if isPlanning && data.features?.chat && data.features?.homeMdReady !== false}
       <button
-        class="header-ask"
+        class="header-pill header-ask"
         onclick={() => openPalette()}
         title="Open the {data.assistantName} palette"
         aria-label="Open {data.assistantName}"
@@ -1042,7 +1086,20 @@
         Ask <kbd class="header-ask-kbd" aria-hidden="true">⌘K</kbd>
       </button>
     {/if}
-    <KebabMenu groups={kebabGroups} />
+    {#if canReResearch}
+      <PromiseTooltip promise={DEEPEN_PROMISE}>
+        <button
+          class="header-pill header-rerun"
+          onclick={() => reResearch()}
+          disabled={reResearching}
+          aria-label="Re-research this trip in the background"
+        >
+          <span class="header-rerun-glyph" aria-hidden="true">↺</span>
+          {reResearching ? 'Starting…' : 'Re-research'}
+        </button>
+      </PromiseTooltip>
+    {/if}
+    <KebabMenu groups={kebabGroups} triggerLabel="Trip actions" />
   </header>
 
   {#if trip?._image}
@@ -1069,6 +1126,18 @@
           {#each danglingMessages as msg}
             <p>{msg}</p>
           {/each}
+        </aside>
+      {/if}
+
+      {#if lastRunFailed}
+        <aside class="last-run-banner" role="status" aria-label="Last background job failed">
+          <div class="last-run-body">
+            <strong>The last background job failed{lastRunFailed.at ? ` (${relativeTime(lastRunFailed.at)})` : ''}.</strong>
+            <span class="last-run-sentence">{lastRunFailedSentence}</span>
+            {#if lastRunFailed.message}
+              <span class="last-run-detail" title={lastRunFailed.message}>{lastRunFailed.message}</span>
+            {/if}
+          </div>
         </aside>
       {/if}
 
@@ -1154,7 +1223,7 @@
         <aside class="extract-recovery-banner" role="alert" aria-label="Plan extraction incomplete">
           <div class="extract-recovery-body">
             <strong>Plan extraction didn't finish during research.</strong>
-            The web-search leg succeeded but the extract step failed. Retry just the extract step — no need to re-run research.
+            The web-search leg succeeded but the extract step failed. Retry just the extract step; no need to re-run research.
           </div>
           <button
             class="btn btn-secondary btn-compact extract-recovery-btn"
@@ -1187,7 +1256,14 @@
           {#if section === 'plan'}
             <PlanSection plan={data.plan} candidates={data.candidates} slug={data.trip._slug} readonly={isCompleted} />
           {:else if section === 'candidates'}
-            <CandidatesSection candidates={data.candidates} plan={data.plan} slug={data.trip._slug} readonly={isCompleted} />
+            <CandidatesSection
+              candidates={data.candidates}
+              plan={data.plan}
+              slug={data.trip._slug}
+              destination={trip?._coords}
+              home={data.home?.coords}
+              readonly={isCompleted}
+            />
           {:else if sections[section] === undefined}
             <div class="section-empty-block">
               <p class="section-empty">Not yet researched.</p>
@@ -1255,6 +1331,13 @@
           {/if}
         </section>
       {/each}
+
+      {#if isPlanning && typeof sections.stops === 'string' && sections.stops.trim().length > 0}
+        <details class="legacy-stops">
+          <summary>Research notes (legacy stops.md)</summary>
+          <div class="prose legacy-stops-body">{@html renderMarkdown(stripLeadingH1(sections.stops))}</div>
+        </details>
+      {/if}
 
       {#if deepenSectionError}
         <div class="deepen-section-error" role="alert">{failureSentence(deepenSectionError.code, deepenSectionError.ctx ?? {})}</div>
@@ -1393,29 +1476,43 @@
     align-items: center;
   }
 
-  /* "Ask Field guide" entry in the page header — primary discoverability
-     anchor for the palette. The inline keycap doubles as a shortcut hint
-     so users don't have to discover ⌘K via the hover-only title. */
-  .header-ask {
-    background: none;
+  /* ── Header pill system ──
+     The four chrome buttons sitting on the forest-800 sticky band (back,
+     Ask, Re-research, ⋯ kebab) share a single base treatment so the row
+     reads as a tokenized system rather than four hand-tuned chips. Visual
+     hierarchy comes from CONTENT — the kbd keycap on Ask, the ↺ glyph on
+     Re-research, the ⋯ glyph on the kebab — not from border-width drift. */
+  .header-pill {
+    background: transparent;
     border: 1.5px solid var(--forest-600);
     color: var(--bone-200);
-    padding: 0.35rem 0.6rem 0.35rem 0.75rem;
+    padding: 0.35rem 0.7rem;
     border-radius: 4px;
     cursor: pointer;
+    font-family: var(--font-sans);
     font-size: 0.78rem;
     font-weight: 600;
-    font-family: var(--font-sans);
+    line-height: 1.2;
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.4rem;
     transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
-  .header-ask:hover {
+  .header-pill:hover:not(:disabled) {
     background: var(--forest-700);
     border-color: var(--forest-400);
     color: var(--bone-100);
   }
+  .header-pill:disabled {
+    opacity: 0.55;
+    cursor: progress;
+  }
+
+  /* Content-specific overrides for each pill variant. Chrome (border,
+     background, padding, font-size/weight) all come from .header-pill. */
+
+  /* "Ask Field guide" — primary AI affordance. The inline keycap doubles
+     as a shortcut hint so users learn ⌘K from the surface itself. */
   .header-ask-kbd {
     font-family: var(--font-mono);
     font-size: 0.7rem;
@@ -1428,11 +1525,19 @@
     color: var(--bone-200);
   }
 
-  /* KebabMenu lives inside the forest-800 page header here, so its default
-     light-surface palette (warm-tan border + text-secondary dots) reads as
-     near-invisible. Override the trigger colors to bone-toned ones to match
-     the .back / .header-ask buttons in the same row. The dropdown panel
-     itself opens onto a normal surface and uses the component defaults. */
+  /* "Re-research" — mid-planning do-over. Glyph stays at full opacity so
+     it doesn't read as a disabled/loading state. */
+  .header-rerun-glyph {
+    font-size: 0.95em;
+    line-height: 1;
+  }
+
+  /* KebabMenu lives inside the forest-800 page header. Its component
+     defaults (warm-tan border + text-secondary dots on a light surface)
+     read as near-invisible here, so we re-paint the trigger to share
+     .header-pill's forest-on-bone palette. Sizing values (border 1.5px,
+     padding 0.35rem 0.65rem, radius 4px) already match the component
+     defaults — we only override the colors. */
   .page > header :global(.kebab-trigger) {
     border-color: var(--forest-600);
     color: var(--bone-200);
@@ -1442,24 +1547,6 @@
     background: var(--forest-700);
     border-color: var(--forest-400);
     color: var(--bone-50);
-  }
-
-  .back {
-    background: none;
-    border: 1.5px solid var(--forest-600);
-    color: var(--bone-200);
-    padding: 0.35rem 0.75rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-family: var(--font-sans);
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
-  }
-  .back:hover {
-    background: var(--forest-800);
-    border-color: var(--forest-400);
-    color: var(--bone-100);
   }
 
   .stage-pill {
@@ -1647,14 +1734,14 @@
      as a discoverability hint so users learn the shortcut from any
      section header, not just a hover-only title. */
   .btn-section-ask {
-    background: none;
-    border: 1px solid var(--border-subtle);
+    background: transparent;
+    border: 0.5px solid var(--border-subtle);
     color: var(--text-tertiary);
     font-family: var(--font-sans);
     font-size: 0.78rem;
     font-weight: 600;
     padding: 0.32rem 0.5rem 0.32rem 0.6rem;
-    border-radius: 3px;
+    border-radius: 4px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -1771,6 +1858,44 @@
     font-weight: 500;
   }
 
+  /* Legacy stops.md disclosure. Research stopped writing this file once the
+     structured plan + candidates surfaces took over; older trips still carry
+     a prose blob that we don't want to delete but also don't want to give
+     prime real estate to. Collapsed by default; muted summary so it reads
+     as a "look up the original notes" affordance rather than a peer section. */
+  .legacy-stops {
+    border-top: 1px solid var(--border-default);
+    padding-top: 0.9rem;
+    color: var(--text-tertiary);
+  }
+  .legacy-stops > summary {
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    padding: 0.25rem 0;
+    list-style: none;
+  }
+  .legacy-stops > summary::-webkit-details-marker { display: none; }
+  .legacy-stops > summary::before {
+    content: '▸ ';
+    display: inline-block;
+    transition: transform 0.12s ease-out;
+  }
+  .legacy-stops[open] > summary::before {
+    content: '▾ ';
+  }
+  .legacy-stops > summary:hover {
+    color: var(--text-secondary);
+  }
+  .legacy-stops-body {
+    margin-top: 0.6rem;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+  }
+
   .deepen-section-error {
     font-size: 0.78rem;
     color: var(--state-danger);
@@ -1805,7 +1930,7 @@
     cursor: pointer;
   }
   .action-error-dismiss:hover {
-    background: rgba(168, 47, 31, 0.08);
+    background: color-mix(in oklab, var(--state-danger) 8%, transparent);
     border-color: var(--state-danger);
   }
   .action-error-dismiss:focus-visible {
@@ -1822,7 +1947,7 @@
     padding: 0.75rem 1rem;
     background: var(--state-danger-surface);
     color: var(--text-primary);
-    border-left: 3px solid var(--state-danger);
+    border: 1px solid var(--state-danger);
     border-radius: 4px;
     margin-bottom: 0.25rem;
     font-family: var(--font-sans);
@@ -1836,6 +1961,42 @@
     margin: 0.25rem 0;
     font-size: 0.85rem;
     line-height: 1.45;
+  }
+
+  /* ── Last-run-failed banner ──
+     Surfaces a historical job failure that wasn't followed by a success.
+     Warning palette (not danger) because the failure is past, not blocking
+     — the user can keep planning while deciding whether to retry. Clears
+     server-side on next successful run via completeJob. */
+  .last-run-banner {
+    padding: 0.7rem 0.95rem;
+    background: var(--state-warning-surface);
+    border: 1px solid var(--state-warning);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.84rem;
+    line-height: 1.55;
+    margin-bottom: 0.25rem;
+  }
+  .last-run-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.6rem;
+    align-items: baseline;
+  }
+  .last-run-body strong {
+    color: var(--state-warning);
+    font-weight: 600;
+  }
+  .last-run-sentence { color: var(--text-primary); }
+  .last-run-detail {
+    width: 100%;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* ── Extract-only recovery banner ──

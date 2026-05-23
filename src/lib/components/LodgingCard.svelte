@@ -1,0 +1,347 @@
+<script>
+  // Lodging candidate card. Diverges from StopCard by FORM, not color:
+  // horizontal layout with a media-left bed glyph slot, a 3-dot
+  // price-tier ramp, a prominent nights badge, and "Book" as a styled
+  // CTA. The brief's "stops look like a place to do; lodging looks
+  // like a place to sleep" guidance is implemented as shape, not hue.
+
+  let {
+    lodging,
+    promoted = false,
+    daysUsed = [],   // numbers of days currently using this lodging
+    hovered = false,
+    readonly = false,
+    working = false,
+    showDragHandle = true,
+    onHover = () => {},
+    onClick = () => {},
+    onPromote = () => {},
+    onHide = () => {},
+    ondragstart = () => {},
+    ondragend = () => {},
+  } = $props();
+
+  // Price tier rendered as a 3-step ramp; sunset family lifts the
+  // brand identity into the affordance without inventing a fourth color.
+  const PRICE_INDEX = { budget: 1, mid: 2, splurge: 3 };
+  const priceLevel = $derived(PRICE_INDEX[lodging.price_tier] ?? 2);
+
+  const priceLabel = $derived(
+    lodging.price_tier === 'budget' ? 'Budget'
+    : lodging.price_tier === 'splurge' ? 'Splurge'
+    : 'Mid'
+  );
+
+  function handleDragStart(e) {
+    if (!e.dataTransfer) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', lodging.id);
+    e.dataTransfer.setData('application/x-traverse-candidate', JSON.stringify({ id: lodging.id, type: 'lodging' }));
+    ondragstart(lodging.id);
+  }
+</script>
+
+<article
+  class="lodging-card"
+  class:promoted
+  class:hovered
+  draggable={showDragHandle && !readonly && !working ? 'true' : 'false'}
+  onmouseenter={() => onHover(lodging.id)}
+  onmouseleave={() => onHover(null)}
+  onfocusin={() => onHover(lodging.id)}
+  onfocusout={() => onHover(null)}
+  ondragstart={handleDragStart}
+  {ondragend}
+  aria-label="Candidate lodging: {lodging.name}"
+>
+  <div class="bed-slot" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 17v-7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v7" />
+      <path d="M3 14h18" />
+      <path d="M3 17v3" />
+      <path d="M21 17v3" />
+      <circle cx="8" cy="11" r="1.5" />
+    </svg>
+  </div>
+
+  <div class="body">
+    <div class="head">
+      <h4 class="name">{lodging.name}</h4>
+      {#if promoted && daysUsed.length}
+        <span class="in-plan-tag" title="In your plan">
+          Day{daysUsed.length > 1 ? 's' : ''} {daysUsed.sort((a,b) => a-b).join(', ')}
+        </span>
+      {/if}
+    </div>
+
+    <div class="meta">
+      <span class="price-ramp" aria-label="Price tier: {priceLabel}" title="{priceLabel}">
+        <span class="dot" class:on={priceLevel >= 1}></span>
+        <span class="dot" class:on={priceLevel >= 2}></span>
+        <span class="dot" class:on={priceLevel >= 3}></span>
+      </span>
+      <span class="price-label">{priceLabel}</span>
+      {#if lodging.nights}
+        <span class="nights-badge">{lodging.nights} night{lodging.nights === 1 ? '' : 's'}</span>
+      {/if}
+    </div>
+
+    {#if lodging.description}
+      <p class="summary">{lodging.description}</p>
+    {/if}
+
+    <footer>
+      {#if showDragHandle && !readonly}
+        <span class="drag-handle" aria-hidden="true" title="Drag onto a day card to assign">⋮⋮</span>
+      {/if}
+      <button
+        type="button"
+        class="action"
+        onclick={(e) => { e.stopPropagation(); onPromote(); }}
+        disabled={readonly || working}
+      >Set lodging for day…</button>
+      {#if lodging.booking_url}
+        <a
+          class="book"
+          href={lodging.booking_url}
+          target="_blank"
+          rel="noreferrer noopener"
+          onclick={(e) => e.stopPropagation()}
+        >Book ↗</a>
+      {/if}
+      {#if !readonly}
+        <button
+          type="button"
+          class="hide"
+          onclick={(e) => { e.stopPropagation(); onHide(); }}
+          title="Hide this candidate"
+          aria-label="Hide {lodging.name}"
+          disabled={working}
+        >×</button>
+      {/if}
+    </footer>
+  </div>
+</article>
+
+<style>
+  /* Horizontal layout — the bed-icon slot anchors the card visually as
+     "a place to sleep" without using a literal photograph. */
+  .lodging-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.7rem;
+    align-items: stretch;
+    padding: 0.65rem 0.85rem 0.65rem 0.7rem;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 5px;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
+    outline: none;
+  }
+  .lodging-card:hover,
+  .lodging-card:focus-visible {
+    border-color: var(--border-default);
+  }
+  .lodging-card:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .lodging-card.hovered {
+    background: color-mix(in oklab, var(--accent) 3%, var(--surface-raised));
+  }
+  .lodging-card.promoted {
+    background: color-mix(in oklab, var(--accent) 4%, var(--surface-raised));
+    border-color: color-mix(in oklab, var(--accent) 40%, var(--border-default));
+  }
+  .lodging-card[draggable="true"]:active { cursor: grabbing; }
+
+  /* Bed glyph slot — a small "media" column on the left. The SVG is
+     inline so the icon adopts text color via currentColor and respects
+     dark mode without a separate asset. */
+  .bed-slot {
+    width: 38px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 0.15rem;
+    color: var(--bone-600);
+  }
+  :global([data-theme="dark"]) .bed-slot { color: var(--bone-200); }
+
+  .body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .name {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-sans);
+    font-size: 0.96rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .in-plan-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-inverse);
+    background: var(--accent);
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  /* Price ramp — 3 dots in the sunset family, brand-coherent and unique
+     to lodging cards so they read as "lodging affordance" at a glance. */
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+  }
+  .price-ramp {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    line-height: 1;
+  }
+  .price-ramp .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--bone-400);
+    transition: background-color 0.15s;
+  }
+  .price-ramp .dot.on { background: var(--sunset-600); }
+  :global([data-theme="dark"]) .price-ramp .dot { background: var(--bone-800); }
+  :global([data-theme="dark"]) .price-ramp .dot.on { background: var(--sunset-400); }
+  .price-label {
+    color: var(--text-tertiary);
+    text-transform: lowercase;
+    font-variant: small-caps;
+    letter-spacing: 0.04em;
+  }
+  .nights-badge {
+    margin-left: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--bark-800);
+    background: var(--bark-50);
+    padding: 0.14rem 0.45rem;
+    border-radius: 3px;
+  }
+  :global([data-theme="dark"]) .nights-badge {
+    color: var(--bark-100);
+    background: var(--bark-800);
+  }
+
+  .summary {
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  footer {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-top: 0.1rem;
+  }
+  .drag-handle {
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
+    line-height: 1;
+    letter-spacing: -2px;
+    cursor: grab;
+    padding: 0 0.15rem;
+    user-select: none;
+  }
+  .drag-handle:active { cursor: grabbing; }
+
+  .action {
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    padding: 3px 9px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .action:hover:not(:disabled) {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+  .action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Book CTA — styled as a real outgoing action, not a footnote arrow.
+     Inverse of `.action` so it reads as the affirmative "go to booking" gesture. */
+  .book {
+    margin-left: auto;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--accent-text);
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+    border: 0.5px solid color-mix(in oklab, var(--accent) 40%, transparent);
+    padding: 3px 9px;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .book:hover {
+    background: color-mix(in oklab, var(--accent) 18%, transparent);
+    border-color: var(--accent);
+    color: var(--text-primary);
+  }
+
+  .hide {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 1.05rem;
+    line-height: 1;
+    padding: 0 0.25rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s, color 0.12s;
+    flex-shrink: 0;
+  }
+  .lodging-card:hover .hide,
+  .lodging-card:focus-within .hide {
+    opacity: 1;
+  }
+  .hide:hover:not(:disabled) { color: var(--state-danger); }
+  .hide:disabled { opacity: 0.3; cursor: not-allowed; }
+  @media (pointer: coarse) {
+    .hide { opacity: 0.65; }
+  }
+</style>

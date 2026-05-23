@@ -30,6 +30,52 @@
   let working = $state(false);
   let error = $state(null);
 
+  // Drag-drop target state. `dragOverDay` is the day number currently being
+  // hovered with a candidate drag. Cleared on dragleave/drop/dragend.
+  // Tracks how many child elements have entered to avoid the dragleave
+  // flicker that fires when crossing a child boundary inside the drop zone.
+  let dragOverDay = $state(null);
+  const dragEnterCounts = new Map();
+
+  function onDayDragEnter(dayNumber, e) {
+    e.preventDefault();
+    const next = (dragEnterCounts.get(dayNumber) || 0) + 1;
+    dragEnterCounts.set(dayNumber, next);
+    dragOverDay = dayNumber;
+  }
+
+  function onDayDragLeave(dayNumber) {
+    const next = (dragEnterCounts.get(dayNumber) || 1) - 1;
+    if (next <= 0) {
+      dragEnterCounts.delete(dayNumber);
+      if (dragOverDay === dayNumber) dragOverDay = null;
+    } else {
+      dragEnterCounts.set(dayNumber, next);
+    }
+  }
+
+  async function onDayDrop(dayNumber, e) {
+    e.preventDefault();
+    dragEnterCounts.delete(dayNumber);
+    dragOverDay = null;
+    let payload = null;
+    try {
+      const raw = e.dataTransfer?.getData('application/x-traverse-candidate');
+      if (raw) payload = JSON.parse(raw);
+    } catch { /* fall through to text/plain id-only path */ }
+    if (!payload?.id) {
+      const id = e.dataTransfer?.getData('text/plain');
+      if (!id) return;
+      // Unknown type — infer from candidates list.
+      const isStop = (candidates?.stops ?? []).some((s) => s.id === id);
+      const isLodging = (candidates?.lodging ?? []).some((l) => l.id === id);
+      payload = { id, type: isStop ? 'stop' : (isLodging ? 'lodging' : null) };
+    }
+    if (!payload?.type) return;
+    if (payload.type === 'stop') await addStop(dayNumber, payload.id);
+    else if (payload.type === 'lodging') await setLodging(dayNumber, payload.id);
+  }
+
   async function api(path, opts) {
     working = true;
     error = null;
@@ -138,7 +184,14 @@
   </div>
 {:else}
   {#each plan.days as day (day.number)}
-    <article class="day-card">
+    <article
+      class="day-card"
+      class:drop-target-active={dragOverDay === day.number}
+      ondragenter={(e) => onDayDragEnter(day.number, e)}
+      ondragover={(e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }}
+      ondragleave={() => onDayDragLeave(day.number)}
+      ondrop={(e) => onDayDrop(day.number, e)}
+    >
       <header>
         <h3>Day {day.number}{#if day.date} · {day.date}{/if}</h3>
         <button
@@ -298,7 +351,7 @@
     padding: 0.5rem 0.75rem;
     background: var(--state-danger-surface);
     color: var(--text-primary);
-    border-left: 3px solid var(--state-danger);
+    border: 1px solid var(--state-danger);
     border-radius: 0.25rem;
     margin-bottom: 1rem;
     font-family: var(--font-sans);
@@ -311,6 +364,16 @@
     margin-bottom: 1rem;
     background: var(--surface-raised);
     font-family: var(--font-sans);
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  /* Drop target affordance while a CandidatesSection card is being dragged
+     over this day card. Accent border + faint accent wash signals "drop
+     here to promote." Children inherit pointer-events so the dragleave
+     count stays consistent across child boundaries (see onDayDragLeave). */
+  .day-card.drop-target-active {
+    border-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 6%, var(--surface-raised));
+    box-shadow: 0 0 0 1px var(--accent);
   }
   .day-card header {
     display: flex;
@@ -326,30 +389,62 @@
     font-family: var(--font-sans);
     font-weight: 500;
   }
+  /* Compact-density variant of the global .btn-secondary treatment. Same
+     transparent + 0.5px border-default chrome; smaller padding + font so
+     it sits inside day cards without dominating the card content. Visual
+     drift between the three button systems (global .btn, .btn-inline,
+     .btn-section-ask) was called out in critique — they now share borders,
+     colors, hover behavior, and only diverge on density. */
   .btn-inline {
-    background: none;
-    border: 1px solid var(--border-default);
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    padding: 4px 10px;
+    border-radius: 4px;
+    color: var(--text-secondary);
     cursor: pointer;
     font-family: var(--font-sans);
-    font-size: 0.85rem;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   }
   .btn-inline:hover:not(:disabled) {
-    background: var(--surface-sunken);
+    background: var(--surface-raised);
+    color: var(--text-primary);
   }
   .btn-inline:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
+  /* Primary inline button mirrors the global .btn-primary: dark forest
+     fill in light mode, inverted bone fill in dark mode. */
   .btn-inline.btn-primary {
-    background: var(--accent);
+    background: var(--forest-800);
     color: var(--text-inverse);
-    border-color: var(--accent);
+    border-color: var(--forest-800);
+  }
+  .btn-inline.btn-primary:hover:not(:disabled) {
+    background: var(--forest-900);
+    border-color: var(--forest-900);
+    color: var(--text-inverse);
+  }
+  :global([data-theme="dark"]) .btn-inline.btn-primary {
+    background: var(--bone-100);
+    color: var(--forest-900);
+    border-color: var(--bone-100);
+  }
+  :global([data-theme="dark"]) .btn-inline.btn-primary:hover:not(:disabled) {
+    background: var(--bone-200);
+    border-color: var(--bone-200);
+    color: var(--forest-900);
   }
   .btn-inline.btn-icon {
-    padding: 0.15rem 0.4rem;
+    padding: 3px 8px;
     line-height: 1;
     min-width: 1.75rem;
   }

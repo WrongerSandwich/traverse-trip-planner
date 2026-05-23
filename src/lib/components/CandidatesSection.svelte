@@ -1,16 +1,45 @@
 <script>
   import { invalidate } from '$app/navigation';
+  import { failureSentence } from '$lib/errors-registry.js';
+  import CandidatesMap from './CandidatesMap.svelte';
+  import StopCard from './StopCard.svelte';
+  import LodgingCard from './LodgingCard.svelte';
 
-  let { candidates, plan = null, slug, readonly = false } = $props();
+  let { candidates, plan = null, slug, destination = null, home = null, readonly = false } = $props();
 
-  let tab = $state('stops');
-  let categoryFilter = $state(null);
-  let promoteFor = $state(null); // candidate id whose day-picker is open
+  // ── UI state ────────────────────────────────────────────────────────────
+  let tab = $state('stops');                       // 'stops' | 'lodging'
+  let visibleCategories = $state(null);            // Set<string> | null (null = all)
+  let promoteFor = $state(null);                   // candidate id whose day picker is open
   let working = $state(false);
-  let error = $state(null);
+  let errorCode = $state(/** @type {string|null} */ (null));
+  let errorCtx = $state(/** @type {Record<string,string>} */ ({}));
+  let hoveredId = $state(null);                    // card ↔ map sync
+  let showHidden = $state(false);                  // toggle for the "N hidden — show" reveal
+
+  // Toast state for the hide-with-undo gesture.
+  let hideToast = $state(/** @type {{ id: string, name: string, type: 'stop'|'lodging' } | null} */ (null));
+  let hideToastTimer = null;
+
+  // ── Derivations ─────────────────────────────────────────────────────────
+  const allStops = $derived(candidates?.stops ?? []);
+  const allLodging = $derived(candidates?.lodging ?? []);
+
+  const visibleStops = $derived(allStops.filter((s) => showHidden || !s.hidden));
+  const visibleLodging = $derived(allLodging.filter((l) => showHidden || !l.hidden));
+
+  const hiddenCount = $derived(
+    allStops.filter((s) => s.hidden).length + allLodging.filter((l) => l.hidden).length
+  );
+
+  const presentCategories = $derived.by(() => {
+    const set = new Set();
+    for (const s of visibleStops) set.add(s.category || 'misc');
+    return Array.from(set);
+  });
 
   const filteredStops = $derived(
-    (candidates?.stops ?? []).filter((s) => !categoryFilter || s.category === categoryFilter)
+    visibleStops.filter((s) => !visibleCategories || visibleCategories.has(s.category || 'misc'))
   );
 
   const promotedIds = $derived(
@@ -28,9 +57,63 @@
     return (plan?.days ?? []).filter((d) => d.lodging_id === id).map((d) => d.number);
   }
 
+  // Haversine in miles. Used to surface the distance chip on each stop card
+  // (from destination) and the cluster-fit hint in the day picker.
+  function distanceMi(a, b) {
+    if (!a || !b) return null;
+    const lat1 = Number(a.lat), lng1 = Number(a.lng);
+    const lat2 = Number(b.lat), lng2 = Number(b.lng);
+    if (!Number.isFinite(lat1) || !Number.isFinite(lng1) || !Number.isFinite(lat2) || !Number.isFinite(lng2)) return null;
+    const toRad = (d) => (d * Math.PI) / 180;
+    const R = 3959;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const x = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2) ** 2;
+    return Math.round(2 * R * Math.asin(Math.sqrt(x)));
+  }
+
+  // Day picker mini-card data — per-day { number, date, lodgingName, stopCount, distanceFromCandidate }
+  function dayOptionsFor(candidate) {
+    const days = plan?.days ?? [];
+    const candCoords = candidate?.coords;
+    return days.map((d) => {
+      const lodgingName = d.lodging_id
+        ? allLodging.find((l) => l.id === d.lodging_id)?.name ?? null
+        : null;
+      const stopCount = (d.stops ?? []).length;
+      // Day centroid = average of day's stop coords (if available).
+      let centroid = null;
+      if (candCoords && stopCount) {
+        let sumLat = 0, sumLng = 0, n = 0;
+        for (const sid of d.stops ?? []) {
+          const s = allStops.find((x) => x.id === sid);
+          if (s?.coords?.lat != null && s?.coords?.lng != null) {
+            sumLat += Number(s.coords.lat);
+            sumLng += Number(s.coords.lng);
+            n++;
+          }
+        }
+        if (n > 0) centroid = { lat: sumLat / n, lng: sumLng / n };
+      }
+      const distance = candCoords && centroid ? distanceMi(candCoords, centroid) : null;
+      return {
+        number: d.number,
+        date: d.date ?? null,
+        lodgingName,
+        stopCount,
+        distance,
+        fitsCluster: distance != null && distance <= 30,
+        // Lodging-specific: whether this lodging is currently set on this day
+        currentlySet: d.lodging_id === candidate?.id,
+      };
+    });
+  }
+
+  // ── API plumbing ────────────────────────────────────────────────────────
   async function api(path, opts) {
     working = true;
-    error = null;
+    errorCode = null;
+    errorCtx = {};
     try {
       const res = await fetch(path, {
         headers: { 'content-type': 'application/json' },
@@ -38,278 +121,716 @@
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `${res.status}`);
+        errorCode = body.code || 'action_failed';
+        errorCtx = body.context || { action: 'update candidates' };
+        return false;
       }
       await invalidate('app:trip');
-    } catch (err) {
-      error = err.message;
+      return true;
+    } catch {
+      errorCode = 'network_error';
+      return false;
     } finally {
       working = false;
     }
   }
 
-  async function promoteStop(id, day) {
-    await api(`/api/plan/${slug}/promote`, {
+  async function promoteStop(stopId, dayNumber) {
+    const ok = await api(`/api/plan/${slug}/promote`, {
       method: 'POST',
-      body: JSON.stringify({ id, day }),
+      body: JSON.stringify({ id: stopId, day: dayNumber }),
     });
-    promoteFor = null;
+    if (ok) promoteFor = null;
   }
 
-  async function unPromoteStop(id) {
+  async function unPromoteStop(stopId) {
     await api(`/api/plan/${slug}/un-promote`, {
       method: 'POST',
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id: stopId }),
     });
   }
 
-  async function setLodgingForDay(dayNumber, id) {
-    await api(`/api/plan/${slug}/day/${dayNumber}/lodging`, {
+  async function setLodgingForDay(dayNumber, lodgingId) {
+    const ok = await api(`/api/plan/${slug}/day/${dayNumber}/lodging`, {
       method: 'PUT',
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id: lodgingId }),
     });
-    promoteFor = null;
+    if (ok) promoteFor = null;
   }
+
+  // ── Hide flow with undo toast ──
+  async function hideCandidate(candidate, type) {
+    const segment = type === 'lodging' ? 'lodging' : 'stops';
+    const ok = await api(`/api/candidates/${slug}/${segment}/${encodeURIComponent(candidate.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ hidden: true }),
+    });
+    if (!ok) return;
+    queueHideToast({ id: candidate.id, name: candidate.name, type });
+  }
+
+  async function unhideCandidate(id, type) {
+    const segment = type === 'lodging' ? 'lodging' : 'stops';
+    await api(`/api/candidates/${slug}/${segment}/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ hidden: false }),
+    });
+  }
+
+  function queueHideToast(entry) {
+    if (hideToastTimer) {
+      clearTimeout(hideToastTimer);
+      hideToastTimer = null;
+    }
+    hideToast = entry;
+    hideToastTimer = setTimeout(() => {
+      hideToast = null;
+      hideToastTimer = null;
+    }, 5000);
+  }
+
+  async function undoHide() {
+    if (!hideToast) return;
+    const { id, type } = hideToast;
+    hideToast = null;
+    if (hideToastTimer) { clearTimeout(hideToastTimer); hideToastTimer = null; }
+    await unhideCandidate(id, type);
+  }
+
+  function dismissHideToast() {
+    hideToast = null;
+    if (hideToastTimer) { clearTimeout(hideToastTimer); hideToastTimer = null; }
+  }
+
+  // ── Filter helpers ──
+  function toggleCategoryChip(cat) {
+    if (!visibleCategories) {
+      // Click on a chip while "all" is active: switch to single-cat mode.
+      visibleCategories = new Set([cat]);
+      return;
+    }
+    if (visibleCategories.has(cat)) {
+      visibleCategories.delete(cat);
+      if (visibleCategories.size === 0) visibleCategories = null;
+      else visibleCategories = new Set(visibleCategories);
+    } else {
+      visibleCategories = new Set([...visibleCategories, cat]);
+    }
+  }
+  function clearCategoryFilter() {
+    visibleCategories = null;
+  }
+
+  // ── Pin/card hover sync ──
+  function setHover(id) { hoveredId = id; }
+
+  // When the user clicks a pin, scroll the matching card into view.
+  function scrollToCard(id) {
+    const el = document.getElementById(`candidate-${id}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // Capitalize-once for chip labels.
+  function titleCase(s) {
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  }
+
+  // Compute the destination coord array shape needed by the map.
+  const destinationCoords = $derived(
+    Array.isArray(destination) ? destination : null
+  );
 </script>
 
-{#if error}
-  <p class="banner-error" role="alert">{error}</p>
+{#if errorCode}
+  <div class="banner-error" role="alert">
+    <span>{failureSentence(errorCode, errorCtx)}</span>
+    <button type="button" class="banner-dismiss" onclick={() => { errorCode = null; }}>Dismiss</button>
+  </div>
 {/if}
 
 {#if !candidates}
-  <p class="empty">Candidates appear here after research runs.</p>
+  <!-- Pre-research empty: ghost preview teaches the wide-net mental model. -->
+  <div class="empty-pre">
+    <div class="ghost-preview" aria-hidden="true">
+      <div class="ghost-card"></div>
+      <div class="ghost-card"></div>
+      <div class="ghost-card"></div>
+    </div>
+    <p class="empty-line">
+      Run research to see what's nearby. Keep what looks worth a stop; hide the rest.
+    </p>
+  </div>
+{:else if (visibleStops.length + visibleLodging.length) === 0 && hiddenCount === 0}
+  <!-- candidates.md exists but is fully empty (rare; shouldn't normally happen
+       but defensive). -->
+  <p class="empty-line">No candidates yet. Add one manually or re-run research.</p>
 {:else}
-  <div class="tabs">
-    <button class:active={tab === 'stops'} onclick={() => (tab = 'stops')}>Stops ({candidates.stops.length})</button>
-    <button class:active={tab === 'lodging'} onclick={() => (tab = 'lodging')}>Lodging ({candidates.lodging.length})</button>
+  <!-- Map: visible above the cards. The brief commits to map-IS-the-interface
+       on this surface, so it gets first-paint real estate. -->
+  <div class="map-block">
+    <CandidatesMap
+      stops={visibleStops}
+      lodging={visibleLodging}
+      home={Array.isArray(home) ? home : null}
+      destination={destinationCoords}
+      promotedIds={promotedIds}
+      hoveredId={hoveredId}
+      onHover={setHover}
+      onClick={scrollToCard}
+      visibleCategories={visibleCategories}
+    />
   </div>
 
+  <!-- Filter strip: category chips on the left, Stops/Lodging tabs on the right.
+       Chips control map+cards together; tabs only switch the list type. -->
+  <div class="filter-strip">
+    <div class="chips" role="group" aria-label="Filter by category">
+      <button
+        type="button"
+        class="chip chip--all"
+        class:active={!visibleCategories}
+        onclick={clearCategoryFilter}
+      >All</button>
+      {#each presentCategories as cat}
+        <button
+          type="button"
+          class="chip"
+          data-category={cat}
+          class:active={visibleCategories?.has(cat)}
+          onclick={() => toggleCategoryChip(cat)}
+        >
+          <span class="chip-dot" aria-hidden="true"></span>
+          {titleCase(cat)}
+        </button>
+      {/each}
+    </div>
+    <div class="tabs" role="tablist" aria-label="Candidate type">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={tab === 'stops'}
+        class:active={tab === 'stops'}
+        onclick={() => (tab = 'stops')}
+      >Stops <span class="tab-count">{filteredStops.length}</span></button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={tab === 'lodging'}
+        class:active={tab === 'lodging'}
+        onclick={() => (tab = 'lodging')}
+      >Lodging <span class="tab-count">{visibleLodging.length}</span></button>
+    </div>
+  </div>
+
+  <!-- Card list -->
   {#if tab === 'stops'}
-    {#each filteredStops as stop (stop.id)}
-      <article class="card" class:in-plan={isPromotedFn(stop.id)}>
-        <header>
-          <h4>{stop.name}</h4>
-          <span class="badge cat-{stop.category}">{stop.category}</span>
-          {#if isPromotedFn(stop.id)}
-            <span class="badge in-plan">In plan</span>
-            <button
-              class="btn-inline"
-              onclick={() => unPromoteStop(stop.id)}
-              disabled={working || readonly}
-            >Un-promote</button>
-          {:else}
-            <button
-              class="btn-inline"
-              onclick={() => (promoteFor = promoteFor === stop.id ? null : stop.id)}
-              disabled={working || readonly}
-            >Promote to day…</button>
-          {/if}
-        </header>
-        <p class="desc">{stop.description}</p>
-        {#if stop.why_recommended}<p class="why"><em>{stop.why_recommended}</em></p>{/if}
-        {#if stop.source_url}<a href={stop.source_url} target="_blank" rel="noreferrer">Source ↗</a>{/if}
-        {#if promoteFor === stop.id}
-          <div class="day-picker">
-            {#each plan?.days ?? [] as d (d.number)}
-              <button
-                class="picker-item"
-                onclick={() => promoteStop(stop.id, d.number)}
-                disabled={working || readonly}
-              >Day {d.number}</button>
-            {/each}
-            {#if !(plan?.days?.length)}
-              <button
-                class="picker-item"
-                onclick={() => promoteStop(stop.id, null)}
-                disabled={working || readonly}
-              >Create Day 1</button>
+    {#if filteredStops.length === 0 && visibleStops.length === 0}
+      <p class="empty-line empty-tab">
+        Research only found lodging. Re-research to surface stops, or add one manually.
+      </p>
+    {:else if filteredStops.length === 0}
+      <p class="empty-line empty-tab">
+        No stops match this filter. Clear filters to see all {visibleStops.length} stops.
+      </p>
+    {:else}
+      <div class="list">
+        {#each filteredStops as stop (stop.id)}
+          <div id="candidate-{stop.id}" class="row" class:hidden-row={stop.hidden}>
+            <StopCard
+              {stop}
+              promoted={isPromotedFn(stop.id)}
+              distance={destinationCoords ? distanceMi(stop.coords, { lat: destinationCoords[0], lng: destinationCoords[1] }) : null}
+              hovered={hoveredId === stop.id}
+              {readonly}
+              {working}
+              onHover={setHover}
+              onClick={scrollToCard}
+              onPromote={() => { promoteFor = promoteFor === stop.id ? null : stop.id; }}
+              onUnpromote={() => unPromoteStop(stop.id)}
+              onHide={() => hideCandidate(stop, 'stop')}
+            />
+            {#if promoteFor === stop.id}
+              <div class="day-picker" role="listbox" aria-label="Promote {stop.name} to which day">
+                {#each dayOptionsFor(stop) as option (option.number)}
+                  <button
+                    type="button"
+                    class="day-option"
+                    onclick={() => promoteStop(stop.id, option.number)}
+                    disabled={working || readonly}
+                  >
+                    <span class="day-num">Day {option.number}</span>
+                    {#if option.date}<span class="day-date">{option.date}</span>{/if}
+                    <div class="day-meta">
+                      {#if option.lodgingName}<span class="day-lodging">{option.lodgingName}</span>{/if}
+                      <span class="day-stops">{option.stopCount} stop{option.stopCount === 1 ? '' : 's'}</span>
+                      {#if option.distance != null}<span class="day-dist">~{option.distance} mi</span>{/if}
+                    </div>
+                    {#if option.fitsCluster}<span class="day-fits" aria-hidden="true">fits cluster</span>{/if}
+                  </button>
+                {/each}
+                {#if !(plan?.days?.length)}
+                  <button
+                    type="button"
+                    class="day-option day-option--empty"
+                    onclick={() => promoteStop(stop.id, null)}
+                    disabled={working || readonly}
+                  >
+                    <span class="day-num">+ Create Day 1</span>
+                    <span class="day-meta-empty">No days in the plan yet</span>
+                  </button>
+                {/if}
+              </div>
             {/if}
           </div>
-        {/if}
-      </article>
-    {/each}
+        {/each}
+      </div>
+    {/if}
   {:else}
-    {#each candidates.lodging as l (l.id)}
-      {@const daysUsed = lodgingDays(l.id)}
-      <article class="card" class:in-plan={isPromotedFn(l.id)}>
-        <header>
-          <h4>{l.name}</h4>
-          <span class="badge tier-{l.price_tier}">{l.price_tier}</span>
-          {#if l.nights}<span class="nights">{l.nights} nights</span>{/if}
-          {#if daysUsed.length > 0}
-            <span class="badge in-plan">In plan · Day{daysUsed.length > 1 ? 's' : ''} {daysUsed.join(', ')}</span>
-          {/if}
-          <button
-            class="btn-inline"
-            onclick={() => (promoteFor = promoteFor === l.id ? null : l.id)}
-            disabled={working || readonly}
-          >Set lodging for day…</button>
-        </header>
-        <p class="desc">{l.description}</p>
-        {#if l.booking_url}<a href={l.booking_url} target="_blank" rel="noreferrer">Book ↗</a>{/if}
-        {#if promoteFor === l.id}
-          <div class="day-picker">
-            {#each plan?.days ?? [] as d (d.number)}
-              <button
-                class="picker-item"
-                onclick={() => setLodgingForDay(d.number, l.id)}
-                disabled={working || readonly}
-              >Day {d.number}{#if d.lodging_id === l.id} (currently set){/if}</button>
-            {/each}
-            {#each daysUsed as n (n)}
-              <button
-                class="picker-item"
-                onclick={() => setLodgingForDay(n, null)}
-                disabled={working || readonly}
-              >Clear from Day {n}</button>
-            {/each}
-            {#if !(plan?.days?.length)}
-              <p class="picker-empty">Add a day in the Plan section first.</p>
+    {#if visibleLodging.length === 0}
+      <p class="empty-line empty-tab">
+        Research only found stops. Re-research to surface stays, or add one manually.
+      </p>
+    {:else}
+      <div class="list">
+        {#each visibleLodging as l (l.id)}
+          {@const daysUsed = lodgingDays(l.id)}
+          <div id="candidate-{l.id}" class="row" class:hidden-row={l.hidden}>
+            <LodgingCard
+              lodging={l}
+              promoted={isPromotedFn(l.id)}
+              {daysUsed}
+              hovered={hoveredId === l.id}
+              {readonly}
+              {working}
+              onHover={setHover}
+              onClick={scrollToCard}
+              onPromote={() => { promoteFor = promoteFor === l.id ? null : l.id; }}
+              onHide={() => hideCandidate(l, 'lodging')}
+            />
+            {#if promoteFor === l.id}
+              <div class="day-picker" role="listbox" aria-label="Set {l.name} as lodging for which day">
+                {#if !(plan?.days?.length)}
+                  <p class="picker-empty">Add a day in the Plan section first, then come back to assign lodging.</p>
+                {:else}
+                  {#each dayOptionsFor(l) as option (option.number)}
+                    <button
+                      type="button"
+                      class="day-option"
+                      class:currently-set={option.currentlySet}
+                      onclick={() => setLodgingForDay(option.number, option.currentlySet ? null : l.id)}
+                      disabled={working || readonly}
+                    >
+                      <span class="day-num">Day {option.number}</span>
+                      {#if option.date}<span class="day-date">{option.date}</span>{/if}
+                      <div class="day-meta">
+                        {#if option.currentlySet}
+                          <span class="day-lodging currently">Currently set — click to clear</span>
+                        {:else if option.lodgingName}
+                          <span class="day-lodging">{option.lodgingName} (will replace)</span>
+                        {:else}
+                          <span class="day-lodging">no lodging set</span>
+                        {/if}
+                        <span class="day-stops">{option.stopCount} stop{option.stopCount === 1 ? '' : 's'}</span>
+                      </div>
+                    </button>
+                  {/each}
+                {/if}
+              </div>
             {/if}
           </div>
-        {/if}
-      </article>
-    {/each}
+        {/each}
+      </div>
+    {/if}
+  {/if}
+
+  <!-- Hidden-candidates toggle. Whittle is reversible; surface the count
+       so the user can see what they've discarded and reconsider. -->
+  {#if hiddenCount > 0}
+    <button
+      type="button"
+      class="hidden-toggle"
+      onclick={() => (showHidden = !showHidden)}
+    >
+      {#if showHidden}
+        Hide {hiddenCount} hidden — collapse
+      {:else}
+        {hiddenCount} hidden — show
+      {/if}
+    </button>
   {/if}
 {/if}
 
+<!-- Hide toast — bottom-of-section pop-up with a 5s Undo window. -->
+{#if hideToast}
+  <div class="hide-toast" role="status" aria-live="polite">
+    <span>Hidden {hideToast.name}.</span>
+    <button type="button" class="toast-undo" onclick={undoHide}>Undo</button>
+    <button type="button" class="toast-dismiss" onclick={dismissHideToast} aria-label="Dismiss">×</button>
+  </div>
+{/if}
+
 <style>
+  /* ── Banner ──────────────────────────────────────────────────────────── */
   .banner-error {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
     padding: 0.5rem 0.75rem;
     background: var(--state-danger-surface);
     color: var(--text-primary);
-    border-left: 3px solid var(--state-danger);
-    border-radius: 0.25rem;
-    margin-bottom: 1rem;
+    border: 1px solid var(--state-danger);
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
     font-family: var(--font-sans);
     font-size: 0.9rem;
   }
-  .tabs {
-    display: flex;
-    gap: 0.5rem;
-    border-bottom: 1px solid var(--border-default);
-    margin-bottom: 1rem;
+  .banner-error span { flex: 1; }
+  .banner-dismiss {
+    background: transparent;
+    border: 0.5px solid var(--state-danger);
+    color: var(--state-danger);
+    font-family: var(--font-sans);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.25rem 0.55rem;
+    border-radius: 4px;
+    cursor: pointer;
   }
-  .tabs button {
-    background: none;
-    border: none;
-    padding: 0.5rem 1rem;
+  .banner-dismiss:hover {
+    background: color-mix(in oklab, var(--state-danger) 8%, transparent);
+  }
+
+  /* ── Empty states ────────────────────────────────────────────────────── */
+  .empty-pre {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem 0.5rem;
+  }
+  .ghost-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .ghost-card {
+    height: 56px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 5px;
+    opacity: 0.45;
+  }
+  .ghost-card:nth-child(1) { opacity: 0.55; }
+  .ghost-card:nth-child(2) { opacity: 0.40; }
+  .ghost-card:nth-child(3) { opacity: 0.30; }
+  .empty-line {
+    color: var(--text-tertiary);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    font-style: italic;
+    text-align: center;
+    padding: 1rem 0.5rem;
+    margin: 0;
+  }
+  .empty-tab {
+    background: var(--surface-raised);
+    border: 1px dashed var(--border-default);
+    border-radius: 5px;
+  }
+
+  /* ── Map block ──────────────────────────────────────────────────────── */
+  .map-block {
+    height: 280px;
+    margin-bottom: 0.85rem;
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+  }
+  @media (max-width: 768px) {
+    .map-block { height: 200px; }
+  }
+
+  /* ── Filter strip ───────────────────────────────────────────────────── */
+  .filter-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+  }
+  .chips {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    padding: 3px 9px 3px 7px;
+    border-radius: 999px;
     color: var(--text-tertiary);
     cursor: pointer;
-    border-bottom: 2px solid transparent;
     font-family: var(--font-sans);
-    font-size: 0.85rem;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
   }
-  .tabs button.active {
-    color: var(--text-primary);
-    border-bottom-color: var(--accent);
-  }
-  .card {
-    padding: 0.75rem;
-    border: 1px solid var(--border-default);
-    border-radius: 0.5rem;
-    margin-bottom: 0.5rem;
+  .chip:hover {
     background: var(--surface-raised);
+    color: var(--text-primary);
   }
-  .card.in-plan { border-color: var(--accent); }
-  .card header {
+  .chip.active {
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+  .chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bone-400);
+    flex-shrink: 0;
+  }
+  .chip[data-category="historic"]      .chip-dot { background: var(--cat-historic); }
+  .chip[data-category="cultural"]      .chip-dot { background: var(--cat-cultural); }
+  .chip[data-category="food"]          .chip-dot { background: var(--cat-food); }
+  .chip[data-category="entertainment"] .chip-dot { background: var(--cat-entertainment); }
+  .chip[data-category="outdoors"]      .chip-dot { background: var(--cat-outdoors); }
+  .chip[data-category="view"]          .chip-dot { background: var(--cat-view); }
+  .chip[data-category="quirky"]        .chip-dot { background: var(--cat-quirky); }
+  .chip[data-category="shopping"]      .chip-dot { background: var(--cat-shopping); }
+  .chip[data-category="misc"]          .chip-dot { background: var(--cat-misc); }
+
+  .tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    background: var(--surface-sunken);
+    padding: 2px;
+    border-radius: 5px;
+  }
+  .tabs button {
+    background: transparent;
+    border: none;
+    padding: 4px 10px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 4px;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    transition: background-color 0.12s, color 0.12s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .tabs button:hover { color: var(--text-primary); }
+  .tabs button.active {
+    background: var(--surface-page);
+    color: var(--text-primary);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+  .tab-count {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    background: color-mix(in oklab, var(--text-tertiary) 12%, transparent);
+    padding: 0.1rem 0.35rem;
+    border-radius: 999px;
+    min-width: 1.4em;
+    text-align: center;
+  }
+  .tabs button.active .tab-count {
+    color: var(--text-primary);
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+  }
+
+  /* ── Card list ──────────────────────────────────────────────────────── */
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  /* `.row` wraps each card + its inline day-picker so they stay together
+     in the list layout. Hidden candidates fade but still take space —
+     the user toggled "show hidden" to see them. */
+  .row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .hidden-row { opacity: 0.55; }
+
+  /* ── Day picker (mini-cards) ────────────────────────────────────────── */
+  .day-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0.35rem 0 0.45rem 1rem;
+    padding: 0.4rem;
+    background: var(--surface-sunken);
+    border-radius: 5px;
+    border-left: 1px solid var(--border-default);
+  }
+  .day-option {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    gap: 0.45rem 0.65rem;
+    align-items: baseline;
+    text-align: left;
+    background: var(--surface-page);
+    border: 0.5px solid var(--border-subtle);
+    border-radius: 4px;
+    padding: 0.45rem 0.65rem;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    transition: background-color 0.12s, border-color 0.12s;
+  }
+  .day-option:hover:not(:disabled) {
+    background: var(--surface-raised);
+    border-color: var(--border-default);
+  }
+  .day-option:disabled { opacity: 0.5; cursor: not-allowed; }
+  .day-option.currently-set {
+    background: color-mix(in oklab, var(--accent) 6%, var(--surface-page));
+    border-color: color-mix(in oklab, var(--accent) 35%, var(--border-default));
+  }
+  .day-option.day-option--empty {
+    border-style: dashed;
+    color: var(--text-secondary);
+  }
+  .day-num {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .day-date {
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+  .day-meta {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.25rem;
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+    grid-column: 3;
     flex-wrap: wrap;
   }
-  .card h4 {
-    margin: 0;
-    font-size: 1rem;
-    font-family: var(--font-sans);
-    font-weight: 500;
-    color: var(--text-primary);
-    flex: 1;
-  }
-  .badge {
-    padding: 0.1rem 0.4rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    background: var(--surface-sunken);
-    color: var(--text-tertiary);
-  }
-  .badge.in-plan {
-    background: var(--accent);
-    color: var(--text-inverse);
-  }
-  .nights {
-    font-size: 0.75rem;
-    color: var(--text-tertiary);
-  }
-  .desc {
-    margin: 0.25rem 0;
+  .day-lodging {
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 16em;
   }
-  .why {
-    margin: 0.25rem 0;
-    font-size: 0.85rem;
-    color: var(--text-tertiary);
-  }
-  .card a {
-    font-size: 0.8rem;
+  .day-lodging.currently {
     color: var(--accent-text);
+    font-style: italic;
   }
-  .empty {
+  .day-stops {
     color: var(--text-tertiary);
-    padding: 1rem;
-    text-align: center;
+    flex-shrink: 0;
   }
-  .btn-inline {
-    background: none;
-    border: 1px solid var(--border-default);
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    color: var(--text-primary);
-    cursor: pointer;
-    font-family: var(--font-sans);
-    font-size: 0.8rem;
+  .day-dist {
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
   }
-  .btn-inline:hover:not(:disabled) {
-    background: var(--surface-sunken);
+  .day-fits {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+    align-self: center;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--state-success);
+    background: var(--state-success-surface);
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
   }
-  .btn-inline:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .day-picker {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    background: var(--surface-sunken);
-    border-radius: 0.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  .picker-item {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 0.4rem 0.5rem;
-    background: none;
-    border: 1px solid var(--border-default);
-    border-radius: 0.25rem;
-    cursor: pointer;
-    color: var(--text-primary);
-    font-family: var(--font-sans);
-    font-size: 0.85rem;
-  }
-  .picker-item:hover:not(:disabled) {
-    background: var(--surface-raised);
-  }
-  .picker-item:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  .day-meta-empty {
+    grid-column: 1 / -1;
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+    font-style: italic;
   }
   .picker-empty {
     margin: 0;
     color: var(--text-tertiary);
     font-size: 0.85rem;
+    font-style: italic;
   }
+
+  /* ── Hidden-toggle ──────────────────────────────────────────────────── */
+  .hidden-toggle {
+    margin-top: 0.85rem;
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    padding: 0.25rem 0;
+    border-bottom: 1px dotted color-mix(in oklab, var(--text-tertiary) 35%, transparent);
+    align-self: flex-start;
+  }
+  .hidden-toggle:hover { color: var(--text-primary); border-bottom-color: var(--text-secondary); }
+
+  /* ── Hide toast ─────────────────────────────────────────────────────── */
+  .hide-toast {
+    position: sticky;
+    bottom: 1rem;
+    z-index: 30;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.85rem auto 0;
+    width: max-content;
+    max-width: 100%;
+    background: var(--forest-800);
+    color: var(--bone-100);
+    border: 1px solid color-mix(in oklab, var(--bone-50) 20%, transparent);
+    border-radius: 999px;
+    padding: 0.4rem 0.6rem 0.4rem 0.85rem;
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  }
+  .toast-undo {
+    background: transparent;
+    border: 1px solid color-mix(in oklab, var(--bone-50) 30%, transparent);
+    color: var(--bone-50);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background-color 0.12s;
+  }
+  .toast-undo:hover { background: color-mix(in oklab, var(--bone-50) 12%, transparent); }
+  .toast-dismiss {
+    background: transparent;
+    border: none;
+    color: color-mix(in oklab, var(--bone-50) 70%, transparent);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.15rem;
+    cursor: pointer;
+  }
+  .toast-dismiss:hover { color: var(--bone-50); }
 </style>

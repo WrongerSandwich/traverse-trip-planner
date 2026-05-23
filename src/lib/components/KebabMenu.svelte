@@ -29,7 +29,7 @@
 
   /** @typedef {{ label: string, items: import('./KebabMenu.svelte').MenuItem[] }} MenuGroup */
 
-  let { groups = [] } = $props();
+  let { groups = [], triggerLabel = 'More actions' } = $props();
 
   let open = $state(false);
   let triggerEl = $state(null);
@@ -170,7 +170,8 @@
     class="kebab-trigger"
     aria-haspopup="true"
     aria-expanded={open}
-    aria-label="More actions"
+    aria-label={triggerLabel}
+    title={triggerLabel}
     onclick={toggle}
     type="button"
   >
