@@ -4,6 +4,8 @@ This document defines the UX rules every AI-driven workflow in Traverse follows.
 
 The rubric defines four **archetypes**, the **promise/cost** the user sees before triggering, the **failure recovery** they see after, and the **background-status surface** that survives navigation. New AI workflows pick an archetype; existing workflows migrate to one. Deviations are allowed but must be written down here.
 
+Note: the former **Brochure prepare** workflow has been removed. The brochure is now a zero-cost derived view — `deriveBrochure()` templates from `plan.md` + `candidates.md` at request time with no AI call and no user trigger. The canonical Ambient Background example is now **Research → (with chained candidate extraction)**.
+
 ---
 
 ## 1. The four archetypes
@@ -15,13 +17,13 @@ The rubric defines four **archetypes**, the **promise/cost** the user sees befor
 | **Ambient Background** | 20s–2min+ | New artifact or in-place edit | User free to navigate away |
 | **Conversational / Modal** | Multi-turn | At end of flow | User drives the pace |
 
-The axis is **result location + attention model**, not wall-clock alone. Wall-clock matters but is a soft signal: Brochure prepare (30–60s) and Deepen (60–120s) both belong to Ambient Background because the user shouldn't be blocked at a screen for either.
+The axis is **result location + attention model**, not wall-clock alone. Wall-clock matters but is a soft signal: Research with chained candidate extraction (60–120s) and Deepen (60–120s) both belong to Ambient Background because the user shouldn't be blocked at a screen for either.
 
 ### When to pick which
 
-- **Instant Inline** if the user *expects an immediate result* (chat reply, idea cards appearing, a regeocode pass). Failure means trying again right there.
+- **Instant Inline** if the user *expects an immediate result* (chat reply, idea cards appearing, a geocode pass). Failure means trying again right there.
 - **In-Page Stream** if the *materialization is part of the value* (e.g. a future "Generate prose introduction" action where watching the output materialize is the experience). The user being present to watch is intentional, not incidental.
-- **Ambient Background** if the action takes long enough that staring at it would be tedious *and* the produced artifact is fine to discover later (Brochure prep, Deepen-section, Deepen). The user can leave and come back; the global indicator tells them when it's done.
+- **Ambient Background** if the action takes long enough that staring at it would be tedious *and* the produced artifact is fine to discover later (Research with chained candidate extraction, Deepen-section, Deepen). The user can leave and come back; the global indicator tells them when it's done.
 - **Conversational / Modal** if the *user produces input across multiple steps* (Retro's questionnaire; a future "Plan a trip from scratch" wizard). One AI call per step or per turn; the structure is the wizard, not the AI.
 
 Workflows close to a boundary go to the *longer/more-tolerant* archetype. A 12-second action whose result is a separate doc is better as Ambient Background than as Instant Inline — the user gains the ability to navigate at the cost of slightly more ceremony.
@@ -60,8 +62,8 @@ The defining archetype: **the user starts something and can navigate away.** Pro
 | State | Surface |
 |---|---|
 | **Trigger** | Button + confirm modal with the long promise. The confirm explicitly tells the user "you can navigate away while this runs." |
-| **In-progress** | Three places, all sourced from server state: (a) **global pill** in the top app-bar shows job count; click to open the **jobs drawer**; (b) **per-trip badge** on the trip card (home page) and trip detail header — "Preparing brochure…" or similar; (c) the trigger button is disabled with hover text "Already running — see indicator". |
-| **Success** | A toast appears (top-right, near the global pill) — "✓ Brochure ready · Hannibal Mississippi · [Open]". Per-trip badge and pill clear. If the user is on the affected trip's page, the new artifact appears in-place with a brief highlight. |
+| **In-progress** | Three places, all sourced from server state: (a) **global pill** in the top app-bar shows job count; click to open the **jobs drawer**; (b) **per-trip badge** on the trip card (home page) and trip detail header — "Researching…" or similar; (c) the trigger button is disabled with hover text "Already running — see indicator". |
+| **Success** | A toast appears (top-right, near the global pill) — "✓ Research complete · Hannibal Mississippi · [Open]". Per-trip badge and pill clear. If the user is on the affected trip's page, the new artifact appears in-place with a brief highlight. |
 | **Failure** | The pill turns red with a *sticky* "1 failed" state; clears only when the user dismisses the failure or opens the relevant trip. Failure toast appears with recovery affordances from the contract. |
 | **Cancel** | Available in the jobs drawer (per-job cancel button). Cancellation is server-side — the route's `AbortController` aborts the in-flight model call. |
 
@@ -69,7 +71,7 @@ The defining archetype: **the user starts something and can navigate away.** Pro
 
 Click the global pill to open. Each in-flight job has a row showing:
 
-- Trip name + workflow type (e.g. "Hannibal · Brochure")
+- Trip name + workflow type (e.g. "Hannibal · Research")
 - Elapsed time + estimated remaining
 - Cancel button
 
@@ -104,16 +106,16 @@ Every AI trigger declares upfront **what it produces, how long it takes, and rou
 ```
 {verb} · ~{time} · ~{tokens}
 ```
-Example: `Prepare brochure · ~45s · 2–4k tokens`
+Example: `Research · ~90s · 8–12k tokens`
 
 **Long form — confirm modal body** (rendered inside the existing `src/lib/components/ConfirmModal.svelte`) or an info-icon popover next to the trigger (where no confirm exists):
 ```
 {What it produces in one sentence}. ~{time}. ~{tokens}.
 ```
 Example:
-> Prepare brochure will analyze your planning sections and produce a structured brochure draft — stops, lodging, field guide notes, and gotchas — that you can review before saving.
+> Research will search the web for this destination and produce prose planning sections plus a structured plan and candidates pool — stops, lodging, field guide notes, and gotchas — ready to review and edit.
 >
-> Typically ~45s · 2–4k tokens.
+> Typically ~90s · 8–12k tokens.
 
 ### Source of truth
 
@@ -138,9 +140,9 @@ Three moments, **tokens not dollars**. Tokens are the honest unit; dollars requi
 
 | Moment | Surface | Example |
 |---|---|---|
-| **Before** | Promise sentence (above) | `~2–4k tokens` |
+| **Before** | Promise sentence (above) | `~8–12k tokens` |
 | **During** | Hidden | Live token count would be noise. SSE log behind a details disclosure for power users. |
-| **After** | Success toast / banner | `✓ Brochure ready · 3.2k tokens` |
+| **After** | Success toast / banner | `✓ Research complete · 9.4k tokens` |
 
 For **multi-turn workflows** (Conversational / Modal), tokens are aggregated across the flow and shown once on the closing success state. Per-step costs are not surfaced — they'd be noise.
 
@@ -235,7 +237,7 @@ Lives in the site header on every page. States:
 
 On the trip card (home page) and the trip detail header, when a job is running *for that specific trip*:
 
-- Small inline label: "Preparing brochure…" / "Researching…" / "Deepening Stops…"
+- Small inline label: "Researching…" / "Deepening Stops…"
 - Clears when the job completes.
 - Multiple jobs for one trip = stacked badges.
 
@@ -251,7 +253,7 @@ Drawer auto-closes when the last job finishes.
 
 ### Server-state convergence
 
-The pill, badges, and drawer all read from the same server-state source: an in-memory job registry on the SvelteKit server, mirrored to frontmatter flags (e.g. `running: 'brochure'`) for survival across server restart (see §8). The frontend polls on a slow interval (10s) and on navigation; SSE updates from a running job push state synchronously when the user has the relevant page open.
+The pill, badges, and drawer all read from the same server-state source: an in-memory job registry on the SvelteKit server, mirrored to frontmatter flags (e.g. `running: 'research'`) for survival across server restart (see §8). The frontend polls on a slow interval (10s) and on navigation; SSE updates from a running job push state synchronously when the user has the relevant page open.
 
 ### 6.4 Job-key convention (multi-instance workflows)
 
@@ -260,9 +262,9 @@ The in-memory registry in `src/lib/server/jobs.js` keys live jobs as `${workflow
 **Single-instance** (one job of this type per trip at a time):
 
 ```js
-// Brochure prepare — at most one in flight per trip.
-startJob('brochure', slug);                      // key: 'brochure:<slug>'
-assertNotRunning('brochure', slug);
+// Research — at most one in flight per trip.
+startJob('research', slug);                      // key: 'research:<slug>'
+assertNotRunning('research', slug);
 ```
 
 **Multi-instance** (multiple concurrent jobs of this type per trip):
@@ -297,9 +299,8 @@ Every existing workflow is assigned an archetype. **Deviations** from the archet
 | **Seed** | Instant Inline | — |
 | **Add destination** | Instant Inline | — |
 | **Chat turn** | Instant Inline | Lives in a sidebar instead of a button-as-spinner. *Reason:* Chat is a sustained interaction surface, not a one-shot trigger; the sidebar is the persistent UI. The per-turn loading state still follows Instant Inline (input disabled, spinner inline). |
-| **Brochure regeocode** | Instant Inline | — |
-| **Brochure prepare** | Ambient Background | Two entry points: (a) the Read-mode empty-state CTA ("Prepare brochure to generate a day-by-day view") when no brochure or itinerary exists; (b) the `Re-prepare brochure` inline button in Edit mode when a brochure already exists. The confirm modal stays — it carries the long promise. |
-| **Deepen-section** | Ambient Background | Currently uses ActionPanel; same migration as Brochure prepare. |
+| **Research → (with chained candidate extraction)** | Ambient Background | Single trigger produces both prose planning files and structured `plan.md` + `candidates.md` (via a chained `extractCandidates()` pass). Confirm modal carries the long promise. Canonical Ambient Background example. |
+| **Deepen-section** | Ambient Background | Trigger UI migrated to Ambient Background (PR #107). |
 | **Deepen** | Ambient Background | Already navigable. Migration replaces the ad-hoc 4s home-page poll + frontmatter `researching:` flag with the unified global indicator + standard job state. |
 | **Retro** | Conversational / Modal | — |
 | **Receipts** | Instant Inline | Multimodal upload action on completed trips; today uses local `$state` for `idle / uploading / done / error`. Alignment work: consume the failure recovery registry, add the promise sentence, fold inline parsed-lines output into the success state. |
@@ -337,18 +338,16 @@ Each is independently shippable. Recommended order is roughly top-to-bottom but 
 6. **Migrate Seed to Instant Inline** — Retire ActionPanel for Seed. Button-as-spinner. Toast on success.
 7. **Migrate Add destination to Instant Inline** — Same shape as Seed.
 8. **Migrate Chat to Instant Inline** — Deviation captured in §7. Minimal changes; ensure spinner placement is consistent.
-9. **Migrate Brochure regeocode to Instant Inline** — Retire its ActionPanel usage.
-10. **Migrate Brochure prepare to Ambient Background** — Done. Entry points: Read-mode empty-state CTA + Edit-mode Re-prepare button. The confirm modal stays; long promise goes in its body.
-11. **Migrate Deepen-section to Ambient Background** — Done. Trigger UI migrated to Ambient Background (PR #107).
-12. **Migrate Deepen to Ambient Background** — Replace 4s poll + `researching:` flag with unified indicator integration. The fire-and-forget shape is preserved; the surface changes.
-13. **Align Retro with Conversational archetype** — Mostly already aligned. Audit step error handling and ensure cancel-mid-flow confirmation exists.
+9. **Migrate Deepen-section to Ambient Background** — Done. Trigger UI migrated to Ambient Background (PR #107).
+10. **Migrate Deepen to Ambient Background** — Replace 4s poll + `researching:` flag with unified indicator integration. The fire-and-forget shape is preserved; the surface changes.
+11. **Align Retro with Conversational archetype** — Mostly already aligned. Audit step error handling and ensure cancel-mid-flow confirmation exists.
 
 ### Cross-cutting
 
-14. **Promise sentence integration** — Add `promise` export to every action route. Tooltip + confirm-modal-body component. Hand-calibrated initial estimates.
-15. **Cost transparency surfacing** — Token cost on success toast / banner across all archetypes. Drop dollar conversions.
-16. **Retire ActionPanel** — Once all workflows have migrated, delete `src/lib/components/ActionPanel.svelte` and the SSE log helpers it owns. The power-user details disclosure moves into per-archetype components.
-17. **CLAUDE.md update** — Update the "In-browser actions" section to reflect the new archetypes and the global indicator. New AI workflows reference this rubric.
+12. **Promise sentence integration** — Add `promise` export to every action route. Tooltip + confirm-modal-body component. Hand-calibrated initial estimates.
+13. **Cost transparency surfacing** — Token cost on success toast / banner across all archetypes. Drop dollar conversions.
+14. **Retire ActionPanel** — Once all workflows have migrated, delete `src/lib/components/ActionPanel.svelte` and the SSE log helpers it owns. The power-user details disclosure moves into per-archetype components.
+15. **CLAUDE.md update** — Update the "In-browser actions" section to reflect the new archetypes and the global indicator. New AI workflows reference this rubric.
 
 ---
 
