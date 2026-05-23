@@ -48,9 +48,11 @@ export const HAND_DEFAULTS = {
   },
   deepen: {
     verb: 'Research trip',
-    produces: 'Detailed overview, route, stops, and logistics files — with web-searched hours, prices, lodging, and route specifics.',
-    time_seconds: 90,
-    tokens_range: [4000, 8000],
+    // Rough estimate: research pass (~90s, 4–8k tokens) + extract pass (~60s, 4–8k tokens)
+    // run back-to-back in a single job. Telemetry will recalibrate via rolling p50.
+    produces: 'Detailed overview, route, stops, and logistics files — plus a structured plan and candidate pool — with web-searched hours, prices, lodging, and route specifics.',
+    time_seconds: 150,
+    tokens_range: [8000, 16000],
   },
   'deepen-section': {
     verb: 'Research section',

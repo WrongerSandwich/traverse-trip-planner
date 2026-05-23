@@ -67,7 +67,7 @@ async function assertThrows404(loadFn, slug) {
   mockIsValidSlug.mockReturnValue(false);
   let threw = false;
   try {
-    await loadFn({ params: { slug } });
+    await loadFn({ params: { slug }, depends: () => {} });
   } catch (err) {
     threw = true;
     expect(err.status).toBe(404);
@@ -100,7 +100,7 @@ describe('trips/[slug]/+page.server.js — invalid slug → 404 before enrichTri
     mockEnrichTrips.mockResolvedValue([]);
     // No trip found → should throw 404 from the trip lookup, not slug check.
     // We just confirm enrichTrips was called.
-    try { await load({ params: { slug: 'glacier-loop' } }); } catch { /* expected */ }
+    try { await load({ params: { slug: 'glacier-loop' }, depends: () => {} }); } catch { /* expected */ }
     expect(mockEnrichTrips).toHaveBeenCalled();
   });
 });

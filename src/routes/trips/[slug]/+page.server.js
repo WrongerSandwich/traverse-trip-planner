@@ -3,7 +3,8 @@ import { enrichTrips, getHome, getTripFiles, isValidSlug } from '$lib/server/dat
 import { readPlan, findDanglingCandidateIds } from '$lib/server/plan.js';
 import { readCandidates } from '$lib/server/candidates.js';
 
-export async function load({ params }) {
+export async function load({ params, depends }) {
+  depends('app:trip');
   const { slug } = params;
   if (!isValidSlug(slug)) throw error(404);
 

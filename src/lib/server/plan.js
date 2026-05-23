@@ -163,6 +163,8 @@ export function setDayMetadata(slug, dayNumber, patch) {
   for (const k of ['date', 'drive_distance_mi', 'notes']) {
     if (k in patch) {
       if (patch[k] == null || patch[k] === '') delete day[k];
+      // Guard: reject NaN so it can't be written as `.nan` in YAML.
+      else if (k === 'drive_distance_mi' && !Number.isFinite(patch[k])) delete day[k];
       else day[k] = patch[k];
     }
   }
