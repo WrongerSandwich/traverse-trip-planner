@@ -45,6 +45,38 @@ describe('plan mutations', () => {
     expect(readPlan('t').days.map((d) => d.number)).toEqual([1, 2]);
   });
 
+  it('removeDay throws if the day has lodging assigned', () => {
+    addDay('t');
+    setLodgingForDay('t', 1, 'inn');
+    expect(() => removeDay('t', 1)).toThrow(/has assigned lodging/);
+  });
+
+  it('removeDay drops date on renumbered days but preserves stops/notes/drive_distance', () => {
+    addDay('t'); addDay('t'); addDay('t');
+    setDayMetadata('t', 1, { date: '2026-07-15', notes: 'Day 1 notes', drive_distance_mi: 100 });
+    setDayMetadata('t', 3, { date: '2026-07-17', notes: 'Day 3 notes', drive_distance_mi: 200 });
+    removeDay('t', 2);
+    const days = readPlan('t').days;
+    // Day 1 is unchanged
+    expect(days[0]).toMatchObject({ number: 1, date: '2026-07-15', notes: 'Day 1 notes', drive_distance_mi: 100 });
+    // Old day 3 became day 2: date dropped, but notes + drive_distance preserved
+    expect(days[1]).toMatchObject({ number: 2, notes: 'Day 3 notes', drive_distance_mi: 200 });
+    expect(days[1].date).toBeUndefined();
+  });
+
+  it('parsePlanFile normalizes missing day.stops to an empty array', () => {
+    // Simulate a hand-edited plan.md missing a stops key on day 2.
+    addDay('t'); addDay('t');
+    const raw = readPlan('t');
+    delete raw.days[1].stops;
+    writePlan('t', raw);
+    // Re-read — normalization should produce a stops array.
+    const re = readPlan('t');
+    expect(re.days[1].stops).toEqual([]);
+    // And mutators should not crash.
+    expect(() => addStopToDay('t', 2, 'a')).not.toThrow();
+  });
+
   it('addStopToDay appends a candidate id to the day', () => {
     addDay('t');
     addStopToDay('t', 1, 'a');

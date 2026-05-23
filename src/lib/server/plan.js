@@ -47,7 +47,9 @@ export function parsePlanFile(content) {
     cover_query: data.cover_query ?? '',
     field_guide_notes: data.field_guide_notes ?? '',
     gotchas: data.gotchas ?? '',
-    days: Array.isArray(data.days) ? data.days : [],
+    days: Array.isArray(data.days)
+      ? data.days.map((d) => ({ ...d, stops: Array.isArray(d?.stops) ? d.stops : [] }))
+      : [],
   };
 }
 
@@ -96,7 +98,17 @@ export function removeDay(slug, number) {
   const plan = loadOrInit(slug);
   const day = findDay(plan, number);
   if (day.stops.length > 0) throw new Error(`Day ${number} has assigned stops; move them first.`);
-  plan.days = plan.days.filter((d) => d.number !== number).map((d, i) => ({ ...d, number: i + 1 }));
+  if (day.lodging_id) throw new Error(`Day ${number} has assigned lodging; clear it first.`);
+  // Drop `date` on any day whose number changes — the date was tied to its original
+  // calendar slot, not its position in the trip, so renumbering invalidates it.
+  plan.days = plan.days
+    .filter((d) => d.number !== number)
+    .map((d, i) => {
+      const newNumber = i + 1;
+      if (d.number === newNumber) return d;
+      const { date: _drop, ...rest } = d;
+      return { ...rest, number: newNumber };
+    });
   writePlan(slug, plan);
 }
 
