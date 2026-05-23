@@ -1,6 +1,7 @@
 <script>
   import OverviewMap from '$lib/components/OverviewMap.svelte';
   import TripCard from '$lib/components/TripCard.svelte';
+  import TripRow from '$lib/components/TripRow.svelte';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import DetailPanel from '$lib/components/DetailPanel.svelte';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
@@ -174,6 +175,21 @@
   let activeFilter = $state('all');
   // Sort
   let activeSort   = $state('modified');
+  // Card density — 'cards' (full hero cards) | 'rows' (condensed row list).
+  // Persisted per-browser via localStorage so a chosen density survives reloads.
+  const DENSITY_KEY = 'traverse:home-card-density';
+  let cardDensity = $state('cards');
+  onMount(() => {
+    try {
+      const v = localStorage.getItem(DENSITY_KEY);
+      if (v === 'rows' || v === 'cards') cardDensity = v;
+    } catch { /* private mode etc */ }
+  });
+  function setDensity(next) {
+    if (next !== 'cards' && next !== 'rows') return;
+    cardDensity = next;
+    try { localStorage.setItem(DENSITY_KEY, next); } catch { /* ignore */ }
+  }
   // Detail panel — track slug so the panel re-renders with fresh trip data
   // after invalidateAll() (e.g. image refetch) rebuilds data.trips.
   let selectedSlug = $state(null);
@@ -1037,6 +1053,36 @@
             </svg>
           </button>
 
+          <div class="density-toggle" role="group" aria-label="View mode">
+            <button
+              type="button"
+              class="density-btn"
+              class:active={cardDensity === 'cards'}
+              onclick={() => setDensity('cards')}
+              aria-pressed={cardDensity === 'cards'}
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
+                <rect x="1" y="1" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
+                <line x1="1" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="1.4"/>
+              </svg>
+              <span class="density-label">Cards</span>
+            </button>
+            <button
+              type="button"
+              class="density-btn"
+              class:active={cardDensity === 'rows'}
+              onclick={() => setDensity('rows')}
+              aria-pressed={cardDensity === 'rows'}
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
+                <line x1="1.5" y1="3.5" x2="12.5" y2="3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                <line x1="1.5" y1="7" x2="12.5" y2="7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                <line x1="1.5" y1="10.5" x2="12.5" y2="10.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              </svg>
+              <span class="density-label">List</span>
+            </button>
+          </div>
+
           <select class="sort-select" bind:value={activeSort} aria-label="Sort trips">
             <option value="modified">Recently active</option>
             <option value="date">Date added</option>
@@ -1126,19 +1172,32 @@
       </div>
 
       <div class="scroll-area">
-        <div class="grid">
+        <div class="grid" class:rows={cardDensity === 'rows'}>
           {#each trips as trip (trip._slug)}
-            <TripCard {trip}
-              starred={isStarred(trip)}
-              jobs={jobsForTrip(trip._slug)}
-              fresh={highlightedSlugs.has(trip._slug)}
-              onclick={() => openTrip(trip)}
-              onhover={() => { hoveredSlug = trip._slug; clearFresh(trip._slug); }}
-              onleave={() => hoveredSlug = null}
-              onbookmark={(e) => toggleBookmark(trip, e)}
-              ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
-              oncancel={null}
-            />
+            {#if cardDensity === 'rows'}
+              <TripRow {trip}
+                starred={isStarred(trip)}
+                jobs={jobsForTrip(trip._slug)}
+                fresh={highlightedSlugs.has(trip._slug)}
+                onclick={() => openTrip(trip)}
+                onhover={() => { hoveredSlug = trip._slug; clearFresh(trip._slug); }}
+                onleave={() => hoveredSlug = null}
+                onbookmark={(e) => toggleBookmark(trip, e)}
+                ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
+              />
+            {:else}
+              <TripCard {trip}
+                starred={isStarred(trip)}
+                jobs={jobsForTrip(trip._slug)}
+                fresh={highlightedSlugs.has(trip._slug)}
+                onclick={() => openTrip(trip)}
+                onhover={() => { hoveredSlug = trip._slug; clearFresh(trip._slug); }}
+                onleave={() => hoveredSlug = null}
+                onbookmark={(e) => toggleBookmark(trip, e)}
+                ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
+                oncancel={null}
+              />
+            {/if}
           {:else}
             <div class="empty">
               <p>No trips match these filters.</p>
@@ -1754,9 +1813,53 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23999'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.2rem center;
-    margin-left: auto;
+    margin-left: 0.4rem;
   }
   .sort-select:focus { outline: none; }
+
+  /* Density toggle — view-mode switch between full cards and condensed rows.
+     Borrows the stage-tab vocabulary: ghost buttons with a sunset underline
+     on the active one (NOT the inverted-fill chip pattern used for filters).
+     This keeps "selected view mode" visually distinct from "selected filter".
+     Pinned to the right of the controls row via margin-left: auto; sort-select
+     trails just after. */
+  .density-toggle {
+    display: inline-flex;
+    align-self: stretch;
+    align-items: stretch;
+    margin-left: auto;
+    gap: 0.1rem;
+  }
+  .density-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.75rem 0.7rem 0.7rem;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 0.76rem;
+    font-weight: 500;
+    transition: color 0.12s, border-color 0.12s;
+    white-space: nowrap;
+  }
+  .density-btn:hover { color: var(--text-primary); }
+  .density-btn.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+  .density-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+  .density-btn svg { display: block; opacity: 0.85; }
+  .density-btn.active svg { opacity: 1; }
+  .density-label { letter-spacing: 0.01em; }
 
   /* ── Extended filter panel ── */
   .filter-panel {
@@ -1896,6 +1999,13 @@
     gap: 0.85rem;
     padding: 1.25rem 1.25rem 2rem;
   }
+  /* Rows mode — tighter gap, same padding. The .row component already brings
+     its own height and the meta-line baseline; this just shrinks the
+     between-card breathing room from 0.85rem to 0.4rem so a screen of ~6
+     full cards becomes ~12 rows. */
+  .grid.rows {
+    gap: 0.4rem;
+  }
 
   .empty {
     text-align: center;
@@ -2009,18 +2119,45 @@
     /* Clip horizontal overflow at the bar without hiding the filter panel below */
     .controls-wrap { overflow-x: clip; }
     /* Fade the right edge as a hint that the bar scrolls horizontally.
-       The fade sits above the controls row and ignores pointer events. */
+       Anchored to the left edge of the pinned density toggle (5.5rem wide)
+       so the fade reads as "more controls scrolling under the pinned toggle"
+       rather than fighting the toggle's solid background. */
     .controls-wrap::after {
       content: '';
       position: absolute;
-      top: 0; right: 0;
-      width: 28px; height: var(--tap-min);
+      top: 0; right: 6rem;
+      width: 22px; height: var(--tap-min);
       background: linear-gradient(to right, rgba(var(--surface-raised-rgb), 0), var(--surface-raised));
       pointer-events: none;
-      z-index: 1;
+      z-index: 4;
     }
-    .controls { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+    .controls { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; padding-right: 6.5rem; }
     .tab, .filter-toggle, .sort-select { min-height: var(--tap-min); white-space: nowrap; }
+    /* On mobile the .controls row scrolls horizontally, so any in-flow control
+       at its right edge would scroll out of view behind the right-edge fade.
+       Pin the view-mode toggle to the controls-wrap's right edge instead — it
+       stays reachable regardless of horizontal scroll position. Sits above the
+       ::after fade (z-index 1) so it's not occluded. */
+    .density-toggle {
+      position: absolute;
+      top: 0;
+      right: 0;
+      margin-left: 0;
+      height: var(--tap-min);
+      align-items: center;
+      background: var(--surface-raised);
+      padding: 0 0.4rem 0 0.5rem;
+      z-index: 5;
+      border-left: 1px solid var(--border-subtle);
+    }
+    .density-btn {
+      min-width: var(--tap-min);
+      height: var(--tap-min);
+      padding: 0 0.55rem;
+      border-bottom-width: 2px;
+    }
+    /* Icons-only on mobile — labels swell the pinned region too wide. */
+    .density-label { display: none; }
 
     /* Filter panel */
     .filter-panel.open { max-height: 200px; }
@@ -2036,6 +2173,7 @@
     /* scroll-area is now just a plain block; body handles scrolling */
     .scroll-area { flex: none; overflow-y: visible; }
     .grid { padding: 1rem 0.85rem 3rem; gap: 0.75rem; }
+    .grid.rows { gap: 0.35rem; }
     .empty { padding: 3rem 1rem; }
 
     /* Footer at mobile: pull padding back to match the rest of the body. */

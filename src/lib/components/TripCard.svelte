@@ -3,6 +3,7 @@
   import Logo from './Logo.svelte';
   import TripJobBadge from './TripJobBadge.svelte';
   import { tripColor } from '$lib/utils/colors.js';
+  import { formatDriveLabel } from '$lib/utils/formatDrive.js';
 
   let {
     trip,
@@ -30,11 +31,7 @@
   const status  = $derived(trip.status || trip._stage || 'idea');
   const color   = $derived(tripColor(trip));
   const date    = $derived(trip.created ? new Date(trip.created).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '');
-  const driveLabel = $derived(
-    trip._drive_hours != null
-      ? `${trip._drive_hours % 1 === 0 ? trip._drive_hours : trip._drive_hours.toFixed(1)} hr`
-      : null
-  );
+  const driveLabel = $derived(formatDriveLabel(trip._drive_hours));
 
   function handleKey(e) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
