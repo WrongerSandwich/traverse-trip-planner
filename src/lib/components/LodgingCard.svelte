@@ -13,6 +13,11 @@
     readonly = false,
     working = false,
     showDragHandle = true,
+    // `compact` is the "I'm assigned to a day card" rendering. Drops the
+    // description paragraph and the Set-lodging-for-day button (the parent
+    // owns its own affordances), keeps bed glyph + name + price ramp +
+    // nights + Book CTA + Hide (which maps to "clear lodging from day").
+    compact = false,
     onHover = () => {},
     onClick = () => {},
     onPromote = () => {},
@@ -45,6 +50,7 @@
   class="lodging-card"
   class:promoted
   class:hovered
+  class:compact
   draggable={showDragHandle && !readonly && !working ? 'true' : 'false'}
   onmouseenter={() => onHover(lodging.id)}
   onmouseleave={() => onHover(null)}
@@ -67,7 +73,7 @@
   <div class="body">
     <div class="head">
       <h4 class="name">{lodging.name}</h4>
-      {#if promoted && daysUsed.length}
+      {#if promoted && daysUsed.length && !compact}
         <span class="in-plan-tag" title="In your plan">
           Day{daysUsed.length > 1 ? 's' : ''} {daysUsed.sort((a,b) => a-b).join(', ')}
         </span>
@@ -86,23 +92,25 @@
       {/if}
     </div>
 
-    {#if lodging.description}
+    {#if lodging.description && !compact}
       <p class="summary">{lodging.description}</p>
     {/if}
 
     <footer>
       {#if showDragHandle && !readonly}
-        <span class="drag-handle" aria-hidden="true" title="Drag onto a day card to assign">
+        <span class="drag-handle" aria-hidden="true" title={compact ? 'Drag to a different day' : 'Drag onto a day card to assign'}>
           <span class="drag-dots">⋮⋮</span>
           <span class="drag-label">drag</span>
         </span>
       {/if}
-      <button
-        type="button"
-        class="action"
-        onclick={(e) => { e.stopPropagation(); onPromote(); }}
-        disabled={readonly || working}
-      >Set lodging for day…</button>
+      {#if !compact}
+        <button
+          type="button"
+          class="action"
+          onclick={(e) => { e.stopPropagation(); onPromote(); }}
+          disabled={readonly || working}
+        >Set lodging for day…</button>
+      {/if}
       {#if lodging.booking_url}
         <a
           class="book"
@@ -117,8 +125,8 @@
           type="button"
           class="hide"
           onclick={(e) => { e.stopPropagation(); onHide(); }}
-          title="Hide this candidate"
-          aria-label="Hide {lodging.name}"
+          title={compact ? 'Clear lodging for this day' : 'Hide this candidate'}
+          aria-label={compact ? `Clear ${lodging.name} from this day` : `Hide ${lodging.name}`}
           disabled={working}
         >×</button>
       {/if}
@@ -160,6 +168,65 @@
     border-color: color-mix(in oklab, var(--accent) 40%, var(--border-default));
   }
   .lodging-card[draggable="true"]:active { cursor: grabbing; }
+
+  /* Compact mode — the "I'm assigned to a day card" rendering used by
+     PlanSection. Drops the description, collapses meta + footer into a
+     single row beneath the name, hides the Set-lodging-for-day button
+     (the parent owns the assignment gesture), and tightens padding.
+     Keeps the bed glyph + name + price ramp + nights + Book CTA + Hide
+     because those are the at-rest signals that earn the slot. */
+  .lodging-card.compact {
+    padding: 0.45rem 0.6rem 0.45rem 0.45rem;
+    gap: 0.55rem;
+  }
+  .lodging-card.compact .bed-slot {
+    width: 26px;
+    padding-top: 0.05rem;
+  }
+  .lodging-card.compact .bed-slot svg {
+    width: 18px;
+    height: 18px;
+  }
+  .lodging-card.compact .body {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .lodging-card.compact .head {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+  }
+  .lodging-card.compact .name {
+    font-size: 0.92rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lodging-card.compact .meta {
+    flex-shrink: 0;
+  }
+  .lodging-card.compact footer {
+    flex-shrink: 0;
+    gap: 0.3rem;
+    margin-top: 0;
+  }
+  .lodging-card.compact .drag-handle {
+    padding: 2px 5px;
+    font-size: 9.5px;
+  }
+  .lodging-card.compact .drag-handle .drag-label {
+    display: none;
+  }
+  .lodging-card.compact .drag-dots {
+    font-size: 0.75rem;
+  }
+  .lodging-card.compact .book {
+    margin-left: 0;
+    padding: 2px 7px;
+    font-size: 10.5px;
+  }
 
   /* Bed glyph slot — a small "media" column on the left. The SVG is
      inline so the icon adopts text color via currentColor and respects

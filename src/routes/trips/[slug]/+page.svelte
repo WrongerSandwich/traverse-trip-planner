@@ -1261,7 +1261,13 @@
           </header>
 
           {#if section === 'plan'}
-            <PlanSection plan={data.plan} candidates={data.candidates} slug={data.trip._slug} readonly={isCompleted} />
+            <PlanSection
+              plan={data.plan}
+              candidates={data.candidates}
+              slug={data.trip._slug}
+              destination={trip?._coords}
+              readonly={isCompleted}
+            />
           {:else if section === 'candidates'}
             <CandidatesSection
               candidates={data.candidates}

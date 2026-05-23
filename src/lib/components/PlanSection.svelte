@@ -1,8 +1,11 @@
 <script>
   import { invalidate } from '$app/navigation';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  import StopCard from '$lib/components/StopCard.svelte';
+  import LodgingCard from '$lib/components/LodgingCard.svelte';
+  import { failureSentence } from '$lib/errors-registry.js';
 
-  let { plan, candidates, slug, readonly = false } = $props();
+  let { plan, candidates, slug, destination = null, readonly = false } = $props();
 
   // ── Confirm modal ──
   let confirmOpen = $state(false);
@@ -25,16 +28,29 @@
     );
   }
 
-  let pickerOpen = $state(null); // day number or `lodging:${n}`
-  let editing = $state(null); // day number for metadata edit
+  // ── UI state ──
+  let pickerOpen = $state(null); // day number or `lodging:${n}` (legacy click-fallback)
+  // Per-field inline editing: { dayNumber, field } where field is 'date' | 'drive' | 'notes'.
+  // The brief calls for editing one field at a time rather than the previous
+  // shared-form pattern that bundled all three.
+  let editingField = $state(/** @type {null | { dayNumber: number, field: 'date'|'drive'|'notes' }} */ (null));
+  let editDraft = $state(/** @type {any} */ (null));
   let working = $state(false);
-  let error = $state(null);
+  let errorCode = $state(/** @type {string|null} */ (null));
+  let errorCtx = $state(/** @type {Record<string,string>} */ ({}));
 
-  // Drag-drop target state. `dragOverDay` is the day number currently being
-  // hovered with a candidate drag. Cleared on dragleave/drop/dragend.
-  // Tracks how many child elements have entered to avoid the dragleave
-  // flicker that fires when crossing a child boundary inside the drop zone.
+  // Hide-with-undo toast for stop removal, mirroring CandidatesSection.
+  let hideToast = $state(/** @type {{ dayNumber: number, candidateId: string, name: string } | null} */ (null));
+  let hideToastTimer = null;
+
+  // ── Drag-drop state ──
+  // dragOverDay: day number currently hovered with a drag payload.
+  // dragOverLodging: same, but specifically over the lodging slot (a more
+  // precise drop target that fires for lodging payloads only).
+  // dragEnterCounts defeats the dragleave-on-child-boundary flicker.
   let dragOverDay = $state(null);
+  let dragOverLodging = $state(null);
+  let activeDragType = $state(/** @type {'stop'|'lodging'|null} */ (null));
   const dragEnterCounts = new Map();
 
   function onDayDragEnter(dayNumber, e) {
@@ -42,6 +58,14 @@
     const next = (dragEnterCounts.get(dayNumber) || 0) + 1;
     dragEnterCounts.set(dayNumber, next);
     dragOverDay = dayNumber;
+    // Sniff the payload type from the dataTransfer types list (the JSON
+    // payload itself is gated by the browser until drop, but the MIME
+    // entry is visible during dragover).
+    if (e.dataTransfer?.types?.includes('application/x-traverse-candidate')) {
+      // We can't read the payload yet; default to 'stop' visually and
+      // let the actual drop handler distinguish.
+      activeDragType = activeDragType ?? 'stop';
+    }
   }
 
   function onDayDragLeave(dayNumber) {
@@ -49,15 +73,29 @@
     if (next <= 0) {
       dragEnterCounts.delete(dayNumber);
       if (dragOverDay === dayNumber) dragOverDay = null;
+      if (dragEnterCounts.size === 0) activeDragType = null;
     } else {
       dragEnterCounts.set(dayNumber, next);
     }
+  }
+
+  function onLodgingDragEnter(dayNumber, e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragOverLodging = dayNumber;
+    activeDragType = 'lodging';
+  }
+  function onLodgingDragLeave(dayNumber, e) {
+    e.stopPropagation();
+    if (dragOverLodging === dayNumber) dragOverLodging = null;
   }
 
   async function onDayDrop(dayNumber, e) {
     e.preventDefault();
     dragEnterCounts.delete(dayNumber);
     dragOverDay = null;
+    dragOverLodging = null;
+    activeDragType = null;
     let payload = null;
     try {
       const raw = e.dataTransfer?.getData('application/x-traverse-candidate');
@@ -66,7 +104,6 @@
     if (!payload?.id) {
       const id = e.dataTransfer?.getData('text/plain');
       if (!id) return;
-      // Unknown type — infer from candidates list.
       const isStop = (candidates?.stops ?? []).some((s) => s.id === id);
       const isLodging = (candidates?.lodging ?? []).some((l) => l.id === id);
       payload = { id, type: isStop ? 'stop' : (isLodging ? 'lodging' : null) };
@@ -76,9 +113,84 @@
     else if (payload.type === 'lodging') await setLodging(dayNumber, payload.id);
   }
 
+  async function onLodgingDrop(dayNumber, e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragOverLodging = null;
+    dragOverDay = null;
+    activeDragType = null;
+    dragEnterCounts.clear();
+    let payload = null;
+    try {
+      const raw = e.dataTransfer?.getData('application/x-traverse-candidate');
+      if (raw) payload = JSON.parse(raw);
+    } catch { /* tolerate */ }
+    if (!payload?.id) {
+      const id = e.dataTransfer?.getData('text/plain');
+      if (!id) return;
+      const isLodging = (candidates?.lodging ?? []).some((l) => l.id === id);
+      payload = { id, type: isLodging ? 'lodging' : null };
+    }
+    // Lodging slot only accepts lodging payloads; a stop dropped here
+    // gets routed to the day-card handler instead (caller decides).
+    if (payload?.type !== 'lodging') return;
+    await setLodging(dayNumber, payload.id);
+  }
+
+  // Within-day stop reorder via drag handle. The drag source is a stop
+  // row inside this PlanSection; the drop target is another stop row in
+  // the same day. We don't allow cross-day stop drag in this pass — that
+  // would need server-side support to atomically move-from-one-day-to-
+  // another. Cross-card drag-from-Candidates still works via onDayDrop.
+  let reorderDrag = $state(/** @type {{ dayNumber: number, stopId: string, fromIdx: number } | null} */ (null));
+  let reorderOverIdx = $state(null);
+
+  function onStopDragStart(dayNumber, stopId, idx, e) {
+    if (!e.dataTransfer) return;
+    e.dataTransfer.effectAllowed = 'move';
+    // Use a different MIME so cross-card drops from Candidates don't
+    // collide with same-card reorders.
+    e.dataTransfer.setData('application/x-traverse-reorder', JSON.stringify({ dayNumber, stopId, fromIdx: idx }));
+    e.dataTransfer.setData('text/plain', stopId);
+    reorderDrag = { dayNumber, stopId, fromIdx: idx };
+  }
+  function onStopDragEnd() {
+    reorderDrag = null;
+    reorderOverIdx = null;
+  }
+  function onStopDragOver(dayNumber, idx, e) {
+    if (!reorderDrag || reorderDrag.dayNumber !== dayNumber) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    reorderOverIdx = idx;
+  }
+  async function onStopDrop(dayNumber, dropIdx, e) {
+    if (!reorderDrag || reorderDrag.dayNumber !== dayNumber) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const { stopId, fromIdx } = reorderDrag;
+    reorderDrag = null;
+    reorderOverIdx = null;
+    if (fromIdx === dropIdx) return;
+    const day = plan.days.find((d) => d.number === dayNumber);
+    if (!day) return;
+    const order = [...day.stops];
+    order.splice(fromIdx, 1);
+    // After removing, the insertion index shifts by 1 if fromIdx < dropIdx
+    const insertAt = fromIdx < dropIdx ? dropIdx - 1 : dropIdx;
+    order.splice(insertAt, 0, stopId);
+    await api(`/api/plan/${slug}/day/${dayNumber}/stops`, {
+      method: 'PUT',
+      body: JSON.stringify({ order }),
+    });
+  }
+
+  // ── API plumbing ──
   async function api(path, opts) {
     working = true;
-    error = null;
+    errorCode = null;
+    errorCtx = {};
     try {
       const res = await fetch(path, {
         headers: { 'content-type': 'application/json' },
@@ -86,11 +198,15 @@
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `${res.status}`);
+        errorCode = body.code || 'action_failed';
+        errorCtx = body.context || { action: 'update the plan' };
+        return false;
       }
       await invalidate('app:trip');
-    } catch (err) {
-      error = err.message;
+      return true;
+    } catch {
+      errorCode = 'network_error';
+      return false;
     } finally {
       working = false;
     }
@@ -119,25 +235,13 @@
     pickerOpen = null;
   }
 
-  async function removeStop(dayNumber, id) {
-    await api(`/api/plan/${slug}/day/${dayNumber}/stops/${id}`, {
+  async function removeStopWithUndo(dayNumber, id) {
+    const cand = candidateById(id);
+    const name = cand?.name ?? id;
+    const ok = await api(`/api/plan/${slug}/day/${dayNumber}/stops/${id}`, {
       method: 'DELETE',
     });
-  }
-
-  async function moveStop(dayNumber, id, direction) {
-    const day = plan.days.find((d) => d.number === dayNumber);
-    if (!day) return;
-    const idx = day.stops.indexOf(id);
-    if (idx === -1) return; // dangling id — not safe to swap
-    const j = idx + direction;
-    if (j < 0 || j >= day.stops.length) return;
-    const next = [...day.stops];
-    [next[idx], next[j]] = [next[j], next[idx]];
-    await api(`/api/plan/${slug}/day/${dayNumber}/stops`, {
-      method: 'PUT',
-      body: JSON.stringify({ order: next }),
-    });
+    if (ok) queueHideToast({ dayNumber, candidateId: id, name });
   }
 
   async function setLodging(dayNumber, candidateId) {
@@ -148,29 +252,122 @@
     pickerOpen = null;
   }
 
-  async function saveMeta(dayNumber, patch) {
+  async function saveField(dayNumber, patch) {
     await api(`/api/plan/${slug}/day/${dayNumber}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     });
-    editing = null;
+    editingField = null;
+    editDraft = null;
   }
 
+  function startEdit(dayNumber, field) {
+    const day = plan.days.find((d) => d.number === dayNumber);
+    if (!day) return;
+    editingField = { dayNumber, field };
+    if (field === 'date') editDraft = day.date ?? '';
+    else if (field === 'drive') editDraft = day.drive_distance_mi ?? '';
+    else if (field === 'notes') editDraft = day.notes ?? '';
+  }
+  function cancelEdit() {
+    editingField = null;
+    editDraft = null;
+  }
+  async function commitEdit() {
+    if (!editingField) return;
+    const { dayNumber, field } = editingField;
+    if (field === 'date') {
+      await saveField(dayNumber, { date: editDraft || null });
+    } else if (field === 'drive') {
+      const n = editDraft === '' || editDraft == null ? null : Number(editDraft);
+      await saveField(dayNumber, { drive_distance_mi: Number.isFinite(n) ? n : null });
+    } else if (field === 'notes') {
+      await saveField(dayNumber, { notes: editDraft ?? '' });
+    }
+  }
+
+  // ── Hide toast (stop removal) ──
+  function queueHideToast(entry) {
+    if (hideToastTimer) { clearTimeout(hideToastTimer); hideToastTimer = null; }
+    hideToast = entry;
+    hideToastTimer = setTimeout(() => {
+      hideToast = null;
+      hideToastTimer = null;
+    }, 5000);
+  }
+  async function undoHide() {
+    if (!hideToast) return;
+    const { dayNumber, candidateId } = hideToast;
+    hideToast = null;
+    if (hideToastTimer) { clearTimeout(hideToastTimer); hideToastTimer = null; }
+    // Re-promote: same endpoint that promotes candidates into days.
+    await api(`/api/plan/${slug}/promote`, {
+      method: 'POST',
+      body: JSON.stringify({ id: candidateId, day: dayNumber }),
+    });
+  }
+  function dismissHideToast() {
+    hideToast = null;
+    if (hideToastTimer) { clearTimeout(hideToastTimer); hideToastTimer = null; }
+  }
+
+  // ── Picker helpers (click fallback for promote/lodging) ──
   function unpromotedStops() {
     const inPlan = new Set();
     for (const d of plan?.days ?? []) for (const s of d.stops) inPlan.add(s);
-    return (candidates?.stops ?? []).filter((s) => !inPlan.has(s.id));
+    return (candidates?.stops ?? []).filter((s) => !inPlan.has(s.id) && !s.hidden);
   }
-
   function unpromotedLodging() {
     const inPlan = new Set();
     for (const d of plan?.days ?? []) if (d.lodging_id) inPlan.add(d.lodging_id);
-    return (candidates?.lodging ?? []).filter((l) => !inPlan.has(l.id));
+    return (candidates?.lodging ?? []).filter((l) => !inPlan.has(l.id) && !l.hidden);
   }
+
+  // ── Display helpers ──
+  // Weekday + short date + day number, per the shape brief. Falls back
+  // to "Day N" when the date isn't set yet so an empty schedule still
+  // renders a meaningful anchor.
+  const WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function formatDayHeader(day) {
+    if (!day?.date) return { primary: `Day ${day.number}`, secondary: null };
+    // Parse ISO YYYY-MM-DD as a local date (not UTC) so the displayed
+    // weekday matches what the user typed regardless of timezone offset.
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day.date));
+    if (!m) return { primary: `Day ${day.number}`, secondary: String(day.date) };
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (Number.isNaN(d.getTime())) return { primary: `Day ${day.number}`, secondary: String(day.date) };
+    const wd = WEEKDAYS[d.getDay()];
+    const mo = MONTHS[d.getMonth()];
+    return { primary: `${wd} · ${mo} ${d.getDate()}`, secondary: `Day ${day.number}` };
+  }
+
+  // Haversine in miles for the distance chip on each compact StopCard.
+  function distanceMi(a, b) {
+    if (!a || !b) return null;
+    const lat1 = Number(a.lat), lng1 = Number(a.lng);
+    const lat2 = Number(b.lat), lng2 = Number(b.lng);
+    if (!Number.isFinite(lat1) || !Number.isFinite(lng1) || !Number.isFinite(lat2) || !Number.isFinite(lng2)) return null;
+    const toRad = (deg) => (deg * Math.PI) / 180;
+    const R = 3959;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const x = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2) ** 2;
+    return Math.round(2 * R * Math.asin(Math.sqrt(x)));
+  }
+  const destCoords = $derived(
+    Array.isArray(destination) && destination.length === 2
+      ? { lat: destination[0], lng: destination[1] }
+      : null
+  );
 </script>
 
-{#if error}
-  <p class="banner-error" role="alert">{error}</p>
+{#if errorCode}
+  <div class="banner-error" role="alert">
+    <span>{failureSentence(errorCode, errorCtx)}</span>
+    <button type="button" class="banner-dismiss" onclick={() => { errorCode = null; }}>Dismiss</button>
+  </div>
 {/if}
 
 {#if !plan}
@@ -178,140 +375,242 @@
     <p>Plan will appear after extraction completes.</p>
   </div>
 {:else if plan.days.length === 0}
-  <div class="empty">
-    <p>No days planned yet.</p>
-    <button class="btn-inline" onclick={addDay} disabled={working || readonly}>+ Add Day 1</button>
+  <!-- Ghost-preview empty state — mirrors CandidatesSection so the two
+       adjacent sections share a visual vocabulary in the empty path. -->
+  <div class="empty-pre">
+    <div class="ghost-preview" aria-hidden="true">
+      <div class="ghost-day-card"></div>
+      <div class="ghost-day-card"></div>
+    </div>
+    <p class="empty-line">
+      Drag a stop from Candidates to start Day 1, or use the button below to outline first.
+    </p>
+    <button class="btn-inline add-day-empty" onclick={addDay} disabled={working || readonly}>+ Add Day 1</button>
   </div>
 {:else}
   {#each plan.days as day (day.number)}
+    {@const header = formatDayHeader(day)}
     <article
       class="day-card"
       class:drop-target-active={dragOverDay === day.number}
+      class:drop-stop={dragOverDay === day.number && activeDragType !== 'lodging'}
+      class:drop-lodging={dragOverDay === day.number && activeDragType === 'lodging'}
       ondragenter={(e) => onDayDragEnter(day.number, e)}
       ondragover={(e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }}
       ondragleave={() => onDayDragLeave(day.number)}
       ondrop={(e) => onDayDrop(day.number, e)}
     >
-      <header>
-        <h3>Day {day.number}{#if day.date} · {day.date}{/if}</h3>
+      <header class="day-header">
+        <div class="day-anchor">
+          <h3 class="day-primary">{header.primary}</h3>
+          {#if header.secondary}<span class="day-secondary">{header.secondary}</span>{/if}
+        </div>
+
+        {#if editingField?.dayNumber === day.number && editingField.field === 'drive'}
+          <span class="field-edit field-edit--drive">
+            <input
+              type="number"
+              class="field-input"
+              bind:value={editDraft}
+              placeholder="mi"
+              onkeydown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); }}
+              onblur={commitEdit}
+            />
+            <span class="field-suffix">mi</span>
+          </span>
+        {:else if day.drive_distance_mi}
+          <button
+            type="button"
+            class="chip chip--drive"
+            onclick={() => startEdit(day.number, 'drive')}
+            disabled={readonly}
+            title="Edit drive distance"
+          >~{day.drive_distance_mi} mi</button>
+        {:else if !readonly}
+          <button
+            type="button"
+            class="chip chip--drive chip--placeholder"
+            onclick={() => startEdit(day.number, 'drive')}
+            title="Add drive distance"
+          >+ drive</button>
+        {/if}
+
+        {#if editingField?.dayNumber === day.number && editingField.field === 'date'}
+          <span class="field-edit field-edit--date">
+            <input
+              type="date"
+              class="field-input"
+              bind:value={editDraft}
+              onkeydown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); }}
+              onblur={commitEdit}
+            />
+          </span>
+        {:else if !day.date && !readonly}
+          <button
+            type="button"
+            class="chip chip--date chip--placeholder"
+            onclick={() => startEdit(day.number, 'date')}
+            title="Add date"
+          >+ date</button>
+        {/if}
+
         <button
-          class="btn-inline"
-          onclick={() => (editing = editing === day.number ? null : day.number)}
-          disabled={working || readonly}
-        >Edit</button>
-        <button
-          class="btn-inline btn-icon"
+          type="button"
+          class="btn-inline btn-icon header-icon"
           onclick={() => removeDay(day.number)}
           disabled={working || readonly}
           aria-label="Remove day"
+          title="Remove day"
         >×</button>
       </header>
 
-      {#if editing === day.number}
-        <form
-          onsubmit={(e) => {
-            e.preventDefault();
-            const fd = new FormData(e.currentTarget);
-            const driveStr = fd.get('drive');
-            const driveNum = driveStr ? Number(driveStr) : null;
-            saveMeta(day.number, {
-              date: fd.get('date') || null,
-              drive_distance_mi: Number.isFinite(driveNum) ? driveNum : null,
-              notes: fd.get('notes') ?? '',
-            });
-          }}
-        >
-          <input name="date" placeholder="YYYY-MM-DD" value={day.date ?? ''} />
-          <input
-            name="drive"
-            type="number"
-            placeholder="Drive (mi)"
-            value={day.drive_distance_mi ?? ''}
-          />
-          <textarea name="notes" placeholder="Notes" rows="3">{day.notes ?? ''}</textarea>
-          <div class="form-actions">
-            <button class="btn-inline btn-primary" type="submit" disabled={working || readonly}>Save</button>
-            <button
-              class="btn-inline"
-              type="button"
-              onclick={() => (editing = null)}
-              disabled={working || readonly}
-            >Cancel</button>
+      <!-- Notes at rest — first-class field, not edit-only as before. -->
+      {#if editingField?.dayNumber === day.number && editingField.field === 'notes'}
+        <div class="notes-edit">
+          <textarea
+            class="notes-textarea"
+            bind:value={editDraft}
+            rows="3"
+            placeholder="What's the shape of this day?"
+            onkeydown={(e) => { if (e.key === 'Escape') cancelEdit(); }}
+          ></textarea>
+          <div class="notes-edit-actions">
+            <button class="btn-inline btn-primary" onclick={commitEdit} disabled={working || readonly}>Save</button>
+            <button class="btn-inline" onclick={cancelEdit} disabled={working || readonly}>Cancel</button>
           </div>
-        </form>
+        </div>
+      {:else if day.notes}
+        {#if readonly}
+          <p class="notes notes--readonly">{day.notes}</p>
+        {:else}
+          <button
+            type="button"
+            class="notes notes--editable"
+            onclick={() => startEdit(day.number, 'notes')}
+            aria-label="Edit notes for {header.primary}"
+          >
+            <span class="notes-body">{day.notes}</span>
+            <span class="notes-edit-hint" aria-hidden="true">edit</span>
+          </button>
+        {/if}
+      {:else if !readonly}
+        <button
+          type="button"
+          class="notes-add"
+          onclick={() => startEdit(day.number, 'notes')}
+        >+ Add notes</button>
       {/if}
 
+      <!-- Stops list — compact StopCards instead of bare flexbox rows. -->
       {#if day.stops.length > 0}
-        <ol class="stops">
-          {#each day.stops as id, i}
+        <ul class="stops-list" role="list">
+          {#each day.stops as id, i (id)}
             {@const cand = candidateById(id)}
-            <li>
+            <li
+              class="stop-row"
+              class:reorder-target={reorderOverIdx === i && reorderDrag?.dayNumber === day.number}
+              ondragover={(e) => onStopDragOver(day.number, i, e)}
+              ondrop={(e) => onStopDrop(day.number, i, e)}
+            >
               {#if cand}
-                <span class="cat">{cand.category}</span>
-                <span class="name">{cand.name}</span>
+                {#if cand.id && candidates?.stops?.find((s) => s.id === id)}
+                  <StopCard
+                    stop={cand}
+                    compact={true}
+                    promoted={true}
+                    distance={destCoords ? distanceMi(cand.coords, destCoords) : null}
+                    {readonly}
+                    {working}
+                    ondragstart={() => onStopDragStart(day.number, id, i, event)}
+                    ondragend={onStopDragEnd}
+                    onHide={() => removeStopWithUndo(day.number, id)}
+                  />
+                {:else if candidates?.lodging?.find((l) => l.id === id)}
+                  <!-- A lodging accidentally in a day's stops list is a
+                       schema oddity; render as dangling so the dangling
+                       banner has a path to surface it. -->
+                  <div class="dangling-row" role="alert" title="Lodging in stops list — move it to the lodging slot.">
+                    ⚠ {cand.name} is filed as a stop but is a lodging
+                  </div>
+                {/if}
               {:else}
-                <span class="dangling" title="Candidate missing from candidates.md">⚠ {id}</span>
+                <div class="dangling-row" role="alert">
+                  ⚠ Missing candidate ({id})
+                  <button class="btn-inline btn-icon" onclick={() => removeStopWithUndo(day.number, id)} disabled={readonly}>×</button>
+                </div>
               {/if}
-              <button
-                class="btn-inline btn-icon"
-                onclick={() => moveStop(day.number, id, -1)}
-                disabled={i === 0 || working || readonly}
-                aria-label="Move up"
-              >↑</button>
-              <button
-                class="btn-inline btn-icon"
-                onclick={() => moveStop(day.number, id, 1)}
-                disabled={i === day.stops.length - 1 || working || readonly}
-                aria-label="Move down"
-              >↓</button>
-              <button
-                class="btn-inline btn-icon"
-                onclick={() => removeStop(day.number, id)}
-                disabled={working || readonly}
-                aria-label="Remove"
-              >×</button>
             </li>
           {/each}
-        </ol>
+        </ul>
       {/if}
 
       <button
-        class="btn-inline add-stop"
+        type="button"
+        class="add-stop"
         onclick={() => (pickerOpen = pickerOpen === day.number ? null : day.number)}
         disabled={working || readonly}
       >+ Add stop</button>
 
-      <div class="lodging">
-        <strong>Lodging:</strong>
+      <!-- Lodging slot — its own drop target so dragging a LodgingCard
+           onto a day defaults to the lodging slot. Stop payloads dropped
+           anywhere on the day card route to the stops list instead. -->
+      <div
+        class="lodging-slot"
+        class:lodging-drop-active={dragOverLodging === day.number}
+        role="region"
+        aria-label="Lodging for {header.primary}"
+        ondragenter={(e) => onLodgingDragEnter(day.number, e)}
+        ondragover={(e) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }}
+        ondragleave={(e) => onLodgingDragLeave(day.number, e)}
+        ondrop={(e) => onLodgingDrop(day.number, e)}
+      >
         {#if day.lodging_id}
           {@const l = candidateById(day.lodging_id)}
           {#if l}
-            <span class="name">{l.name}</span>
+            <LodgingCard
+              lodging={l}
+              compact={true}
+              promoted={true}
+              {readonly}
+              {working}
+              showDragHandle={false}
+              onHide={() => setLodging(day.number, null)}
+            />
           {:else}
-            <span class="dangling" title="Candidate missing from candidates.md">⚠ {day.lodging_id}</span>
+            <div class="dangling-row" role="alert">
+              ⚠ Missing lodging ({day.lodging_id})
+              <button class="btn-inline btn-icon" onclick={() => setLodging(day.number, null)} disabled={readonly}>×</button>
+            </div>
           {/if}
-          <button
-            class="btn-inline"
-            onclick={() => setLodging(day.number, null)}
-            disabled={working || readonly}
-          >clear</button>
         {:else}
           <button
-            class="btn-inline"
-            onclick={() =>
-              (pickerOpen =
-                pickerOpen === `lodging:${day.number}` ? null : `lodging:${day.number}`)}
+            type="button"
+            class="lodging-empty"
+            onclick={() => (pickerOpen = pickerOpen === `lodging:${day.number}` ? null : `lodging:${day.number}`)}
             disabled={working || readonly}
-          >+ Add lodging</button>
+            aria-label="Add lodging for this day"
+          >
+            <span class="lodging-empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 17v-7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v7" />
+                <path d="M3 14h18" />
+                <path d="M3 17v3" />
+                <path d="M21 17v3" />
+              </svg>
+            </span>
+            <span class="lodging-empty-label">+ Add lodging</span>
+            <span class="lodging-empty-hint">or drag a place to stay</span>
+          </button>
         {/if}
       </div>
 
+      <!-- Click-flow pickers (kept as fallback for touch + keyboard). -->
       {#if pickerOpen === day.number}
         <div class="picker">
-          <h5>Add a stop to Day {day.number}</h5>
+          <h5>Add a stop to {header.primary}</h5>
           {#each unpromotedStops() as s (s.id)}
             <button onclick={() => addStop(day.number, s.id)} class="picker-item" disabled={working || readonly}>
-              <span class="cat">{s.category}</span> {s.name}
+              <span class="picker-cat">{s.category}</span> {s.name}
             </button>
           {/each}
           {#if unpromotedStops().length === 0}
@@ -320,10 +619,10 @@
         </div>
       {:else if pickerOpen === `lodging:${day.number}`}
         <div class="picker">
-          <h5>Set lodging for Day {day.number}</h5>
+          <h5>Set lodging for {header.primary}</h5>
           {#each unpromotedLodging() as l (l.id)}
             <button onclick={() => setLodging(day.number, l.id)} class="picker-item" disabled={working || readonly}>
-              <span class="cat">{l.price_tier}</span> {l.name}
+              <span class="picker-cat">{l.price_tier}</span> {l.name}
             </button>
           {/each}
           {#if unpromotedLodging().length === 0}
@@ -331,9 +630,22 @@
           {/if}
         </div>
       {/if}
+
+      <!-- Drop label, shown only while a candidate is mid-drag over this day. -->
+      {#if dragOverDay === day.number && activeDragType !== 'lodging'}
+        <div class="drop-label" aria-hidden="true">Drop to add to {header.primary}</div>
+      {/if}
     </article>
   {/each}
   <button class="btn-inline add-day" onclick={addDay} disabled={working || readonly}>+ Add day</button>
+{/if}
+
+{#if hideToast}
+  <div class="hide-toast" role="status" aria-live="polite">
+    <span>Removed {hideToast.name} from Day {hideToast.dayNumber}.</span>
+    <button type="button" class="toast-undo" onclick={undoHide}>Undo</button>
+    <button type="button" class="toast-dismiss" onclick={dismissHideToast} aria-label="Dismiss">×</button>
+  </div>
 {/if}
 
 <ConfirmModal
@@ -347,54 +659,469 @@
 />
 
 <style>
+  /* ── Banner ──────────────────────────────────────────────────────────── */
   .banner-error {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
     padding: 0.5rem 0.75rem;
     background: var(--state-danger-surface);
     color: var(--text-primary);
     border: 1px solid var(--state-danger);
-    border-radius: 0.25rem;
+    border-radius: 4px;
     margin-bottom: 1rem;
     font-family: var(--font-sans);
     font-size: 0.9rem;
   }
+  .banner-error span { flex: 1; }
+  .banner-dismiss {
+    background: transparent;
+    border: 0.5px solid var(--state-danger);
+    color: var(--state-danger);
+    font-family: var(--font-sans);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.25rem 0.55rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .banner-dismiss:hover { background: color-mix(in oklab, var(--state-danger) 8%, transparent); }
+
+  /* ── Empty / ghost-preview ───────────────────────────────────────────── */
+  .empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+  }
+  .empty p { margin: 0 0 0.75rem; }
+  .empty-pre {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem 0.5rem;
+    align-items: stretch;
+  }
+  .ghost-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .ghost-day-card {
+    height: 84px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    opacity: 0.5;
+  }
+  .ghost-day-card:nth-child(1) { opacity: 0.55; }
+  .ghost-day-card:nth-child(2) { opacity: 0.35; }
+  .empty-line {
+    color: var(--text-tertiary);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    font-style: italic;
+    text-align: center;
+    padding: 0.5rem;
+    margin: 0;
+  }
+  .add-day-empty { align-self: center; }
+
+  /* ── Day card ───────────────────────────────────────────────────────── */
   .day-card {
+    position: relative;
     border: 1px solid var(--border-default);
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin-bottom: 1rem;
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.85rem;
     background: var(--surface-raised);
     font-family: var(--font-sans);
     transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   }
-  /* Drop target affordance while a CandidatesSection card is being dragged
-     over this day card. Accent border + faint accent wash signals "drop
-     here to promote." Children inherit pointer-events so the dragleave
-     count stays consistent across child boundaries (see onDayDragLeave). */
+  /* Drop target affordance — dashed inset outline + accent border + soft
+     accent wash. Differentiated by payload type so the user sees what
+     they're about to commit to. */
   .day-card.drop-target-active {
     border-color: var(--accent);
-    background: color-mix(in oklab, var(--accent) 6%, var(--surface-raised));
-    box-shadow: 0 0 0 1px var(--accent);
+    background: color-mix(in oklab, var(--accent) 5%, var(--surface-raised));
+    box-shadow: inset 0 0 0 1px var(--accent);
   }
-  .day-card header {
+  .day-card.drop-target-active::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border: 1.5px dashed color-mix(in oklab, var(--accent) 60%, transparent);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  .drop-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--accent);
+    color: var(--text-inverse);
+    padding: 0.4rem 0.8rem;
+    border-radius: 999px;
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    z-index: 5;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  }
+
+  /* ── Day header ─────────────────────────────────────────────────────── */
+  .day-header {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.65rem;
+    flex-wrap: wrap;
   }
-  .day-card h3 {
-    margin: 0;
+  .day-anchor {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+  .day-primary {
+    margin: 0;
     color: var(--text-primary);
-    font-size: 1rem;
     font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+  }
+  .day-secondary {
+    color: var(--text-tertiary);
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .header-icon {
+    padding: 3px 8px;
+    line-height: 1;
+    min-width: 1.6rem;
+  }
+
+  /* Header chip used for drive distance + date placeholders. Click toggles
+     inline editing. Placeholder variant is muted so it doesn't compete
+     with populated chips. */
+  .chip {
+    background: var(--surface-page);
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .chip:hover:not(:disabled) {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+  .chip--placeholder {
+    color: var(--text-tertiary);
+    background: transparent;
     font-weight: 500;
   }
-  /* Compact-density variant of the global .btn-secondary treatment. Same
-     transparent + 0.5px border-default chrome; smaller padding + font so
-     it sits inside day cards without dominating the card content. Visual
-     drift between the three button systems (global .btn, .btn-inline,
-     .btn-section-ask) was called out in critique — they now share borders,
-     colors, hover behavior, and only diverge on density. */
+  .chip--placeholder:hover:not(:disabled) {
+    color: var(--text-secondary);
+  }
+
+  /* Inline field editors — replace the chip / notes with their input
+     primitives in place. Save-on-blur for date and drive; explicit save
+     for notes (longer content). */
+  .field-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: var(--surface-page);
+    border: 1px solid var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .field-input {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    width: auto;
+    outline: none;
+  }
+  .field-edit--drive .field-input { width: 4.5em; }
+  .field-edit--date .field-input { width: 9em; }
+  .field-suffix {
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+  }
+
+  /* ── Notes ──────────────────────────────────────────────────────────── */
+  /* Two render modes share the same chrome:
+       .notes.notes--readonly: a plain <p> when the trip is read-only
+       .notes.notes--editable: a <button> styled like a paragraph so it
+                               carries the click-to-edit affordance with
+                               proper keyboard semantics */
+  .notes {
+    position: relative;
+    display: block;
+    width: 100%;
+    margin: 0 0 0.85rem;
+    padding: 0.55rem 0.7rem;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    background: color-mix(in oklab, var(--surface-sunken) 60%, transparent);
+    border: none;
+    border-radius: 4px;
+    text-align: left;
+    transition: background-color 0.12s;
+  }
+  .notes--readonly { cursor: text; }
+  .notes--editable {
+    cursor: pointer;
+  }
+  .notes--editable:hover,
+  .notes--editable:focus-visible {
+    background: var(--surface-sunken);
+  }
+  .notes--editable:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .notes-body {
+    display: inline;
+  }
+  .notes-edit-hint {
+    margin-left: 0.5rem;
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
+    opacity: 0;
+    transition: opacity 0.12s;
+    text-transform: lowercase;
+    letter-spacing: 0.04em;
+  }
+  .notes--editable:hover .notes-edit-hint,
+  .notes--editable:focus-visible .notes-edit-hint { opacity: 1; }
+  .notes-add {
+    background: transparent;
+    border: 0.5px dashed var(--border-default);
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 0.35rem 0.7rem;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 0.85rem;
+    transition: color 0.12s, border-color 0.12s, background-color 0.12s;
+  }
+  .notes-add:hover:not(:disabled) {
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+    background: color-mix(in oklab, var(--surface-sunken) 40%, transparent);
+  }
+  .notes-edit {
+    margin-bottom: 0.85rem;
+  }
+  .notes-textarea {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+  }
+  .notes-edit-actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
+  }
+
+  /* ── Stops list ─────────────────────────────────────────────────────── */
+  .stops-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0.45rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .stop-row {
+    position: relative;
+    transition: padding-top 0.15s ease;
+  }
+  /* Insertion marker for within-day reorder. The row above the marker
+     gets a top accent line and slight padding bump so the drop position
+     is unambiguous. */
+  .stop-row.reorder-target::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 999px;
+  }
+  .dangling-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.7rem;
+    background: var(--state-warning-surface);
+    color: var(--state-warning);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+  }
+
+  /* ── Add stop ───────────────────────────────────────────────────────── */
+  .add-stop {
+    background: transparent;
+    border: 0.5px dashed var(--border-default);
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 0.85rem;
+    transition: color 0.12s, border-color 0.12s, background-color 0.12s;
+  }
+  .add-stop:hover:not(:disabled) {
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+    background: color-mix(in oklab, var(--surface-sunken) 40%, transparent);
+  }
+  .add-stop:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Lodging slot ───────────────────────────────────────────────────── */
+  .lodging-slot {
+    position: relative;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--border-default);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+  .lodging-slot.lodging-drop-active {
+    border-top-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 4%, transparent);
+  }
+  .lodging-slot.lodging-drop-active::after {
+    content: 'Set as lodging';
+    position: absolute;
+    top: 50%;
+    right: 0.6rem;
+    transform: translateY(-50%);
+    background: var(--accent);
+    color: var(--text-inverse);
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    pointer-events: none;
+  }
+  /* Empty lodging slot is a dashed drop-zone with the bed glyph so the
+     "this is where lodging goes" affordance survives even at rest. */
+  .lodging-empty {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.55rem;
+    padding: 0.55rem 0.75rem;
+    background: transparent;
+    border: 0.5px dashed var(--border-default);
+    border-radius: 5px;
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: color 0.12s, border-color 0.12s, background-color 0.12s;
+  }
+  .lodging-empty:hover:not(:disabled) {
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+    background: color-mix(in oklab, var(--surface-sunken) 40%, transparent);
+  }
+  .lodging-empty:disabled { opacity: 0.5; cursor: not-allowed; }
+  .lodging-empty-icon {
+    color: var(--bone-600);
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+  :global([data-theme="dark"]) .lodging-empty-icon { color: var(--bone-200); }
+  .lodging-empty-label {
+    font-size: 0.86rem;
+    font-weight: 500;
+  }
+  .lodging-empty-hint {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: var(--text-tertiary);
+    font-style: italic;
+  }
+
+  /* ── Click-flow picker (touch / keyboard fallback) ──────────────────── */
+  .picker {
+    margin-top: 0.6rem;
+    padding: 0.55rem;
+    background: var(--surface-sunken);
+    border-radius: 5px;
+  }
+  .picker h5 {
+    margin: 0 0 0.5rem;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .picker-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border-default);
+    cursor: pointer;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+  }
+  .picker-item:last-child { border-bottom: none; }
+  .picker-item:hover:not(:disabled) { background: var(--surface-raised); }
+  .picker-item:disabled { opacity: 0.5; cursor: not-allowed; }
+  .picker-cat {
+    font-size: 0.72rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.25rem;
+    background: var(--surface-page);
+    color: var(--text-tertiary);
+    margin-right: 0.4rem;
+  }
+  .picker-empty {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
+  }
+
+  /* ── Buttons (legacy chrome kept for + Add day at the bottom) ───────── */
   .btn-inline {
     display: inline-flex;
     align-items: center;
@@ -417,12 +1144,7 @@
     background: var(--surface-raised);
     color: var(--text-primary);
   }
-  .btn-inline:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  /* Primary inline button mirrors the global .btn-primary: dark forest
-     fill in light mode, inverted bone fill in dark mode. */
+  .btn-inline:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-inline.btn-primary {
     background: var(--forest-800);
     color: var(--text-inverse);
@@ -448,123 +1170,51 @@
     line-height: 1;
     min-width: 1.75rem;
   }
-  .add-stop {
-    margin-top: 0.25rem;
-  }
   .add-day {
     margin-top: 0.5rem;
   }
-  .stops {
-    padding-left: 1.25rem;
-    margin: 0.5rem 0;
-  }
-  .stops li {
-    display: flex;
+
+  /* ── Hide toast (stop removal) ──────────────────────────────────────── */
+  .hide-toast {
+    position: sticky;
+    bottom: 1rem;
+    z-index: 30;
+    display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    margin: 0.25rem 0;
-  }
-  .name {
-    flex: 1;
-    color: var(--text-primary);
-  }
-  .dangling {
-    color: var(--state-warning);
-    flex: 1;
-    font-size: 0.85rem;
-  }
-  .cat {
-    font-size: 0.75rem;
-    padding: 0.1rem 0.4rem;
-    border-radius: 0.25rem;
-    background: var(--surface-sunken);
-    color: var(--text-tertiary);
-  }
-  .lodging {
-    margin-top: 0.75rem;
-    padding-top: 0.5rem;
-    border-top: 1px dashed var(--border-default);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-  }
-  .lodging strong {
-    color: var(--text-primary);
-  }
-  .picker {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    background: var(--surface-sunken);
-    border-radius: 0.5rem;
-  }
-  .picker h5 {
-    margin: 0 0 0.5rem;
-    color: var(--text-primary);
+    margin: 0.85rem auto 0;
+    width: max-content;
+    max-width: 100%;
+    background: var(--forest-800);
+    color: var(--bone-100);
+    border: 1px solid color-mix(in oklab, var(--bone-50) 20%, transparent);
+    border-radius: 999px;
+    padding: 0.4rem 0.6rem 0.4rem 0.85rem;
     font-family: var(--font-sans);
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: 0.82rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   }
-  .picker-item {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 0.5rem;
-    background: none;
-    border: none;
-    border-bottom: 1px solid var(--border-default);
+  .toast-undo {
+    background: transparent;
+    border: 1px solid color-mix(in oklab, var(--bone-50) 30%, transparent);
+    color: var(--bone-50);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
     cursor: pointer;
-    color: var(--text-primary);
-    font-family: var(--font-sans);
-    font-size: 0.9rem;
+    transition: background-color 0.12s;
   }
-  .picker-item:last-child {
-    border-bottom: none;
+  .toast-undo:hover { background: color-mix(in oklab, var(--bone-50) 12%, transparent); }
+  .toast-dismiss {
+    background: transparent;
+    border: none;
+    color: color-mix(in oklab, var(--bone-50) 70%, transparent);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.15rem;
+    cursor: pointer;
   }
-  .picker-item:hover:not(:disabled) {
-    background: var(--surface-raised);
-  }
-  .picker-item:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .picker-empty {
-    margin: 0;
-    color: var(--text-tertiary);
-    font-size: 0.85rem;
-  }
-  .empty {
-    padding: 2rem;
-    text-align: center;
-    color: var(--text-tertiary);
-    font-family: var(--font-sans);
-  }
-  .empty p {
-    margin: 0 0 0.75rem;
-  }
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-    padding: 0.5rem;
-    background: var(--surface-page);
-    border: 1px solid var(--border-subtle);
-    border-radius: 0.25rem;
-  }
-  form input,
-  form textarea {
-    padding: 0.4rem;
-    border: 1px solid var(--border-default);
-    border-radius: 0.25rem;
-    background: var(--surface-raised);
-    color: var(--text-primary);
-    font-family: var(--font-sans);
-    font-size: 0.9rem;
-  }
-  .form-actions {
-    display: flex;
-    gap: 0.5rem;
-  }
+  .toast-dismiss:hover { color: var(--bone-50); }
 </style>

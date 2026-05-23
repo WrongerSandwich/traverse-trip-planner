@@ -14,6 +14,13 @@
     readonly = false,
     working = false,
     showDragHandle = true,
+    // `compact` is the "in a day card" rendering — drops the description
+    // line and tightens padding. The Promote/Un-promote action button and
+    // the source-url link are also suppressed because the parent (a
+    // PlanSection day card) owns its own affordance set; we keep the
+    // drag handle and the hover-revealed Hide button since they map to
+    // the in-day gestures (reorder + remove-from-day).
+    compact = false,
     onHover = () => {},
     onClick = () => {},
     onPromote = () => {},
@@ -66,6 +73,7 @@
   class="stop-card"
   class:promoted
   class:hovered
+  class:compact
   data-category={stop.category}
   draggable={showDragHandle && !readonly && !working ? 'true' : 'false'}
   onmouseenter={() => onHover(stop.id)}
@@ -82,39 +90,41 @@
     {#if distance != null}
       <span class="distance" title="Distance from destination">{distance} mi</span>
     {/if}
-    {#if promoted}
+    {#if promoted && !compact}
       <span class="in-plan-mark" title="In your plan" aria-label="In plan">●</span>
     {/if}
   </div>
 
-  {#if summary}
+  {#if summary && !compact}
     <p class="summary">{summary}</p>
   {/if}
 
   <footer>
     {#if showDragHandle && !readonly}
-      <span class="drag-handle" aria-hidden="true" title="Drag onto a day card to promote">
+      <span class="drag-handle" aria-hidden="true" title={compact ? 'Drag to reorder within this day' : 'Drag onto a day card to promote'}>
         <span class="drag-dots">⋮⋮</span>
         <span class="drag-label">drag</span>
       </span>
     {/if}
-    {#if promoted}
-      <button
-        type="button"
-        class="action"
-        onclick={(e) => { e.stopPropagation(); onUnpromote(); }}
-        disabled={readonly || working}
-      >Un-promote</button>
-    {:else}
-      <button
-        type="button"
-        class="action action--primary"
-        onclick={(e) => { e.stopPropagation(); onPromote(); }}
-        disabled={readonly || working}
-      >Promote to day…</button>
-    {/if}
-    {#if stop.source_url}
-      <a class="link" href={stop.source_url} target="_blank" rel="noreferrer noopener" onclick={(e) => e.stopPropagation()}>Source ↗</a>
+    {#if !compact}
+      {#if promoted}
+        <button
+          type="button"
+          class="action"
+          onclick={(e) => { e.stopPropagation(); onUnpromote(); }}
+          disabled={readonly || working}
+        >Un-promote</button>
+      {:else}
+        <button
+          type="button"
+          class="action action--primary"
+          onclick={(e) => { e.stopPropagation(); onPromote(); }}
+          disabled={readonly || working}
+        >Promote to day…</button>
+      {/if}
+      {#if stop.source_url}
+        <a class="link" href={stop.source_url} target="_blank" rel="noreferrer noopener" onclick={(e) => e.stopPropagation()}>Source ↗</a>
+      {/if}
     {/if}
     {#if !readonly}
       <button
@@ -176,6 +186,65 @@
   }
   .stop-card[draggable="true"]:active {
     cursor: grabbing;
+  }
+
+  /* Compact mode — the "I'm inside a day card" rendering used by
+     PlanSection. Drops the description paragraph, tightens padding,
+     and collapses to a single-row layout: badge + name + distance +
+     drag-handle + hide × all in one line. Borders go subtler so the
+     parent day-card chrome carries the visual weight. */
+  .stop-card.compact {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    gap: 0.5rem;
+    border-color: transparent;
+    border-radius: 4px;
+    background: transparent;
+  }
+  .stop-card.compact:hover,
+  .stop-card.compact:focus-visible {
+    background: var(--surface-page);
+    border-color: var(--border-subtle);
+  }
+  .stop-card.compact .head {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .stop-card.compact .cat-badge {
+    width: 18px;
+    height: 18px;
+    font-size: 0.7rem;
+  }
+  .stop-card.compact .name {
+    font-size: 0.92rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .stop-card.compact .distance {
+    font-size: 0.66rem;
+    padding: 0.08rem 0.32rem;
+  }
+  .stop-card.compact footer {
+    flex-shrink: 0;
+    gap: 0.25rem;
+    margin-top: 0;
+  }
+  .stop-card.compact .drag-handle {
+    padding: 2px 5px;
+    font-size: 9.5px;
+  }
+  .stop-card.compact .drag-handle .drag-label {
+    display: none;
+  }
+  .stop-card.compact .drag-dots {
+    font-size: 0.75rem;
   }
 
   .head {
