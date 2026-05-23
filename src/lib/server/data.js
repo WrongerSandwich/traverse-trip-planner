@@ -641,6 +641,8 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
   const images = new Set();
   const routes = new Set();
   const geocodes = new Set();
+  /** @type {Map<string, object>} slug → raw parsed plan frontmatter */
+  const plans = new Map();
 
   for (const trip of trips) {
     if (trip.destination) geocodes.add(trip.destination);
@@ -668,6 +670,10 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
 
       const plan = readFrontmatterYaml(join(tripDir, 'plan.md'));
       if (plan?.cover_query) images.add(plan.cover_query);
+      // Stash the parsed plan so enrichTripsImpl() can reuse it without a
+      // second FS read. Planning and completed slugs are disjoint by
+      // construction so a flat slug key is unambiguous.
+      if (plan) plans.set(slug, plan);
 
       const cands = readFrontmatterYaml(join(tripDir, 'candidates.md'));
       if (cands) {
@@ -681,7 +687,7 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
     }
   }
 
-  return { images, routes, geocodes };
+  return { images, routes, geocodes, plans };
 }
 
 async function geocodeWaypoints(waypoints) {
@@ -742,7 +748,7 @@ async function enrichTripsImpl() {
 
   // Pre-seed live-key sets from frontmatter + plan.md + candidates.md.
   // Route keys are seeded inside the loop below once waypoints are geocoded.
-  const { images: liveImageKeys, routes: liveRouteKeys, geocodes: liveGeocodeKeys } =
+  const { images: liveImageKeys, routes: liveRouteKeys, geocodes: liveGeocodeKeys, plans } =
     collectLiveCacheKeys(trips);
 
   // Per-request geocode coalescing: if two trips share a destination that isn't
@@ -782,13 +788,10 @@ async function enrichTripsImpl() {
       }
 
       // Image (key already seeded by collectLiveCacheKeys)
-      // For planning/completed trips, load plan.md so cover_query (written by
-      // the extractor) can take precedence over the idea-stage image_query.
-      let tripPlan = null;
-      if (trip._stage === 'planning' || trip._stage === 'completed') {
-        const planFm = readFrontmatterYaml(join(ROOT, trip._stage, trip._slug, 'plan.md'));
-        if (planFm?.cover_query) tripPlan = planFm;
-      }
+      // For planning/completed trips, reuse the plan parsed by
+      // collectLiveCacheKeys so cover_query can take precedence over the
+      // idea-stage image_query without a second FS read.
+      const tripPlan = plans.get(trip._slug) ?? null;
       const q = imageQuery(trip, tripPlan);
       if (q) {
         const cached = readImageCacheEntry(imageCache, q);

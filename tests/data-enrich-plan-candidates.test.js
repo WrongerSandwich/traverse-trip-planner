@@ -156,4 +156,43 @@ describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
     // Ghost Stop must NOT appear — the dir was skipped for lack of overview.md.
     expect(keys.geocodes.has('Ghost Stop')).toBe(false);
   });
+
+  it('returns a plans map with entries for planning and completed trips that have a parseable plan.md', () => {
+    // planning trip with plan.md
+    ensureDir(`${ROOT}/planning/glacier`);
+    seedFile(`${ROOT}/planning/glacier/overview.md`,
+      '---\ntitle: Glacier\nstatus: planning\ndestination: Glacier National Park MT\n---\n');
+    seedFile(`${ROOT}/planning/glacier/plan.md`,
+      '---\ncover_query: Glacier mountains lake\ndays: []\nfield_guide_notes: ""\n---\n');
+
+    // completed trip with plan.md
+    ensureDir(`${ROOT}/completed/zion`);
+    seedFile(`${ROOT}/completed/zion/overview.md`,
+      '---\ntitle: Zion\nstatus: completed\ndestination: Zion National Park UT\n---\n');
+    seedFile(`${ROOT}/completed/zion/plan.md`,
+      '---\ncover_query: Zion canyon red rock\ndays: []\nfield_guide_notes: ""\n---\n');
+
+    // idea trip — should NOT appear in plans map
+    seedFile(`${ROOT}/ideas/city.md`,
+      '---\ntitle: City\nstatus: idea\ndestination: Nashville TN\nimage_query: Nashville skyline\n---\n');
+
+    const keys = collectLiveCacheKeys();
+    expect(keys.plans).toBeInstanceOf(Map);
+    expect(keys.plans.has('glacier')).toBe(true);
+    expect(keys.plans.get('glacier').cover_query).toBe('Glacier mountains lake');
+    expect(keys.plans.has('zion')).toBe(true);
+    expect(keys.plans.get('zion').cover_query).toBe('Zion canyon red rock');
+    // idea trips have no plan.md — must not appear in the map
+    expect(keys.plans.has('city')).toBe(false);
+  });
+
+  it('does not add a plans entry for planning trips whose plan.md is absent', () => {
+    ensureDir(`${ROOT}/planning/no-plan`);
+    seedFile(`${ROOT}/planning/no-plan/overview.md`,
+      '---\ntitle: No Plan\nstatus: planning\ndestination: Somewhere\n---\n');
+    // no plan.md seeded
+
+    const keys = collectLiveCacheKeys();
+    expect(keys.plans.has('no-plan')).toBe(false);
+  });
 });
