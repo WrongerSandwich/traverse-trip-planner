@@ -155,7 +155,7 @@ describe('GET /api/actions/deepen/[slug]', () => {
 // ── POST ───────────────────────────────────────────────────────────────────────
 
 describe('POST /api/actions/deepen/[slug]', () => {
-  it('returns 404 when slug not found in ideas/', async () => {
+  it('returns 404 when slug not found in ideas/ or planning/', async () => {
     mockExistsSync.mockReturnValue(false);
     const res = await POST(postEvent({ slug: 'missing-trip' }));
     expect(res.status).toBe(404);
@@ -213,7 +213,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
   });
 
   it('fire-and-forget success path: writes to planning/ and unlinks the idea file', async () => {
-    mockExistsSync.mockReturnValue(true);
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
     mockChat.mockResolvedValue({
       text: '<overview_prose>prose</overview_prose><route_md>route</route_md>',
       usage: {},
@@ -235,6 +235,74 @@ describe('POST /api/actions/deepen/[slug]', () => {
       expect.stringContaining('route')
     );
     expect(mockUnlinkSync).toHaveBeenCalled();
+  });
+
+  it('idea file is unlinked even when extract leg fails', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    mockChat.mockResolvedValue({
+      text: '<overview_prose>prose</overview_prose>',
+      usage: {},
+    });
+    mockExtractCandidates.mockRejectedValue(new Error('extract boom'));
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    // idea file must be unlinked even though the extract leg failed
+    expect(mockUnlinkSync).toHaveBeenCalled();
+    // job should fail (not complete) because the overall job threw
+    expect(mockFailJob).toHaveBeenCalled();
+    expect(mockCompleteJob).not.toHaveBeenCalled();
+  });
+
+  it('planning-stage trip with no plan.md: runs extract-only and does NOT call chat()', async () => {
+    // idea file absent; planning/overview.md present; plan.md absent
+    mockExistsSync.mockImplementation(p => {
+      if (p.endsWith('ideas/test-trip.md'))                   return false;
+      if (p.endsWith('planning/test-trip/overview.md'))       return true;
+      if (p.endsWith('planning/test-trip/plan.md'))           return false;
+      return false;
+    });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    // research leg must be skipped
+    expect(mockChat).not.toHaveBeenCalled();
+    // extract leg must run
+    expect(mockExtractCandidates).toHaveBeenCalledWith('test-trip', expect.objectContaining({ signal: expect.anything() }));
+    expect(mockCompleteJob).toHaveBeenCalled();
+  });
+
+  it('planning-stage trip WITH plan.md: runs both research and extract legs', async () => {
+    // idea file absent; planning/overview.md present; plan.md present (re-research)
+    mockExistsSync.mockImplementation(p => {
+      if (p.endsWith('ideas/test-trip.md'))                   return false;
+      if (p.endsWith('planning/test-trip/overview.md'))       return true;
+      if (p.endsWith('planning/test-trip/plan.md'))           return true;
+      return false;
+    });
+    mockChat.mockResolvedValue({
+      text: '<overview_prose>prose</overview_prose>',
+      usage: { input_tokens: 100, output_tokens: 50 },
+    });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    // research leg runs (chat called)
+    expect(mockChat).toHaveBeenCalled();
+    // idea file should NOT be unlinked in re-research mode (no idea file exists)
+    expect(mockUnlinkSync).not.toHaveBeenCalled();
+    // extract leg runs too
+    expect(mockExtractCandidates).toHaveBeenCalled();
+    expect(mockCompleteJob).toHaveBeenCalled();
+  });
+
+  it('returns 404 when neither ideas/<slug>.md nor planning/<slug>/overview.md exists', async () => {
+    mockExistsSync.mockReturnValue(false);
+    const res = await POST(postEvent({ slug: 'totally-missing' }));
+    expect(res.status).toBe(404);
   });
 
   it('fire-and-forget failure path: calls failJob with error code', async () => {
