@@ -99,6 +99,13 @@ vi.mock('$lib/server/extract-candidates.js', () => ({
   extractCandidates: mockExtractCandidates,
 }));
 
+// --- plan mock (re-research gate consults readPlan; null = no prior plan) ---
+const mockReadPlan = vi.hoisted(() => vi.fn(() => null));
+
+vi.mock('$lib/server/plan.js', () => ({
+  readPlan: mockReadPlan,
+}));
+
 import { TraverseError } from '../src/lib/server/errors.js';
 import { POST } from '../src/routes/api/actions/deepen/[slug]/+server.js';
 
@@ -134,7 +141,7 @@ describe('POST /api/actions/deepen/[slug] — chained extractor', () => {
     const handle = makeJobHandle();
     mockStartJob.mockReturnValue(handle);
 
-    await POST({ params: { slug: 'test-trip' } });
+    await POST({ params: { slug: 'test-trip' }, url: new URL('http://x/api/actions/deepen/test-trip') });
     await new Promise((r) => setTimeout(r, 50));
 
     expect(mockExtractCandidates).toHaveBeenCalledTimes(1);
@@ -145,7 +152,7 @@ describe('POST /api/actions/deepen/[slug] — chained extractor', () => {
   });
 
   it('completeJob receives the SUM of research + extract token counts', async () => {
-    await POST({ params: { slug: 'test-trip' } });
+    await POST({ params: { slug: 'test-trip' }, url: new URL('http://x/api/actions/deepen/test-trip') });
     await new Promise((r) => setTimeout(r, 50));
 
     // 200 + 100 (research) + 80 + 40 (extract) = 420
@@ -160,7 +167,7 @@ describe('POST /api/actions/deepen/[slug] — chained extractor', () => {
   it('does NOT call extractCandidates when research fails, and calls failJob with the research error', async () => {
     mockChat.mockRejectedValue(new TraverseError('rate_limited', 'too many requests'));
 
-    await POST({ params: { slug: 'test-trip' } });
+    await POST({ params: { slug: 'test-trip' }, url: new URL('http://x/api/actions/deepen/test-trip') });
     await new Promise((r) => setTimeout(r, 50));
 
     expect(mockExtractCandidates).not.toHaveBeenCalled();
@@ -177,7 +184,7 @@ describe('POST /api/actions/deepen/[slug] — chained extractor', () => {
       new TraverseError('model_returned_invalid_yaml', 'extract-candidates: missing <extract> block'),
     );
 
-    await POST({ params: { slug: 'test-trip' } });
+    await POST({ params: { slug: 'test-trip' }, url: new URL('http://x/api/actions/deepen/test-trip') });
     await new Promise((r) => setTimeout(r, 50));
 
     // Research still ran and wrote files — those stay. But the job overall fails.
@@ -193,7 +200,7 @@ describe('POST /api/actions/deepen/[slug] — chained extractor', () => {
   it('handles missing extract usage as 0 tokens (research tokens still counted)', async () => {
     mockExtractCandidates.mockResolvedValue({ usage: undefined });
 
-    await POST({ params: { slug: 'test-trip' } });
+    await POST({ params: { slug: 'test-trip' }, url: new URL('http://x/api/actions/deepen/test-trip') });
     await new Promise((r) => setTimeout(r, 50));
 
     // Just the research's 300 tokens.

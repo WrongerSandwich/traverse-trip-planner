@@ -102,6 +102,12 @@ vi.mock('$lib/server/extract-candidates.js', () => ({
   extractCandidates: mockExtractCandidates,
 }));
 
+// plan.js mock (deepen consults readPlan for the re-research prose gate;
+// null = no prior plan, so the gate stays out of the way).
+vi.mock('$lib/server/plan.js', () => ({
+  readPlan: () => null,
+}));
+
 // ─── Imports under test ───────────────────────────────────────────────────────
 
 import { POST as deepenPost } from '../src/routes/api/actions/deepen/[slug]/+server.js';
@@ -173,7 +179,7 @@ describe('deepen handler', () => {
       throw new Error('ENOSPC: disk full');
     });
 
-    await deepenPost({ params: { slug: 'test-trip' } });
+    await deepenPost({ params: { slug: 'test-trip' }, url: new URL('http://x/api/actions/deepen/test-trip') });
     await flushMicrotasks();
 
     expect(unhandledRejections).toHaveLength(0);
@@ -185,14 +191,14 @@ describe('deepen handler', () => {
       throw new Error('EACCES: permission denied');
     });
 
-    await deepenPost({ params: { slug: 'test-trip' } });
+    await deepenPost({ params: { slug: 'test-trip' }, url: new URL('http://x/api/actions/deepen/test-trip') });
     await flushMicrotasks();
 
     expect(unhandledRejections).toHaveLength(0);
   });
 
   it('calls completeJob after a successful worker run', async () => {
-    await deepenPost({ params: { slug: 'test-trip' } });
+    await deepenPost({ params: { slug: 'test-trip' }, url: new URL('http://x/api/actions/deepen/test-trip') });
     await flushMicrotasks();
 
     expect(mockCompleteJob).toHaveBeenCalledWith(
@@ -205,7 +211,7 @@ describe('deepen handler', () => {
   it('calls failJob (not completeJob) after a TraverseError in the worker', async () => {
     mockChat.mockRejectedValue(new TraverseError('model_error', 'bad response'));
 
-    await deepenPost({ params: { slug: 'test-trip' } });
+    await deepenPost({ params: { slug: 'test-trip' }, url: new URL('http://x/api/actions/deepen/test-trip') });
     await flushMicrotasks();
 
     expect(mockFailJob).toHaveBeenCalledWith(

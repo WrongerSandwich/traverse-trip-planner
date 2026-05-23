@@ -96,6 +96,13 @@ vi.mock('$lib/server/extract-candidates.js', () => ({
   extractCandidates: mockExtractCandidates,
 }));
 
+// --- plan mock (re-research gate consults readPlan; null = no prior plan) ---
+const mockReadPlan = vi.hoisted(() => vi.fn());
+
+vi.mock('$lib/server/plan.js', () => ({
+  readPlan: mockReadPlan,
+}));
+
 import { TraverseError } from '../src/lib/server/errors.js';
 import { GET, POST, DELETE } from '../src/routes/api/actions/deepen/[slug]/+server.js';
 
@@ -105,6 +112,16 @@ const IDEA_CONTENT = '---\ntitle: Test Trip\nstatus: idea\ndestination: Testvill
 function makeJobHandle() {
   const controller = new AbortController();
   return { workflow: 'deepen', slug: 'test-trip', startedAt: Date.now(), controller, opts: {} };
+}
+
+// Build a POST event the way SvelteKit does — needs `url` (for ?force=true
+// parsing) as well as `params`. Tests that don't care about the URL still get
+// a sensible default; pass `query` to override.
+function postEvent({ slug = 'test-trip', query = '' } = {}) {
+  return {
+    params: { slug },
+    url: new URL(`http://x/api/actions/deepen/${slug}${query}`),
+  };
 }
 
 beforeEach(() => {
@@ -124,6 +141,8 @@ beforeEach(() => {
   // Default extract: resolves cleanly with no extra usage so the existing
   // research-only token assertions in this file stay correct.
   mockExtractCandidates.mockResolvedValue({ usage: undefined });
+  // Default: no prior plan — guards in re-research gate stay out of the way.
+  mockReadPlan.mockReturnValue(null);
 });
 
 // ── GET ────────────────────────────────────────────────────────────────────────
@@ -147,7 +166,7 @@ describe('GET /api/actions/deepen/[slug]', () => {
 describe('POST /api/actions/deepen/[slug]', () => {
   it('returns 404 when slug not found in ideas/', async () => {
     mockExistsSync.mockReturnValue(false);
-    const res = await POST({ params: { slug: 'missing-trip' } });
+    const res = await POST(postEvent({ slug: 'missing-trip' }));
     expect(res.status).toBe(404);
   });
 
@@ -156,7 +175,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
     mockAssertNotRunning.mockImplementation(() => {
       throw new TraverseError('already_running', 'deepen already running for test-trip');
     });
-    const res = await POST({ params: { slug: 'test-trip' } });
+    const res = await POST(postEvent());
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.code).toBe('already_running');
@@ -164,25 +183,25 @@ describe('POST /api/actions/deepen/[slug]', () => {
 
   it('calls assertNotRunning with workflow=deepen and the slug', async () => {
     mockExistsSync.mockReturnValue(true);
-    await POST({ params: { slug: 'test-trip' } });
+    await POST(postEvent());
     expect(mockAssertNotRunning).toHaveBeenCalledWith('deepen', 'test-trip');
   });
 
   it('calls startJob with workflow=deepen, slug, and est_seconds option', async () => {
     mockExistsSync.mockReturnValue(true);
-    await POST({ params: { slug: 'test-trip' } });
+    await POST(postEvent());
     expect(mockStartJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({ est_seconds: expect.any(Number) }));
   });
 
   it('returns 202 Accepted on first POST', async () => {
     mockExistsSync.mockReturnValue(true);
-    const res = await POST({ params: { slug: 'test-trip' } });
+    const res = await POST(postEvent());
     expect(res.status).toBe(202);
   });
 
   it('does NOT write researching:true — uses startJob instead', async () => {
     mockExistsSync.mockReturnValue(true);
-    await POST({ params: { slug: 'test-trip' } });
+    await POST(postEvent());
     // setFrontmatterField should NOT be called with 'researching'
     const calls = mockSetFrontmatterField.mock.calls;
     const researchingCall = calls.find(([, field]) => field === 'researching');
@@ -196,7 +215,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
       usage: { input_tokens: 200, output_tokens: 100 },
     });
 
-    await POST({ params: { slug: 'test-trip' } });
+    await POST(postEvent());
     await new Promise(r => setTimeout(r, 50));
 
     expect(mockCompleteJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({ tokens: 300 }));
@@ -209,7 +228,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
       usage: {},
     });
 
-    await POST({ params: { slug: 'test-trip' } });
+    await POST(postEvent());
     await new Promise(r => setTimeout(r, 50));
 
     expect(mockMkdirSync).toHaveBeenCalledWith(
@@ -231,7 +250,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
     mockExistsSync.mockReturnValue(true);
     mockChat.mockRejectedValue(new Error('network timeout'));
 
-    await POST({ params: { slug: 'test-trip' } });
+    await POST(postEvent());
     await new Promise(r => setTimeout(r, 50));
 
     expect(mockFailJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({ code: expect.any(String) }));
@@ -243,7 +262,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
     err.name = 'AbortError';
     mockChat.mockRejectedValue(err);
 
-    await POST({ params: { slug: 'test-trip' } });
+    await POST(postEvent());
     await new Promise(r => setTimeout(r, 50));
 
     // cancelJob owns the failure event; the catch in the worker must NOT call failJob
@@ -261,10 +280,85 @@ describe('POST /api/actions/deepen/[slug]', () => {
       return Promise.resolve({ text: '<overview_prose>p</overview_prose>', usage: {} });
     });
 
-    await POST({ params: { slug: 'test-trip' } });
+    await POST(postEvent());
     await new Promise(r => setTimeout(r, 50));
 
     expect(capturedSignal).toBe(handle.controller.signal);
+  });
+
+  // ── Re-research prose-overwrite gate (Task 7.2) ───────────────────────────
+  //
+  // When a prior plan.md carries non-empty field_guide_notes or gotchas, a
+  // plain POST returns 409 with `error: 'plan_prose_present'`. Re-POSTing with
+  // ?force=true bypasses the gate. Fresh trips (readPlan() === null) and trips
+  // with empty plan prose are unaffected. The gate is intentionally permissive
+  // for already_running so the existing 409 path still wins when both apply
+  // (assertNotRunning runs first).
+
+  it('returns 409 with plan_prose_present when prior plan has field_guide_notes', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadPlan.mockReturnValue({
+      cover_query: '',
+      field_guide_notes: 'Bring layers; the canyon is windy.',
+      gotchas: '',
+      days: [],
+    });
+    const res = await POST(postEvent());
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe('plan_prose_present');
+    expect(body.message).toMatch(/field guide notes/i);
+    // Guard fires before the job starts.
+    expect(mockStartJob).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 with plan_prose_present when prior plan has gotchas', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadPlan.mockReturnValue({
+      cover_query: '',
+      field_guide_notes: '',
+      gotchas: 'No service past Mile 42.',
+      days: [],
+    });
+    const res = await POST(postEvent());
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe('plan_prose_present');
+    expect(mockStartJob).not.toHaveBeenCalled();
+  });
+
+  it('bypasses the prose-overwrite gate when ?force=true is set', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadPlan.mockReturnValue({
+      cover_query: '',
+      field_guide_notes: 'Bring layers; the canyon is windy.',
+      gotchas: 'No service past Mile 42.',
+      days: [],
+    });
+    const res = await POST(postEvent({ query: '?force=true' }));
+    expect(res.status).toBe(202);
+    expect(mockStartJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.any(Object));
+  });
+
+  it('proceeds normally when prior plan exists but prose fields are empty', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadPlan.mockReturnValue({
+      cover_query: 'mountain pass',
+      field_guide_notes: '',
+      gotchas: '',
+      days: [{ index: 1, title: 'Day 1', stop_ids: [], lodging_id: null }],
+    });
+    const res = await POST(postEvent());
+    expect(res.status).toBe(202);
+    expect(mockStartJob).toHaveBeenCalled();
+  });
+
+  it('proceeds normally when no prior plan exists (fresh idea)', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReadPlan.mockReturnValue(null);
+    const res = await POST(postEvent());
+    expect(res.status).toBe(202);
+    expect(mockStartJob).toHaveBeenCalled();
   });
 });
 
