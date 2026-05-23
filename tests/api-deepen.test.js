@@ -96,6 +96,13 @@ vi.mock('$lib/server/extract-candidates.js', () => ({
   extractCandidates: mockExtractCandidates,
 }));
 
+// --- plan mock (re-research gate consults readPlan; null = no prior plan) ---
+const mockReadPlan = vi.hoisted(() => vi.fn());
+
+vi.mock('$lib/server/plan.js', () => ({
+  readPlan: mockReadPlan,
+}));
+
 import { TraverseError } from '../src/lib/server/errors.js';
 import { GET, POST, DELETE } from '../src/routes/api/actions/deepen/[slug]/+server.js';
 
@@ -134,6 +141,8 @@ beforeEach(() => {
   // Default extract: resolves cleanly with no extra usage so the existing
   // research-only token assertions in this file stay correct.
   mockExtractCandidates.mockResolvedValue({ usage: undefined });
+  // Default: no prior plan — re-research gate stays out of the way.
+  mockReadPlan.mockReturnValue(null);
 });
 
 // ── GET ────────────────────────────────────────────────────────────────────────
@@ -343,6 +352,90 @@ describe('POST /api/actions/deepen/[slug]', () => {
     await new Promise(r => setTimeout(r, 50));
 
     expect(capturedSignal).toBe(handle.controller.signal);
+  });
+
+  // ── Re-research prose-overwrite gate ─────────────────────────────────────
+  //
+  // Gate only fires on re-research (planning overview + plan.md both exist).
+  // Extract-only recovery (no plan.md) and fresh idea-stage trips are unaffected.
+  // ?force=true bypasses the gate.
+
+  it('returns 409 with plan_prose_present when re-researching a trip with field_guide_notes', async () => {
+    // planning/overview.md present + plan.md present → re-research mode
+    mockExistsSync.mockImplementation(p => {
+      if (p.endsWith('ideas/test-trip.md'))                 return false;
+      if (p.endsWith('planning/test-trip/overview.md'))     return true;
+      if (p.endsWith('planning/test-trip/plan.md'))         return true;
+      return false;
+    });
+    mockReadPlan.mockReturnValue({
+      cover_query: null,
+      field_guide_notes: 'Bring layers; the canyon is windy.',
+      gotchas: '',
+      days: [],
+    });
+    const res = await POST(postEvent());
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe('plan_prose_present');
+    expect(body.message).toMatch(/field guide notes/i);
+    // Gate fires before the job starts.
+    expect(mockStartJob).not.toHaveBeenCalled();
+  });
+
+  it('returns 202 with ?force=true even when re-researching a trip with plan prose', async () => {
+    mockExistsSync.mockImplementation(p => {
+      if (p.endsWith('ideas/test-trip.md'))                 return false;
+      if (p.endsWith('planning/test-trip/overview.md'))     return true;
+      if (p.endsWith('planning/test-trip/plan.md'))         return true;
+      return false;
+    });
+    mockReadPlan.mockReturnValue({
+      cover_query: null,
+      field_guide_notes: 'Bring layers.',
+      gotchas: 'No service past Mile 42.',
+      days: [],
+    });
+    mockChat.mockResolvedValue({ text: '<overview_prose>prose</overview_prose>', usage: {} });
+    const res = await POST(postEvent({ query: '?force=true' }));
+    expect(res.status).toBe(202);
+    expect(mockStartJob).toHaveBeenCalled();
+  });
+
+  it('proceeds without gate when re-researching a trip with empty plan prose fields', async () => {
+    mockExistsSync.mockImplementation(p => {
+      if (p.endsWith('ideas/test-trip.md'))                 return false;
+      if (p.endsWith('planning/test-trip/overview.md'))     return true;
+      if (p.endsWith('planning/test-trip/plan.md'))         return true;
+      return false;
+    });
+    mockReadPlan.mockReturnValue({
+      cover_query: 'mountain pass',
+      field_guide_notes: '',
+      gotchas: '',
+      days: [{ index: 1, title: 'Day 1', stop_ids: [], lodging_id: null }],
+    });
+    mockChat.mockResolvedValue({ text: '<overview_prose>prose</overview_prose>', usage: {} });
+    const res = await POST(postEvent());
+    expect(res.status).toBe(202);
+    expect(mockStartJob).toHaveBeenCalled();
+  });
+
+  it('does NOT fire gate for extract-only recovery (planning overview, no plan.md)', async () => {
+    // overview.md present, plan.md absent → extract-only path, gate must not fire
+    mockExistsSync.mockImplementation(p => {
+      if (p.endsWith('ideas/test-trip.md'))                 return false;
+      if (p.endsWith('planning/test-trip/overview.md'))     return true;
+      if (p.endsWith('planning/test-trip/plan.md'))         return false;
+      return false;
+    });
+    // readPlan would theoretically return null anyway (no plan.md), but make it
+    // explicit to confirm the gate branch is not even entered.
+    mockReadPlan.mockReturnValue(null);
+    const res = await POST(postEvent());
+    expect(res.status).toBe(202);
+    expect(mockReadPlan).not.toHaveBeenCalled();
+    expect(mockStartJob).toHaveBeenCalled();
   });
 
 });

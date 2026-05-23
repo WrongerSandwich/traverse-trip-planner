@@ -35,6 +35,7 @@ import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
 import { extractCandidates } from '$lib/server/extract-candidates.js';
+import { readPlan } from '$lib/server/plan.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
@@ -238,6 +239,21 @@ export async function POST(event) {
       return json({ code: 'already_running', message: err.message }, { status: 409 });
     }
     throw err;
+  }
+
+  // Re-research prose-overwrite guard: only fires when re-researching a trip
+  // that already has a plan.md with user-curated prose (field_guide_notes /
+  // gotchas). Extract-only recovery (hasPlan === false) is intentionally
+  // excluded — by definition there's no plan.md prose to overwrite.
+  if (hasPlan) {
+    const existingPlan = readPlan(slug);
+    const force = url.searchParams.get('force') === 'true';
+    if (existingPlan && (existingPlan.field_guide_notes || existingPlan.gotchas) && !force) {
+      return json({
+        code: 'plan_prose_present',
+        message: 'This trip already has field guide notes / gotchas. Re-research will overwrite them. Pass ?force=true to continue.',
+      }, { status: 409 });
+    }
   }
 
   // Register the in-flight job. startJob writes `running: 'deepen'` to
