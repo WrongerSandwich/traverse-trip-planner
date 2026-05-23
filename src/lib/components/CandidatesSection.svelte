@@ -1,5 +1,5 @@
 <script>
-  import { invalidateAll } from '$app/navigation';
+  import { invalidate } from '$app/navigation';
 
   let { candidates, plan = null, slug, readonly = false } = $props();
 
@@ -40,7 +40,7 @@
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `${res.status}`);
       }
-      await invalidateAll();
+      await invalidate('app:trip');
     } catch (err) {
       error = err.message;
     } finally {

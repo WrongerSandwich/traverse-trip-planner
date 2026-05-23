@@ -229,10 +229,6 @@
           />
           <ul class="map-legend" aria-label="Map legend">
             <li class="legend-item">
-              <span class="legend-swatch legend-swatch--must-see" aria-hidden="true"></span>
-              <span>must-see</span>
-            </li>
-            <li class="legend-item">
               <span class="legend-swatch legend-swatch--stop" aria-hidden="true"></span>
               <span>stop</span>
             </li>
@@ -255,8 +251,8 @@
         <ol class="stops-list">
           {#each brochure.stops as stop, i}
             {@const hasCoords = Array.isArray(stop.coords) && stop.coords.length === 2}
-            <li class="stop" class:stop--must-see={stop.must_see} class:stop--unpinned={!hasCoords}>
-              <span class="stop-n" class:stop-n--must-see={stop.must_see} class:stop-n--unpinned={!hasCoords} aria-hidden="true">{i + 1}</span>
+            <li class="stop" class:stop--unpinned={!hasCoords}>
+              <span class="stop-n" class:stop-n--unpinned={!hasCoords} aria-hidden="true">{i + 1}</span>
               <div class="stop-body">
                 <div class="stop-head">
                   <span class="stop-name">{stop.name}</span>
@@ -644,10 +640,6 @@
     height: 12px;
     border-radius: 50%;
   }
-  .legend-swatch--must-see {
-    background: var(--sunset-600);
-    border: 1px solid var(--bone-50);
-  }
   .legend-swatch--stop {
     background: var(--forest-800);
     border: 1px solid var(--bone-50);
@@ -828,11 +820,10 @@
   /* ── Stops ──────────────────────────────────────────────────────────
      Editorial feature treatment: each stop is a 2-column grid with the
      numeral hanging in the left margin like an illuminated initial. The
-     pin color from the map (forest for stop, sunset for must-see, bone
-     for unmapped) carries through to the numeral so the list reads as
-     the map's legend without competing with it. Single column on
-     purpose — a 2-column directory turned the trip into a service
-     listing. */
+     pin color from the map (forest for stop, bone for unmapped) carries
+     through to the numeral so the list reads as the map's legend without
+     competing with it. Single column on purpose — a 2-column directory
+     turned the trip into a service listing. */
   .stops-list {
     list-style: none;
     margin: 1rem 0 0;
@@ -860,7 +851,6 @@
     font-variant-numeric: lining-nums tabular-nums;
     letter-spacing: 0.005em;
   }
-  .stop-n--must-see { color: var(--sunset-600); }
   .stop-n--unpinned { color: var(--bone-400); }
   .stop-body { min-width: 0; max-width: 60ch; }
   .stop-head {
@@ -895,7 +885,6 @@
     letter-spacing: 0.18em;
     color: var(--bone-600);
   }
-  .stop--must-see .stop-name { color: var(--forest-900); }
   .stop-hours,
   .stop-addr {
     font-family: var(--font-mono);

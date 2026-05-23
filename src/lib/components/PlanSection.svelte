@@ -1,7 +1,22 @@
 <script>
-  import { invalidateAll } from '$app/navigation';
+  import { invalidate } from '$app/navigation';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 
   let { plan, candidates, slug, readonly = false } = $props();
+
+  // ── Confirm modal ──
+  let confirmOpen = $state(false);
+  let confirmOpts = $state({});
+  let confirmResolve = null;
+
+  function showConfirm(opts) {
+    if (confirmResolve) confirmResolve(false);
+    return new Promise((resolve) => {
+      confirmResolve = resolve;
+      confirmOpts = opts;
+      confirmOpen = true;
+    });
+  }
 
   function candidateById(id) {
     return (
@@ -27,7 +42,7 @@
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `${res.status}`);
       }
-      await invalidateAll();
+      await invalidate('app:trip');
     } catch (err) {
       error = err.message;
     } finally {
@@ -40,7 +55,13 @@
   }
 
   async function removeDay(n) {
-    if (!confirm(`Remove Day ${n}?`)) return;
+    const ok = await showConfirm({
+      title: `Remove Day ${n}?`,
+      body: 'Stops assigned to this day will return to the candidates pool.',
+      confirmLabel: 'Remove',
+      danger: true,
+    });
+    if (!ok) return;
     await api(`/api/plan/${slug}/day/${n}`, { method: 'DELETE' });
   }
 
@@ -135,9 +156,10 @@
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
             const driveStr = fd.get('drive');
+            const driveNum = driveStr ? Number(driveStr) : null;
             saveMeta(day.number, {
               date: fd.get('date') || null,
-              drive_distance_mi: driveStr ? Number(driveStr) : null,
+              drive_distance_mi: Number.isFinite(driveNum) ? driveNum : null,
               notes: fd.get('notes') ?? '',
             });
           }}
@@ -256,6 +278,16 @@
   {/each}
   <button class="btn-inline add-day" onclick={addDay} disabled={working || readonly}>+ Add day</button>
 {/if}
+
+<ConfirmModal
+  bind:open={confirmOpen}
+  title={confirmOpts.title ?? ''}
+  body={confirmOpts.body ?? ''}
+  confirmLabel={confirmOpts.confirmLabel ?? 'Confirm'}
+  danger={confirmOpts.danger ?? false}
+  onconfirm={() => { const r = confirmResolve; confirmResolve = null; r?.(true); }}
+  oncancel={() => { const r = confirmResolve; confirmResolve = null; r?.(false); }}
+/>
 
 <style>
   .banner-error {

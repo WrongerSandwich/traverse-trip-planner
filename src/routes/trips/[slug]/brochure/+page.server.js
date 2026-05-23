@@ -9,10 +9,9 @@ import { chooseZoomForBbox } from '$lib/utils/projection.js';
 // (the DestinationMap component then falls back to its illustrative
 // paper render).
 //
-// Center is the centroid of must_see stops when any exist (so the map
-// focuses on the destination's anchors), falling back to the centroid
-// of all geocoded stops. Outlying stops may fall outside the visible
-// map; they're still listed in the Stops section so nothing is lost.
+// Center is the centroid of all geocoded stops. Outlying stops may fall
+// outside the visible map; they're still listed in the Stops section so
+// nothing is lost.
 function buildDestinationBaseMap(brochureData) {
   if (!brochureData?.stops) return null;
   const located = brochureData.stops.filter(
@@ -20,15 +19,12 @@ function buildDestinationBaseMap(brochureData) {
   );
   if (located.length === 0) return null;
 
-  // Anchor centroid: must_see stops first, otherwise all located stops.
-  const anchors = located.filter(s => s.must_see);
-  const anchorSet = anchors.length > 0 ? anchors : located;
+  // Centroid of all located stops.
+  const anchorSet = located;
   const centerLat = anchorSet.reduce((s, p) => s + p.coords[0], 0) / anchorSet.length;
   const centerLon = anchorSet.reduce((s, p) => s + p.coords[1], 0) / anchorSet.length;
 
-  // Bbox from anchor set, not all located stops — so a single Lexington
-  // outlier doesn't drag the zoom way out. The unanchored stops still
-  // appear in the brochure's Stops list with their addresses.
+  // Bbox from all located stops.
   let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
   for (const { coords: [lat, lon] } of anchorSet) {
     if (lat < minLat) minLat = lat;
