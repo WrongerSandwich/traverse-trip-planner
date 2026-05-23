@@ -13,14 +13,16 @@ export async function load({ params }) {
 
   const files = getTripFiles(slug);
   const resolvedStage = files?.stage || trip._stage;
+  // Idea-stage trips have no plan.md or candidates.md — skip the FS probes.
+  const hasPlanFiles = resolvedStage === 'planning' || resolvedStage === 'completed';
 
   return {
     trip,
     home,
     files: files?.files || {},
     stage: resolvedStage,
-    plan: readPlan(slug),
-    candidates: readCandidates(slug),
-    dangling: findDanglingCandidateIds(slug),
+    plan: hasPlanFiles ? readPlan(slug) : null,
+    candidates: hasPlanFiles ? readCandidates(slug) : null,
+    dangling: hasPlanFiles ? findDanglingCandidateIds(slug) : [],
   };
 }

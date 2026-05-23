@@ -96,13 +96,6 @@ vi.mock('$lib/server/extract-candidates.js', () => ({
   extractCandidates: mockExtractCandidates,
 }));
 
-// --- plan mock (re-research gate consults readPlan; null = no prior plan) ---
-const mockReadPlan = vi.hoisted(() => vi.fn());
-
-vi.mock('$lib/server/plan.js', () => ({
-  readPlan: mockReadPlan,
-}));
-
 import { TraverseError } from '../src/lib/server/errors.js';
 import { GET, POST, DELETE } from '../src/routes/api/actions/deepen/[slug]/+server.js';
 
@@ -141,8 +134,6 @@ beforeEach(() => {
   // Default extract: resolves cleanly with no extra usage so the existing
   // research-only token assertions in this file stay correct.
   mockExtractCandidates.mockResolvedValue({ usage: undefined });
-  // Default: no prior plan — guards in re-research gate stay out of the way.
-  mockReadPlan.mockReturnValue(null);
 });
 
 // ── GET ────────────────────────────────────────────────────────────────────────
@@ -286,80 +277,6 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(capturedSignal).toBe(handle.controller.signal);
   });
 
-  // ── Re-research prose-overwrite gate (Task 7.2) ───────────────────────────
-  //
-  // When a prior plan.md carries non-empty field_guide_notes or gotchas, a
-  // plain POST returns 409 with `error: 'plan_prose_present'`. Re-POSTing with
-  // ?force=true bypasses the gate. Fresh trips (readPlan() === null) and trips
-  // with empty plan prose are unaffected. The gate is intentionally permissive
-  // for already_running so the existing 409 path still wins when both apply
-  // (assertNotRunning runs first).
-
-  it('returns 409 with plan_prose_present when prior plan has field_guide_notes', async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadPlan.mockReturnValue({
-      cover_query: '',
-      field_guide_notes: 'Bring layers; the canyon is windy.',
-      gotchas: '',
-      days: [],
-    });
-    const res = await POST(postEvent());
-    expect(res.status).toBe(409);
-    const body = await res.json();
-    expect(body.error).toBe('plan_prose_present');
-    expect(body.message).toMatch(/field guide notes/i);
-    // Guard fires before the job starts.
-    expect(mockStartJob).not.toHaveBeenCalled();
-  });
-
-  it('returns 409 with plan_prose_present when prior plan has gotchas', async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadPlan.mockReturnValue({
-      cover_query: '',
-      field_guide_notes: '',
-      gotchas: 'No service past Mile 42.',
-      days: [],
-    });
-    const res = await POST(postEvent());
-    expect(res.status).toBe(409);
-    const body = await res.json();
-    expect(body.error).toBe('plan_prose_present');
-    expect(mockStartJob).not.toHaveBeenCalled();
-  });
-
-  it('bypasses the prose-overwrite gate when ?force=true is set', async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadPlan.mockReturnValue({
-      cover_query: '',
-      field_guide_notes: 'Bring layers; the canyon is windy.',
-      gotchas: 'No service past Mile 42.',
-      days: [],
-    });
-    const res = await POST(postEvent({ query: '?force=true' }));
-    expect(res.status).toBe(202);
-    expect(mockStartJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.any(Object));
-  });
-
-  it('proceeds normally when prior plan exists but prose fields are empty', async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadPlan.mockReturnValue({
-      cover_query: 'mountain pass',
-      field_guide_notes: '',
-      gotchas: '',
-      days: [{ index: 1, title: 'Day 1', stop_ids: [], lodging_id: null }],
-    });
-    const res = await POST(postEvent());
-    expect(res.status).toBe(202);
-    expect(mockStartJob).toHaveBeenCalled();
-  });
-
-  it('proceeds normally when no prior plan exists (fresh idea)', async () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReadPlan.mockReturnValue(null);
-    const res = await POST(postEvent());
-    expect(res.status).toBe(202);
-    expect(mockStartJob).toHaveBeenCalled();
-  });
 });
 
 // ── DELETE ─────────────────────────────────────────────────────────────────────

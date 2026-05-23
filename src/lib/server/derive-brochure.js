@@ -119,7 +119,6 @@ export function deriveBrochure(slug) {
     subtitle: fm.vibe ?? null,
     target_date: fm.target_date ?? null,
     duration_days: fm.duration_days ?? plan.days.length,
-    cover_query: plan.cover_query,
     // field_guide_notes / gotchas come out of plan.md as a single string (one
     // bullet per line). The brochure print view iterates each as an array of
     // bullets, so split on newlines and strip bullet markers here.

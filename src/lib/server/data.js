@@ -617,8 +617,7 @@ function readFrontmatterYaml(filePath) {
  * Sources:
  *   - overview / idea frontmatter: destination, image_query (via imageQuery()),
  *     waypoints
- *   - planning + completed: plan.md `cover_query`, candidates.md stop/lodging
- *     `name`s
+ *   - planning + completed: candidates.md stop/lodging `name`s
  *
  * Route-cache keys are NOT seeded here — they require actual geocoded
  * coordinates and are added by enrichTripsImpl() after geocodeWaypoints()
@@ -643,8 +642,8 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
     }
   }
 
-  // Walk planning + completed folders for plan.md (cover_query) and
-  // candidates.md (stop/lodging names → geocoded later).
+  // Walk planning + completed folders for candidates.md
+  // (stop/lodging names → geocoded later).
   for (const stage of ['planning', 'completed']) {
     const stageDir = join(ROOT, stage);
     if (!existsSync(stageDir)) continue;
@@ -653,9 +652,9 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
       try {
         if (!statSync(tripDir).isDirectory()) continue;
       } catch { continue; }
-
-      const plan = readFrontmatterYaml(join(tripDir, 'plan.md'));
-      if (plan?.cover_query) images.add(plan.cover_query);
+      // Mirror collectTrips(): skip dirs without overview.md so orphan dirs
+      // (e.g. from half-failed promotions) don't pin stale cache entries.
+      if (!existsSync(join(tripDir, 'overview.md'))) continue;
 
       const cands = readFrontmatterYaml(join(tripDir, 'candidates.md'));
       if (cands) {

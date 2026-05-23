@@ -1,7 +1,7 @@
 // Plan structured-data layer.
 //
 // `plan.md` per trip holds the curated trip: day-by-day stops + lodging
-// assignments, plus trip-wide bits (cover_query, field_guide_notes, gotchas).
+// assignments, plus trip-wide bits (field_guide_notes, gotchas).
 // Stored as structured YAML in frontmatter; body is currently unused but
 // tolerated for forward compatibility. References candidate ids from
 // candidates.md. See referential-integrity rules in spec
@@ -18,7 +18,7 @@ import { TraverseError } from './errors.js';
 const PLAN_FILENAME = 'plan.md';
 
 export function emptyPlan() {
-  return { cover_query: '', field_guide_notes: '', gotchas: '', days: [] };
+  return { field_guide_notes: '', gotchas: '', days: [] };
 }
 
 export function planPath(slug) {
@@ -44,7 +44,6 @@ export function parsePlanFile(content) {
     throw new TraverseError('model_returned_invalid_yaml', `plan.md YAML parse failed: ${err.message}`);
   }
   return {
-    cover_query: data.cover_query ?? '',
     field_guide_notes: data.field_guide_notes ?? '',
     gotchas: data.gotchas ?? '',
     days: Array.isArray(data.days)

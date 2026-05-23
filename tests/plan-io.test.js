@@ -36,12 +36,11 @@ describe('plan.js', () => {
   it('returns empty plan defaults when plan.md is empty frontmatter', () => {
     writeFileSync(join(ROOT, 'planning', 'mytrip', 'plan.md'), '---\n---\n');
     const plan = readPlan('mytrip');
-    expect(plan).toEqual({ cover_query: '', field_guide_notes: '', gotchas: '', days: [] });
+    expect(plan).toEqual({ field_guide_notes: '', gotchas: '', days: [] });
   });
 
   it('round-trips a full plan', () => {
     const plan = {
-      cover_query: 'Glacier mountains',
       field_guide_notes: 'Park entry: Going-to-the-Sun closes after Logan Pass at sunset.',
       gotchas: 'Cell coverage is non-existent past Apgar.',
       days: [
@@ -54,7 +53,7 @@ describe('plan.js', () => {
   });
 
   it('emptyPlan() returns a fresh empty plan object', () => {
-    expect(emptyPlan()).toEqual({ cover_query: '', field_guide_notes: '', gotchas: '', days: [] });
+    expect(emptyPlan()).toEqual({ field_guide_notes: '', gotchas: '', days: [] });
   });
 
   it('throws when writing for a non-folder trip', () => {
