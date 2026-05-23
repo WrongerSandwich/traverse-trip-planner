@@ -47,11 +47,13 @@ describe('deriveBrochure', () => {
     const b = deriveBrochure('t');
     expect(b.title).toBe('My Trip');
     expect(b.cover_query).toBe('Glacier mountains');
-    expect(b.field_guide_notes).toBe('Notes.');
-    expect(b.gotchas).toBe('Gotchas.');
+    expect(b.field_guide_notes).toEqual(['Notes.']);
+    expect(b.gotchas).toEqual(['Gotchas.']);
     expect(b.days).toHaveLength(1);
     expect(b.days[0].stops.map((s) => s.name)).toEqual(['A', 'B']);
     expect(b.days[0].lodging.name).toBe('Inn');
+    expect(b.stops.map((s) => s.name)).toEqual(['A', 'B']);
+    expect(b.lodging.map((l) => l.name)).toEqual(['Inn']);
   });
 
   it('returns null when plan.md or candidates.md absent', () => {

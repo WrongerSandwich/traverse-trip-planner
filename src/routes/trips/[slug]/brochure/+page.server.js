@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { enrichTrips, getHome, getTripFiles, getTripRoute, geocode, isValidSlug } from '$lib/server/data.js';
-import { readBrochure } from '$lib/server/brochure.js';
+import { deriveBrochure } from '$lib/server/derive-brochure.js';
 import { stadiaStaticMapUrl } from '$lib/server/stadia.js';
 import { chooseZoomForBbox } from '$lib/utils/projection.js';
 
@@ -91,15 +91,15 @@ export async function load({ params }) {
     } catch { /* missing route → skip the map page */ }
   }
 
-  // brochure.md if the user has run Prepare brochure. When present, the
-  // brochure component renders against this structured data instead of
-  // the raw planning markdown.
+  // Derive the brochure shape from plan.md + candidates.md + overview
+  // frontmatter on every request — no AI, no file cache, no staleness check.
+  // Returns null when the trip hasn't been planned yet; the brochure
+  // component then falls back to the raw planning markdown.
   let brochureData = null;
   try {
-    const b = readBrochure(slug);
-    if (b) brochureData = b.data;
+    brochureData = deriveBrochure(slug);
   } catch (err) {
-    console.warn(`brochure.md present but unreadable for ${slug}:`, err.message);
+    console.warn(`deriveBrochure failed for ${slug}:`, err.message);
   }
 
   const destinationBaseMap = buildDestinationBaseMap(brochureData);
