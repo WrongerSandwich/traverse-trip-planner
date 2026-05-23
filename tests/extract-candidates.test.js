@@ -36,7 +36,7 @@ const capturedPlan = vi.hoisted(() => ({ value: null }));
 const capturedCands = vi.hoisted(() => ({ value: null }));
 
 vi.mock('$lib/server/plan.js', () => ({
-  emptyPlan: () => ({ field_guide_notes: '', gotchas: '', days: [] }),
+  emptyPlan: () => ({ cover_query: null, field_guide_notes: '', gotchas: '', days: [] }),
   readPlan: vi.fn(() => null),
   planPath: vi.fn(() => '/test/planning/t/plan.md'),
   serializePlanFile: vi.fn((plan) => { capturedPlan.value = plan; return `---\nplan: stub\n---\n`; }),
@@ -123,6 +123,47 @@ lodging:
     });
 
     expect(result.usage).toEqual({ input: 100, output: 200 });
+  });
+
+  it('captures cover_query from model output into the plan', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: Glacier alpine lake mountains
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops: []
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+
+    expect(capturedPlan.value.cover_query).toBe('Glacier alpine lake mountains');
+  });
+
+  it('sets cover_query to null when model omits it', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops: []
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+
+    expect(capturedPlan.value.cover_query).toBeNull();
   });
 
   it('stages both files to .tmp then renames both (atomic two-file write)', async () => {
@@ -309,8 +350,9 @@ lodging: []
     expect(ids).not.toContain('lake');    // prior researcher replaced
   });
 
-  it('preserves plan.days on re-extract', async () => {
+  it('preserves plan.days on re-extract and overwrites cover_query', async () => {
     readPlan.mockReturnValueOnce({
+      cover_query: 'old',
       field_guide_notes: 'old notes',
       gotchas: 'old gotchas',
       days: [{ number: 1, stops: ['my-pick'], lodging_id: 'my-inn' }],
@@ -322,6 +364,7 @@ lodging: []
     mockChat.mockResolvedValueOnce({
       text: `<extract>
 <plan>
+cover_query: new
 field_guide_notes: new notes
 gotchas: new gotchas
 </plan>
@@ -335,6 +378,7 @@ lodging: []
 
     await extractCandidates('t');
     expect(capturedPlan.value.days).toEqual([{ number: 1, stops: ['my-pick'], lodging_id: 'my-inn' }]);
+    expect(capturedPlan.value.cover_query).toBe('new');
     expect(capturedPlan.value.field_guide_notes).toBe('new notes');
   });
 

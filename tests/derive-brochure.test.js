@@ -32,6 +32,7 @@ describe('deriveBrochure', () => {
       lodging: [{ id: 'inn', name: 'Inn', price_tier: 'mid', nights: 2, user_added: false }],
     });
     const plan = emptyPlan();
+    plan.cover_query = 'Glacier mountains';
     plan.field_guide_notes = 'Notes.';
     plan.gotchas = 'Gotchas.';
     writePlan('t', plan);
@@ -45,6 +46,7 @@ describe('deriveBrochure', () => {
   it('produces a brochure-shaped object derived from plan + candidates', () => {
     const b = deriveBrochure('t');
     expect(b.title).toBe('My Trip');
+    expect(b.cover_query).toBe('Glacier mountains');
     expect(b.field_guide_notes).toEqual(['Notes.']);
     expect(b.gotchas).toEqual(['Gotchas.']);
     expect(b.days).toHaveLength(1);
@@ -64,7 +66,7 @@ describe('deriveBrochure', () => {
   });
 
   it('skips dangling candidate references in days output and reports them via danglings array', () => {
-    const plan = { field_guide_notes: '', gotchas: '', days: [{ number: 1, stops: ['a', 'ghost'] }] };
+    const plan = { cover_query: null, field_guide_notes: '', gotchas: '', days: [{ number: 1, stops: ['a', 'ghost'] }] };
     writePlan('t', plan);
     const b = deriveBrochure('t');
     expect(b.days[0].stops.map((s) => s.name)).toEqual(['A']);

@@ -263,6 +263,33 @@ describe('removeFrontmatterField', () => {
 });
 
 describe('imageQuery', () => {
+  it('prefers plan.cover_query over image_query when present', () => {
+    expect(imageQuery(
+      { title: 'Chicago', image_query: 'Chicago skyline downtown' },
+      { cover_query: 'Cincinnati Italianate architecture neon' },
+    )).toBe('Cincinnati Italianate architecture neon');
+  });
+
+  it('falls back to image_query when plan has no cover_query', () => {
+    expect(imageQuery(
+      { title: 'Chicago', image_query: 'Chicago skyline downtown' },
+      { cover_query: null },
+    )).toBe('Chicago skyline downtown');
+  });
+
+  it('falls back to image_query when plan is absent', () => {
+    expect(imageQuery(
+      { title: 'Chicago', image_query: 'Chicago skyline downtown' },
+    )).toBe('Chicago skyline downtown');
+  });
+
+  it('falls back to title when plan.cover_query is whitespace-only', () => {
+    expect(imageQuery(
+      { title: 'Marfa Texas Desert', image_query: 'Marfa desert art' },
+      { cover_query: '   ' },
+    )).toBe('Marfa desert art');
+  });
+
   it('prefers the explicit image_query field when present', () => {
     expect(imageQuery({
       title: 'Chicago: Architectural Landmarks and Rare Books',

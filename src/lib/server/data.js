@@ -284,18 +284,27 @@ async function fetchRoute(geocodedCoords) {
 // Build the query string sent to Pexels for the trip's hero photo.
 //
 // Precedence:
-//   1. `image_query` frontmatter field — authored by the seed/add LLM as a
-//      deliberate stock-photo search ("Chicago skyline downtown"). This is
-//      the source of truth for new trips.
-//   2. Title with English stopwords stripped — legacy path for ideas that
+//   1. `plan.cover_query` — written by the extractor after research, sourced
+//      from richer context than the idea-stage `image_query`. Preferred when
+//      present so post-research trips get the best possible hero photo.
+//   2. `image_query` frontmatter field — authored by the seed/add LLM as a
+//      deliberate stock-photo search ("Chicago skyline downtown"). Fallback
+//      when no plan exists yet (idea-stage trips).
+//   3. Title with English stopwords stripped — legacy path for ideas that
 //      predate the field; kept so old cached entries still resolve.
-//   3. Destination — last-ditch fallback.
+//   4. Destination — last-ditch fallback.
 //
 // Pexels keyword search rewards concrete visual nouns and punishes
 // atmospheric phrases ("intellectual", "centennial"); letting the LLM
 // pick the query directly produces far better matches than scraping
 // the human-readable title.
-export function imageQuery(trip) {
+//
+// `plan` is optional — callers that don't have a plan object can omit it
+// and the function falls back to the idea-stage fields.
+export function imageQuery(trip, plan) {
+  if (plan && typeof plan.cover_query === 'string' && plan.cover_query.trim()) {
+    return plan.cover_query.trim();
+  }
   if (typeof trip.image_query === 'string' && trip.image_query.trim()) {
     return trip.image_query.trim();
   }
@@ -617,7 +626,8 @@ function readFrontmatterYaml(filePath) {
  * Sources:
  *   - overview / idea frontmatter: destination, image_query (via imageQuery()),
  *     waypoints
- *   - planning + completed: candidates.md stop/lodging `name`s
+ *   - planning + completed: plan.md `cover_query`, candidates.md stop/lodging
+ *     `name`s
  *
  * Route-cache keys are NOT seeded here — they require actual geocoded
  * coordinates and are added by enrichTripsImpl() after geocodeWaypoints()
@@ -642,8 +652,8 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
     }
   }
 
-  // Walk planning + completed folders for candidates.md
-  // (stop/lodging names → geocoded later).
+  // Walk planning + completed folders for plan.md (cover_query) and
+  // candidates.md (stop/lodging names → geocoded later).
   for (const stage of ['planning', 'completed']) {
     const stageDir = join(ROOT, stage);
     if (!existsSync(stageDir)) continue;
@@ -655,6 +665,9 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
       // Mirror collectTrips(): skip dirs without overview.md so orphan dirs
       // (e.g. from half-failed promotions) don't pin stale cache entries.
       if (!existsSync(join(tripDir, 'overview.md'))) continue;
+
+      const plan = readFrontmatterYaml(join(tripDir, 'plan.md'));
+      if (plan?.cover_query) images.add(plan.cover_query);
 
       const cands = readFrontmatterYaml(join(tripDir, 'candidates.md'));
       if (cands) {
@@ -769,7 +782,14 @@ async function enrichTripsImpl() {
       }
 
       // Image (key already seeded by collectLiveCacheKeys)
-      const q = imageQuery(trip);
+      // For planning/completed trips, load plan.md so cover_query (written by
+      // the extractor) can take precedence over the idea-stage image_query.
+      let tripPlan = null;
+      if (trip._stage === 'planning' || trip._stage === 'completed') {
+        const planFm = readFrontmatterYaml(join(ROOT, trip._stage, trip._slug, 'plan.md'));
+        if (planFm?.cover_query) tripPlan = planFm;
+      }
+      const q = imageQuery(trip, tripPlan);
       if (q) {
         const cached = readImageCacheEntry(imageCache, q);
         const raw = cached.state === 'hit' ? cached.value : await fetchImage(q);
