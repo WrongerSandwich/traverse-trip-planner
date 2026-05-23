@@ -430,8 +430,14 @@ function tripMtimeMs(stage, slug, ideaFilePath) {
 }
 
 // ── Collect raw trips ──
+// Stages are walked in promotion order, and the Map keeps the LAST entry per
+// slug — so on a collision the higher stage (completed > planning > ideas)
+// wins. Same-slug duplicates happen when a deepen job fails mid-flight and
+// leaves both the source idea and the new planning folder on disk; without
+// dedup the home page's {#each ... (trip._slug)} throws each_key_duplicate
+// and bare-renders to nothing.
 function collectTrips() {
-  const trips = [];
+  const bySlug = new Map();
   for (const stage of ['ideas', 'planning', 'completed']) {
     const dir = join(ROOT, stage);
     if (!existsSync(dir)) continue;
@@ -445,18 +451,21 @@ function collectTrips() {
       }
       if (!filePath) continue;
       const fm = parseFrontmatter(readFileSync(filePath, 'utf8'));
-      if (fm) {
-        const _slug = entry.name.replace(/\.md$/, '');
-        trips.push({
-          ...fm,
-          _stage: stage,
-          _slug,
-          _modified: tripMtimeMs(stage, _slug, filePath),
-        });
+      if (!fm) continue;
+      const _slug = entry.name.replace(/\.md$/, '');
+      if (bySlug.has(_slug)) {
+        const prior = bySlug.get(_slug);
+        console.warn(`collectTrips: duplicate slug "${_slug}" — keeping ${stage}/, dropping ${prior._stage}/. Likely a half-finished promotion; clean up the stale stage.`);
       }
+      bySlug.set(_slug, {
+        ...fm,
+        _stage: stage,
+        _slug,
+        _modified: tripMtimeMs(stage, _slug, filePath),
+      });
     }
   }
-  return trips.sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
+  return [...bySlug.values()].sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
 }
 
 // ── Home ──
