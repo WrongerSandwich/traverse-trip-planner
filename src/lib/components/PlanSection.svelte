@@ -62,6 +62,7 @@
     const day = plan.days.find((d) => d.number === dayNumber);
     if (!day) return;
     const idx = day.stops.indexOf(id);
+    if (idx === -1) return; // dangling id — not safe to swap
     const j = idx + direction;
     if (j < 0 || j >= day.stops.length) return;
     const next = [...day.stops];
