@@ -13,9 +13,9 @@
   const waypointCoords = $derived(data.waypointCoords || []);
   const hasMap = $derived(Array.isArray(route) && route.length >= 2 && waypointCoords.length >= 2);
 
-  // If the user has run Prepare brochure, render against the structured
-  // brochure.md content. Otherwise fall back to raw planning sections —
-  // unprepared trips still get a usable preview.
+  // When derive-brochure produced a structured shape from plan + candidates,
+  // render against it. Otherwise fall back to raw planning sections — trips
+  // without a plan yet still get a usable preview.
   const brochure = $derived(data.brochureData ?? null);
   const isStructured = $derived(!!brochure);
 
@@ -174,7 +174,7 @@
   </section>
 
   {#if isStructured}
-    <!-- Structured render from brochure.md -->
+    <!-- Structured render derived from plan + candidates -->
 
     {#if brochure.days?.length}
       <section class="content-page" data-section="itinerary">
@@ -819,7 +819,7 @@
     text-underline-offset: 2px;
   }
 
-  /* ── Structured render (brochure.md) ─────────────────────────────── */
+  /* ── Structured render (derived brochure) ─────────────────────────── */
 
   /* Itinerary day blocks live in BrochureDayBlocks.svelte, shared with
      the trip detail page so the same data renders identically across

@@ -17,9 +17,7 @@
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { isSectionsDirty } from '$lib/utils/sectionDirty.js';
   import { browser } from '$app/environment';
-  import BrochureDayBlocks from '$lib/components/BrochureDayBlocks.svelte';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
-  import EmptyItineraryCTA from '$lib/components/EmptyItineraryCTA.svelte';
   import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
   import FieldGuidePalette from '$lib/components/FieldGuidePalette.svelte';
   import SectionDiffOverlay from '$lib/components/SectionDiffOverlay.svelte';
@@ -237,9 +235,9 @@
   );
 
   // Trigger invalidateAll() when a tripJobs entry disappears between polls —
-  // that means an Ambient Background job for this trip (deepen-section,
-  // brochure) finished or failed and its file was written. Without this the
-  // user has to manually refresh to see the new section content.
+  // that means an Ambient Background job for this trip (deepen-section)
+  // finished or failed and its file was written. Without this the user has
+  // to manually refresh to see the new section content.
   // The set comparison handles the multi-job case (one finishes while another
   // is still running) without firing on job starts.
   let prevJobKeys = new Set();
@@ -770,63 +768,6 @@
   const RECEIPTS_PROMISE = $derived(data.promises?.receipts ?? RECEIPTS_FALLBACK);
 
   // ── Archive ──
-  // ── Brochure prepare (Ambient Background) ──
-  // The route returns 202 immediately and the global jobs indicator surfaces
-  // progress + the success toast. Telemetry-resolved values come from
-  // `data.promises['brochure-prepare']`; the fallback keeps the UI working
-  // before the server-load round-trip completes.
-  const BROCHURE_FALLBACK = {
-    verb: 'Prepare brochure',
-    produces: 'A structured brochure draft (stops with map pins, lodging, field guide notes, gotchas), ready to review before saving.',
-    time_seconds: 45,
-    tokens_range: [2000, 5000],
-  };
-  const BROCHURE_PROMISE = $derived(
-    data.promises?.['brochure-prepare'] ?? BROCHURE_FALLBACK,
-  );
-
-  // True while a brochure job is in flight for this trip. Drives the disabled
-  // state on the trigger button so the user can't kick off a second run.
-  const brochureRunning = $derived(
-    tripJobs.some(j => j.workflow === 'brochure'),
-  );
-
-  let brochureError = $state(/** @type {{code: string, ctx?: object}|null} */ (null));
-
-  async function prepareBrochure() {
-    if (!trip || brochureRunning) return;
-    const ok = await showConfirm({
-      title: 'Prepare brochure?',
-      promise: BROCHURE_PROMISE,
-      confirmLabel: 'Prepare in background',
-    });
-    if (!ok) return;
-    brochureError = null;
-    try {
-      const res = await fetch(`/api/brochure/prepare/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
-      if (res.status === 409) {
-        brochureError = { code: 'already_running' };
-        return;
-      }
-      if (!res.ok && res.status !== 202) {
-        brochureError = { code: 'action_failed' };
-        return;
-      }
-      // 202 Accepted — the global indicator takes over from here. Refresh the
-      // jobs poll immediately so the per-trip badge appears without waiting
-      // for the next 10s tick.
-      try {
-        const jobsRes = await fetch('/api/jobs');
-        if (jobsRes.ok) {
-          const body = await jobsRes.json();
-          allJobs = body.jobs ?? [];
-        }
-      } catch { /* the 10s poll will pick it up */ }
-    } catch {
-      brochureError = { code: 'network_error' };
-    }
-  }
-
   async function archiveTrip() {
     if (!trip) return;
     const label = trip.title || trip._slug;
@@ -937,7 +878,7 @@
   <title>{trip?.title || trip?._slug} · Traverse</title>
 </svelte:head>
 
-<div class="page" class:has-brochure-days={!!data.brochureData?.days}>
+<div class="page">
   <header>
     <button class="back" onclick={() => goto('/')} aria-label="Back to all trips">← All trips</button>
     <span class="stage-pill">{stage || 'planning'}</span>
@@ -1050,23 +991,13 @@
           <TripDetailMap
             {trip}
             home={data.home?.coords}
-            stops={data.brochureData?.stops}
             color={markerColor}
             interactive={true}
           />
         </div>
       {/if}
 
-      {#if data.brochureData?.days}
-        <div class="itinerary-view">
-          <div class="itinerary-toolbar no-print">
-            <button class="btn btn-secondary btn-compact" onclick={() => window.print()}>
-              Print / Save PDF
-            </button>
-          </div>
-          <BrochureDayBlocks days={data.brochureData.days} />
-        </div>
-      {:else if sections.itinerary}
+      {#if sections.itinerary}
         <div class="itinerary-view">
           <div class="itinerary-toolbar no-print">
             <button class="btn btn-secondary btn-compact" onclick={() => window.print()}>
@@ -1074,16 +1005,7 @@
             </button>
           </div>
           {@html renderMarkdown(sections.itinerary)}
-          <p class="itinerary-legacy-cta no-print">
-            <a href={`/trips/${encodeURIComponent(trip._slug)}/brochure/prepare`}>Prepare brochure to enable editing</a>
-          </p>
         </div>
-      {:else if isPlanning && data.features?.homeMdReady !== false}
-        <EmptyItineraryCTA
-          onprepare={prepareBrochure}
-          busy={brochureRunning}
-          promise={BROCHURE_PROMISE}
-        />
       {/if}
 
       {#each canonicalSections as section}
@@ -1180,10 +1102,6 @@
         <div class="deepen-section-error" role="alert">{failureSentence(deepenSectionError.code, deepenSectionError.ctx ?? {})}</div>
       {/if}
 
-      {#if brochureError}
-        <div class="brochure-error-banner" role="alert">{failureSentence(brochureError.code, brochureError.ctx ?? {})}</div>
-      {/if}
-
       {#if actionError}
         <div class="action-error-banner" role="alert" aria-live="polite">
           <span class="action-error-text">{failureSentence(actionError.code, actionError.ctx ?? {})}</span>
@@ -1191,20 +1109,6 @@
         </div>
       {/if}
 
-      <!-- Brochure-stale notice is no longer Edit-mode-gated; staleness is a
-           correctness signal for any reader, and the Re-prepare action is a
-           content-producing workflow rather than authoring. -->
-      {#if data.brochureStale && !brochureRunning && data.features?.homeMdReady !== false}
-        <div class="brochure-stale-notice">
-          <span>Sections have changed. Re-prepare?</span>
-          <PromiseTooltip promise={BROCHURE_PROMISE}>
-            <button
-              class="btn btn-secondary btn-compact"
-              onclick={prepareBrochure}
-            >Re-prepare brochure</button>
-          </PromiseTooltip>
-        </div>
-      {/if}
     </main>
   </div>
 
@@ -1536,10 +1440,10 @@
     color: var(--text-primary);
     line-height: 1.4;
   }
-  /* The map now carries route geometry, home + destination markers, and
-     numbered stop pins when a brochure exists. Claiming ~40vh on desktop
-     gives the route enough room to read; the parent height clamps prevent
-     it from dominating short viewports. */
+  /* The map carries route geometry, home + destination markers, and
+     optional numbered stop pins. Claiming ~40vh on desktop gives the
+     route enough room to read; the parent height clamps prevent it from
+     dominating short viewports. */
   .map-section {
     height: 40vh;
     min-height: 280px;
@@ -1709,17 +1613,6 @@
     font-weight: 500;
   }
 
-  /* ── Brochure error banner (replaces .brochure-error inside old brochure-zone) ── */
-  .brochure-error-banner {
-    padding: 0.55rem 0.85rem;
-    background: var(--state-danger-surface);
-    border: 1px solid var(--state-danger);
-    border-radius: 4px;
-    font-size: 0.82rem;
-    color: var(--state-danger);
-    line-height: 1.45;
-  }
-
   .deepen-section-error {
     font-size: 0.78rem;
     color: var(--state-danger);
@@ -1867,8 +1760,8 @@
      absolute ban. Bottom border keeps the seam visible. */
   /* Day-heading band uses the warning-surface palette. Structurally
      unambiguous (rounded top of an itinerary block, not an inline
-     notice) so it doesn't collide with the brochure-stale notice or
-     .callout.warn even though they share the warm-orange palette. */
+     notice) so it doesn't collide with .callout.warn even though they
+     share the warm-orange palette. */
   .itinerary-view :global(h2) {
     font-size: 1rem;
     font-weight: 800;
@@ -1907,28 +1800,6 @@
   .itinerary-view :global(li:last-child) { border-bottom: none; }
   .itinerary-view :global(strong) { font-weight: 700; color: var(--text-primary); }
 
-  /* ── Legacy itinerary CTA (shown below prose itinerary when no brochure exists) ── */
-  .itinerary-legacy-cta {
-    margin-top: 1rem;
-    font-size: 0.85rem;
-    color: var(--text-secondary, #64748b);
-  }
-
-  /* ── Brochure staleness notice ── */
-  .brochure-stale-notice {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    background: var(--state-warning-surface);
-    border: 1px solid var(--state-warning);
-    border-radius: 6px;
-    font-size: 0.85rem;
-    color: var(--state-warning);
-    margin-top: 0.5rem;
-  }
-  .brochure-stale-notice span { flex: 1; }
-
   /* ── Print styles ── */
   @media print {
     .page > header,
@@ -1937,12 +1808,6 @@
     .hero,
     .palette-chip,
     .no-print { display: none !important; }
-
-    /* When a brochure day-by-day exists, the canonical sections (overview,
-       route, stops, logistics, notes) print as duplicate content alongside
-       the day-by-day. Hide them in that case (#268). Without a brochure
-       the sections ARE the printable content, so they stay visible. */
-    .page.has-brochure-days .section { display: none !important; }
 
     .page { background: var(--bone-50); color: var(--bark-900); }
     .layout { padding: 0; }

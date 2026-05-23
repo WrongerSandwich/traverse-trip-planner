@@ -26,7 +26,6 @@ export const MAX_TOKENS = {
   deepen: 8000,
   'deepen-section': 8000,
   extract: 8000,
-  'brochure-prepare': 4000,
   chat: 6000,
   'retro-questions': 600,
   'retro-save': 2000,
@@ -78,20 +77,6 @@ export const HAND_DEFAULTS = {
     produces: 'A conversational reply and any updated planning sections written directly to disk.',
     time_seconds: 20,
     tokens_range: [2000, 6000],
-  },
-  'brochure-prepare': {
-    verb: 'Prepare brochure',
-    produces: 'A structured brochure draft — stops with map pins, lodging, field guide notes, and gotchas — ready to review before saving.',
-    time_seconds: 45,
-    tokens_range: [2000, 5000],
-  },
-  // Regeocode doesn't call `chat()`; tokens are always zero. The hand
-  // default carries it through unchanged.
-  regeocode: {
-    verb: 'Re-geocode stops',
-    produces: 'Updated map pin coordinates for any stops that were missing a location on the brochure.',
-    time_seconds: 8,
-    tokens_range: [0, 0],
   },
 };
 

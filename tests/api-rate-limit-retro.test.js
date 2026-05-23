@@ -1,12 +1,11 @@
 /**
- * Tests that verify the 429 rate-limit path for the two endpoints added in #267:
+ * Tests that verify the 429 rate-limit path for the retro endpoint:
  *   - PUT /api/actions/retro/[slug]   (retro bucket)
- *   - POST /api/brochure/regeocode/[slug]  (geocode bucket)
  *
  * Strategy: mock rateLimitResponse to return a real 429 Response so we can
- * verify the handlers honour it without also having to satisfy every other
- * mock (fs, chat, brochure, …).  A second set of tests confirms that when
- * rateLimitResponse returns null the handlers proceed normally — proving
+ * verify the handler honours it without also having to satisfy every other
+ * mock (fs, chat, …). A second set of tests confirms that when
+ * rateLimitResponse returns null the handler proceeds normally — proving
  * the call-site wiring is correct, not just that the mock fires.
  */
 
@@ -95,25 +94,6 @@ vi.mock('$lib/server/promises.js', () => ({
   MAX_TOKENS: { 'retro-questions': 600, 'retro-save': 2000 },
 }));
 
-// ── brochure + sse mocks ──────────────────────────────────────────────────────
-
-const { mockRegeocodeBrochureStops } = vi.hoisted(() => ({
-  mockRegeocodeBrochureStops: vi.fn(),
-}));
-
-vi.mock('$lib/server/brochure.js', () => ({
-  regeocodeBrochureStops: mockRegeocodeBrochureStops,
-}));
-
-// sseStream: call the callback synchronously so we can await the handler.
-vi.mock('$lib/server/sse.js', () => ({
-  sseStream: async (fn) => {
-    const msgs = [];
-    await fn((msg, done) => msgs.push({ msg, done: !!done }));
-    return { status: 200, _msgs: msgs };
-  },
-}));
-
 vi.mock('$lib/server/errors.js', () => ({
   TraverseError: class TraverseError extends Error {
     constructor(code, message) { super(message); this.code = code; }
@@ -145,13 +125,6 @@ function makeRetroEvent(ip = '127.0.0.1', body = {}) {
   };
 }
 
-function makeRegeoEvent(ip = '127.0.0.1') {
-  return {
-    ...makeEvent(ip),
-    params: { slug: 'test-trip' },
-  };
-}
-
 // A completed trip file set that satisfies loadCompletedTrip().
 function mockCompletedTrip() {
   mockExistsSync.mockImplementation((p) => {
@@ -168,7 +141,6 @@ function mockCompletedTrip() {
 // ── imports (after all mocks) ─────────────────────────────────────────────────
 
 import { PUT } from '../src/routes/api/actions/retro/[slug]/+server.js';
-import { POST } from '../src/routes/api/brochure/regeocode/[slug]/+server.js';
 
 // ── beforeEach ────────────────────────────────────────────────────────────────
 
@@ -239,56 +211,3 @@ describe('PUT /api/actions/retro/[slug] — rate limiting', () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// POST /api/brochure/regeocode/[slug]
-// ═══════════════════════════════════════════════════════════════════════════════
-
-describe('POST /api/brochure/regeocode/[slug] — rate limiting', () => {
-  it('returns 429 when the geocode bucket is exhausted', async () => {
-    mockRateLimitResponse.mockReturnValue(make429());
-
-    const res = await POST(makeRegeoEvent());
-
-    expect(res.status).toBe(429);
-    const body = await res.json();
-    expect(body.code).toBe('rate_limited');
-  });
-
-  it('passes the event and geocode endpoint + slugKey to rateLimitResponse', async () => {
-    mockRateLimitResponse.mockReturnValue(make429());
-
-    await POST(makeRegeoEvent('10.0.0.2'));
-
-    expect(mockRateLimitResponse).toHaveBeenCalledWith(
-      expect.objectContaining({
-        endpoint: 'geocode',
-        slugKey: 'test-trip',
-        event: expect.objectContaining({ getClientAddress: expect.any(Function) }),
-      })
-    );
-  });
-
-  it('does not call regeocodeBrochureStops when rate-limited', async () => {
-    mockRateLimitResponse.mockReturnValue(make429());
-
-    await POST(makeRegeoEvent());
-
-    expect(mockRegeocodeBrochureStops).not.toHaveBeenCalled();
-  });
-
-  it('proceeds past the rate-limit check when not limited (calls regeocode)', async () => {
-    mockRateLimitResponse.mockReturnValue(null); // not limited
-
-    mockRegeocodeBrochureStops.mockResolvedValue({
-      stopsAdded: 2,
-      lodgingAdded: 0,
-      stopsLocated: 3,
-      stopsTotal: 4,
-    });
-
-    const res = await POST(makeRegeoEvent());
-
-    expect(mockRegeocodeBrochureStops).toHaveBeenCalledWith('test-trip', expect.any(Object));
-    expect(res.status).toBe(200);
-  });
-});

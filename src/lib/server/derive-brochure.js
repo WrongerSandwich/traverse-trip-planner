@@ -122,9 +122,9 @@ export function deriveBrochure(slug) {
     // bullets, so split on newlines and strip bullet markers here.
     field_guide_notes: toBulletArray(plan.field_guide_notes),
     gotchas: toBulletArray(plan.gotchas),
-    // Legacy-shape projections — flat top-level stops + lodging mirror
-    // prepareBrochure's output so the print view can iterate without
-    // restructuring. Day blocks (above) still drive the day-by-day section.
+    // Flat top-level stops + lodging mirror the brochure print view's
+    // expected shape so it can iterate without restructuring. Day blocks
+    // (above) still drive the day-by-day section.
     stops: topStops,
     lodging: topLodging,
     days,

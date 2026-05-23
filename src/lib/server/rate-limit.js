@@ -36,7 +36,6 @@ export const DEFAULT_LIMITS = {
   retro:            { capacity: 5,  refillPerMinute: 0.5 },
   receipts:         { capacity: 5,  refillPerMinute: 0.3 },
   chat:             { capacity: 30, refillPerMinute: 6   },
-  brochure:         { capacity: 3,  refillPerMinute: 0.25 },
   // image-search burns Pexels API quota; per-IP (no slugKey) is the right
   // grain. capacity=10 allows a burst of manual image searches; refill=1/min
   // sustains up to 60/hour without overwhelming the free-tier quota.
@@ -47,10 +46,10 @@ export const DEFAULT_LIMITS = {
   // legitimate re-geocode use-case but tighten the sustained rate.
   geocode:          { capacity: 10, refillPerMinute: 2   },
   // stadia-map proxies Stadia static-map requests so the key never reaches
-  // the browser (#265). Per-IP. Generous capacity because a brochure page
-  // makes one request per visit and the image is browser-cached for 24h, so
-  // legitimate users almost never re-hit. Tightish refill so a misbehaving
-  // client can't drain the Stadia free-tier quota.
+  // the browser (#265). Per-IP. Generous capacity because the brochure
+  // print page makes one request per visit and the image is browser-cached
+  // for 24h, so legitimate users almost never re-hit. Tightish refill so a
+  // misbehaving client can't drain the Stadia free-tier quota.
   'stadia-map':     { capacity: 30, refillPerMinute: 6   },
 };
 

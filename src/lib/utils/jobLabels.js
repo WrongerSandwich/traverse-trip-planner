@@ -5,7 +5,6 @@
 
 /** @type {Record<string, string>} */
 const WORKFLOW_LABELS = {
-  brochure:      'Preparing brochure…',
   deepen:        'Researching…',
   'deepen-section': 'Deepening stops…',
 };

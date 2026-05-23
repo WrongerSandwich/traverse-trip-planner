@@ -29,9 +29,8 @@ describe('promise-coverage', () => {
     // declares a `_promise` export (matches both inline literals and
     // reference-based exports like `export const _promise = HAND_DEFAULTS.x`).
     // The second clause covers Ambient Background routes that delegate the
-    // chat() call to a server-side library (e.g. brochure prepare →
-    // prepareBrochure → chat()) so the route file itself no longer imports
-    // ai.js but still owes the trigger UI a promise contract.
+    // chat() call to a server-side library so the route file itself no
+    // longer imports ai.js but still owes the trigger UI a promise contract.
     const aiRoutes = [];
     for (const file of allFiles) {
       const src = await readFile(file, 'utf8');
@@ -44,7 +43,7 @@ describe('promise-coverage', () => {
       }
     }
 
-    expect(aiRoutes.length, 'Expected at least 9 AI action routes').toBeGreaterThanOrEqual(9);
+    expect(aiRoutes.length, 'Expected at least 7 AI action routes').toBeGreaterThanOrEqual(7);
 
     const errors = [];
 

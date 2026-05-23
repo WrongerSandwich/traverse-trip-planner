@@ -94,12 +94,6 @@ vi.mock('$lib/server/config.js', () => ({
   getFeatureAvailability: () => ({ homeMdReady: true }),
 }));
 
-// brochure mock (used by brochure-prepare handler)
-const mockPrepareBrochure = vi.hoisted(() => vi.fn());
-vi.mock('$lib/server/brochure.js', () => ({
-  prepareBrochure: mockPrepareBrochure,
-}));
-
 // extract-candidates mock (chained onto the deepen research job; this file
 // only cares about completeJob/failJob bookkeeping, so a no-op resolution
 // is enough).
@@ -112,7 +106,6 @@ vi.mock('$lib/server/extract-candidates.js', () => ({
 
 import { POST as deepenPost } from '../src/routes/api/actions/deepen/[slug]/+server.js';
 import { POST as deepenSectionPost } from '../src/routes/api/actions/deepen-section/[slug]/[section]/+server.js';
-import { POST as brochurePost } from '../src/routes/api/brochure/prepare/[slug]/+server.js';
 import { TraverseError } from '../src/lib/server/errors.js';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -162,12 +155,6 @@ beforeEach(() => {
   mockChat.mockResolvedValue({
     text: '<overview_prose>prose</overview_prose><stops_md>## Stop A\nDetails.</stops_md>',
     usage: { input_tokens: 100, output_tokens: 50 },
-  });
-
-  // Default brochure: success
-  mockPrepareBrochure.mockResolvedValue({
-    data: {},
-    usage: { input_tokens: 100, output_tokens: 200 },
   });
 
   // Default extract: success with no extra usage (keeps existing token math).
@@ -267,63 +254,3 @@ describe('deepen-section handler', () => {
   });
 });
 
-// ─── Brochure prepare ─────────────────────────────────────────────────────────
-
-describe('brochure prepare handler', () => {
-  it('does not produce unhandledRejection when completeJob throws after worker success', async () => {
-    mockCompleteJob.mockImplementation(() => {
-      throw new Error('ENOSPC: disk full');
-    });
-
-    await brochurePost({
-      params: { slug: 'test-trip' },
-      request: { signal: new AbortController().signal },
-    });
-    await flushMicrotasks();
-
-    expect(unhandledRejections).toHaveLength(0);
-  });
-
-  it('does not produce unhandledRejection when failJob throws after worker failure', async () => {
-    mockPrepareBrochure.mockRejectedValue(new Error('AI call failed'));
-    mockFailJob.mockImplementation(() => {
-      throw new Error('EACCES: permission denied');
-    });
-
-    await brochurePost({
-      params: { slug: 'test-trip' },
-      request: { signal: new AbortController().signal },
-    });
-    await flushMicrotasks();
-
-    expect(unhandledRejections).toHaveLength(0);
-  });
-
-  it('calls completeJob with correct token count after prepareBrochure resolves', async () => {
-    await brochurePost({
-      params: { slug: 'test-trip' },
-      request: { signal: new AbortController().signal },
-    });
-    await flushMicrotasks();
-
-    expect(mockCompleteJob).toHaveBeenCalledWith('brochure', 'test-trip', { tokens: 300 });
-    expect(mockFailJob).not.toHaveBeenCalled();
-  });
-
-  it('calls failJob with TraverseError code when prepareBrochure rejects', async () => {
-    mockPrepareBrochure.mockRejectedValue(new TraverseError('missing_overview', 'no overview.md'));
-
-    await brochurePost({
-      params: { slug: 'test-trip' },
-      request: { signal: new AbortController().signal },
-    });
-    await flushMicrotasks();
-
-    expect(mockFailJob).toHaveBeenCalledWith(
-      'brochure',
-      'test-trip',
-      expect.objectContaining({ code: 'missing_overview' }),
-    );
-    expect(mockCompleteJob).not.toHaveBeenCalled();
-  });
-});

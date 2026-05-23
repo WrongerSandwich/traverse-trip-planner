@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isArtifactStale, isBrochureStale, PLANNING_SECTIONS } from '../src/lib/server/data.js';
+import { isArtifactStale, PLANNING_SECTIONS } from '../src/lib/server/data.js';
 
 // Synthetic stat helper: maps file paths to { mtimeMs } or null (not found).
 function makeStat(mtimes) {
@@ -94,58 +94,3 @@ describe('isArtifactStale', () => {
   });
 });
 
-// ── isBrochureStale (convenience wrapper) ────────────────────────────────────
-
-describe('isBrochureStale', () => {
-  it('returns false when brochure.md does not exist', () => {
-    const stat = makeStat({
-      [p('overview')]: 1000,
-      [p('route')]: 2000,
-    });
-    expect(isBrochureStale(DIR, stat)).toBe(false);
-  });
-
-  it('returns false when all sections are older than brochure', () => {
-    const stat = makeStat({
-      [p('brochure')]: 9000,
-      [p('overview')]: 1000,
-      [p('route')]: 2000,
-      [p('stops')]: 3000,
-      [p('logistics')]: 4000,
-    });
-    expect(isBrochureStale(DIR, stat)).toBe(false);
-  });
-
-  it('returns false when sections have same mtime as brochure', () => {
-    const stat = makeStat({
-      [p('brochure')]: 5000,
-      [p('overview')]: 5000,
-    });
-    expect(isBrochureStale(DIR, stat)).toBe(false);
-  });
-
-  it('returns true when any section is newer than brochure', () => {
-    const stat = makeStat({
-      [p('brochure')]: 5000,
-      [p('overview')]: 1000,
-      [p('route')]: 6000, // newer!
-      [p('stops')]: 3000,
-    });
-    expect(isBrochureStale(DIR, stat)).toBe(true);
-  });
-
-  it('returns true when only logistics is newer', () => {
-    const stat = makeStat({
-      [p('brochure')]: 5000,
-      [p('logistics')]: 9999,
-    });
-    expect(isBrochureStale(DIR, stat)).toBe(true);
-  });
-
-  it('returns false when no sections exist at all', () => {
-    const stat = makeStat({
-      [p('brochure')]: 5000,
-    });
-    expect(isBrochureStale(DIR, stat)).toBe(false);
-  });
-});

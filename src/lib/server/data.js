@@ -405,8 +405,8 @@ export function parseFrontmatter(content) {
 // Last-modified timestamp for a trip, used by the home-page "Recently active"
 // sort. For an idea (single .md file), it's that file's mtime. For a planning
 // or completed folder, it's the max mtime across all .md files in the folder
-// (overview.md, route.md, stops.md, logistics.md, brochure.md, notes.md, etc.),
-// so any section edit, brochure prepare, retro write, or job-start frontmatter
+// (overview.md, route.md, stops.md, logistics.md, plan.md, candidates.md,
+// notes.md, etc.), so any section edit, retro write, or job-start frontmatter
 // write bumps the trip up the list. Non-.md files (attachments, future
 // additions) are intentionally ignored.
 function tripMtimeMs(stage, slug, ideaFilePath) {
@@ -877,18 +877,6 @@ export function isArtifactStale(dir, sources, artifact, stat) {
     if (sectionStat && sectionStat.mtimeMs > artifactMtime) return true;
   }
   return false;
-}
-
-/**
- * Convenience wrapper: returns true when `brochure.md` is stale relative to
- * the four canonical planning sections.
- *
- * @param {string} dir
- * @param {(path: string) => { mtimeMs: number } | null} [stat]
- * @returns {boolean}
- */
-export function isBrochureStale(dir, stat) {
-  return isArtifactStale(dir, PLANNING_SECTIONS, 'brochure.md', stat);
 }
 
 // Returns { dir, frontmatter, sections } for a trip in the planning stage,
