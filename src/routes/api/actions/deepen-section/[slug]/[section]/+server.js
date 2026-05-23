@@ -36,8 +36,8 @@ const VALID_SECTIONS = ['route', 'stops', 'logistics'];
 const SECTION_PROMPTS = {
   route: {
     tag: 'route_md',
-    instruction: 'the driving route for this trip',
-    guidance: 'Full markdown for route.md. ## headers per segment. Specific road numbers, mileage, timing, notable scenery or detours.',
+    instruction: 'the scenic character of the drive for this trip (not turn-by-turn — GPS handles that)',
+    guidance: 'Brief editorial drive notes — ≤2 sentences, ~200 characters max. Scenic-only: what to slow down for, when to detour, the character of the drive. NO turn-by-turn directions, NO mileage tables, NO road numbers as the primary content — GPS handles all of that. For purely utilitarian drives (interstate slog to a city), write a single short sentence acknowledging the journey. No headers inside.',
   },
   stops: {
     tag: 'stops_md',

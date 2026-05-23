@@ -197,10 +197,12 @@
       : overviewRaw.split(/\n\n+/)[0]
   );
 
-  // Route soft cap (Phase 5 task 5.2). The page-level map is the primary
-  // visual element for the route; the prose below is annotation. Tighter
-  // threshold (~300 chars) than overview since route writeups are denser
-  // and we want eye to land on Plan + Candidates first.
+  // Route soft cap. The page-level map is the primary visual element for
+  // the route; the prose below is editorial annotation only — the deepen
+  // prompts ask for ≤2 sentences scenic-only notes, so new routes won't
+  // trip this cap. The cap remains as a graceful fallback for legacy
+  // routes (turn-by-turn writeups from earlier prompt versions), which
+  // collapse to their first paragraph until the user re-researches.
   let routeExpanded = $state(false);
   const routeRaw = $derived(sections.route ?? '');
   const routeIsLong = $derived(routeRaw.length > 300);
@@ -1243,7 +1245,7 @@
       {#each canonicalSections as section}
         <section
           class="section"
-          class:muted-section={section === 'logistics'}
+          class:muted-section={section === 'logistics' || section === 'route'}
           id="section-{section}"
         >
           <header class="section-header">
@@ -1847,15 +1849,18 @@
   }
   .overview-show-more:hover { text-decoration: underline; }
 
-  /* Phase 5 task 5.2 — route prose is annotation below the page-level map,
-     not the primary visual element. Tighten line-height slightly and let
-     the soft-cap collapse legacy long routes to their first paragraph so
-     the eye lands on Plan + Candidates first. */
+  /* Route prose is editorial annotation below the page-level map — short
+     scenic-only notes per the current prompts (≤2 sentences). Legacy long
+     routes still on disk collapse via the soft-cap above. Slight
+     line-height bump + the .muted-section header treatment subordinate
+     this section to Plan + Candidates without making it invisible. */
   .route-prose { font-size: 0.95rem; line-height: 1.65; }
 
-  /* Phase 5 task 5.3 — logistics stays freeform prose but visually muted
-     so the user's attention lands on Plan + Candidates above. Heading
-     shrinks, weight drops, and the whole section dims slightly. */
+  /* Muted-section treatment for the two auxiliary surfaces (Route and
+     Logistics) — they're context for Plan + Candidates, not the work
+     itself. Heading shrinks, weight drops, and the whole section dims
+     slightly so the user's eye lands on the structured surfaces above
+     and below. */
   .muted-section { opacity: 0.92; }
   .muted-section .section-header h2 {
     color: var(--text-tertiary);

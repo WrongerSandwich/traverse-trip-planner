@@ -111,7 +111,7 @@ waypoints: [key cities along the driving route, e.g. Home City ST, Midpoint City
 </frontmatter>
 
 <route_md>
-Full markdown for route.md. ## headers per segment. Specific road numbers, mileage, timing.
+Brief editorial drive notes — ≤2 sentences, ~200 characters max. Scenic-only: what to slow down for, when to detour, the character of the drive. NO turn-by-turn directions, NO mileage tables, NO road numbers as the primary content — GPS handles all of that. For purely utilitarian drives (interstate slog to a city), write a single short sentence acknowledging the journey. No headers inside.
 </route_md>
 
 <stops_md>
