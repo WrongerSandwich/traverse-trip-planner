@@ -628,6 +628,79 @@
     }
   }
 
+  // ── Re-research ──
+  // Ambient Background archetype: fires the deepen endpoint on an already-
+  // promoted planning trip. The handler accepts two 409 shapes:
+  //   plan_prose_present → show destructive confirm; retry with ?force=true
+  //   already_running    → surface as actionError
+  let reResearching = $state(false);
+
+  // Mirror of the deepen _promise for the confirm-modal tooltip.
+  const DEEPEN_FALLBACK = {
+    verb: 'Re-research trip',
+    produces: 'Researches the trip again from scratch and re-extracts plan and candidates. Runs in the background; you can navigate away.',
+    time_seconds: 150,
+    tokens_range: [8000, 16000],
+  };
+  const DEEPEN_PROMISE = $derived(data.promises?.deepen ?? DEEPEN_FALLBACK);
+
+  async function reResearch({ force = false } = {}) {
+    if (!trip || reResearching) return;
+
+    if (!force) {
+      const ok = await showConfirm({
+        title:        `Re-research "${trip.title || trip._slug}"?`,
+        body:         'Researches the trip again and re-extracts plan and candidates. Runs in the background.',
+        promise:      DEEPEN_PROMISE,
+        confirmLabel: 'Re-research in background',
+        danger:       false,
+      });
+      if (!ok) return;
+    }
+
+    reResearching = true;
+    try {
+      const url = `/api/actions/deepen/${encodeURIComponent(trip._slug)}${force ? '?force=true' : ''}`;
+      const res = await fetch(url, { method: 'POST' });
+
+      if (res.status === 409) {
+        let body = null;
+        try { body = await res.json(); } catch { /* tolerate parse failures */ }
+        if (body?.code === 'plan_prose_present') {
+          const ok2 = await showConfirm({
+            title:        'Re-research will overwrite plan prose',
+            body:         body.message ?? 'This trip has field guide notes / gotchas. Re-research will overwrite them.',
+            confirmLabel: 'Re-research anyway',
+            danger:       true,
+          });
+          if (ok2) await reResearch({ force: true });
+          return;
+        }
+        // already_running or other 409
+        actionError = { code: 'already_running' };
+        return;
+      }
+
+      if (!res.ok && res.status !== 202) {
+        actionError = { code: 'action_failed', ctx: { action: 're-research this trip' } };
+        return;
+      }
+
+      // 202 Accepted — refresh jobs poll immediately so the per-trip badge appears.
+      try {
+        const jobsRes = await fetch('/api/jobs');
+        if (jobsRes.ok) {
+          const body2 = await jobsRes.json();
+          allJobs = body2.jobs ?? [];
+        }
+      } catch { /* the 10s poll will pick it up */ }
+    } catch {
+      actionError = { code: 'network_error' };
+    } finally {
+      reResearching = false;
+    }
+  }
+
   // ── Retro ──
   let retroOpen = $state(false);
   const hasNotes = $derived(typeof sections.notes === 'string' && sections.notes.trim().length > 0);
@@ -862,6 +935,14 @@
         onclick: completeTrip,
         disabled: completing,
       });
+      if (data.features?.deepen && data.features?.homeMdReady !== false) {
+        lifecycleItems.push({
+          type: 'button',
+          label: reResearching ? 'Starting re-research…' : '↺ Re-research →',
+          onclick: () => reResearch(),
+          disabled: reResearching,
+        });
+      }
     }
     lifecycleItems.push({
       type: 'button',
