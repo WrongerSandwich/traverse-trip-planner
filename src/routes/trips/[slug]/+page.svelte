@@ -75,9 +75,14 @@
   // redundant alongside the structured Plan/Candidates surfaces. Legacy stops.md
   // files are still rendered for planning trips, but as a collapsed disclosure
   // below the canonical sections — see the `legacy-stops` block in the template.
+  //
+  // Order: Plan and Candidates sit adjacent because they're a single workflow
+  // (drag from Candidates onto a Plan day; the day picker references Plan
+  // structure). Logistics sits at the end as reference material — the user
+  // reads it before/during the trip, not while building the plan.
   const STAGE_SECTIONS = {
-    planning:  ['overview', 'route', 'plan', 'logistics', 'candidates'],
-    completed: ['overview', 'route', 'stops', 'plan', 'logistics', 'candidates', 'notes'],
+    planning:  ['overview', 'route', 'plan', 'candidates', 'logistics'],
+    completed: ['overview', 'route', 'stops', 'plan', 'candidates', 'logistics', 'notes'],
   };
 
   const trip = $derived(data.trip);
