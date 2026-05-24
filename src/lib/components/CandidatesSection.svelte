@@ -196,15 +196,19 @@
     addLog = [];
     let resolvedError = null;
     let resolvedCtx = {};
+    let resolvedId = null;
     try {
       await streamAction(
         `/api/actions/add-candidate/${encodeURIComponent(slug)}`,
         (event) => {
-          const { msg, done, code, context } = event;
+          const { msg, done, code, context, id } = event;
           if (msg) addLog = [...addLog, msg];
           if (done && code) {
             resolvedError = code;
             resolvedCtx = context || {};
+          }
+          if (done && !code && id) {
+            resolvedId = id;
           }
         },
         { name: name.trim(), type: currentTabType },
@@ -215,6 +219,10 @@
       } else {
         addInput = '';
         await invalidate('app:trip');
+        if (resolvedId) {
+          // Wait one tick for the new card to mount, then scroll.
+          queueMicrotask(() => scrollToCard(resolvedId));
+        }
       }
     } catch {
       addErrorCode = 'network_error';

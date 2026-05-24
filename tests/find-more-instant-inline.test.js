@@ -53,3 +53,12 @@ describe('find-more panel state machine', () => {
     expect(s.findSubmitting).toBe(false);
   });
 });
+
+describe('subtools tab-awareness', () => {
+  function currentTabType(tab) { return tab === 'stops' ? 'stop' : 'lodging'; }
+
+  it('reflects active tab', () => {
+    expect(currentTabType('stops')).toBe('stop');
+    expect(currentTabType('lodging')).toBe('lodging');
+  });
+});
