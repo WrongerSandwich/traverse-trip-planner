@@ -40,6 +40,7 @@ import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { isAbort } from '$lib/utils/abort.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
+import { isValidWaypoints } from '$lib/utils/waypoints.js';
 
 export const _promise = HAND_DEFAULTS.deepen;
 
@@ -228,9 +229,25 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
 
   const existingFm = parseFrontmatter(ideaContent) || {};
   const researchFm = fmRaw ? parseFrontmatterFields(fmRaw) : {};
+
+  // Validate waypoints before merging. If the model emitted a malformed value
+  // (not an array, fewer than 2 entries, or entries that aren't non-empty strings)
+  // omit waypoints entirely and record route_status so the UI can surface a badge.
+  let waypointOverrides = {};
+  if ('waypoints' in researchFm) {
+    if (isValidWaypoints(researchFm.waypoints)) {
+      // Valid — keep as-is; no route_status needed.
+    } else {
+      console.warn(`[deepen] ${slug}: invalid waypoints value from model (${JSON.stringify(researchFm.waypoints)}); omitting and setting route_status: invalid_waypoints`);
+      waypointOverrides = { route_status: 'invalid_waypoints' };
+      delete researchFm.waypoints;
+    }
+  }
+
   const merged = {
     ...existingFm,
     ...researchFm,
+    ...waypointOverrides,
     status: 'planning',
     travelers: homeFm.travelers ?? '[you]',
     pet_sitter_needed: String(homeFm.pets_need_sitter ?? 'false'),
