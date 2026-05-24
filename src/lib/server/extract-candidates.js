@@ -302,9 +302,8 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   return { usage, renames: renamesArray };
 }
 
-// distanceMi is kept inline for the self-heal sanity check in the geocoding
-// loop above. geocodeCandidate / getDestinationRefCoords / MAX_CANDIDATE_DISTANCE_MI
-// are now imported from candidates.js.
+// Private duplicate of candidates.js's distanceMi — kept here to avoid
+// widening that module's public API. Must stay in sync with the other copy.
 function distanceMi(a, b) {
   const lat1 = a[0], lng1 = a[1];
   const lat2 = b[0], lng2 = b[1];
@@ -317,21 +316,3 @@ function distanceMi(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-// Exported for tests; the disambiguation behavior is the contract that
-// matters here, not the unit's internal call signature.
-// Existing tests rely on these. Keep the shapes; delegate to candidates.js
-// where the implementations now live.
-export const __testing__ = {
-  geocodeCandidates: async (cands, destinationContext) => {
-    // Backwards-compat wrapper used by tests.
-    const refCoords = await getDestinationRefCoords(destinationContext);
-    for (const c of [...cands.stops, ...cands.lodging]) {
-      if (c.hidden) continue;
-      if (c.coords) continue;
-      const coords = await geocodeCandidate(c.name, destinationContext, refCoords);
-      if (coords) c.coords = { lat: coords[0], lng: coords[1] };
-    }
-  },
-  distanceMi,
-  MAX_CANDIDATE_DISTANCE_MI,
-};
