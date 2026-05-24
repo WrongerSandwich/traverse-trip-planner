@@ -158,6 +158,21 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   if (existingCands) {
     const userAddedStops = (existingCands.stops ?? []).filter((s) => s.user_added);
     const userAddedLodging = (existingCands.lodging ?? []).filter((l) => l.user_added);
+
+    // Hidden user-added entries are discards — if the model re-suggests the same
+    // id, the discard wins. Strip the fresh researcher entry so the hidden entry
+    // keeps its original id (no rename to -2) and the duplicate visible copy never
+    // appears. Without this, the merge renames the hidden entry and leaves a fresh
+    // visible copy at the original id — exactly what the user rejected.
+    const hiddenUserIds = new Set([
+      ...userAddedStops.filter((s) => s.hidden).map((s) => s.id),
+      ...userAddedLodging.filter((l) => l.hidden).map((l) => l.id),
+    ]);
+    if (hiddenUserIds.size > 0) {
+      cands.stops = cands.stops.filter((s) => !hiddenUserIds.has(s.id));
+      cands.lodging = cands.lodging.filter((l) => !hiddenUserIds.has(l.id));
+    }
+
     const newIds = new Set([...cands.stops.map((s) => s.id), ...cands.lodging.map((l) => l.id)]);
     // Track id renames so we can rewrite plan.days references — without this,
     // a user's promoted day silently re-binds to whichever researcher candidate
@@ -279,6 +294,10 @@ async function geocodeCandidates(cands, destinationContext) {
   const refCoords = destinationContext ? await geocode(destinationContext) : null;
 
   for (const c of [...cands.stops, ...cands.lodging]) {
+    // Hidden candidates are user discards — skip geocoding them. They won't
+    // appear on any map and re-geocoding a rejected place is wasteful.
+    if (c.hidden) continue;
+
     // Self-heal pre-existing bad coords: if a candidate already has coords
     // but they're far from the destination, they were almost certainly
     // mis-geocoded by the previous (bare-first) logic. Re-geocode through

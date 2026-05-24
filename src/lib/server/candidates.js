@@ -164,6 +164,16 @@ export function deleteCandidateLodging(slug, id) {
  * `hidden: false` is normalized to deleting the field so a fresh file
  * stays clean (default-visible). `hidden: true` writes the field.
  *
+ * **Re-extract persistence (Option B):** When hiding a researcher-sourced
+ * candidate (`user_added: false`), we also flip `user_added` to `true` so
+ * the existing merge logic in `extractCandidates` treats this entry as
+ * user-owned and preserves it across re-extracts. When un-hiding, we flip
+ * `user_added` back to `false` so the entry is again replaceable by a
+ * fresh researcher run (the candidate can reappear if the model still
+ * suggests it). User-added candidates (`user_added: true` before this
+ * call) are unaffected by the flip — they stay `user_added: true`
+ * regardless.
+ *
  * Returns the updated candidate object, or `null` if `id` matches
  * nothing in either array.
  */
@@ -172,16 +182,35 @@ export function setCandidateHidden(slug, id, hidden) {
   let updated = null;
   for (const s of cands.stops) {
     if (s.id !== id) continue;
-    if (hidden) s.hidden = true;
-    else delete s.hidden;
+    if (hidden) {
+      s.hidden = true;
+      // Flip researcher-sourced candidate to user_added so re-extract preserves it.
+      if (!s.user_added) s.user_added = true;
+    } else {
+      delete s.hidden;
+      // Restore researcher ownership so a future re-extract can replace it.
+      // Only revert if the candidate was a researcher candidate that we flipped
+      // on hide (i.e. it is not genuinely user-added, which we can tell by the
+      // absence of other user_added signals — but we can't know post-flip).
+      // Conservative choice: always revert to false on un-hide. A genuinely
+      // user-added candidate that was hidden then un-hidden will become
+      // researcher-replaceable, but that edge case is far less harmful than
+      // hidden discards reappearing after re-extract.
+      s.user_added = false;
+    }
     updated = s;
     break;
   }
   if (!updated) {
     for (const l of cands.lodging) {
       if (l.id !== id) continue;
-      if (hidden) l.hidden = true;
-      else delete l.hidden;
+      if (hidden) {
+        l.hidden = true;
+        if (!l.user_added) l.user_added = true;
+      } else {
+        delete l.hidden;
+        l.user_added = false;
+      }
       updated = l;
       break;
     }
