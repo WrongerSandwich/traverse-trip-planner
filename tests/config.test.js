@@ -148,10 +148,10 @@ describe('getFeatureAvailability', () => {
     });
   });
 
-  it('enables all features with anthropic + builtin search', async () => {
+  it('enables all features with anthropic + builtin search (receipts stays off — disabled pre-launch, see #367)', async () => {
     const { getFeatureAvailability } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
     expect(getFeatureAvailability()).toEqual({
-      seed: true, add: true, chat: true, retro: true, receipts: true, deepen: true,
+      seed: true, add: true, chat: true, retro: true, receipts: false, deepen: true,
       'add-candidate': true, 'find-more': true,
       homeMdReady: false,
       pexelsConfigured: false,

@@ -191,13 +191,9 @@ A safety note: if `notes.md` already exists and you try to write a new one, the 
 
 ## 11. The Retrospective and Receipts
 
-Two activity actions live on completed trips:
-
 **Add retro.** Same modal as above; available any time the trip has no `notes.md`. Useful if you skipped it at completion and want to do it months later.
 
-**Add receipts.** If your configured AI model is vision-capable (Sonnet 4.6, GPT-4o, that class), an `Add receipts` action appears in the `⋯` menu under Activity. Upload one or more photos of paper receipts (JPEG, PNG, WebP, or GIF — up to ten files, five megabytes each). Traverse sends them to the model, which parses each into a `date · merchant · amount · category` line and appends a `## Receipts` section to your `notes.md`.
-
-The append is non-destructive. Existing notes are never rewritten. Run it once, add another batch later — both will end up under the same section.
+**Add receipts** is currently disabled. An earlier version parsed receipt photos into prose lines under `## Receipts` in `notes.md`, but it offered no exit — no totals, no comparison against a trip's cost estimate. It will return after a redesign as a real ledger rather than a log.
 
 ---
 

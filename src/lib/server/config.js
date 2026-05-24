@@ -146,6 +146,13 @@ export function getFeatureAvailability() {
     const ok = providerKeyOkIn(effectiveEnv, cfg.features[feature].provider);
     result[feature] = searchDependent.has(feature) ? (ok && search) : ok;
   }
+  // Receipts is disabled pre-launch: the current implementation parses
+  // photos into prose lines under ## Receipts but offers no exit (no
+  // totals, no comparison to cost_estimate_usd, no aggregation). Will be
+  // re-enabled as part of the ledger redesign — see issue #367. The
+  // endpoint and UI code remain mounted so the redesign can iterate
+  // without re-plumbing; the gate flip here is the only thing hiding it.
+  result.receipts = false;
   result.homeMdReady = isHomeMdReady();
   result.pexelsConfigured = isRealKey(effectiveEnv.PEXELS_API_KEY);
   return result;
