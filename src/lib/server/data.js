@@ -86,12 +86,133 @@ function pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── Geocoding ──
+
+// Nominatim addresstypes that count as populated places. Waypoints are
+// canonically "key cities along the driving route" (per CLAUDE.md), so when
+// a free-text query like "Honey Creek IA" returns both a Lucas-County river
+// and a Pottawattamie-County hamlet, we want the hamlet — even though the
+// river edges it out on importance score.
+const SETTLEMENT_ADDRESSTYPES = new Set([
+  'city', 'town', 'village', 'hamlet', 'suburb', 'borough',
+  'municipality', 'locality', 'neighbourhood',
+]);
+
+function coordsFromResult(r) {
+  const lat = parseFloat(r?.lat);
+  const lon = parseFloat(r?.lon);
+  if (
+    !Number.isFinite(lat) || !Number.isFinite(lon) ||
+    lat < -90 || lat > 90 || lon < -180 || lon > 180
+  ) return null;
+  return [lat, lon];
+}
+
+/**
+ * Pick the best [lat, lon] from a Nominatim result array.
+ *
+ * Prefers the first entry whose `addresstype` is a settlement (so a hamlet
+ * beats a same-named river), falling back to the top result if none of the
+ * top candidates is a settlement — that fallback keeps POI-style waypoints
+ * like "Hitchcock Nature Center" working.
+ *
+ * Skips entries with out-of-range coords.
+ */
+export function pickBestGeocodeResult(results) {
+  if (!Array.isArray(results) || results.length === 0) return null;
+  for (const r of results) {
+    if (SETTLEMENT_ADDRESSTYPES.has(r?.addresstype)) {
+      const c = coordsFromResult(r);
+      if (c) return c;
+    }
+  }
+  for (const r of results) {
+    const c = coordsFromResult(r);
+    if (c) return c;
+  }
+  return null;
+}
+
+/**
+ * Build a Nominatim `viewbox` (`[west, south, east, north]`) around the
+ * home→destination axis, with `paddingDeg` degrees of slack on each side.
+ *
+ * Used as a soft re-ranking hint — passed *without* `bounded=1` so results
+ * inside the box are preferred but results outside aren't dropped. Returns
+ * null if either endpoint is missing, so callers can omit the viewbox
+ * cleanly when context isn't available.
+ */
+export function buildViewbox(homeCoords, destCoords, paddingDeg = 1.0) {
+  if (!Array.isArray(homeCoords) || !Array.isArray(destCoords)) return null;
+  const [hLat, hLon] = homeCoords;
+  const [dLat, dLon] = destCoords;
+  const west  = Math.min(hLon, dLon) - paddingDeg;
+  const east  = Math.max(hLon, dLon) + paddingDeg;
+  const south = Math.min(hLat, dLat) - paddingDeg;
+  const north = Math.max(hLat, dLat) + paddingDeg;
+  return [west, south, east, north];
+}
+
+/**
+ * Cross-track distance (miles) from a point to the great-circle path
+ * defined by two endpoints. Returns the absolute perpendicular distance.
+ */
+function crossTrackMi([pLat, pLon], [aLat, aLon], [bLat, bLon]) {
+  const R = 3959;
+  const toRad = d => d * Math.PI / 180;
+  const φa = toRad(aLat), λa = toRad(aLon);
+  const φp = toRad(pLat), λp = toRad(pLon);
+  const φb = toRad(bLat), λb = toRad(bLon);
+  // angular distance a→p
+  const dLatAP = φp - φa, dLonAP = λp - λa;
+  const aHav = Math.sin(dLatAP / 2) ** 2 + Math.cos(φa) * Math.cos(φp) * Math.sin(dLonAP / 2) ** 2;
+  const δ13 = 2 * Math.asin(Math.sqrt(aHav));
+  // bearing a→p and a→b
+  const bearing = (φ1, λ1, φ2, λ2) => {
+    const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+    return Math.atan2(y, x);
+  };
+  const θ13 = bearing(φa, λa, φp, λp);
+  const θ12 = bearing(φa, λa, φb, λb);
+  const dxt = Math.asin(Math.sin(δ13) * Math.sin(θ13 - θ12)) * R;
+  return Math.abs(dxt);
+}
+
+/**
+ * True when a waypoint's coords lie so far off the home→destination corridor
+ * that they're almost certainly a geocoding disambiguation failure (a wrong
+ * "Honey Creek" 130 mi east of the route, for example). Used to invalidate
+ * stale cached coords before they paint a dogleg.
+ *
+ * `thresholdMi` is the perpendicular distance from the home→dest great-circle
+ * path; 100 mi catches obvious misfires while tolerating real detours.
+ *
+ * Returns false when home or dest is missing — without context we can't
+ * judge, so we trust the cache.
+ */
+export function isOffAxis(wpCoord, homeCoord, destCoord, thresholdMi = 100) {
+  if (!Array.isArray(wpCoord) || !Array.isArray(homeCoord) || !Array.isArray(destCoord)) {
+    return false;
+  }
+  return crossTrackMi(wpCoord, homeCoord, destCoord) > thresholdMi;
+}
+
 // Only cache on a real 200 response (including legitimate empty results).
 // Transient failures (429, network errors) return null without caching, so
 // the next page load retries instead of sticking the destination as broken.
-export async function geocode(destination) {
+//
+// `opts.viewbox` is an optional `[west, south, east, north]` array (see
+// buildViewbox) that biases Nominatim toward results near the trip's
+// home→destination axis. Soft hint — Nominatim still returns out-of-box
+// matches if nothing better exists. The viewbox is *not* part of the cache
+// key: a destination resolves to one canonical coord pair, and the first
+// trip's viewbox effectively wins.
+export async function geocode(destination, opts = {}) {
   if (geocodeCache[destination] !== undefined) return geocodeCache[destination];
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`;
+  let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=5`;
+  if (Array.isArray(opts.viewbox) && opts.viewbox.length === 4) {
+    url += `&viewbox=${encodeURIComponent(opts.viewbox.join(','))}`;
+  }
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await fetch(url, { headers: { 'User-Agent': 'traverse/1.0 (personal)' } });
@@ -104,19 +225,7 @@ export async function geocode(destination) {
         return null;
       }
       const data = await res.json();
-      let coords = null;
-      if (data.length) {
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
-        if (
-          Number.isFinite(lat) && Number.isFinite(lon) &&
-          lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
-        ) {
-          coords = [lat, lon];
-        } else {
-          console.warn('geocode: out-of-range coords for', destination, lat, lon);
-        }
-      }
+      const coords = pickBestGeocodeResult(data);
       geocodeCache[destination] = coords;
       geocodeDirty = true;
       return coords;
@@ -720,13 +829,33 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
   return { images, routes, geocodes, plans };
 }
 
-async function geocodeWaypoints(waypoints) {
+/**
+ * Geocode a trip's waypoints into an array of [lat, lon] coords. When the
+ * caller supplies `homeCoords` and `destCoords`, the function builds a
+ * Nominatim viewbox around that axis (passed as a soft hint to `geocode()`)
+ * AND evicts cached coords that lie far off the corridor — a self-healing
+ * migration that fixes trips poisoned by the pre-viewbox geocoder.
+ *
+ * Without context (homeCoords/destCoords missing), both behaviors are
+ * skipped: viewbox is omitted and stale cached values are trusted.
+ */
+export async function geocodeWaypoints(waypoints, { homeCoords, destCoords } = {}) {
   const wps = Array.isArray(waypoints) ? waypoints : [waypoints];
+  const viewbox = buildViewbox(homeCoords, destCoords);
   const geocoded = [];
   for (const wp of wps) {
+    // Self-heal: if a cached coord lies far off the home→dest corridor it's
+    // almost certainly a wrong-disambiguation hit (a same-named river or
+    // township). Evict it and let the viewbox-biased fetch pick the right one.
+    const cached = geocodeCache[wp];
+    if (Array.isArray(cached) && isOffAxis(cached, homeCoords, destCoords)) {
+      console.warn('geocode: evicting off-axis cached coord for', wp, cached);
+      delete geocodeCache[wp];
+      geocodeDirty = true;
+    }
     const needsFetch = geocodeCache[wp] === undefined;
     try {
-      const coord = await geocode(wp);
+      const coord = await geocode(wp, { viewbox });
       if (needsFetch) await sleep(1100);
       if (coord) geocoded.push(coord);
     } catch (e) {
@@ -839,7 +968,10 @@ async function enrichTripsImpl() {
         trip._route_status = trip.route_status;
       }
       if (trip.waypoints) {
-        const geocoded = await geocodeWaypoints(trip.waypoints);
+        const geocoded = await geocodeWaypoints(trip.waypoints, {
+          homeCoords,
+          destCoords: trip._coords,
+        });
         if (geocoded.length >= 2) {
           liveRouteKeys.add(routeCacheKey(geocoded));
           const route = await fetchRoute(geocoded);
@@ -907,7 +1039,12 @@ export async function getTripRoute(slug) {
     if (!existsSync(fp)) continue;
     const fm = parseFrontmatter(readFileSync(fp, 'utf8'));
     if (!fm?.waypoints) return null;
-    const geocoded = await geocodeWaypoints(fm.waypoints);
+    // Pre-geocode home + destination so geocodeWaypoints can build a viewbox
+    // and evict off-axis cached coords. Both calls hit the geocode cache for
+    // any trip enrichTrips has already touched, so this is free in practice.
+    const homeCoords = getHome()?.coords ?? null;
+    const destCoords = fm.destination ? await geocode(fm.destination) : null;
+    const geocoded = await geocodeWaypoints(fm.waypoints, { homeCoords, destCoords });
     if (geocoded.length < 2) { flushCaches(); return null; }
     const route = await fetchRoute(geocoded);
     flushCaches();
