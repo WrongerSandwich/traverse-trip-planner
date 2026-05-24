@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { TraverseError } from '../src/lib/server/errors.js';
 
 const mockChat = vi.hoisted(() => vi.fn());
 vi.mock('$lib/server/ai.js', () => ({ chat: mockChat, formatUsage: () => 'usage: stub' }));
@@ -121,5 +122,105 @@ stops:
     expect(mockAddCandidateStop).toHaveBeenCalledTimes(2);
     expect(completedJobs).toHaveLength(1);
     expect(completedJobs[0].workflow).toBe('find-more:stop');
+  });
+});
+
+describe('POST /api/actions/find-more — variants', () => {
+  it('drops additions whose name matches an existing candidate', async () => {
+    mockReadCandidates.mockReturnValueOnce({
+      stops: [{ id: 'mound-city', name: 'Mound City' }, { id: 'adena-mansion', name: 'Adena Mansion' }],
+      lodging: [],
+    });
+    mockChat.mockResolvedValueOnce({
+      text: `<additions>
+stops:
+  - name: Adena Mansion
+    category: historic
+    description: dup
+  - name: Tecumseh!
+    category: entertainment
+    description: drama
+</additions>`,
+      usage: { input_tokens: 200, output_tokens: 100 },
+    });
+    const res = await POST(buildEvent({ type: 'stop', count: 5 }));
+    expect(res.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockAddCandidateStop).toHaveBeenCalledTimes(1);
+    expect(mockAddCandidateStop.mock.calls[0][1].name).toBe('Tecumseh!');
+  });
+
+  it('appends lodging entries for type=lodging', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<additions>
+lodging:
+  - name: The Mill Inn
+    description: Riverside mill.
+    price_tier: mid
+    booking_url: https://example.com
+  - name: Lodge B
+    description: Cabin cluster.
+    price_tier: budget
+</additions>`,
+      usage: { input_tokens: 200, output_tokens: 100 },
+    });
+    const res = await POST(buildEvent({ type: 'lodging', count: 5 }));
+    expect(res.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockAddCandidateLodging).toHaveBeenCalledTimes(2);
+    expect(mockAddCandidateStop).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 when assertNotRunning throws already_running', async () => {
+    const jobs = await import('$lib/server/jobs.js');
+    jobs.assertNotRunning.mockImplementationOnce(() => {
+      throw new TraverseError('already_running', 'find-more is already running');
+    });
+    const res = await POST(buildEvent({ type: 'stop', count: 5 }));
+    expect(res.status).toBe(409);
+  });
+
+  it('clamps count to [3, 10] range', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<additions>
+stops: []
+</additions>`,
+      usage: { input_tokens: 50, output_tokens: 20 },
+    });
+    const res = await POST(buildEvent({ type: 'stop', count: 50 }));
+    expect(res.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 50));
+    // The system prompt starts with "You find ${count} additional" — count=50 clamps to 10
+    const systemPrompt = mockChat.mock.calls[0][0].system;
+    expect(systemPrompt).toContain('You find 10 additional');
+  });
+
+  it('parses YAML failure to failJob with model_returned_invalid_yaml', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<additions>
+stops:
+  - name: [{ invalid yaml here
+</additions>`,
+      usage: { input_tokens: 200, output_tokens: 100 },
+    });
+    const res = await POST(buildEvent({ type: 'stop', count: 5 }));
+    expect(res.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(failedJobs).toHaveLength(1);
+    expect(failedJobs[0].opts.code).toBe('model_returned_invalid_yaml');
+  });
+});
+
+describe('DELETE /api/actions/find-more/[slug]', () => {
+  it('cancels the find-more:<type> job', async () => {
+    const event = {
+      params: { slug: 'great-smoky-ramble' },
+      request: { url: 'http://localhost/api/actions/find-more/great-smoky-ramble?type=lodging' },
+    };
+    const { DELETE } = await import('../src/routes/api/actions/find-more/[slug]/+server.js');
+    const res = await DELETE(event);
+    expect(res.status).toBe(200);
+    expect(cancelledJobs[0].workflow).toBe('find-more:lodging');
+    expect(cancelledJobs[0].slug).toBe('great-smoky-ramble');
   });
 });
