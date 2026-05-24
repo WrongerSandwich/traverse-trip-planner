@@ -357,6 +357,21 @@
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
+  // Switch tabs and reset all add/find-more panel state so a half-typed
+  // "Mound City Group" in the Stops add panel doesn't bleed into Lodging.
+  function setTab(next) {
+    if (next === tab) return;
+    tab = next;
+    openPanel = null;
+    addInput = '';
+    addLog = [];
+    addErrorCode = null;
+    addErrorCtx = {};
+    findSteering = '';
+    findErrorCode = null;
+    findErrorCtx = {};
+  }
+
   // Capitalize-once for chip labels.
   function titleCase(s) {
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
@@ -438,14 +453,14 @@
         role="tab"
         aria-selected={tab === 'stops'}
         class:active={tab === 'stops'}
-        onclick={() => (tab = 'stops')}
+        onclick={() => setTab('stops')}
       >Stops <span class="tab-count">{filteredStops.length}</span></button>
       <button
         type="button"
         role="tab"
         aria-selected={tab === 'lodging'}
         class:active={tab === 'lodging'}
-        onclick={() => (tab = 'lodging')}
+        onclick={() => setTab('lodging')}
       >Lodging <span class="tab-count">{visibleLodging.length}</span></button>
     </div>
   </div>

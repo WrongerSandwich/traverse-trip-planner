@@ -76,6 +76,12 @@ export async function POST(event) {
   const overviewPath = findPlanningOverview(slug);
   if (!overviewPath) return json({ code: 'trip_not_found' }, { status: 404 });
 
+  const overviewRaw = readFileSync(overviewPath, 'utf8');
+  const overviewFm = parseFrontmatter(overviewRaw) || {};
+  if (overviewFm.status !== 'planning') {
+    return json({ code: 'wrong_stage', message: 'This trip is not in the planning stage.' }, { status: 412 });
+  }
+
   const workflow = `find-more:${type}`;
   try {
     assertNotRunning(workflow, slug);
