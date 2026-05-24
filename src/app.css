@@ -315,17 +315,6 @@ body {
   filter: brightness(0.92);
 }
 
-/* Lifecycle stage pill on the trip detail page header. The header is
-   --forest-800 in both modes, and the planning pill bg is also forest-800
-   in dark mode — without an outline the pill becomes invisible. The
-   border-strong overlay reads against both the header and the pill fill,
-   so all three stages (idea / planning / completed) stay legible without
-   bespoke per-stage overrides. Light mode doesn't need this — its pill
-   bgs are cream tints with high contrast against the dark forest header. */
-[data-theme="dark"] .page > header .stage-pill {
-  border: 1px solid var(--border-strong);
-}
-
 ::selection {
   background: rgba(216, 123, 63, 0.25);
 }

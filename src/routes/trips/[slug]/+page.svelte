@@ -1095,15 +1095,7 @@
 <div class="page">
   <header>
     <button class="header-pill back" onclick={() => goto('/')} aria-label="Back to all trips">← All trips</button>
-    <span class="stage-pill">{stage || 'planning'}</span>
-    <h1>{trip?.title || trip?._slug}</h1>
-    <div class="meta">
-      {#if trip?.destination}<span>{trip.destination}</span>{/if}
-      {#if driveLabel}
-        <span class="mode drive">{driveLabel}</span>
-      {/if}
-      {#if trip?._cost}<span class="cost">{trip._cost}</span>{/if}
-    </div>
+    <h1 title={trip?.title || trip?._slug}>{trip?.title || trip?._slug}</h1>
     {#if isPlanning && data.features?.chat && data.features?.homeMdReady !== false}
       <button
         class="header-pill header-ask"
@@ -1145,6 +1137,19 @@
       {#if trip.vibe}<span class="vibe">{trip.vibe}</span>{/if}
     </div>
   {/if}
+
+  <div class="trip-meta">
+    <span class="stage-pill stage-{stage || 'planning'}">{stage || 'planning'}</span>
+    {#if trip?.destination}
+      <span class="trip-meta-item">{trip.destination}</span>
+    {/if}
+    {#if driveLabel}
+      <span class="trip-meta-item">{driveLabel}</span>
+    {/if}
+    {#if trip?._cost}
+      <span class="trip-meta-item trip-meta-cost">{trip._cost}</span>
+    {/if}
+  </div>
 
   <div class="layout">
     <main class="content">
@@ -1507,11 +1512,12 @@
     color: var(--text-primary);
     font-family: var(--font-sans);
     display: grid;
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto auto 1fr;
   }
   .page > header { grid-row: 1; }
   .page > .hero { grid-row: 2; }
-  .page > .layout { grid-row: 3; }
+  .page > .trip-meta { grid-row: 3; }
+  .page > .layout { grid-row: 4; }
 
   /* Sticky so the per-trip job badge, ⋯ menu, and back link stay reachable
      while scrolling through long sections — the global pill is suppressed
@@ -1606,6 +1612,63 @@
     color: var(--bone-50);
   }
 
+  /* H1 expands to fill the row so action pills (Ask, Re-research, ⋯) push
+     against the trailing edge without needing a margin-left:auto trick on
+     the first action button. Mobile override (≤768px) lifts H1 to its own
+     row via order:99. */
+  .page > header h1 {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-serif);
+    font-size: 1.6rem;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: 0.005em;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Trip meta strip ──
+     Lives between the hero photo and the map. Carries the stage pill plus
+     factual trip meta (destination, drive time, cost tier) that used to be
+     scattered across the sticky header. Surface tokens (not forest-800)
+     because we want this to read as page content, not chrome — one dark
+     band (the sticky header) is plenty. Items separated by middle dots
+     drawn via ::before so wrapping doesn't leave orphan separators at the
+     start of a wrapped line. */
+  .trip-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.85rem;
+    padding: 0.7rem 1.75rem;
+    background: var(--surface-raised);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+  .trip-meta-item {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .trip-meta-item + .trip-meta-item::before {
+    content: '·';
+    margin-right: 0.85rem;
+    color: var(--text-tertiary);
+  }
+  .trip-meta-cost {
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.02em;
+  }
+
+  /* Stage pill colors come from the per-stage modifier class so the
+     completed/idea stages render in their own family rather than always
+     wearing the planning palette. Default (no modifier) falls back to
+     planning. */
   .stage-pill {
     font-size: 0.62rem;
     font-weight: 800;
@@ -1616,42 +1679,8 @@
     background: var(--planning-bg);
     color: var(--planning-text);
   }
-  /* Dark-mode header outline lives in app.css alongside the other
-     [data-theme="dark"] overrides — Svelte's CSS scoper can't see the
-     html-level data-theme attribute, so it would mark a per-component
-     override as unused. */
-
-  .page > header h1 {
-    font-family: var(--font-serif);
-    font-size: 1.6rem;
-    font-weight: 500;
-    line-height: 1.1;
-    letter-spacing: 0.005em;
-    margin: 0;
-  }
-
-  .meta {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    font-size: 0.78rem;
-    color: var(--bone-200);
-  }
-  .meta .mode {
-    font-size: 0.62rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    padding: 0.14rem 0.45rem;
-    border-radius: 2px;
-  }
-  /* Mode pill sits inside the constant forest-800 page header, so its
-     colors are scoped to "on dark forest" in both modes — raw refs are
-     appropriate here, not the mode-adaptive state-* tokens (a "drive"
-     mode is not a "success" state). */
-  .meta .mode.drive { background: var(--forest-100); color: var(--forest-800); }
-  .meta .cost { font-weight: 700; color: var(--bone-200); }
+  .stage-pill.stage-idea { background: var(--idea-bg); color: var(--idea-text); }
+  .stage-pill.stage-completed { background: var(--completed-bg); color: var(--completed-text); }
 
   .hero {
     position: relative;
@@ -2274,6 +2303,7 @@
   /* ── Print styles ── */
   @media print {
     .page > header,
+    .trip-meta,
     .callout,
     .map-section,
     .hero,
@@ -2299,10 +2329,9 @@
   @media (max-width: 768px) {
     .page > header { padding: 0.85rem 1rem; gap: 0.55rem; }
 
-    /* H1 takes its own row on mobile. order:99 pushes it visually below
-       the chrome row (back / PLANNING / meta / kebab), where it gets the
-       full content width to wrap on long titles. Bumped from 1.05rem so
-       the identity element is larger than body prose, not smaller. */
+    /* H1 takes its own row on mobile so a long title can wrap without
+       getting squeezed between back and the action pills. order:99 keeps
+       it visually below the chrome row. */
     .page > header h1 {
       flex: 1 1 100%;
       order: 99;
@@ -2310,6 +2339,8 @@
       line-height: 1.2;
       letter-spacing: 0;
       margin-top: 0.15rem;
+      white-space: normal;
+      overflow: visible;
     }
 
     /* Icon-only back button — the "All trips" label was eating ~85px of
@@ -2326,7 +2357,8 @@
       line-height: 1;
     }
 
-    .meta { width: 100%; margin-left: 0; }
+    .trip-meta { padding: 0.6rem 1rem; font-size: 0.78rem; gap: 0.4rem 0.7rem; }
+    .trip-meta-item + .trip-meta-item::before { margin-right: 0.7rem; }
     .hero { height: 200px; }
     .map-section { height: 220px; }
     .layout { padding: 1rem 0.85rem 6rem; }
