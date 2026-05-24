@@ -86,3 +86,14 @@ describe('image cover-photo codes', () => {
     expect(ERROR_REGISTRY.image_save_failed.affordances).toContain('retry');
   });
 });
+
+describe('candidate_duplicate', () => {
+  it('is registered with name interpolation and dismiss affordance', () => {
+    const entry = ERROR_REGISTRY.candidate_duplicate;
+    expect(entry).toBeDefined();
+    expect(entry.interpolate).toEqual(['name']);
+    expect(entry.sentence).toContain('{name}');
+    expect(entry.affordances).toEqual(['dismiss']);
+    expect(entry.affordances.every((a) => AFFORDANCES.includes(a))).toBe(true);
+  });
+});

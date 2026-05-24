@@ -54,6 +54,11 @@ export const ERROR_REGISTRY = {
     sentence: "Couldn't reach the model. Check your connection and retry.",
     affordances: ['retry'],
   },
+  candidate_duplicate: {
+    sentence: '"{name}" is already in your candidates. Try a different name.',
+    affordances: ['dismiss'],
+    interpolate: ['name'],
+  },
   // ── Codes thrown elsewhere in src/ ───────────────────────────────────
   no_section_content: {
     sentence: 'The model returned no section content. Try again.',
