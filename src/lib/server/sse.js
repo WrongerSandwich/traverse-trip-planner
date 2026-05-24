@@ -4,7 +4,7 @@ import { isAbort } from '$lib/utils/abort.js';
  * Wraps an async SSE handler in a ReadableStream + Response with correct headers.
  *
  * The handler receives a `send` function that accepts either positional
- * `(msg, done?, tokens?)` args or a single payload object
+ * `(msg, done?, tokens?)` args or a single plain-object payload
  * `{ msg, done?, tokens?, code?, context?, id?, ... }`. Unhandled errors
  * are automatically forwarded as a final SSE error message. The controller
  * is always closed in `finally` so callers never need to close it explicitly.
@@ -54,7 +54,7 @@ export function sseStream(handler) {
         if (cancelled) return; // client gone — drop the write
         try {
           let payload;
-          if (arg !== null && typeof arg === 'object') {
+          if (arg !== null && typeof arg === 'object' && !Array.isArray(arg)) {
             payload = { ...arg };
             if (payload.done == null) payload.done = false;
             if (!payload.done) delete payload.tokens;

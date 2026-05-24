@@ -70,6 +70,11 @@ export async function POST(event) {
     }
     const overviewRaw = readFileSync(overviewPath, 'utf8');
     const overviewFm = parseFrontmatter(overviewRaw) || {};
+    const status = overviewFm.status;
+    if (status !== 'planning') {
+      send({ msg: 'This trip is not in the planning stage.', done: true, code: 'wrong_stage' });
+      return;
+    }
     const destination = overviewFm.destination ?? '';
     const vibe = overviewFm.vibe ?? '';
 
@@ -85,13 +90,14 @@ export async function POST(event) {
     const existingNames = pool.map((c) => `- ${c.name}`).join('\n') || '(none yet)';
     const homeMd = readHomeMd();
 
-    const stopFields = `name: ${name}
+    const safeName = `"${name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    const stopFields = `name: ${safeName}
 category: <one of: ${STOP_CATEGORIES.join(' | ')}>
 description: <1 sentence; if uncertain, keep it general — no operating hours, prices, or trivia>
 why_recommended: <1 sentence linking to the traveler's tastes from home.md>
 source_url: <best URL if known via search; leave blank if uncertain>`;
 
-    const lodgingFields = `name: ${name}
+    const lodgingFields = `name: ${safeName}
 description: <1 sentence; general if uncertain>
 price_tier: <budget | mid | splurge>
 nights: <integer; omit if uncertain>

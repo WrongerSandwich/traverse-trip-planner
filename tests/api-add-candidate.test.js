@@ -48,7 +48,7 @@ vi.mock('$lib/server/data.js', () => ({
 }));
 
 const mockExistsSync = vi.hoisted(() => vi.fn(() => true));
-const mockReadFileSync = vi.hoisted(() => vi.fn(() => '---\ndestination: Chillicothe, OH\n---\nprose'));
+const mockReadFileSync = vi.hoisted(() => vi.fn(() => '---\nstatus: planning\ndestination: Chillicothe, OH\n---\nprose'));
 vi.mock('node:fs', () => ({
   existsSync: mockExistsSync,
   readFileSync: mockReadFileSync,
