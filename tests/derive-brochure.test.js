@@ -60,8 +60,8 @@ describe('deriveBrochure', () => {
     expect(b.days[0].blocks[0].period).toBeNull();
   });
 
-  it('returns null when plan.md or candidates.md absent', () => {
-    rmSync(join(ROOT, 'planning', 't', 'plan.md'));
+  it('returns null when plan.yaml or candidates.yaml absent', () => {
+    rmSync(join(ROOT, 'planning', 't', 'plan.yaml'));
     expect(deriveBrochure('t')).toBeNull();
   });
 

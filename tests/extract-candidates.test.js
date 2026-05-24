@@ -5,9 +5,20 @@ vi.mock('$lib/server/ai.js', () => ({ chat: mockChat }));
 
 const mockWriteFileSync = vi.hoisted(() => vi.fn());
 const mockRenameSync = vi.hoisted(() => vi.fn());
-vi.mock('node:fs', () => ({ writeFileSync: mockWriteFileSync, renameSync: mockRenameSync }));
+const mockReadFileSync = vi.hoisted(() => vi.fn(() => '---\ntitle: T\n---\n'));
+const mockExistsSync = vi.hoisted(() => vi.fn(() => true));
+vi.mock('node:fs', () => ({
+  writeFileSync: mockWriteFileSync,
+  renameSync: mockRenameSync,
+  readFileSync: mockReadFileSync,
+  existsSync: mockExistsSync,
+}));
 
 const mockGeocode = vi.hoisted(() => vi.fn(async () => null));
+const mockFindTripFile = vi.hoisted(() => vi.fn(() => '/test/planning/t/overview.md'));
+const mockSetFrontmatterField = vi.hoisted(() => vi.fn((content, _field, _value) => content));
+const mockRemoveFrontmatterField = vi.hoisted(() => vi.fn((content, _field) => content));
+const mockAtomicWrite = vi.hoisted(() => vi.fn());
 vi.mock('$lib/server/data.js', () => ({
   ROOT: '/test',
   readHomeMd: () => '---\ntravelers: [you]\n---\n',
@@ -17,6 +28,10 @@ vi.mock('$lib/server/data.js', () => ({
     files: { overview: '---\ndestination: Glacier MT\n---\nGlacier prose', route: 'Drive prose', stops: 'Stop prose', logistics: 'Logistics prose' },
   }),
   findTripLocation: () => ({ kind: 'dir', path: '/test/planning/t', stage: 'planning' }),
+  findTripFile: mockFindTripFile,
+  setFrontmatterField: mockSetFrontmatterField,
+  removeFrontmatterField: mockRemoveFrontmatterField,
+  atomicWrite: mockAtomicWrite,
   geocode: mockGeocode,
   parseFrontmatter: (text) => {
     const match = text.match(/^---\n([\s\S]*?)\n---/);
@@ -75,6 +90,16 @@ describe('extractCandidates', () => {
     mockGeocode.mockReset(); // clear any mockImplementation set in previous tests
     capturedPlan.value = null;
     capturedCands.value = null;
+    // Restore defaults cleared by clearAllMocks. Also reset any mockImplementation
+    // from previous tests (clearAllMocks doesn't clear implementations — only
+    // resetAllMocks does, but that would also nuke the hoisted fn defaults).
+    mockGeocode.mockReset();
+    mockGeocode.mockResolvedValue(null);
+    mockReadFileSync.mockReturnValue('---\ntitle: T\n---\n');
+    mockExistsSync.mockReturnValue(true);
+    mockFindTripFile.mockReturnValue('/test/planning/t/overview.md');
+    mockSetFrontmatterField.mockImplementation((content, _field, _value) => content);
+    mockRemoveFrontmatterField.mockImplementation((content, _field) => content);
   });
 
   it('writes plan.md frontmatter and candidates.md from chat() output', async () => {
@@ -113,8 +138,8 @@ lodging:
     }));
 
     expect(capturedPlan.value).toMatchObject({
-      field_guide_notes: expect.stringContaining('Park notes'),
-      gotchas: expect.stringContaining('Cell dead'),
+      field_guide_notes: expect.arrayContaining([expect.stringContaining('Park notes')]),
+      gotchas: expect.arrayContaining([expect.stringContaining('Cell dead')]),
       days: [],
     });
 
@@ -380,7 +405,7 @@ lodging: []
     await extractCandidates('t');
     expect(capturedPlan.value.days).toEqual([{ number: 1, stops: ['my-pick'], lodging_id: 'my-inn' }]);
     expect(capturedPlan.value.cover_query).toBe('new');
-    expect(capturedPlan.value.field_guide_notes).toBe('new notes');
+    expect(capturedPlan.value.field_guide_notes).toEqual(['new notes']);
   });
 
   it('reassigns user-added id on collision with new researcher id', async () => {
@@ -796,5 +821,152 @@ lodging: []
     let caught;
     try { guard(null); } catch (e) { caught = e; }
     expect(caught.code).toBe('trip_not_found');
+  });
+
+  // ── Rename surface (issue #349) ───────────────────────────────────────────
+
+  it('returns an empty renames array when no user-added candidates collide', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Lake McDonald
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 10, output: 20 },
+    });
+
+    const result = await extractCandidates('t');
+
+    expect(result.renames).toEqual([]);
+  });
+
+  it('returns renames array with from/to entries when collision occurs', async () => {
+    readCandidates.mockReturnValueOnce({
+      stops: [{ id: 'lake', name: 'Lake', category: 'outdoors', user_added: true }],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Lake
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 10, output: 20 },
+    });
+
+    const result = await extractCandidates('t');
+
+    expect(result.renames).toEqual([{ from: 'lake', to: 'lake-2' }]);
+  });
+
+  it('writes last_extract_renames to overview frontmatter when renames happen', async () => {
+    readCandidates.mockReturnValueOnce({
+      stops: [{ id: 'lake', name: 'Lake', category: 'outdoors', user_added: true }],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Lake
+    category: outdoors
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 10, output: 20 },
+    });
+
+    await extractCandidates('t');
+
+    expect(mockSetFrontmatterField).toHaveBeenCalledWith(
+      expect.any(String),
+      'last_extract_renames',
+      expect.stringContaining('"lake"'),
+    );
+    expect(mockAtomicWrite).toHaveBeenCalledWith(
+      '/test/planning/t/overview.md',
+      expect.any(String),
+    );
+  });
+
+  it('clears last_extract_renames from overview frontmatter when no renames happen', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops: []
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 10, output: 20 },
+    });
+
+    await extractCandidates('t');
+
+    expect(mockRemoveFrontmatterField).toHaveBeenCalledWith(
+      expect.any(String),
+      'last_extract_renames',
+    );
+    expect(mockAtomicWrite).toHaveBeenCalledWith(
+      '/test/planning/t/overview.md',
+      expect.any(String),
+    );
+  });
+
+  it('skips overview frontmatter write when findTripFile returns null', async () => {
+    mockFindTripFile.mockReturnValueOnce(null);
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops: []
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 10, output: 20 },
+    });
+
+    await extractCandidates('t');
+
+    // atomicWrite is only called for the frontmatter write; plan/candidates use writeFileSync+renameSync.
+    expect(mockAtomicWrite).not.toHaveBeenCalled();
   });
 });

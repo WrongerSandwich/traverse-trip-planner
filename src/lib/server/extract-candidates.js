@@ -1,19 +1,28 @@
-// Extractor pass — runs after research to populate plan.md frontmatter
-// and candidates.md from the prose research output.
+// Extractor pass — runs after research to populate plan.yaml
+// and candidates.yaml from the prose research output.
 //
 // Inputs: home.md + the four research sections (overview/route/stops/logistics).
-// Outputs: plan.md (cover_query, field_guide_notes, gotchas; days empty) and
-// candidates.md (stops + lodging, with assigned ids and `user_added: false`).
+// Outputs: plan.yaml (cover_query, field_guide_notes, gotchas; days empty) and
+// candidates.yaml (stops + lodging, with assigned ids and `user_added: false`).
 //
 // The prompt asks the model for a fixed XML envelope (<extract><plan>YAML</plan>
 // <candidates>YAML</candidates></extract>) so we get cheap, regex-cut parsing
 // at the outer layer and structured YAML at the inner — the same dual-format
 // shape the deepen call uses for its section tags.
 
-import { writeFileSync, renameSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { parse as yamlParse } from 'yaml';
 import { chat } from './ai.js';
-import { getTripFiles, readHomeMd, geocode, parseFrontmatter } from './data.js';
+import {
+  atomicWrite,
+  findTripFile,
+  geocode,
+  getTripFiles,
+  parseFrontmatter,
+  readHomeMd,
+  removeFrontmatterField,
+  setFrontmatterField,
+} from './data.js';
 import { readPlan, emptyPlan, planPath, serializePlanFile } from './plan.js';
 import { readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS, candidatesPath, serializeCandidatesFile } from './candidates.js';
 import { getEffectiveConfig } from './config.js';
@@ -31,10 +40,12 @@ OUTPUT exactly one XML block, nothing else:
 <extract>
 <plan>
 cover_query: <2-4 concrete visual nouns for a Pexels hero photo — reward specific landmarks/terrain over atmospheric words, e.g. "Cincinnati Italianate architecture neon" or "Glacier alpine lake mountains">
-field_guide_notes: |
-  Trip-wide notes worth surfacing on the printable brochure.
-gotchas: |
-  Closures, permits, cell-dead zones, seasonal restrictions.
+field_guide_notes:
+  - <One trip-wide note worth surfacing on the printable brochure>
+  - <Another note, if any>
+gotchas:
+  - <One closure, permit, cell-dead zone, or seasonal restriction>
+  - <Another gotcha, if any>
 </plan>
 <candidates>
 stops:
@@ -100,10 +111,20 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   }
 
   // Build plan: prose fields, days empty. The user assembles days in the UI.
+  // field_guide_notes and gotchas are stored as arrays; we normalise whatever
+  // the model emitted (array → passthrough; block string → split on newlines).
   const plan = emptyPlan();
   plan.cover_query = typeof planData.cover_query === 'string' && planData.cover_query.trim() ? planData.cover_query.trim() : null;
-  plan.field_guide_notes = planData.field_guide_notes ?? '';
-  plan.gotchas = planData.gotchas ?? '';
+  plan.field_guide_notes = Array.isArray(planData.field_guide_notes)
+    ? planData.field_guide_notes.map(String).filter(Boolean)
+    : (typeof planData.field_guide_notes === 'string'
+        ? planData.field_guide_notes.split('\n').map(l => l.replace(/^\s*[-*•]\s+/, '').trim()).filter(Boolean)
+        : []);
+  plan.gotchas = Array.isArray(planData.gotchas)
+    ? planData.gotchas.map(String).filter(Boolean)
+    : (typeof planData.gotchas === 'string'
+        ? planData.gotchas.split('\n').map(l => l.replace(/^\s*[-*•]\s+/, '').trim()).filter(Boolean)
+        : []);
 
   // Build candidates with assigned ids. `seenIds` accumulates across both
   // stops and lodging so a stop and a lodging that happen to share a name
@@ -155,6 +176,10 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
     plan.days = existingPlan.days;
   }
 
+  // Track id renames across the merge pass so we can rewrite plan.days
+  // references and surface a banner on the detail page (#349).
+  const renames = new Map();
+
   if (existingCands) {
     const userAddedStops = (existingCands.stops ?? []).filter((s) => s.user_added);
     const userAddedLodging = (existingCands.lodging ?? []).filter((l) => l.user_added);
@@ -177,7 +202,6 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
     // Track id renames so we can rewrite plan.days references — without this,
     // a user's promoted day silently re-binds to whichever researcher candidate
     // took the original slug (real data corruption, no dangling-banner warning).
-    const renames = new Map();
 
     for (const u of userAddedStops) {
       const idToUse = newIds.has(u.id) ? makeCandidateId(u.name, [...newIds]) : u.id;
@@ -213,7 +237,7 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   await geocodeCandidates(cands, destinationContext);
 
   // Write both files atomically: stage each to a .tmp first, then rename both
-  // so a mid-write crash cannot leave plan.md updated while candidates.md is stale.
+  // so a mid-write crash cannot leave plan.yaml updated while candidates.yaml is stale.
   const pPath = planPath(slug);
   const cPath = candidatesPath(slug);
   if (!pPath || !cPath) throw new Error(`Cannot write plan/candidates for trip "${slug}" — no folder stage found.`);
@@ -224,7 +248,26 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   renameSync(pTmp, pPath);
   renameSync(cTmp, cPath);
 
-  return { usage };
+  // Persist renames into overview frontmatter so the detail page can surface
+  // a one-time dismissible banner ("Re-research renamed N of your custom
+  // candidates…"). The field is removed once the user dismisses the banner.
+  // When no renames occurred this run, clear any stale notice from a prior run.
+  const overviewFilePath = findTripFile(slug);
+  if (overviewFilePath && existsSync(overviewFilePath)) {
+    let overviewContent = readFileSync(overviewFilePath, 'utf8');
+    if (renames.size > 0) {
+      // Inline YAML list of {from, to} pairs — compact JSON form is valid YAML.
+      const renamesYaml = JSON.stringify([...renames.entries()].map(([from, to]) => ({ from, to })));
+      overviewContent = setFrontmatterField(overviewContent, 'last_extract_renames', renamesYaml);
+    } else {
+      overviewContent = removeFrontmatterField(overviewContent, 'last_extract_renames');
+    }
+    atomicWrite(overviewFilePath, overviewContent);
+  }
+
+  // Build the renames array for callers that want to inspect or log them.
+  const renamesArray = [...renames.entries()].map(([from, to]) => ({ from, to }));
+  return { usage, renames: renamesArray };
 }
 
 // Sequential geocoding — Nominatim rate-limits to 1 req/sec. The geocode()

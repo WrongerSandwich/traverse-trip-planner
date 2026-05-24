@@ -67,7 +67,7 @@ describe('candidates.js', () => {
   });
 
   it('throws TraverseError on malformed YAML', () => {
-    writeFileSync(join(ROOT, 'planning', 'mytrip', 'candidates.md'), '---\n: : invalid yaml\n---\n');
+    writeFileSync(join(ROOT, 'planning', 'mytrip', 'candidates.yaml'), ': : invalid yaml\n');
     let caught;
     try { readCandidates('mytrip'); } catch (e) { caught = e; }
     expect(caught).toBeInstanceOf(TraverseError);
