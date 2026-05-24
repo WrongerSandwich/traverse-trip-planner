@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // --- fs mock ---
-const { mockExistsSync, mockReadFileSync, mockWriteFileSync, mockMkdirSync, mockUnlinkSync } = vi.hoisted(() => ({
+const { mockExistsSync, mockReadFileSync, mockWriteFileSync, mockMkdirSync, mockUnlinkSync, mockRenameSync, mockStatSync } = vi.hoisted(() => ({
   mockExistsSync: vi.fn(),
   mockReadFileSync: vi.fn(),
   mockWriteFileSync: vi.fn(),
   mockMkdirSync: vi.fn(),
   mockUnlinkSync: vi.fn(),
+  mockRenameSync: vi.fn(),
+  mockStatSync: vi.fn(),
 }));
 
 vi.mock('node:fs', () => ({
@@ -15,6 +17,8 @@ vi.mock('node:fs', () => ({
   writeFileSync: mockWriteFileSync,
   mkdirSync: mockMkdirSync,
   unlinkSync: mockUnlinkSync,
+  renameSync: mockRenameSync,
+  statSync: mockStatSync,
 }));
 
 // --- data mock ---
@@ -39,10 +43,6 @@ vi.mock('$lib/server/data.js', () => ({
   removeFrontmatterField: mockRemoveFrontmatterField,
   invalidateEnrichCache: mockInvalidateEnrichCache,
   rejectInvalidSlug: () => null,
-  // atomicWrite is now used instead of writeFileSync for crash-safe writes.
-  // In tests we map it to mockWriteFileSync so assertions on file writes
-  // continue to work.
-  atomicWrite: mockWriteFileSync,
 }));
 
 // --- AI / search / config mocks ---
@@ -235,14 +235,25 @@ describe('POST /api/actions/deepen/[slug]', () => {
       expect.stringContaining('planning/test-trip'),
       { recursive: true }
     );
+    // Stage writes go to .tmp files first.
     expect(mockWriteFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('overview.md'),
+      expect.stringContaining('overview.md.tmp'),
       expect.stringContaining('prose')
     );
     expect(mockWriteFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('route.md'),
+      expect.stringContaining('route.md.tmp'),
       expect.stringContaining('route')
     );
+    // Then renamed into place.
+    expect(mockRenameSync).toHaveBeenCalledWith(
+      expect.stringContaining('overview.md.tmp'),
+      expect.stringContaining('overview.md')
+    );
+    expect(mockRenameSync).toHaveBeenCalledWith(
+      expect.stringContaining('route.md.tmp'),
+      expect.stringContaining('route.md')
+    );
+    // Idea file unlinked after all renames succeed.
     expect(mockUnlinkSync).toHaveBeenCalled();
   });
 
@@ -259,6 +270,38 @@ describe('POST /api/actions/deepen/[slug]', () => {
     const writtenPaths = mockWriteFileSync.mock.calls.map(([p]) => p);
     const stopsWrites = writtenPaths.filter(p => p.endsWith('stops.md'));
     expect(stopsWrites).toHaveLength(0);
+  });
+
+  it('write failure mid-Leg-1: cleans up .tmp files, leaves idea intact, job fails', async () => {
+    // Idea file present; simulate writeFileSync throwing on the second call
+    // (after overview.md.tmp is staged, route.md.tmp write fails).
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    mockChat.mockResolvedValue({
+      text: '<overview_prose>prose</overview_prose><route_md>route</route_md>',
+      usage: {},
+    });
+
+    let writeCallCount = 0;
+    mockWriteFileSync.mockImplementation((path) => {
+      writeCallCount++;
+      if (writeCallCount === 2) throw new Error('ENOSPC: no space left on device');
+    });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    // No renames should have happened — phase 1 failed before phase 2.
+    expect(mockRenameSync).not.toHaveBeenCalled();
+    // Temp cleanup: any staged .tmp files should have been unlinked.
+    const unlinkCalls = mockUnlinkSync.mock.calls.map(([p]) => p);
+    const tmpCleaned = unlinkCalls.some(p => p.endsWith('.tmp'));
+    expect(tmpCleaned).toBe(true);
+    // The idea file should NOT have been unlinked (rollback succeeded).
+    const ideaUnlinked = unlinkCalls.some(p => p.endsWith('ideas/test-trip.md'));
+    expect(ideaUnlinked).toBe(false);
+    // The overall job must fail, not complete.
+    expect(mockFailJob).toHaveBeenCalled();
+    expect(mockCompleteJob).not.toHaveBeenCalled();
   });
 
   it('idea file is unlinked even when extract leg fails', async () => {
@@ -393,7 +436,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.code).toBe('plan_prose_present');
-    expect(body.message).toMatch(/field guide notes/i);
+    expect(body.message).toMatch(/re-research will overwrite/i);
     // Gate fires before the job starts.
     expect(mockStartJob).not.toHaveBeenCalled();
   });
