@@ -91,6 +91,17 @@
   const isCompleted = $derived(stage === 'completed');
   const planExtractionFailed = $derived(data.planExtractionFailed ?? false);
 
+  // ── Candidate rename notice (issue #349) ──
+  let extractRenamesDismissed = $state(false);
+  const extractRenames = $derived(data.extractRenames ?? []);
+  const showExtractRenamesBanner = $derived(extractRenames.length > 0 && !extractRenamesDismissed);
+  async function dismissExtractRenames() {
+    extractRenamesDismissed = true; // optimistic
+    try {
+      await fetch(`/api/trip/${encodeURIComponent(trip._slug)}/dismiss-extract-renames`, { method: 'POST' });
+    } catch { /* non-critical — next load will re-derive from frontmatter */ }
+  }
+
   // Local section content state, seeded from server load. Edits live here
   // until saved — intentionally initial-only (don't re-sync on every load),
   // so untrack() to silence the "captures initial value" lint.
@@ -1260,6 +1271,22 @@
         </aside>
       {/if}
 
+      {#if showExtractRenamesBanner}
+        <aside class="extract-renames-banner" role="status" aria-label="Candidate id rename notice">
+          <div class="extract-renames-body">
+            <strong>Re-research renamed {extractRenames.length === 1 ? '1 of your custom candidates' : `${extractRenames.length} of your custom candidates`} to avoid collisions:</strong>
+            {extractRenames.map((r) => `${r.from} → ${r.to}`).join(', ')}
+          </div>
+          <button
+            class="btn btn-secondary btn-compact extract-renames-dismiss"
+            onclick={dismissExtractRenames}
+            aria-label="Dismiss rename notice"
+          >
+            Dismiss
+          </button>
+        </aside>
+      {/if}
+
       {#each canonicalSections as section}
         <section
           class="section"
@@ -2073,6 +2100,35 @@
     color: var(--state-warning);
   }
   .extract-recovery-btn {
+    flex-shrink: 0;
+    align-self: center;
+  }
+
+  /* ── Candidate rename notice banner (#349) ──
+     Surfaces when re-research had to reassign IDs for user-added candidates
+     to avoid collisions with newly-extracted researcher candidates. Uses the
+     info palette (subtle blue) to distinguish from warning / danger banners. */
+  .extract-renames-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.75rem 0.95rem;
+    background: var(--state-info-surface, color-mix(in srgb, var(--accent) 10%, transparent));
+    color: var(--state-info, var(--accent));
+    border: 1px solid var(--state-info, var(--accent));
+    border-radius: 4px;
+    font-size: 0.84rem;
+    line-height: 1.55;
+    margin-bottom: 0.25rem;
+  }
+  .extract-renames-body {
+    flex: 1;
+    color: var(--text-primary);
+  }
+  .extract-renames-body strong {
+    color: var(--state-info, var(--accent));
+  }
+  .extract-renames-dismiss {
     flex-shrink: 0;
     align-self: center;
   }
