@@ -2,6 +2,7 @@
   import { invalidate } from '$app/navigation';
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatDayHeader } from '$lib/format-date.js';
+  import { streamAction } from '$lib/utils/action.js';
   import TripMap from './TripMap.svelte';
   import StopCard from './StopCard.svelte';
   import LodgingCard from './LodgingCard.svelte';
@@ -19,6 +20,22 @@
   let errorCtx = $state(/** @type {Record<string,string>} */ ({}));
   let hoveredId = $state(null);                    // card ↔ map sync
   let showHidden = $state(false);                  // toggle for the "N hidden — show" reveal
+
+  // Add-candidate panel state. SSE consumer routes terminal errors through
+  // ERROR_REGISTRY; success clears the input and invalidates app:trip.
+  let addInput = $state('');
+  let addRunning = $state(false);
+  let addErrorCode = $state(/** @type {string|null} */ (null));
+  let addErrorCtx = $state(/** @type {Record<string,string>} */ ({}));
+  let addLog = $state(/** @type {string[]} */ ([]));
+
+  // Focuses the panel input on mount. Used via `use:focusOnMount` instead of
+  // the HTML autofocus attribute — autofocus's a11y warning applies to
+  // page-load focus, but here the element only mounts when the user has
+  // explicitly toggled the panel open, so immediate keyboard input is expected.
+  function focusOnMount(node) {
+    node.focus();
+  }
 
   // Toast state for the hide-with-undo gesture.
   let hideToast = $state(/** @type {{ id: string, name: string, type: 'stop'|'lodging' } | null} */ (null));
@@ -153,6 +170,48 @@
       return false;
     } finally {
       working = false;
+    }
+  }
+
+  // SSE consumer for the add-candidate Instant Inline endpoint. Mirrors the
+  // add-destination flow on the home page (utils/action.js#streamAction):
+  // every event's `msg` lands in `addLog`; the terminal event carries either
+  // an error code (routed through ERROR_REGISTRY) or success metadata (id +
+  // tokens). On success we clear the input and invalidate app:trip so the
+  // new card appears in the list.
+  async function streamAdd(name) {
+    if (!name?.trim()) return;
+    addRunning = true;
+    addErrorCode = null;
+    addErrorCtx = {};
+    addLog = [];
+    let resolvedError = null;
+    let resolvedCtx = {};
+    try {
+      await streamAction(
+        `/api/actions/add-candidate/${encodeURIComponent(slug)}`,
+        (event) => {
+          const { msg, done, code, context } = event;
+          if (msg) addLog = [...addLog, msg];
+          if (done && code) {
+            resolvedError = code;
+            resolvedCtx = context || {};
+          }
+        },
+        { name: name.trim(), type: currentTabType },
+      );
+      if (resolvedError) {
+        addErrorCode = resolvedError;
+        addErrorCtx = resolvedCtx;
+      } else {
+        addInput = '';
+        await invalidate('app:trip');
+      }
+    } catch {
+      addErrorCode = 'network_error';
+      addErrorCtx = {};
+    } finally {
+      addRunning = false;
     }
   }
 
@@ -363,6 +422,49 @@
         Find more {currentTabType === 'stop' ? 'stops' : 'lodging'} ✨
       </button>
     </div>
+  {/if}
+
+  {#if openPanel === 'add' && !readonly}
+    <form
+      class="panel panel-add"
+      onsubmit={(e) => { e.preventDefault(); streamAdd(addInput); }}
+    >
+      <label class="panel-label">
+        Place name
+        <input
+          type="text"
+          class="panel-input"
+          placeholder={currentTabType === 'stop' ? 'e.g. Mound City Group' : 'e.g. The Mill Inn'}
+          bind:value={addInput}
+          disabled={addRunning}
+          use:focusOnMount
+        />
+      </label>
+      <div class="panel-actions">
+        <button type="submit" class="panel-submit" disabled={addRunning || !addInput.trim()}>
+          {#if addRunning}
+            Adding…
+          {:else}
+            Add {currentTabType === 'stop' ? 'stop' : 'lodging'}
+          {/if}
+        </button>
+        <button type="button" class="panel-cancel" onclick={() => { openPanel = null; }} disabled={addRunning}>
+          Close
+        </button>
+      </div>
+      {#if addErrorCode}
+        <div class="panel-error" role="alert">
+          <span>{failureSentence(addErrorCode, addErrorCtx)}</span>
+          <button type="button" class="banner-dismiss" onclick={() => { addErrorCode = null; }}>Dismiss</button>
+        </div>
+      {/if}
+      {#if addLog.length}
+        <details class="panel-log">
+          <summary>{addLog[addLog.length - 1]}</summary>
+          <ul>{#each addLog as line}<li>{line}</li>{/each}</ul>
+        </details>
+      {/if}
+    </form>
   {/if}
 
   <!-- Card list -->
@@ -889,4 +991,82 @@
   @media (pointer: coarse) {
     .subtool { min-height: var(--tap-min); padding: 0.5rem 0.85rem; font-size: 12.5px; }
   }
+
+  /* ── Add / find-more inline panel ──────────────────────────────────── */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.75rem;
+    background: var(--surface-sunken);
+    border: 0.5px solid var(--border-subtle);
+    border-radius: 5px;
+    margin-bottom: 0.85rem;
+  }
+  .panel-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+  .panel-input {
+    background: var(--surface-page);
+    border: 0.5px solid var(--border-default);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.92rem;
+    padding: 0.4rem 0.55rem;
+    border-radius: 4px;
+  }
+  .panel-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .panel-actions {
+    display: flex;
+    gap: 0.4rem;
+  }
+  .panel-submit {
+    background: var(--accent);
+    color: var(--text-inverse);
+    border: none;
+    font-family: var(--font-sans);
+    font-size: 0.84rem;
+    font-weight: 600;
+    padding: 0.45rem 0.85rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .panel-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+  .panel-cancel {
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .panel-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--state-danger-surface);
+    border: 1px solid var(--state-danger);
+    color: var(--text-primary);
+    padding: 0.45rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.86rem;
+  }
+  .panel-error span { flex: 1; }
+  .panel-log {
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    color: var(--text-tertiary);
+  }
+  .panel-log summary { cursor: pointer; }
+  .panel-log ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
 </style>
