@@ -76,14 +76,14 @@ Modeled on `src/routes/api/actions/deepen/[slug]/+server.js`. Registers with `jo
 
 **Request:** `{ type: 'stop' | 'lodging', steering?: string, count?: number }` (default 5, clamped to [3, 10]).
 
-**Job key:** `find-more:${slug}:${type}`. Encoding type in the key lets stops and lodging searches run concurrently for the same trip; two stops-only jobs simultaneously still 409. The `jobs.js` registry treats slug as opaque, so passing `${slug}:${type}` as the slug parameter works without changes.
+**Job key:** discriminator goes in the **workflow** arg per the convention documented in `src/lib/server/jobs.js` (so `TripJobBadge.svelte`'s `filterJobsForSlug` exact-slug match still surfaces every concurrent job). Calls: `startJob('find-more:stop', slug)` → key `find-more:stop:<slug>`, `startJob('find-more:lodging', slug)` → key `find-more:lodging:<slug>`. Slug stays clean. Two same-type concurrent calls still 409; stops + lodging for the same trip can run concurrently.
 
 **Flow:**
 
 1. Gate on `homeMdReady`, rate-limit (`endpoint: 'find-more'`, `slugKey: ${slug}:${type}`), reject invalid slug.
 2. Verify trip is planning stage (`findPlanningOverview` returns a path).
-3. `assertNotRunning('find-more', `${slug}:${type}`)` — 409 if already running.
-4. `startJob('find-more', `${slug}:${type}`, { est_seconds: _promise.time_seconds })`. This writes `running: 'find-more'` to the overview frontmatter (per-trip badge picks it up automatically).
+3. `assertNotRunning(`find-more:${type}`, slug)` — 409 if already running.
+4. `startJob(`find-more:${type}`, slug, { est_seconds: _promise.time_seconds })`. This writes `running: 'find-more:<type>'` to the overview frontmatter (per-trip badge picks it up automatically).
 5. Return `202 Accepted` immediately.
 6. Background worker:
    - Reads `overview.md` prose, `route.md`, `logistics.md`, `candidates.yaml`, `home.md`.
@@ -98,11 +98,11 @@ Modeled on `src/routes/api/actions/deepen/[slug]/+server.js`. Registers with `jo
    - **Geocode** each survivor via the same `extract-candidates.js::geocodeCandidates` pattern.
    - For each survivor, call `addCandidateStop`/`addCandidateLodging` (each sets `user_added: true` and assigns a unique id via `makeCandidateId`).
    - `invalidateEnrichCache()`.
-   - `completeJob('find-more', `${slug}:${type}`, { tokens })`.
+   - `completeJob(`find-more:${type}`, slug, { tokens })`.
 7. On `AbortError`: swallow (`cancelJob` already wrote the failure event).
-8. On other failure: log; `failJob('find-more', `${slug}:${type}`, { code, message })`.
+8. On other failure: log; `failJob(`find-more:${type}`, slug, { code, message })`.
 
-**`DELETE`:** thin shim → `cancelJob('find-more', `${slug}:${type}`)`.
+**`DELETE`:** thin shim → `cancelJob(`find-more:${type}`, slug)`.
 
 **`_promise`** registered as `find-more`:
 
@@ -261,7 +261,7 @@ client: toast "Found 3 stops", pill decrements, badge clears, card list refreshe
 - **Geocode failure**: Save the candidate without `coords`. It renders unmapped on the map, consistent with the brochure's "unmapped" treatment. The user can still promote it to a day.
 - **Model refuses ("place doesn't exist")**: The `<not-applicable>` envelope path emits an `invalid_input` error with the model's reason, terminal. No file written.
 - **Re-extract after find-more**: A future `deepen` re-research wholesale-replaces researcher entries (`user_added: false`) but preserves user-added ones — find-more results survive, just as manual adds do.
-- **Job key collision risk**: Encoding `type` in the job key (`${slug}:${type}`) means a slug literally containing `:stop` would collide. Slugs are kebab-case (`[^a-z0-9-]` is rejected by `rejectInvalidSlug`), so colons can't appear in user-provided slugs. Safe.
+- **Job key collision risk**: Encoding `type` in the job key (`find-more:${type}`, slug) means a slug literally containing `:stop` would collide. Slugs are kebab-case (`[^a-z0-9-]` is rejected by `rejectInvalidSlug`), so colons can't appear in user-provided slugs. Safe.
 - **Two find-more jobs same type same trip**: Server returns 409 via `assertNotRunning`. The panel surfaces the error sentence inline.
 - **Cancellation mid-search**: The job's `AbortController` flows into `chat()`. The model call aborts; partial state on disk is none (file writes happen only after the full extract is parsed). `failJob('find-more', ..., { code: 'cancelled' })` already wired by `cancelJob`.
 
@@ -282,7 +282,7 @@ client: toast "Found 3 stops", pill decrements, badge clears, card list refreshe
 - Include a name in the model's output that exists in the trip's `candidates.yaml`; assert server-side dedupe filters it out before write.
 - Stub geocode to return null for one entry; assert that entry saves without coords, others with coords.
 - Stub `chat()` to throw `AbortError`; assert `cancelJob`'s failure event is written and no candidates are added.
-- Assert `assertNotRunning` returns 409 on a second concurrent call with the same `${slug}:${type}` key.
+- Assert `assertNotRunning` returns 409 on a second concurrent call with the same `find-more:${type}`, slug key.
 - Assert two concurrent calls with different `type` for the same slug both succeed.
 
 ### `tests/extract-candidates.test.js` (existing)
