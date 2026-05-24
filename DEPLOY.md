@@ -23,12 +23,11 @@ cp .env.example .env
 # Edit .env — paste your ANTHROPIC_API_KEY and PEXELS_API_KEY.
 # home.md is created by the in-app onboarding flow on first run; edit later via Settings.
 
-# 3. Initialize on-disk state files that Compose will bind-mount
-# (Docker would otherwise create these as directories on first run.)
-# Stage dirs (ideas/ planning/ completed/ archived/) already exist from
-# `git clone` via tracked .gitkeep files — no mkdir needed.
-touch settings.json .geocode-cache.json .image-cache.json \
-      .route-cache.json .workflow-stats.json
+# 3. Pre-create settings.json so dockerd doesn't materialize the bind-mount
+# target as a directory on first run. Stage dirs (ideas/, planning/, completed/,
+# archived/) and the runtime cache dir (.cache/) already exist from `git clone`
+# via tracked .gitkeep files — no mkdir needed.
+touch settings.json
 
 # 4. Build the image and start the container
 docker compose up -d --build
@@ -57,7 +56,7 @@ Trip data, `home.md`, `.env`, and caches stay on the host — `docker compose do
 
 ### uid/gid on Linux servers
 
-If your host user isn't uid 1000 (the default `node` user inside the image), writes to bind-mounted files (`settings.json`, the cache JSONs) would end up root-owned. Set both env vars before `up`:
+If your host user isn't uid 1000 (the default `node` user inside the image), writes to bind-mounted paths (`settings.json`, the `.cache/` directory, trip data under `ideas/` / `planning/` / `completed/` / `archived/`) would end up root-owned. Set both env vars before `up`:
 
 ```bash
 echo "UID=$(id -u)" >> .env
@@ -71,8 +70,7 @@ The startup banner lists which providers are wired and which features are availa
 
 ## Notes
 
-- **Geocode cache** (Nominatim) is in-memory and re-fetched on each restart. With ~30 trips at 1.1s each, warmup takes ~35s after restart. The app is functional immediately; the map markers fill in during warmup.
-- **Image + route caches** (`.image-cache.json`, `.route-cache.json`) are on disk and survive restarts.
+- **Runtime caches** (geocode, image, route, workflow-stats) live under `.cache/` on the host, bind-mounted into the container as a directory. All four persist across restarts. The directory ships with a tracked `.gitkeep` so `git clone` materializes it as the cloning user — without it, dockerd would auto-create the missing bind-mount target as root and break writes from the container's non-root uid. Per-file bind mounts aren't used here because atomic writes do a tmp-then-rename, and renaming onto a single bind-mounted file fails with `EBUSY` (the kernel won't replace a bind-mount target). Pre-`.cache/` installs are auto-migrated on first boot: any root-level `.geocode-cache.json` / `.image-cache.json` / `.route-cache.json` / `.workflow-stats.json` is moved into `.cache/` before the first read.
 - **`.env` is gitignored** — never committed. Use `.env.example` as your template.
 - **`home.md` is gitignored** — your personal preferences stay local. It's created by the in-app onboarding flow on first run, and editable later from the Settings page.
 - The `PEXELS_API_KEY` enables trip card photos. Without it, cards show a map thumbnail instead.

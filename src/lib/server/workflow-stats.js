@@ -11,18 +11,32 @@
 // hand-tuned default (a signal that something else broke), `getStats`
 // returns null and the caller falls back to its hand default.
 //
-// Disk-backed at `.workflow-stats.json` so the rolling window survives
-// restart, following the same pattern as the existing caches in
-// `src/lib/server/data.js`.
+// Disk-backed at `.cache/.workflow-stats.json` so the rolling window
+// survives restart, following the same pattern as the existing caches in
+// `src/lib/server/data.js`. The `.cache/` directory itself is created (and
+// any pre-`.cache/` file migrated into it) by data.js's top-level init.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { atomicWrite } from './atomic-write.js';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const ROOT = process.cwd();
-const STATS_PATH = join(ROOT, '.workflow-stats.json');
+const CACHE_DIR = join(ROOT, '.cache');
+try { mkdirSync(CACHE_DIR, { recursive: true }); } catch {}
+// One-shot migration so installs that predate the `.cache/` directory don't
+// lose their rolling window. Mirrors the migration in data.js.
+{
+  const oldPath = join(ROOT, '.workflow-stats.json');
+  const newPath = join(CACHE_DIR, '.workflow-stats.json');
+  if (existsSync(oldPath) && !existsSync(newPath)) {
+    try { renameSync(oldPath, newPath); } catch (e) {
+      console.warn(`cache migration: .workflow-stats.json —`, e.message);
+    }
+  }
+}
+const STATS_PATH = join(CACHE_DIR, '.workflow-stats.json');
 
 /** Maximum samples retained per label. Older samples are evicted FIFO. */
 export const MAX_SAMPLES_PER_LABEL = 50;

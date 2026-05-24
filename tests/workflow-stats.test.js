@@ -1,17 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// workflow-stats.js writes to `<cwd>/.workflow-stats.json` so each test
+// workflow-stats.js writes to `<cwd>/.cache/.workflow-stats.json` so each test
 // chdir's into a clean temp dir and resets vi modules to get a fresh
-// module instance that picks up the new cwd.
+// module instance that picks up the new cwd. The module also auto-creates
+// the `.cache/` dir on import.
 let cwdRoot;
 let originalCwd;
 
 beforeEach(() => {
   originalCwd = process.cwd();
   cwdRoot = mkdtempSync(join(tmpdir(), 'traverse-workflow-stats-'));
+  // Pre-create `.cache/` so tests that seed the stats file before importing
+  // the module can write into it. (The module also creates it on import,
+  // but that runs later than the test fixture writes.)
+  mkdirSync(join(cwdRoot, '.cache'), { recursive: true });
   process.chdir(cwdRoot);
   vi.resetModules();
 });
@@ -30,7 +35,7 @@ async function load() {
 }
 
 function statsPath() {
-  return join(cwdRoot, '.workflow-stats.json');
+  return join(cwdRoot, '.cache', '.workflow-stats.json');
 }
 
 // Record `count` samples with a fixed `durationSeconds` and `tokens`,

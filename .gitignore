@@ -29,7 +29,16 @@ settings.json
 /archived/*
 !/archived/.gitkeep
 
-# Runtime caches — generated at startup and written on every lookup; not for VCS
+# Runtime caches — generated at startup and written on every lookup; not for
+# VCS. Lives in a `.cache/` subdir so Docker can bind-mount the directory
+# (per-file bind mounts break the atomic-write rename with EBUSY). The
+# directory itself ships with a tracked `.gitkeep` so `git clone` materializes
+# it as the cloning user (same rationale as ideas/ etc. — dockerd would
+# otherwise auto-create the missing bind-mount target as root). Legacy
+# root-level files are auto-migrated on first boot; keep ignoring them so
+# any stragglers don't get tracked.
+/.cache/*
+!/.cache/.gitkeep
 .geocode-cache.json
 .image-cache.json
 .route-cache.json

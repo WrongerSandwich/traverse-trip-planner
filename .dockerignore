@@ -9,7 +9,8 @@ build
 home.md
 settings.json
 
-# Runtime cache files (provided at runtime via bind mounts)
+# Runtime cache files (provided at runtime via bind mount of the .cache/ dir)
+.cache
 .geocode-cache.json
 .image-cache.json
 .route-cache.json

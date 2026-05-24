@@ -9,9 +9,31 @@ export { atomicWrite } from './atomic-write.js';
 import { atomicWrite } from './atomic-write.js';
 
 export const ROOT = process.cwd();
-const IMAGE_CACHE_PATH   = join(ROOT, '.image-cache.json');
-const ROUTE_CACHE_PATH   = join(ROOT, '.route-cache.json');
-const GEOCODE_CACHE_PATH = join(ROOT, '.geocode-cache.json');
+
+// Cache files live in a `.cache/` subdir rather than at the project root so
+// Docker can bind-mount the directory (renaming the atomic-write `.tmp` onto
+// an individually bind-mounted file fails with EBUSY — the kernel won't
+// replace a bind-mount target). The directory mount also means new cache
+// files appear without needing a docker-compose.yml change.
+const CACHE_DIR = join(ROOT, '.cache');
+try { mkdirSync(CACHE_DIR, { recursive: true }); } catch {}
+
+// One-shot migration: move pre-`.cache/` files from the project root into the
+// new directory so installs that predate this change don't lose their warm
+// caches on first boot. Idempotent — skip when the destination already exists.
+for (const name of ['.geocode-cache.json', '.image-cache.json', '.route-cache.json']) {
+  const oldPath = join(ROOT, name);
+  const newPath = join(CACHE_DIR, name);
+  if (existsSync(oldPath) && !existsSync(newPath)) {
+    try { renameSync(oldPath, newPath); } catch (e) {
+      console.warn(`cache migration: ${name} —`, e.message);
+    }
+  }
+}
+
+const IMAGE_CACHE_PATH   = join(CACHE_DIR, '.image-cache.json');
+const ROUTE_CACHE_PATH   = join(CACHE_DIR, '.route-cache.json');
+const GEOCODE_CACHE_PATH = join(CACHE_DIR, '.geocode-cache.json');
 
 // ── Caches ──
 let geocodeCache = {};

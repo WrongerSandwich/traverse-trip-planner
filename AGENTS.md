@@ -37,12 +37,17 @@ each as it surfaces.
 A short list of patterns and constraints that aren't visible from grepping
 the source. Knowing these up front saves debugging time.
 
-- **Disk-backed caches at repo root.** `.geocode-cache.json`,
-  `.image-cache.json`, `.route-cache.json`, and `.workflow-stats.json`
-  persist across restarts and are **gitignored** — they're runtime state
-  that grows with user activity and must not be committed. If your tests
+- **Disk-backed caches under `.cache/`.** `.cache/.geocode-cache.json`,
+  `.cache/.image-cache.json`, `.cache/.route-cache.json`, and
+  `.cache/.workflow-stats.json` persist across restarts and are
+  **gitignored** — they're runtime state that grows with user activity and
+  must not be committed. The directory itself ships with a tracked
+  `.gitkeep` so `git clone` materializes it (dockerd would otherwise
+  auto-create the missing bind-mount target as root). Docker mounts the
+  whole directory rather than individual files because per-file bind
+  mounts break the atomic-write rename with `EBUSY`. If your tests
   exercise code that reads or writes them, clean up after yourself or
-  stub at the boundary. `.workflow-stats.json` is the rolling-p50
+  stub at the boundary. `.cache/.workflow-stats.json` is the rolling-p50
   telemetry that calibrates the `_promise` time/token estimates (see
   `src/lib/server/workflow-stats.js`); it's written from `chat()` on
   every AI call and read at load time by `getResolvedPromises()`.
@@ -110,9 +115,9 @@ These are load-bearing. Violations should fail review.
 - **Frontmatter:** stage transitions only add fields, never remove.
   Dates are ISO 8601. Distances are miles. Omit fields rather than
   guess.
-- **Caches:** `.geocode-cache.json`, `.image-cache.json`,
-  `.route-cache.json` live at the repo root and persist across
-  restarts (all three are gitignored). `enrichTrips()` GCs orphaned
+- **Caches:** `.cache/.geocode-cache.json`, `.cache/.image-cache.json`,
+  `.cache/.route-cache.json` live under the gitignored `.cache/`
+  directory and persist across restarts. `enrichTrips()` GCs orphaned
   entries on each request.
 
 ## Writing tests

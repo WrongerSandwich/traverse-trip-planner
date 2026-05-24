@@ -8,6 +8,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 vi.mock('node:fs', () => ({
   readFileSync: () => { throw new Error('ENOENT'); },
   writeFileSync: () => {},
+  // workflow-stats.js (imported transitively via ai.js) auto-creates a
+  // `.cache/` dir on load and runs a one-shot legacy-file migration; mock
+  // the calls so the test stays hermetic and doesn't touch the real FS.
+  existsSync: () => false,
+  mkdirSync: () => {},
+  renameSync: () => {},
 }));
 
 // vi.hoisted shares state with the vi.mock factory below; the same factory

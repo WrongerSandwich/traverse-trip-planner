@@ -46,8 +46,7 @@ For when you'd rather configure from a browser than edit files:
 ```bash
 git clone <repo-url> traverse && cd traverse
 cp .env.example .env         # leave keys commented; set UID/GID if your host user isn't uid 1000
-touch settings.json .geocode-cache.json .image-cache.json \
-      .route-cache.json .workflow-stats.json
+touch settings.json          # Compose bind-mounts this file; pre-create so dockerd doesn't make it a dir
 docker compose up -d --build
 ```
 
@@ -62,8 +61,7 @@ git clone <repo-url> traverse && cd traverse
 # Generate .env from your secrets pipeline with ANTHROPIC_API_KEY (or OPENAI_API_KEY /
 # OPENROUTER_API_KEY), PEXELS_API_KEY, and TRAVERSE_DISABLE_SETTINGS_UI=1 to lock the
 # runtime UI off.
-touch settings.json .geocode-cache.json .image-cache.json \
-      .route-cache.json .workflow-stats.json
+touch settings.json          # Compose bind-mounts this file; pre-create so dockerd doesn't make it a dir
 docker compose up -d --build
 ```
 

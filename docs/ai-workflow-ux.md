@@ -128,7 +128,7 @@ Fallback rules — telemetry is ignored and the hand default passes through when
 - Fewer than 10 samples have been recorded for that label (`MIN_SAMPLES`).
 - The rolling p50 deviates more than 2x from the hand default in either direction (`DRIFT_RATIO`) — drift this large is a signal that the prompt / model / tool loop changed and the hand default needs a human re-tune. A `[workflow-stats] drift: ...` warning is logged.
 
-Persistence: `.workflow-stats.json` at the repo root, debounced flush on every record, loaded on first call after restart.
+Persistence: `.cache/.workflow-stats.json` (with a one-shot migration from any legacy root-level file), debounced flush on every record, loaded on first call after restart.
 
 Debug view: `GET /api/workflow-stats` returns the current aggregated per-label stats plus the active configuration constants.
 
