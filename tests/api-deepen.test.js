@@ -1,12 +1,14 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // --- fs mock ---
-const { mockExistsSync, mockReadFileSync, mockWriteFileSync, mockMkdirSync, mockUnlinkSync } = vi.hoisted(() => ({
+const { mockExistsSync, mockReadFileSync, mockWriteFileSync, mockMkdirSync, mockUnlinkSync, mockRenameSync, mockStatSync } = vi.hoisted(() => ({
   mockExistsSync: vi.fn(),
   mockReadFileSync: vi.fn(),
   mockWriteFileSync: vi.fn(),
   mockMkdirSync: vi.fn(),
   mockUnlinkSync: vi.fn(),
+  mockRenameSync: vi.fn(),
+  mockStatSync: vi.fn(),
 }));
 
 vi.mock('node:fs', () => ({
@@ -15,6 +17,8 @@ vi.mock('node:fs', () => ({
   writeFileSync: mockWriteFileSync,
   mkdirSync: mockMkdirSync,
   unlinkSync: mockUnlinkSync,
+  renameSync: mockRenameSync,
+  statSync: mockStatSync,
 }));
 
 // --- data mock ---
@@ -39,10 +43,6 @@ vi.mock('$lib/server/data.js', () => ({
   removeFrontmatterField: mockRemoveFrontmatterField,
   invalidateEnrichCache: mockInvalidateEnrichCache,
   rejectInvalidSlug: () => null,
-  // atomicWrite is now used instead of writeFileSync for crash-safe writes.
-  // In tests we map it to mockWriteFileSync so assertions on file writes
-  // continue to work.
-  atomicWrite: mockWriteFileSync,
 }));
 
 // --- AI / search / config mocks ---
@@ -104,9 +104,10 @@ vi.mock('$lib/server/plan.js', () => ({
 }));
 
 import { TraverseError } from '../src/lib/server/errors.js';
-import { GET, POST, DELETE } from '../src/routes/api/actions/deepen/[slug]/+server.js';
+import { GET, POST, DELETE, _collectDirtySections as collectDirtySections } from '../src/routes/api/actions/deepen/[slug]/+server.js';
 
 const IDEA_CONTENT = '---\ntitle: Test Trip\nstatus: idea\ndestination: Testville\n---\nGreat idea.';
+const OVERVIEW_WITH_LAST_RUN = '---\ntitle: Test Trip\nstatus: planning\nlast_run_success_at: 2026-05-20T12:00:00.000Z\n---\nProse.';
 
 // A fake job handle with an AbortController — mirrors what startJob() returns.
 function makeJobHandle() {
@@ -221,7 +222,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(mockCompleteJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({ tokens: 300 }));
   });
 
-  it('fire-and-forget success path: writes to planning/ and unlinks the idea file', async () => {
+  it('fire-and-forget success path: writes overview and route via atomicWrite, then unlinks idea file', async () => {
     mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
     mockChat.mockResolvedValue({
       text: '<overview_prose>prose</overview_prose><route_md>route</route_md>',
@@ -235,15 +236,73 @@ describe('POST /api/actions/deepen/[slug]', () => {
       expect.stringContaining('planning/test-trip'),
       { recursive: true }
     );
+    // Stage writes go to .tmp files first.
     expect(mockWriteFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('overview.md'),
+      expect.stringContaining('overview.md.tmp'),
       expect.stringContaining('prose')
     );
     expect(mockWriteFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('route.md'),
+      expect.stringContaining('route.md.tmp'),
       expect.stringContaining('route')
     );
+    // Then renamed into place.
+    expect(mockRenameSync).toHaveBeenCalledWith(
+      expect.stringContaining('overview.md.tmp'),
+      expect.stringContaining('overview.md')
+    );
+    expect(mockRenameSync).toHaveBeenCalledWith(
+      expect.stringContaining('route.md.tmp'),
+      expect.stringContaining('route.md')
+    );
+    // Idea file unlinked after all renames succeed.
     expect(mockUnlinkSync).toHaveBeenCalled();
+  });
+
+  it('does not write stops.md even when model emits a <stops_md> block', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    mockChat.mockResolvedValue({
+      text: '<overview_prose>prose</overview_prose><stops_md>## Stop A\nGreat stop.</stops_md>',
+      usage: {},
+    });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    const writtenPaths = mockWriteFileSync.mock.calls.map(([p]) => p);
+    const stopsWrites = writtenPaths.filter(p => p.endsWith('stops.md'));
+    expect(stopsWrites).toHaveLength(0);
+  });
+
+  it('write failure mid-Leg-1: cleans up .tmp files, leaves idea intact, job fails', async () => {
+    // Idea file present; simulate writeFileSync throwing on the second call
+    // (after overview.md.tmp is staged, route.md.tmp write fails).
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    mockChat.mockResolvedValue({
+      text: '<overview_prose>prose</overview_prose><route_md>route</route_md>',
+      usage: {},
+    });
+
+    let writeCallCount = 0;
+    mockWriteFileSync.mockImplementation((path) => {
+      writeCallCount++;
+      if (writeCallCount === 2) throw new Error('ENOSPC: no space left on device');
+    });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    // No renames should have happened — phase 1 failed before phase 2.
+    expect(mockRenameSync).not.toHaveBeenCalled();
+    // Temp cleanup: any staged .tmp files should have been unlinked.
+    const unlinkCalls = mockUnlinkSync.mock.calls.map(([p]) => p);
+    const tmpCleaned = unlinkCalls.some(p => p.endsWith('.tmp'));
+    expect(tmpCleaned).toBe(true);
+    // The idea file should NOT have been unlinked (rollback succeeded).
+    const ideaUnlinked = unlinkCalls.some(p => p.endsWith('ideas/test-trip.md'));
+    expect(ideaUnlinked).toBe(false);
+    // The overall job must fail, not complete.
+    expect(mockFailJob).toHaveBeenCalled();
+    expect(mockCompleteJob).not.toHaveBeenCalled();
   });
 
   it('idea file is unlinked even when extract leg fails', async () => {
@@ -270,6 +329,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
       if (p.endsWith('ideas/test-trip.md'))                   return false;
       if (p.endsWith('planning/test-trip/overview.md'))       return true;
       if (p.endsWith('planning/test-trip/plan.md'))           return false;
+      if (p.endsWith('planning/test-trip/plan.yaml'))         return false;
       return false;
     });
 
@@ -291,6 +351,8 @@ describe('POST /api/actions/deepen/[slug]', () => {
       if (p.endsWith('planning/test-trip/plan.md'))           return true;
       return false;
     });
+    mockReadFileSync.mockReturnValue(OVERVIEW_WITH_LAST_RUN);
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
     mockChat.mockResolvedValue({
       text: '<overview_prose>prose</overview_prose>',
       usage: { input_tokens: 100, output_tokens: 50 },
@@ -358,7 +420,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
   //
   // Gate only fires on re-research (planning overview + plan.md both exist).
   // Extract-only recovery (no plan.md) and fresh idea-stage trips are unaffected.
-  // ?force=true bypasses the gate.
+  // ?force=true bypasses the gate entirely.
 
   it('returns 409 with plan_prose_present when re-researching a trip with field_guide_notes', async () => {
     // planning/overview.md present + plan.md present → re-research mode
@@ -368,6 +430,8 @@ describe('POST /api/actions/deepen/[slug]', () => {
       if (p.endsWith('planning/test-trip/plan.md'))         return true;
       return false;
     });
+    mockReadFileSync.mockReturnValue(OVERVIEW_WITH_LAST_RUN);
+    mockParseFrontmatter.mockReturnValue({ title: 'Test Trip', status: 'planning', last_run_success_at: '2026-05-20T12:00:00.000Z' });
     mockReadPlan.mockReturnValue({
       cover_query: null,
       field_guide_notes: 'Bring layers; the canyon is windy.',
@@ -378,9 +442,31 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.code).toBe('plan_prose_present');
-    expect(body.message).toMatch(/field guide notes/i);
+    expect(body.dirty_sections).toContain('plan');
+    expect(body.message).toMatch(/re-research will overwrite/i);
     // Gate fires before the job starts.
     expect(mockStartJob).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 and includes dirty_sections array in the response body', async () => {
+    mockExistsSync.mockImplementation(p => {
+      if (p.endsWith('ideas/test-trip.md'))                 return false;
+      if (p.endsWith('planning/test-trip/overview.md'))     return true;
+      if (p.endsWith('planning/test-trip/plan.md'))         return true;
+      return false;
+    });
+    mockReadFileSync.mockReturnValue(OVERVIEW_WITH_LAST_RUN);
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    mockReadPlan.mockReturnValue({
+      field_guide_notes: 'Bring layers.',
+      gotchas: '',
+      days: [],
+    });
+    const res = await POST(postEvent());
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(Array.isArray(body.dirty_sections)).toBe(true);
+    expect(body.dirty_sections.length).toBeGreaterThan(0);
   });
 
   it('returns 202 with ?force=true even when re-researching a trip with plan prose', async () => {
@@ -390,6 +476,8 @@ describe('POST /api/actions/deepen/[slug]', () => {
       if (p.endsWith('planning/test-trip/plan.md'))         return true;
       return false;
     });
+    mockReadFileSync.mockReturnValue(OVERVIEW_WITH_LAST_RUN);
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
     mockReadPlan.mockReturnValue({
       cover_query: null,
       field_guide_notes: 'Bring layers.',
@@ -402,13 +490,16 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(mockStartJob).toHaveBeenCalled();
   });
 
-  it('proceeds without gate when re-researching a trip with empty plan prose fields', async () => {
+  it('proceeds without gate when re-researching a trip with empty plan prose fields and no dirty sections', async () => {
     mockExistsSync.mockImplementation(p => {
       if (p.endsWith('ideas/test-trip.md'))                 return false;
       if (p.endsWith('planning/test-trip/overview.md'))     return true;
       if (p.endsWith('planning/test-trip/plan.md'))         return true;
       return false;
     });
+    // overview has last_run_success_at; sections are absent (safeStat returns null)
+    mockReadFileSync.mockReturnValue(OVERVIEW_WITH_LAST_RUN);
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
     mockReadPlan.mockReturnValue({
       cover_query: 'mountain pass',
       field_guide_notes: '',
@@ -427,6 +518,7 @@ describe('POST /api/actions/deepen/[slug]', () => {
       if (p.endsWith('ideas/test-trip.md'))                 return false;
       if (p.endsWith('planning/test-trip/overview.md'))     return true;
       if (p.endsWith('planning/test-trip/plan.md'))         return false;
+      if (p.endsWith('planning/test-trip/plan.yaml'))       return false;
       return false;
     });
     // readPlan would theoretically return null anyway (no plan.md), but make it
@@ -438,6 +530,139 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(mockStartJob).toHaveBeenCalled();
   });
 
+});
+
+// ── _collectDirtySections ──────────────────────────────────────────────────────
+//
+// Unit tests for the exported helper that drives the widened gate. Uses the
+// injectable `stat` option to avoid touching real fs mtimes.
+
+describe('_collectDirtySections (re-research gate logic)', () => {
+  const LAST_RUN = new Date('2026-05-20T12:00:00.000Z').getTime(); // reference timestamp
+
+  function makeOverviewContent(lastRunAt) {
+    return `---\ntitle: Test Trip\nstatus: planning\nlast_run_success_at: ${lastRunAt}\n---\nProse.`;
+  }
+
+  beforeEach(() => {
+    mockReadPlan.mockReturnValue(null); // default: no plan prose
+  });
+
+  it('returns [] when no plan prose and no sections are dirty', () => {
+    mockReadFileSync.mockReturnValue(makeOverviewContent('2026-05-20T12:00:00.000Z'));
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    // All section mtimes are BEFORE last_run (i.e. not dirty)
+    const stat = () => ({ mtimeMs: LAST_RUN - 1000 });
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).toEqual([]);
+  });
+
+  it('returns ["plan"] when field_guide_notes is non-empty', () => {
+    mockReadPlan.mockReturnValue({ field_guide_notes: 'Some notes.', gotchas: '', days: [] });
+    mockReadFileSync.mockReturnValue(makeOverviewContent('2026-05-20T12:00:00.000Z'));
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    const stat = () => ({ mtimeMs: LAST_RUN - 1000 });
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).toContain('plan');
+  });
+
+  it('returns ["plan"] when gotchas is non-empty', () => {
+    mockReadPlan.mockReturnValue({ field_guide_notes: '', gotchas: 'Watch the ferry schedule.', days: [] });
+    mockReadFileSync.mockReturnValue(makeOverviewContent('2026-05-20T12:00:00.000Z'));
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    const stat = () => ({ mtimeMs: LAST_RUN - 1000 });
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).toContain('plan');
+  });
+
+  it('returns ["overview"] when overview.md mtime > last_run_success_at', () => {
+    mockReadFileSync.mockReturnValue(makeOverviewContent('2026-05-20T12:00:00.000Z'));
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    const stat = (p) => {
+      if (p.endsWith('overview.md')) return { mtimeMs: LAST_RUN + 5000 }; // newer
+      return { mtimeMs: LAST_RUN - 1000 }; // not dirty
+    };
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).toContain('overview');
+    expect(result).not.toContain('route');
+    expect(result).not.toContain('logistics');
+  });
+
+  it('returns ["route"] when route.md mtime > last_run_success_at', () => {
+    mockReadFileSync.mockReturnValue(makeOverviewContent('2026-05-20T12:00:00.000Z'));
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    const stat = (p) => {
+      if (p.endsWith('route.md')) return { mtimeMs: LAST_RUN + 5000 }; // newer
+      return { mtimeMs: LAST_RUN - 1000 };
+    };
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).toContain('route');
+    expect(result).not.toContain('overview');
+    expect(result).not.toContain('logistics');
+  });
+
+  it('returns ["logistics"] when logistics.md mtime > last_run_success_at', () => {
+    mockReadFileSync.mockReturnValue(makeOverviewContent('2026-05-20T12:00:00.000Z'));
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    const stat = (p) => {
+      if (p.endsWith('logistics.md')) return { mtimeMs: LAST_RUN + 5000 }; // newer
+      return { mtimeMs: LAST_RUN - 1000 };
+    };
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).toContain('logistics');
+    expect(result).not.toContain('overview');
+    expect(result).not.toContain('route');
+  });
+
+  it('returns multiple sections when several are dirty', () => {
+    mockReadPlan.mockReturnValue({ field_guide_notes: 'notes', gotchas: '', days: [] });
+    mockReadFileSync.mockReturnValue(makeOverviewContent('2026-05-20T12:00:00.000Z'));
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    const stat = (p) => {
+      if (p.endsWith('overview.md')) return { mtimeMs: LAST_RUN + 1000 };
+      if (p.endsWith('route.md'))    return { mtimeMs: LAST_RUN + 2000 };
+      return { mtimeMs: LAST_RUN - 1000 };
+    };
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).toContain('plan');
+    expect(result).toContain('overview');
+    expect(result).toContain('route');
+    expect(result).not.toContain('logistics');
+  });
+
+  it('skips mtime check when last_run_success_at is absent from overview frontmatter', () => {
+    // No last_run_success_at → can't compare → skip section-mtime checks
+    mockReadFileSync.mockReturnValue('---\ntitle: Test Trip\nstatus: planning\n---\nProse.');
+    mockParseFrontmatter.mockReturnValue({ title: 'Test Trip', status: 'planning' });
+    const stat = () => ({ mtimeMs: Date.now() + 99999 }); // would be dirty if checked
+    const result = collectDirtySections('test-trip', { stat });
+    // Without last_run_success_at there's nothing to compare against — no section dirtiness
+    expect(result).toEqual([]);
+  });
+
+  it('returns [] when stat returns null for a section (file absent)', () => {
+    mockReadFileSync.mockReturnValue(makeOverviewContent('2026-05-20T12:00:00.000Z'));
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    const stat = () => null; // all section stats return null → can't be dirty
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).toEqual([]);
+  });
+
+  it('returns [] when overview.md cannot be read (no overview → no mtime checks)', () => {
+    mockReadFileSync.mockImplementation(() => { throw new Error('ENOENT'); });
+    const stat = () => ({ mtimeMs: Date.now() + 99999 });
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).toEqual([]);
+  });
+
+  it('does not include "plan" when plan prose fields are empty strings', () => {
+    mockReadPlan.mockReturnValue({ field_guide_notes: '', gotchas: '', days: [] });
+    mockReadFileSync.mockReturnValue(makeOverviewContent('2026-05-20T12:00:00.000Z'));
+    mockParseFrontmatter.mockReturnValue({ last_run_success_at: '2026-05-20T12:00:00.000Z' });
+    const stat = () => ({ mtimeMs: LAST_RUN - 1000 });
+    const result = collectDirtySections('test-trip', { stat });
+    expect(result).not.toContain('plan');
+  });
 });
 
 // ── DELETE ─────────────────────────────────────────────────────────────────────

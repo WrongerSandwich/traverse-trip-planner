@@ -717,9 +717,13 @@
         let body = null;
         try { body = await res.json(); } catch { /* tolerate parse failures */ }
         if (body?.code === 'plan_prose_present') {
+          const dirtySections = body.dirty_sections ?? [];
+          const sectionList = dirtySections.length > 0
+            ? dirtySections.join(', ')
+            : 'field guide notes / gotchas';
           const ok2 = await showConfirm({
-            title:        'Re-research will overwrite plan prose',
-            body:         body.message ?? 'This trip has field guide notes / gotchas. Re-research will overwrite them.',
+            title:        'Re-research will overwrite edited sections',
+            body:         `This will replace your edits to: ${sectionList}. Re-research rewrites these sections from scratch.`,
             confirmLabel: 'Re-research anyway',
             danger:       true,
           });
@@ -1200,6 +1204,18 @@
             driveLabel={driveLabel}
             homeDistanceMi={trip?.home_distance_mi ?? null}
           />
+        </div>
+      {/if}
+
+      {#if trip?._route_status && !trip?._has_route}
+        <div class="route-unavailable-badge" role="status">
+          {#if trip._route_status === 'invalid_waypoints'}
+            Route unavailable — couldn't parse waypoints. Try Re-research.
+          {:else if trip._route_status === 'geocode_failed'}
+            Route unavailable — couldn't geocode waypoints. Try Re-research.
+          {:else}
+            Route unavailable. Try Re-research.
+          {/if}
         </div>
       {/if}
 
@@ -1718,6 +1734,18 @@
     /* Contain Leaflet's internal z-index 1000 controls so they can't escape
        above page-level overlays like the chat panel, kebab menu, or modals. */
     isolation: isolate;
+  }
+
+  /* Route-unavailable badge: shown below the map when route_status is set and
+     no route line drew. Uses warning tokens so it's visible without alarming. */
+  .route-unavailable-badge {
+    font-size: 0.78rem;
+    color: var(--state-warning);
+    background: var(--state-warning-surface);
+    border: 1px solid var(--state-warning);
+    border-radius: 4px;
+    padding: 0.45rem 0.8rem;
+    line-height: 1.4;
   }
 
   .section {
