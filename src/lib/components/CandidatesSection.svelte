@@ -13,6 +13,7 @@
   let tab = $state('stops');                       // 'stops' | 'lodging'
   let visibleCategories = $state(null);            // Set<string> | null (null = all)
   let promoteFor = $state(null);                   // candidate id whose day picker is open
+  let openPanel = $state(/** @type {null | 'add' | 'find-more'} */ (null));
   let working = $state(false);
   let errorCode = $state(/** @type {string|null} */ (null));
   let errorCtx = $state(/** @type {Record<string,string>} */ ({}));
@@ -39,6 +40,10 @@
     for (const s of visibleStops) set.add(s.category || 'misc');
     return Array.from(set);
   });
+
+  // Active tab as a candidate-type tag ('stop' | 'lodging') used by the
+  // subtools row to wire add/find-more to the right pool.
+  const currentTabType = $derived(tab === 'stops' ? 'stop' : 'lodging');
 
   const filteredStops = $derived(
     visibleStops.filter((s) => !visibleCategories || visibleCategories.has(s.category || 'misc'))
@@ -338,6 +343,27 @@
       >Lodging <span class="tab-count">{visibleLodging.length}</span></button>
     </div>
   </div>
+
+  {#if !readonly}
+    <div class="subtools" role="group" aria-label="Add or find more candidates">
+      <button
+        type="button"
+        class="subtool"
+        aria-pressed={openPanel === 'add'}
+        onclick={() => { openPanel = openPanel === 'add' ? null : 'add'; }}
+      >
+        + Add {currentTabType === 'stop' ? 'stop' : 'lodging'}
+      </button>
+      <button
+        type="button"
+        class="subtool"
+        aria-pressed={openPanel === 'find-more'}
+        onclick={() => { openPanel = openPanel === 'find-more' ? null : 'find-more'; }}
+      >
+        Find more {currentTabType === 'stop' ? 'stops' : 'lodging'} ✨
+      </button>
+    </div>
+  {/if}
 
   <!-- Card list -->
   {#if tab === 'stops'}
@@ -829,4 +855,38 @@
   .hidden-toggle:hover { color: var(--text-primary); border-bottom-color: var(--text-secondary); }
 
   /* Hide-toast chrome lives in HideToast.svelte — shared with PlanSection. */
+
+  /* ── Subtools row ────────────────────────────────────────────────────── */
+  .subtools {
+    display: flex;
+    gap: 0.5rem;
+    margin: -0.25rem 0 0.75rem;
+    flex-wrap: wrap;
+  }
+  .subtool {
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .subtool:hover {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    border-color: var(--text-tertiary);
+  }
+  .subtool[aria-pressed="true"] {
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+  @media (pointer: coarse) {
+    .subtool { min-height: var(--tap-min); padding: 0.5rem 0.85rem; font-size: 12.5px; }
+  }
 </style>
