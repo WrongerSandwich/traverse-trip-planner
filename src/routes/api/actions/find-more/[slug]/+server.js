@@ -15,7 +15,6 @@ import {
   parseFrontmatter,
   invalidateEnrichCache,
   rejectInvalidSlug,
-  findTripFile,
 } from '$lib/server/data.js';
 import {
   addCandidateStop,
@@ -110,12 +109,12 @@ export async function POST(event) {
             : 'Vary tiers and locations not yet covered.');
 
       const fields = type === 'stop'
-        ? `  - name: <Place name>
+        ? `  - name: "<Place name>"
     category: <one of: ${STOP_CATEGORIES.join(' | ')}>
     description: <1 sentence; general if uncertain>
     why_recommended: <1 sentence linking to home preferences>
     source_url: <best URL found via search; blank if uncertain>`
-        : `  - name: <Lodging name>
+        : `  - name: "<Lodging name>"
     description: <1 sentence>
     price_tier: <budget | mid | splurge>
     nights: <integer, optional>
