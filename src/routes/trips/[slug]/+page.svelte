@@ -1653,6 +1653,8 @@
     position: relative;
     display: inline-flex;
     align-items: center;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .trip-meta-item + .trip-meta-item::before {
     content: '·';
@@ -1712,6 +1714,7 @@
   .content {
     width: 100%;
     max-width: 680px;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 1.4rem;
@@ -1916,7 +1919,18 @@
      a touch above the 65-75 ideal but well within readable range and a
      real improvement from the previous ~94-97ch. Heading scale opens to
      ~1.1× steps so a reader can tell at a glance which level they're on. */
-  .prose { font-size: 1rem; line-height: 1.75; color: var(--text-secondary); }
+  /* overflow-wrap: anywhere lets long URLs / unbroken tokens (slugs, IDs,
+     reservation links) wrap mid-token instead of forcing horizontal scroll
+     on narrow viewports. min-width: 0 is the flex-child escape hatch — the
+     .prose lives inside a flex column and would otherwise refuse to shrink
+     below its widest atomic child. */
+  .prose {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   .prose :global(h1), .prose :global(h2) {
     font-size: 1.1rem; font-weight: 700; margin: 1.4rem 0 0.5rem;
     color: var(--text-primary); letter-spacing: -0.015em;
@@ -2327,6 +2341,13 @@
   }
 
   @media (max-width: 768px) {
+    /* overflow-x: clip is the page-level safety net against any wide
+       descendant (long URL in prose, oversized table, embedded code block)
+       triggering horizontal scroll on phones. The descendant fixes
+       (overflow-wrap on .prose, min-width:0 on .content) handle the
+       root cause; this catches anything that slips through. */
+    .page { overflow-x: clip; }
+
     .page > header { padding: 0.85rem 1rem; gap: 0.55rem; }
 
     /* H1 takes its own row on mobile so a long title can wrap without

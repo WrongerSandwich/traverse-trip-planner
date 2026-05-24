@@ -352,6 +352,8 @@
     color: var(--text-primary);
     letter-spacing: 0.005em;
     margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .pitch {
@@ -360,6 +362,8 @@
     color: var(--text-secondary);
     flex: 1;
     margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   /* ── Mono meta footer — drive · dest, with cost right-aligned ── */

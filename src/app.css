@@ -175,7 +175,6 @@
 
   /* ── Layout constants ────────────────────────────────────────────────── */
   --thumb-h: 220px;
-  --map-h-mobile: 28vh;
   --tap-min: 44px;
 
   /* Map tile placeholder bg — used by MiniMap before tiles load */

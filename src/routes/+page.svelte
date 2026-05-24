@@ -1,5 +1,4 @@
 <script>
-  import OverviewMap from '$lib/components/OverviewMap.svelte';
   import TripCard from '$lib/components/TripCard.svelte';
   import TripRow from '$lib/components/TripRow.svelte';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
@@ -196,8 +195,6 @@
   const selectedTrip = $derived(
     selectedSlug ? data.trips.find(t => t._slug === selectedSlug) ?? null : null
   );
-  let hoveredSlug  = $state(null);
-
   // "Newly active" highlights: slugs the user hasn't yet acknowledged.
   // Set when seed/add adds a trip, or when a deepen completes. Cleared on
   // hover or click of the affected card. In-memory only (resets on page
@@ -305,9 +302,11 @@
     return stageActive ? `${head} · ${stageLabels[activeFilter]}` : head;
   });
 
-  // ── Mobile map toggle + header measurement ──
-  let mapVisible = $state(true);
-  let headerEl  = $state(null);
+  // Header height is published as the --header-h CSS variable so position:fixed
+  // overlays (seed popover, toast stack) can offset themselves below the sticky
+  // band. ResizeObserver keeps it accurate as the header's visible content
+  // changes (e.g. mobile reflow).
+  let headerEl = $state(null);
 
   $effect(() => {
     if (!browser || !headerEl) return;
@@ -318,66 +317,6 @@
     ro.observe(headerEl);
     return () => ro.disconnect();
   });
-
-  // ── Mobile scroll-focus ──
-  let isMobile = $state(false);
-  let scrollFocusedSlug = $state(null);
-  // Default the map closed on mobile; user can toggle it open. Only flipped
-  // once on initial detection so a viewport resize doesn't override choice.
-  let mapDefaulted = false;
-
-  // Track viewport class
-  $effect(() => {
-    if (!browser) return;
-    const mq = window.matchMedia('(max-width: 768px)');
-    isMobile = mq.matches;
-    if (!mapDefaulted) { mapVisible = !mq.matches; mapDefaulted = true; }
-    const onChange = e => { isMobile = e.matches; if (!e.matches) scrollFocusedSlug = null; };
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  });
-
-  // IntersectionObserver-driven focus. Fires reliably during iOS momentum
-  // scroll (unlike scroll events) and runs off the main thread. We exclude
-  // the sticky map area via rootMargin so a card hidden behind the map
-  // doesn't win just because it's technically intersecting.
-  $effect(() => {
-    if (!browser || !isMobile) return;
-    // Re-read these reactives so the effect tears down + re-runs when they change
-    const _trips = trips;
-    const _mapVisible = mapVisible;
-
-    const mapEl = document.querySelector('.map-col');
-    const mapH = mapVisible ? Math.round(mapEl?.getBoundingClientRect().height ?? 0) : 0;
-
-    const visibility = new Map();
-    const observer = new IntersectionObserver(
-      entries => {
-        for (const e of entries) {
-          if (e.isIntersecting) visibility.set(e.target.id, e.intersectionRatio);
-          else visibility.delete(e.target.id);
-        }
-        if (visibility.size === 0) return; // keep last focus rather than blanking
-        let best = null, bestRatio = 0;
-        for (const [id, ratio] of visibility) {
-          if (ratio > bestRatio) { bestRatio = ratio; best = id.replace('card-', ''); }
-        }
-        if (best) scrollFocusedSlug = best;
-      },
-      {
-        rootMargin: `-${mapH}px 0px -10% 0px`,
-        threshold: [0, 0.1, 0.25, 0.5, 0.75, 1],
-      }
-    );
-
-    // Observe all cards present right now. _trips dependency above causes
-    // the effect to re-run (and re-observe) when the trip list changes.
-    for (const el of document.querySelectorAll('[id^="card-"]')) observer.observe(el);
-    return () => observer.disconnect();
-  });
-
-  // On mobile use scroll position to drive map focus; mouse hover wins on desktop
-  const effectiveHovered = $derived(hoveredSlug || (isMobile ? scrollFocusedSlug : null));
 
   // ── Seed — Instant Inline (docs/ai-workflow-ux.md §2.1) ──────────────────
   // Status drives both the header button spinner and the popover submit button.
@@ -766,19 +705,6 @@
       <Logo variant="inverse" size={28} aria-hidden="true" />
       <h1>Traverse</h1>
     </a>
-    <button
-      class="map-toggle"
-      class:map-showing={mapVisible}
-      onclick={() => mapVisible = !mapVisible}
-      aria-label={mapVisible ? 'Hide map' : 'Show map'}
-    >
-      <svg width="15" height="13" viewBox="0 0 15 13" aria-hidden="true">
-        <path d="M0 0l5 2 5-2 5 2v11l-5-2-5 2-5-2V0z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
-        <path d="M5 2v11M10 0v11" stroke="currentColor" stroke-width="1.3"/>
-      </svg>
-      {mapVisible ? 'Hide map' : 'Show map'}
-    </button>
-
     <div class="header-right">
       <div class="header-count">
         {#if attrFilterCount > 0 || activeFilter !== 'all'}
@@ -990,12 +916,6 @@
   {/if}
 
   <div class="layout">
-    <div class="map-col" class:map-hidden={!mapVisible}>
-      <OverviewMap {trips} home={data.home} hoveredSlug={effectiveHovered}
-        selectedSlug={selectedTrip?._slug}
-        onTripClick={t => openTrip(t)} />
-    </div>
-
     <div class="cards-col">
       <!-- Stage tabs + filter toggle + sort -->
       <div class="controls-wrap">
@@ -1164,8 +1084,7 @@
                 jobs={jobsForTrip(trip._slug)}
                 fresh={highlightedSlugs.has(trip._slug)}
                 onclick={() => openTrip(trip)}
-                onhover={() => { hoveredSlug = trip._slug; clearFresh(trip._slug); }}
-                onleave={() => hoveredSlug = null}
+                onhover={() => clearFresh(trip._slug)}
                 onbookmark={(e) => toggleBookmark(trip, e)}
                 ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
               />
@@ -1175,8 +1094,7 @@
                 jobs={jobsForTrip(trip._slug)}
                 fresh={highlightedSlugs.has(trip._slug)}
                 onclick={() => openTrip(trip)}
-                onhover={() => { hoveredSlug = trip._slug; clearFresh(trip._slug); }}
-                onleave={() => hoveredSlug = null}
+                onhover={() => clearFresh(trip._slug)}
                 onbookmark={(e) => toggleBookmark(trip, e)}
                 ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
                 oncancel={null}
@@ -1695,19 +1613,23 @@
   }
 
   .layout {
-    display: grid;
-    grid-template-columns: 42% 1fr;
+    display: block;
     overflow: hidden;
     height: 100%;
   }
 
-  .map-col { height: 100%; overflow: hidden; }
-
+  /* Single-column layout (map column retired). Constrained max-width so card
+     rows don't stretch into uncomfortable line lengths on wide monitors;
+     centered horizontally with auto margins. */
   .cards-col {
-    display: flex; flex-direction: column;
-    height: 100%; overflow: hidden;
-    box-shadow: -6px 0 24px rgba(0, 0, 0, 0.07);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
     background: var(--surface-page);
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
   }
 
   /* ── Controls wrap (tabs + filter panel) ── */
@@ -2028,41 +1950,30 @@
     outline-offset: 1px;
   }
 
-  /* ── Mobile map toggle button — hidden on desktop ── */
-  .map-toggle { display: none; }
-
   @media (max-width: 768px) {
     :global(html, body) { overflow: auto; }
     .page { height: auto; }
 
-    /* Map toggle button visible on mobile */
-    .map-toggle {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      background: none;
-      border: 1px solid var(--forest-600);
-      border-radius: 4px;
-      color: var(--bone-600);
-      font-family: var(--font-sans);
-      font-size: 0.72rem;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      padding: 0.3rem 0.6rem;
-      cursor: pointer;
-      min-height: var(--tap-min);
-      transition: background 0.12s, color 0.12s;
-    }
-    .map-toggle:hover { background: var(--forest-800); color: var(--bone-400); }
-
-    /* Seed button larger tap target on mobile */
+    /* Seed/Add buttons collapse to icon-only circles on mobile (the labeled
+       pill is too wide once the wordmark and pin button share the header).
+       Tap target stays ≥44px via var(--tap-min). */
     .seed-btn { width: var(--tap-min); height: var(--tap-min); }
-    /* Labeled variant stays a pill on mobile, just guarantees tap height. */
-    .seed-btn.labeled { width: auto; min-height: var(--tap-min); padding-left: 0.65rem; padding-right: 0.85rem; }
+    .seed-btn.labeled {
+      width: var(--tap-min);
+      height: var(--tap-min);
+      padding: 0;
+      border-radius: 50%;
+    }
+    .action-label { display: none; }
 
-    /* ── Header ── */
+    /* ── Header ──
+       Tighter gap + flex-wrap so a long wordmark + action cluster (e.g. an
+       AI-config CTA wedged alongside the seed/add buttons) wraps cleanly to
+       a second row instead of pushing the page into horizontal scroll. */
     header {
       padding: 0.75rem 1rem;
+      gap: 0.6rem;
+      flex-wrap: wrap;
       position: sticky;
       top: 0;
       z-index: 30;
@@ -2077,27 +1988,15 @@
        overflow-y as hidden makes .page a scroll container, which traps position:sticky inside
        .page (height:auto = no scroll room) instead of letting it stick to the body scroll. */
     .page { height: auto; overflow: clip; grid-template-rows: auto auto; }
-    /* Stacked single column */
-    .layout { grid-template-columns: 1fr; overflow: visible; height: auto; }
+    .layout { overflow: visible; height: auto; }
 
-    /* Cards column: simple block flow, no desktop flex/shadow */
+    /* Cards column: simple block flow on mobile */
     .cards-col {
       height: auto;
       display: block;
       overflow-x: clip;
-      box-shadow: none;
+      max-width: 100%;
     }
-
-    /* ── Sticky map just below the header ── */
-    .map-col {
-      height: var(--map-h-mobile);
-      overflow: hidden;
-      position: sticky;
-      top: var(--header-h, 70px);
-      z-index: 20;
-      transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .map-col.map-hidden { height: 0; }
 
     /* ── Controls ── */
     /* Clip horizontal overflow at the bar without hiding the filter panel below */
@@ -2164,11 +2063,6 @@
     .page-footer { padding: 0.6rem 1rem 0.8rem; }
     .footer-link { padding: 0.5rem 0.7rem; font-size: 0.82rem; }
 
-    /* ── Seed button ── */
-    .seed-btn { width: var(--tap-min); height: var(--tap-min); }
-    /* Labeled variant stays a pill on mobile, just guarantees tap height. */
-    .seed-btn.labeled { width: auto; min-height: var(--tap-min); padding-left: 0.65rem; padding-right: 0.85rem; }
-
     /* Mobile count/stage row — sits above active-pills, below the controls
        strip. Visible only at this breakpoint since desktop has .header-count.
        (#239) */
@@ -2178,13 +2072,6 @@
       font-size: 0.78rem;
       color: var(--text-tertiary);
       letter-spacing: 0.01em;
-    }
-
-    /* ── Map toggle active state ── */
-    .map-toggle.map-showing {
-      background: var(--forest-800);
-      border-color: var(--forest-400);
-      color: var(--bone-200);
     }
 
     /* Seed popover spans most of the viewport on phones */
