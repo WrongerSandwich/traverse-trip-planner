@@ -60,24 +60,36 @@ vi.mock('$lib/server/plan.js', () => ({
   serializePlanFile: vi.fn((plan) => { capturedPlan.value = plan; return `---\nplan: stub\n---\n`; }),
 }));
 
-vi.mock('$lib/server/candidates.js', () => ({
-  emptyCandidates: () => ({ stops: [], lodging: [] }),
-  readCandidates: vi.fn(() => null),
-  candidatesPath: vi.fn(() => '/test/planning/t/candidates.md'),
-  serializeCandidatesFile: vi.fn((cands) => { capturedCands.value = cands; return `---\ncands: stub\n---\n`; }),
-  // Mirror real makeCandidateId disambiguation so the dedupe test exercises
-  // the across-stops-and-lodging seenIds accumulator in extract-candidates.
-  makeCandidateId: (name, existingIds) => {
-    const base = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'candidate';
-    const taken = new Set(existingIds);
-    if (!taken.has(base)) return base;
-    let n = 2;
-    while (taken.has(`${base}-${n}`)) n++;
-    return `${base}-${n}`;
-  },
-  STOP_CATEGORIES: ['outdoors', 'misc'],
-  LODGING_PRICE_TIERS: ['budget', 'mid', 'splurge'],
-}));
+vi.mock('$lib/server/candidates.js', async () => {
+  // Pull in the real geocoding helpers so that the disambiguation tests exercise
+  // the actual distanceMi / scoped-first logic. Because data.js is already
+  // mocked above, the `geocode` calls inside the real helpers resolve via
+  // mockGeocode — no network traffic, but real dispatch logic.
+  const actual = await vi.importActual('$lib/server/candidates.js');
+  return {
+    emptyCandidates: () => ({ stops: [], lodging: [] }),
+    readCandidates: vi.fn(() => null),
+    candidatesPath: vi.fn(() => '/test/planning/t/candidates.md'),
+    serializeCandidatesFile: vi.fn((cands) => { capturedCands.value = cands; return `---\ncands: stub\n---\n`; }),
+    // Mirror real makeCandidateId disambiguation so the dedupe test exercises
+    // the across-stops-and-lodging seenIds accumulator in extract-candidates.
+    makeCandidateId: (name, existingIds) => {
+      const base = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'candidate';
+      const taken = new Set(existingIds);
+      if (!taken.has(base)) return base;
+      let n = 2;
+      while (taken.has(`${base}-${n}`)) n++;
+      return `${base}-${n}`;
+    },
+    STOP_CATEGORIES: ['outdoors', 'misc'],
+    LODGING_PRICE_TIERS: ['budget', 'mid', 'splurge'],
+    // Real geocoding helpers — delegate to actual implementations so that the
+    // disambiguation tests exercise distanceMi + scoped-first logic for real.
+    geocodeCandidate: actual.geocodeCandidate,
+    getDestinationRefCoords: actual.getDestinationRefCoords,
+    MAX_CANDIDATE_DISTANCE_MI: actual.MAX_CANDIDATE_DISTANCE_MI,
+  };
+});
 
 vi.mock('$lib/server/config.js', () => ({
   getEffectiveConfig: () => ({ features: { extract: { provider: 'anthropic', model: 'claude-sonnet-4-6' } } }),

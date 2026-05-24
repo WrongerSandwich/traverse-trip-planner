@@ -213,3 +213,11 @@ describe('candidates.js', () => {
     expect(plan.days[0].stops).not.toContain('s1');
   });
 });
+
+describe('geocodeCandidate', () => {
+  it('exports a function returning coords or null', async () => {
+    const mod = await import('$lib/server/candidates.js');
+    expect(typeof mod.geocodeCandidate).toBe('function');
+    expect(typeof mod.getDestinationRefCoords).toBe('function');
+  });
+});
