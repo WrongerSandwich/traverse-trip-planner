@@ -1,13 +1,16 @@
 // Plan structured-data layer.
 //
-// `plan.md` per trip holds the curated trip: day-by-day stops + lodging
+// `plan.yaml` per trip holds the curated trip: day-by-day stops + lodging
 // assignments, plus trip-wide bits (cover_query, field_guide_notes, gotchas).
-// Stored as structured YAML in frontmatter; body is currently unused but
-// tolerated for forward compatibility. References candidate ids from
-// candidates.md. See referential-integrity rules in spec
+// Pure YAML — no frontmatter fences, no markdown body. References candidate
+// ids from candidates.yaml. See referential-integrity rules in spec
 // 2026-05-22-planning-plan-and-candidates-design.md.
+//
+// Migration: on first read, if `plan.md` exists and `plan.yaml` doesn't, the
+// legacy file's frontmatter is parsed, written as `plan.yaml`, and the `.md`
+// is deleted. Idempotent — safe to call repeatedly.
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { atomicWrite } from './atomic-write.js';
@@ -15,10 +18,11 @@ import { findTripLocation } from './data.js';
 import { readCandidates } from './candidates.js';
 import { TraverseError } from './errors.js';
 
-const PLAN_FILENAME = 'plan.md';
+const PLAN_FILENAME = 'plan.yaml';
+const PLAN_LEGACY_FILENAME = 'plan.md';
 
 export function emptyPlan() {
-  return { cover_query: null, field_guide_notes: '', gotchas: '', days: [] };
+  return { cover_query: null, field_guide_notes: [], gotchas: [], days: [] };
 }
 
 export function planPath(slug) {
@@ -27,39 +31,88 @@ export function planPath(slug) {
   return join(loc.path, PLAN_FILENAME);
 }
 
+/**
+ * Migrate plan.md → plan.yaml on first read (one-shot, idempotent).
+ * Parses the legacy frontmatter block, writes plan.yaml, deletes plan.md.
+ */
+function migratePlanIfNeeded(slug) {
+  const loc = findTripLocation(slug);
+  if (!loc || loc.kind !== 'dir') return;
+  const yamlPath = join(loc.path, PLAN_FILENAME);
+  const legacyPath = join(loc.path, PLAN_LEGACY_FILENAME);
+  if (existsSync(yamlPath) || !existsSync(legacyPath)) return;
+  try {
+    const content = readFileSync(legacyPath, 'utf8');
+    const parsed = parsePlanFile(content);
+    if (parsed) {
+      writeFileSync(yamlPath, serializePlanFile(parsed));
+      unlinkSync(legacyPath);
+    }
+  } catch (e) {
+    console.warn(`plan.js: migration of plan.md failed for "${slug}" —`, e.message);
+  }
+}
+
 export function readPlan(slug) {
+  migratePlanIfNeeded(slug);
   const path = planPath(slug);
   if (!path || !existsSync(path)) return null;
   const content = readFileSync(path, 'utf8');
   return parsePlanFile(content);
 }
 
+/**
+ * Coerce field_guide_notes / gotchas to a string array.
+ * Accepts:
+ *   - Array<string> (new format) — passed through
+ *   - string block (legacy format) — split on newlines, strip bullet markers
+ *   - anything else — empty array
+ */
+function toStringArray(value) {
+  if (Array.isArray(value)) return value.map((s) => String(s).trim()).filter(Boolean);
+  if (typeof value !== 'string') return [];
+  return value
+    .split('\n')
+    .map((line) => line.replace(/^\s*[-*•]\s+/, '').trim())
+    .filter(Boolean);
+}
+
+/**
+ * Parse a plan file. Accepts both formats:
+ *   - Legacy: `---\nYAML\n---\n` (frontmatter-wrapped markdown, plan.md)
+ *   - New:    bare YAML (plan.yaml)
+ */
 export function parsePlanFile(content) {
-  const match = content.match(/^---\n([\s\S]*?)\n?---\n?([\s\S]*)$/);
-  if (!match) return null;
+  let yamlBlock;
+  const fenceMatch = content.match(/^---\n([\s\S]*?)\n?---\n?([\s\S]*)$/);
+  if (fenceMatch) {
+    yamlBlock = fenceMatch[1];
+  } else {
+    yamlBlock = content;
+  }
   let data;
   try {
-    data = yamlParse(match[1]) || {};
+    data = yamlParse(yamlBlock) || {};
   } catch (err) {
-    throw new TraverseError('model_returned_invalid_yaml', `plan.md YAML parse failed: ${err.message}`);
+    throw new TraverseError('model_returned_invalid_yaml', `plan.yaml YAML parse failed: ${err.message}`);
   }
   return {
     cover_query: typeof data.cover_query === 'string' && data.cover_query.trim() ? data.cover_query.trim() : null,
-    field_guide_notes: data.field_guide_notes ?? '',
-    gotchas: data.gotchas ?? '',
+    field_guide_notes: toStringArray(data.field_guide_notes),
+    gotchas: toStringArray(data.gotchas),
     days: Array.isArray(data.days)
       ? data.days.map((d) => ({ ...d, stops: Array.isArray(d?.stops) ? d.stops : [] }))
       : [],
   };
 }
 
+/** Serialize a plan to pure YAML (no frontmatter fences). */
 export function serializePlanFile(plan) {
-  const yaml = yamlStringify(plan, {
+  return yamlStringify(plan, {
     lineWidth: 0,
     defaultStringType: 'PLAIN',
     blockQuote: 'literal',
-  }).trimEnd();
-  return `---\n${yaml}\n---\n`;
+  });
 }
 
 export function writePlan(slug, plan) {
@@ -75,7 +128,7 @@ function loadOrInit(slug) {
 
 function requireCandidate(slug, id, kind) {
   const cands = readCandidates(slug);
-  if (!cands) throw new Error(`Candidate "${id}" not in candidates.md — file missing.`);
+  if (!cands) throw new Error(`Candidate "${id}" not in candidates.yaml — file missing.`);
   if (kind === 'stop') {
     if (!cands.stops.some((s) => s.id === id)) {
       throw new Error(`Candidate "${id}" is not a stop candidate.`);
@@ -86,7 +139,7 @@ function requireCandidate(slug, id, kind) {
     }
   } else {
     if (!cands.stops.some((s) => s.id === id) && !cands.lodging.some((l) => l.id === id)) {
-      throw new Error(`Candidate "${id}" not in candidates.md.`);
+      throw new Error(`Candidate "${id}" not in candidates.yaml.`);
     }
   }
 }

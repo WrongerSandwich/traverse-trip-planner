@@ -413,11 +413,10 @@ export function parseFrontmatter(content) {
 
 // Last-modified timestamp for a trip, used by the home-page "Recently active"
 // sort. For an idea (single .md file), it's that file's mtime. For a planning
-// or completed folder, it's the max mtime across all .md files in the folder
-// (overview.md, route.md, stops.md, logistics.md, plan.md, candidates.md,
-// notes.md, etc.), so any section edit, retro write, or job-start frontmatter
-// write bumps the trip up the list. Non-.md files (attachments, future
-// additions) are intentionally ignored.
+// or completed folder, it's the max mtime across all .md/.yaml files in the
+// folder (overview.md, route.md, stops.md, logistics.md, plan.yaml,
+// candidates.yaml, notes.md, etc.), so any section edit, retro write, or
+// job-start frontmatter write bumps the trip up the list.
 function tripMtimeMs(stage, slug, ideaFilePath) {
   try {
     if (stage === 'ideas') {
@@ -426,7 +425,9 @@ function tripMtimeMs(stage, slug, ideaFilePath) {
     const dir = join(ROOT, stage, slug);
     let max = 0;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+      if (!entry.isFile()) continue;
+      const n = entry.name;
+      if (!n.endsWith('.md') && !n.endsWith('.yaml')) continue;
       try {
         const m = statSync(join(dir, entry.name)).mtimeMs;
         if (m > max) max = m;
@@ -668,14 +669,18 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
       // (e.g. from half-failed promotions) don't pin stale cache entries.
       if (!existsSync(join(tripDir, 'overview.md'))) continue;
 
-      const plan = readFrontmatterYaml(join(tripDir, 'plan.md'));
+      // Try plan.yaml first (new format), fall back to plan.md (legacy).
+      const plan = readFrontmatterYaml(join(tripDir, 'plan.yaml'))
+        ?? readFrontmatterYaml(join(tripDir, 'plan.md'));
       if (plan?.cover_query) images.add(plan.cover_query);
       // Stash the parsed plan so enrichTripsImpl() can reuse it without a
       // second FS read. Planning and completed slugs are disjoint by
       // construction so a flat slug key is unambiguous.
       if (plan) plans.set(slug, plan);
 
-      const cands = readFrontmatterYaml(join(tripDir, 'candidates.md'));
+      // Try candidates.yaml first (new format), fall back to candidates.md.
+      const cands = readFrontmatterYaml(join(tripDir, 'candidates.yaml'))
+        ?? readFrontmatterYaml(join(tripDir, 'candidates.md'));
       if (cands) {
         for (const s of Array.isArray(cands.stops) ? cands.stops : []) {
           if (s?.name) geocodes.add(s.name);

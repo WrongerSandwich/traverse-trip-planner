@@ -16,19 +16,20 @@ export async function load({ params, depends }) {
 
   const files = getTripFiles(slug);
   const resolvedStage = files?.stage || trip._stage;
-  // Idea-stage trips have no plan.md or candidates.md — skip the FS probes.
+  // Idea-stage trips have no plan.yaml or candidates.yaml — skip the FS probes.
   const hasPlanFiles = resolvedStage === 'planning' || resolvedStage === 'completed';
 
   const plan = hasPlanFiles ? readPlan(slug) : null;
 
   // Detect extract-only recovery state: planning trip where the research leg
-  // succeeded (overview.md exists) but the extract leg never wrote plan.md.
-  // The deepen endpoint handles this automatically (skips research, runs only
-  // extract), but we surface it with a distinct banner so the user knows the
-  // retry is cheap and doesn't need to hit Re-research.
+  // succeeded (overview.md exists) but the extract leg never wrote plan.yaml
+  // (or legacy plan.md). The deepen endpoint handles this automatically
+  // (skips research, runs only extract), but we surface it with a distinct
+  // banner so the user knows the retry is cheap and doesn't need Re-research.
   const planExtractionFailed =
     resolvedStage === 'planning' &&
     existsSync(join(ROOT, 'planning', slug, 'overview.md')) &&
+    !existsSync(join(ROOT, 'planning', slug, 'plan.yaml')) &&
     !existsSync(join(ROOT, 'planning', slug, 'plan.md'));
 
   return {

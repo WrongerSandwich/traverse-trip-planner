@@ -1,10 +1,13 @@
 // Candidate pool layer.
 //
-// `candidates.md` holds the wide net of stops + lodging the researcher
+// `candidates.yaml` holds the wide net of stops + lodging the researcher
 // surfaced, plus anything the user added manually. "In plan" status is
-// computed from membership in plan.md, NOT stored here.
+// computed from membership in plan.yaml, NOT stored here.
+//
+// Migration: on first read, if `candidates.md` exists and `candidates.yaml`
+// doesn't, the legacy file is migrated automatically. Idempotent.
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { atomicWrite } from './atomic-write.js';
@@ -14,7 +17,8 @@ import { TraverseError } from './errors.js';
 // (call-time, not module-init). Don't add top-level uses of plan.js exports here.
 import { unPromoteCandidate } from './plan.js';
 
-const CANDIDATES_FILENAME = 'candidates.md';
+const CANDIDATES_FILENAME = 'candidates.yaml';
+const CANDIDATES_LEGACY_FILENAME = 'candidates.md';
 
 export function emptyCandidates() {
   return { stops: [], lodging: [] };
@@ -26,21 +30,53 @@ export function candidatesPath(slug) {
   return join(loc.path, CANDIDATES_FILENAME);
 }
 
+/**
+ * Migrate candidates.md → candidates.yaml on first read (one-shot, idempotent).
+ */
+function migrateCandidatesIfNeeded(slug) {
+  const loc = findTripLocation(slug);
+  if (!loc || loc.kind !== 'dir') return;
+  const yamlPath = join(loc.path, CANDIDATES_FILENAME);
+  const legacyPath = join(loc.path, CANDIDATES_LEGACY_FILENAME);
+  if (existsSync(yamlPath) || !existsSync(legacyPath)) return;
+  try {
+    const content = readFileSync(legacyPath, 'utf8');
+    const parsed = parseCandidatesFile(content);
+    if (parsed) {
+      writeFileSync(yamlPath, serializeCandidatesFile(parsed));
+      unlinkSync(legacyPath);
+    }
+  } catch (e) {
+    console.warn(`candidates.js: migration of candidates.md failed for "${slug}" —`, e.message);
+  }
+}
+
 export function readCandidates(slug) {
+  migrateCandidatesIfNeeded(slug);
   const path = candidatesPath(slug);
   if (!path || !existsSync(path)) return null;
   const content = readFileSync(path, 'utf8');
   return parseCandidatesFile(content);
 }
 
+/**
+ * Parse a candidates file. Accepts both formats:
+ *   - Legacy: `---\nYAML\n---\n` (frontmatter-wrapped markdown, candidates.md)
+ *   - New:    bare YAML (candidates.yaml)
+ */
 export function parseCandidatesFile(content) {
-  const match = content.match(/^---\n([\s\S]*?)\n?---\n?([\s\S]*)$/);
-  if (!match) return null;
+  let yamlBlock;
+  const fenceMatch = content.match(/^---\n([\s\S]*?)\n?---\n?([\s\S]*)$/);
+  if (fenceMatch) {
+    yamlBlock = fenceMatch[1];
+  } else {
+    yamlBlock = content;
+  }
   let data;
   try {
-    data = yamlParse(match[1]) || {};
+    data = yamlParse(yamlBlock) || {};
   } catch (err) {
-    throw new TraverseError('model_returned_invalid_yaml', `candidates.md YAML parse failed: ${err.message}`);
+    throw new TraverseError('model_returned_invalid_yaml', `candidates.yaml YAML parse failed: ${err.message}`);
   }
   return {
     stops: Array.isArray(data.stops) ? data.stops : [],
@@ -48,13 +84,13 @@ export function parseCandidatesFile(content) {
   };
 }
 
+/** Serialize candidates to pure YAML (no frontmatter fences). */
 export function serializeCandidatesFile(cands) {
-  const yaml = yamlStringify(cands, {
+  return yamlStringify(cands, {
     lineWidth: 0,
     defaultStringType: 'PLAIN',
     blockQuote: 'literal',
-  }).trimEnd();
-  return `---\n${yaml}\n---\n`;
+  });
 }
 
 export function writeCandidates(slug, cands) {
@@ -216,7 +252,7 @@ export function setCandidateHidden(slug, id, hidden) {
     }
   }
   if (!updated) return null;
-  // Hiding a promoted candidate is contradictory — un-promote first so plan.md
+  // Hiding a promoted candidate is contradictory — un-promote first so plan.yaml
   // doesn't reference an invisible candidate. Un-hiding doesn't touch the plan.
   if (hidden) unPromoteCandidate(slug, id);
   writeCandidates(slug, cands);

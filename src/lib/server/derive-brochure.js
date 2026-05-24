@@ -1,12 +1,12 @@
-// Derive a brochure-shaped object from plan.md + candidates.md + overview frontmatter.
+// Derive a brochure-shaped object from plan.yaml + candidates.yaml + overview frontmatter.
 // Pure templating — no AI, no cache. Called per-request by /brochure route.
 //
 // The output shape is a hybrid: the new flat day-shape (n, stops[], lodging)
 // for direct consumers (BrochureDayBlocks, tests) plus a legacy-compatible
 // projection (top-level stops[], top-level lodging[], days[].blocks, array
 // field_guide_notes/gotchas) so the existing Brochure.svelte print view can
-// render without restructuring. Fields that have no analog in plan.md +
-// candidates.md (theme, address, hours, must_see, nights, confirmation, time)
+// render without restructuring. Fields that have no analog in plan.yaml +
+// candidates.yaml (theme, address, hours, must_see, nights, confirmation, time)
 // are simply omitted; the print view guards each with {#if} so they no-op.
 
 import { readFileSync, existsSync } from 'fs';
@@ -23,9 +23,11 @@ function readOverviewFm(slug) {
   return parseFrontmatter(readFileSync(p, 'utf8')) || {};
 }
 
-// plan.md stores field_guide_notes / gotchas as a single string (one bullet
-// per line, optionally prefixed with "- "). The brochure view iterates each
-// as an array, so split on newlines and strip bullet markers.
+// plan.yaml stores field_guide_notes / gotchas as arrays of strings (new
+// format). For backwards compatibility during the migration window, block
+// strings (one bullet per line, optionally prefixed with "- ") are also
+// accepted — parsePlanFile already coerces them, but toBulletArray() provides
+// an extra safety net for any path that bypasses readPlan().
 function toBulletArray(value) {
   if (Array.isArray(value)) return value.map((s) => String(s).trim()).filter(Boolean);
   if (typeof value !== 'string') return [];
@@ -120,9 +122,9 @@ export function deriveBrochure(slug) {
     target_date: fm.target_date ?? null,
     duration_days: fm.duration_days ?? plan.days.length,
     cover_query: plan.cover_query ?? null,
-    // field_guide_notes / gotchas come out of plan.md as a single string (one
-    // bullet per line). The brochure print view iterates each as an array of
-    // bullets, so split on newlines and strip bullet markers here.
+    // field_guide_notes / gotchas are arrays in plan.yaml (readPlan coerces
+    // any legacy block-string). toBulletArray() is a belt-and-suspenders
+    // guard; callers that already have an array pass straight through.
     field_guide_notes: toBulletArray(plan.field_guide_notes),
     gotchas: toBulletArray(plan.gotchas),
     // Flat top-level stops + lodging mirror the brochure print view's
