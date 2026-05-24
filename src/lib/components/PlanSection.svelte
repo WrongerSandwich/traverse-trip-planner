@@ -30,6 +30,9 @@
 
   // ── UI state ──
   let pickerOpen = $state(null); // day number or `lodging:${n}` (legacy click-fallback)
+  // Cross-day move picker for touch / keyboard users (the drag-handle
+  // affordance is hidden on coarse pointers). Holds the stop being moved.
+  let movePickerFor = $state(/** @type {null | { dayNumber: number, stopId: string }} */ (null));
   // Per-field inline editing: { dayNumber, field } where field is 'date' | 'drive' | 'notes'.
   // The brief calls for editing one field at a time rather than the previous
   // shared-form pattern that bundled all three.
@@ -141,44 +144,35 @@
   }
 
   /**
-   * Move a stop from one day to another. Two sequential calls because
-   * there's no single atomic move endpoint:
-   *   1. DELETE the stop from the source day
-   *   2. POST it onto the target day
-   * If step 2 fails the stop is briefly orphaned (gone from source, not
-   * added to target) but it's still in the candidate pool, so the user
-   * can re-promote. The optimistic-but-not-atomic semantics are
-   * acceptable for a low-frequency manual gesture.
+   * Move a stop from one day to another via the atomic server endpoint.
+   * The plan.md write happens in a single pass on the server (see
+   * moveStopToDay in plan.js), so the client doesn't have to design
+   * around partial-failure semantics — it's either entirely succeeded
+   * or entirely failed.
    */
   async function moveStopAcrossDays(fromDay, toDay, stopId) {
-    working = true;
-    errorCode = null;
-    errorCtx = {};
-    try {
-      const delRes = await fetch(`/api/plan/${slug}/day/${fromDay}/stops/${stopId}`, { method: 'DELETE' });
-      if (!delRes.ok) {
-        const body = await delRes.json().catch(() => ({}));
-        errorCode = body.code || 'action_failed';
-        errorCtx = body.context || { action: 'move the stop between days' };
-        return;
-      }
-      const addRes = await fetch(`/api/plan/${slug}/day/${toDay}/stops`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: stopId }),
-      });
-      if (!addRes.ok) {
-        const body = await addRes.json().catch(() => ({}));
-        errorCode = body.code || 'action_failed';
-        errorCtx = body.context || { action: 'finish moving the stop (it was removed from the source day but the destination add failed; re-promote from Candidates)' };
-        return;
-      }
-      await invalidate('app:trip');
-    } catch {
-      errorCode = 'network_error';
-    } finally {
-      working = false;
-    }
+    await api(`/api/plan/${slug}/move-stop`, {
+      method: 'POST',
+      body: JSON.stringify({ fromDay, toDay, stopId }),
+    });
+  }
+
+  // Touch-flow path for cross-day move: open the picker, then select a
+  // target day. Drag-handle equivalents on coarse pointers; desktop users
+  // hit this path via keyboard too (the button is accessible at all
+  // pointer types — just visually de-emphasized when drag is the
+  // expected primary gesture).
+  function openMovePicker(dayNumber, stopId) {
+    movePickerFor = { dayNumber, stopId };
+  }
+  function closeMovePicker() {
+    movePickerFor = null;
+  }
+  async function moveViaPicker(toDay) {
+    if (!movePickerFor) return;
+    const { dayNumber: fromDay, stopId } = movePickerFor;
+    movePickerFor = null;
+    await moveStopAcrossDays(fromDay, toDay, stopId);
   }
 
   async function onLodgingDrop(dayNumber, e) {
@@ -207,9 +201,9 @@
 
   // Within-day stop reorder via drag handle. The drag source is a stop
   // row inside this PlanSection; the drop target is another stop row in
-  // the same day. We don't allow cross-day stop drag in this pass — that
-  // would need server-side support to atomically move-from-one-day-to-
-  // another. Cross-card drag-from-Candidates still works via onDayDrop.
+  // the same day for reorder, OR another day card for a cross-day move
+  // (routed to moveStopAcrossDays via the atomic /move-stop endpoint).
+  // Cross-card drag-from-Candidates still works via onDayDrop.
   let reorderDrag = $state(/** @type {{ dayNumber: number, stopId: string, fromIdx: number } | null} */ (null));
   let reorderOverIdx = $state(null);
 
@@ -582,17 +576,47 @@
             >
               {#if cand}
                 {#if cand.id && candidates?.stops?.find((s) => s.id === id)}
-                  <StopCard
-                    stop={cand}
-                    compact={true}
-                    promoted={true}
-                    distance={destCoords ? distanceMi(cand.coords, destCoords) : null}
-                    {readonly}
-                    {working}
-                    ondragstart={() => onStopDragStart(day.number, id, i, event)}
-                    ondragend={onStopDragEnd}
-                    onHide={() => removeStopWithUndo(day.number, id)}
-                  />
+                  <div class="stop-row-controls">
+                    <StopCard
+                      stop={cand}
+                      compact={true}
+                      promoted={true}
+                      distance={destCoords ? distanceMi(cand.coords, destCoords) : null}
+                      {readonly}
+                      {working}
+                      ondragstart={() => onStopDragStart(day.number, id, i, event)}
+                      ondragend={onStopDragEnd}
+                      onHide={() => removeStopWithUndo(day.number, id)}
+                    />
+                    {#if !readonly && plan.days.length > 1}
+                      <button
+                        type="button"
+                        class="move-btn"
+                        class:active={movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
+                        onclick={() => movePickerFor?.stopId === id ? closeMovePicker() : openMovePicker(day.number, id)}
+                        aria-label="Move {cand.name} to a different day"
+                        title="Move to another day"
+                        disabled={working}
+                      >Move</button>
+                    {/if}
+                  </div>
+                  {#if movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
+                    <div class="move-picker" role="listbox" aria-label="Move {cand.name} to which day">
+                      {#each plan.days.filter((d) => d.number !== day.number) as target (target.number)}
+                        {@const targetHeader = formatDayHeader(target)}
+                        <button
+                          type="button"
+                          class="move-picker-item"
+                          onclick={() => moveViaPicker(target.number)}
+                          disabled={working}
+                        >
+                          <span class="move-picker-primary">{targetHeader.primary}</span>
+                          {#if targetHeader.secondary}<span class="move-picker-secondary">{targetHeader.secondary}</span>{/if}
+                          <span class="move-picker-count">{target.stops.length} stop{target.stops.length === 1 ? '' : 's'}</span>
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
                 {:else if candidates?.lodging?.find((l) => l.id === id)}
                   <!-- A lodging accidentally in a day's stops list is a
                        schema oddity; render as dangling so the dangling
@@ -1047,6 +1071,105 @@
   .stop-row {
     position: relative;
   }
+  /* Stop-row flex container — holds the compact StopCard + the optional
+     "Move" button used by touch / keyboard users (drag handles hide on
+     coarse pointers). The button is visually de-emphasized when drag is
+     the natural gesture (fine pointers) so desktop users see the row as
+     the compact card alone. */
+  .stop-row-controls {
+    display: flex;
+    align-items: stretch;
+    gap: 0.25rem;
+  }
+  .stop-row-controls > :global(.stop-card) {
+    flex: 1;
+    min-width: 0;
+  }
+  .move-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    padding: 0 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
+    /* On hover-capable pointers, the button is hidden — drag is the
+       primary gesture there. Restored on coarse pointers and on focus
+       (keyboard users) below. */
+    opacity: 0;
+    pointer-events: none;
+  }
+  .stop-row-controls:focus-within .move-btn,
+  .move-btn:focus-visible,
+  .move-btn.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .move-btn:hover:not(:disabled) {
+    background: var(--surface-page);
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+  }
+  .move-btn.active {
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+    color: var(--accent-text);
+    border-color: color-mix(in oklab, var(--accent) 40%, var(--border-default));
+  }
+  .move-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  @media (pointer: coarse) {
+    .move-btn { opacity: 1; pointer-events: auto; }
+  }
+
+  /* Move-to-day picker — opens below the stop row when the move button
+     is active. Lists OTHER days; tapping one fires the atomic move. */
+  .move-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 4px 0 8px 1rem;
+    padding: 4px;
+    background: var(--surface-sunken);
+    border-radius: 5px;
+  }
+  .move-picker-item {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 0.5rem;
+    align-items: baseline;
+    text-align: left;
+    background: var(--surface-page);
+    border: 0.5px solid var(--border-subtle);
+    border-radius: 4px;
+    padding: 0.4rem 0.65rem;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    transition: background-color 0.12s, border-color 0.12s;
+  }
+  .move-picker-item:hover:not(:disabled) {
+    background: var(--surface-raised);
+    border-color: var(--border-default);
+  }
+  .move-picker-item:disabled { opacity: 0.5; cursor: not-allowed; }
+  .move-picker-primary {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .move-picker-secondary {
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+  }
+  .move-picker-count {
+    justify-self: end;
+    font-size: 0.72rem;
+    color: var(--text-tertiary);
+  }
+
   /* Insertion marker for within-day reorder — a 2px accent line above
      the target row. No layout-property transition (animating padding
      trips the impeccable layout-animation ban); the line alone is the
