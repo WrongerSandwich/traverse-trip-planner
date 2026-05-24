@@ -37,13 +37,15 @@ vi.mock('$lib/server/jobs.js', () => ({
 }));
 
 // fs mock: needed by deepen and deepen-section
-const { mockExistsSync, mockReadFileSync, mockWriteFileSync, mockMkdirSync, mockUnlinkSync } =
+const { mockExistsSync, mockReadFileSync, mockWriteFileSync, mockMkdirSync, mockUnlinkSync, mockRenameSync, mockStatSync } =
   vi.hoisted(() => ({
     mockExistsSync: vi.fn(),
     mockReadFileSync: vi.fn(),
     mockWriteFileSync: vi.fn(),
     mockMkdirSync: vi.fn(),
     mockUnlinkSync: vi.fn(),
+    mockRenameSync: vi.fn(),
+    mockStatSync: vi.fn(),
   }));
 
 vi.mock('node:fs', () => ({
@@ -52,6 +54,8 @@ vi.mock('node:fs', () => ({
   writeFileSync: mockWriteFileSync,
   mkdirSync: mockMkdirSync,
   unlinkSync: mockUnlinkSync,
+  renameSync: mockRenameSync,
+  statSync: mockStatSync,
 }));
 
 // data mock
@@ -64,7 +68,6 @@ vi.mock('$lib/server/data.js', () => ({
   removeFrontmatterField: vi.fn((c) => c),
   invalidateEnrichCache: vi.fn(),
   rejectInvalidSlug: () => null,
-  atomicWrite: vi.fn(),
   findTripLocation: vi.fn((slug) =>
     slug === 'missing-trip'
       ? null

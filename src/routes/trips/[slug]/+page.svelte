@@ -717,9 +717,13 @@
         let body = null;
         try { body = await res.json(); } catch { /* tolerate parse failures */ }
         if (body?.code === 'plan_prose_present') {
+          const dirtySections = body.dirty_sections ?? [];
+          const sectionList = dirtySections.length > 0
+            ? dirtySections.join(', ')
+            : 'field guide notes / gotchas';
           const ok2 = await showConfirm({
-            title:        'Re-research will overwrite plan prose',
-            body:         body.message ?? 'This trip has field guide notes / gotchas. Re-research will overwrite them.',
+            title:        'Re-research will overwrite edited sections',
+            body:         `This will replace your edits to: ${sectionList}. Re-research rewrites these sections from scratch.`,
             confirmLabel: 'Re-research anyway',
             danger:       true,
           });

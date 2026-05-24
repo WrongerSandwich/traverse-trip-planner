@@ -18,7 +18,7 @@
 // writes are fully removed — jobs.js now owns both concerns.
 
 import { json } from '@sveltejs/kit';
-import { readFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, renameSync, statSync } from 'fs';
 import { join } from 'path';
 import {
   ROOT,
@@ -27,7 +27,6 @@ import {
   parseFrontmatterFields,
   invalidateEnrichCache,
   rejectInvalidSlug,
-  atomicWrite,
 } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { cleanupLLMMarkdown } from '$lib/server/markdown-cleanup.js';
@@ -56,12 +55,83 @@ function findPlanningOverview(slug) {
 }
 
 function planningHasPlan(slug) {
-  return existsSync(join(ROOT, 'planning', slug, 'plan.md'));
+  // Accept both new (plan.yaml) and legacy (plan.md) to handle trips that
+  // haven't been migrated yet (migration happens lazily on readPlan()).
+  return existsSync(join(ROOT, 'planning', slug, 'plan.yaml'))
+    || existsSync(join(ROOT, 'planning', slug, 'plan.md'));
 }
 
 function parseSection(text, tag) {
   const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
   return m?.[1]?.trim() ?? null;
+}
+
+/**
+ * Validates that a `waypoints` value from trip frontmatter is a non-empty
+ * array of at least 2 non-empty strings. YAML coercion can produce booleans,
+ * numbers, or nulls for bare values inside flow sequences — those are rejected.
+ *
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+export function _isValidWaypoints(v) {
+  if (!Array.isArray(v) || v.length < 2) return false;
+  return v.every((s) => typeof s === 'string' && s.trim().length > 0);
+}
+
+/**
+ * Returns the list of prose section names that have been edited since the last
+ * successful research run. Covers two orthogonal signals:
+ *
+ *   1. plan.field_guide_notes / plan.gotchas — user-curated prose in plan.md
+ *      that re-research would overwrite.
+ *   2. Section files (overview, route, logistics) whose mtime is newer than
+ *      `last_run_success_at` in the overview frontmatter — edited since the
+ *      last research run via the per-section Edit button.
+ *
+ * Returns an empty array when nothing is dirty (safe to re-research).
+ *
+ * Accepts an optional `stat` injector so tests can provide synthetic mtimes
+ * without touching the filesystem.
+ *
+ * @param {string} slug
+ * @param {{ stat?: (p: string) => { mtimeMs: number } | null }} [opts]
+ * @returns {string[]}
+ */
+export function _collectDirtySections(slug, { stat } = {}) {
+  const safeStat = stat ?? ((p) => { try { return statSync(p); } catch { return null; } });
+  const dir = join(ROOT, 'planning', slug);
+  const dirty = [];
+
+  // 1. plan.md prose fields (field_guide_notes / gotchas).
+  const plan = readPlan(slug);
+  if (plan && (plan.field_guide_notes || plan.gotchas)) {
+    dirty.push('plan');
+  }
+
+  // 2. Section files edited after last_run_success_at.
+  // Read last_run_success_at from the overview frontmatter.
+  const overviewPath = join(dir, 'overview.md');
+  const overviewContent = (() => {
+    try { return readFileSync(overviewPath, 'utf8'); } catch { return null; }
+  })();
+  if (!overviewContent) return dirty; // no overview — can't check mtimes
+
+  const fm = parseFrontmatter(overviewContent);
+  const lastRunRaw = fm?.last_run_success_at;
+  const lastRunMs = lastRunRaw ? new Date(lastRunRaw).getTime() : null;
+
+  if (lastRunMs && !isNaN(lastRunMs)) {
+    for (const section of ['overview', 'route', 'logistics']) {
+      const p = join(dir, `${section}.md`);
+      const s = safeStat(p);
+      if (s && s.mtimeMs > lastRunMs) {
+        dirty.push(section);
+      }
+    }
+  }
+
+  return dirty;
 }
 
 async function doResearch(slug, ideaPath, signal, { unlinkIdea = true } = {}) {
@@ -115,10 +185,6 @@ waypoints: [key cities along the driving route, e.g. Home City ST, Midpoint City
 Brief editorial drive notes — ≤2 sentences, ~200 characters max. Scenic-only: what to slow down for, when to detour, the character of the drive. NO turn-by-turn directions, NO mileage tables, NO road numbers as the primary content — GPS handles all of that. For purely utilitarian drives (interstate slog to a city), write a single short sentence acknowledging the journey. No headers inside.
 </route_md>
 
-<stops_md>
-Full markdown for stops.md. ## headers per location. Key sights, food, lodging matching their taste profile (independent, characterful). Current hours, admission, booking info.
-</stops_md>
-
 <logistics_md>
 Full markdown for logistics.md. Reservations checklist (table), seasonal notes, pet sitter reminder for overnights, cell coverage, gotchas. Flag anything that needs re-verification before the trip.
 </logistics_md>
@@ -148,7 +214,6 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   const prose = parseSection(text, 'overview_prose');
   const fmRaw = parseSection(text, 'frontmatter');
   const routeMd = parseSection(text, 'route_md');
-  const stopsMd = parseSection(text, 'stops_md');
   const logisticsMd = parseSection(text, 'logistics_md');
 
   if (!prose) {
@@ -200,19 +265,54 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   // pass; the frontmatter block is left untouched (already plain YAML).
   const cleanProse      = cleanupLLMMarkdown(prose);
   const cleanRoute      = routeMd     ? cleanupLLMMarkdown(routeMd)     : null;
-  const cleanStops      = stopsMd     ? cleanupLLMMarkdown(stopsMd)     : null;
   const cleanLogistics  = logisticsMd ? cleanupLLMMarkdown(logisticsMd) : null;
   const overviewContentClean = `---\n${fmLines}\n---\n\n${cleanProse}\n`;
 
-  atomicWrite(join(dir, 'overview.md'), overviewContentClean);
-  if (cleanRoute)     atomicWrite(join(dir, 'route.md'),     cleanRoute     + '\n');
-  if (cleanStops)     atomicWrite(join(dir, 'stops.md'),     cleanStops     + '\n');
-  if (cleanLogistics) atomicWrite(join(dir, 'logistics.md'), cleanLogistics + '\n');
+  // Stage all Leg 1 files to .tmp first, then rename them in sequence.
+  // This ensures that a crash or SIGTERM mid-write leaves either:
+  //   (a) the original idea file intact with no planning folder, or
+  //   (b) a complete planning folder with the idea file unlinked.
+  // Never a partial planning folder with the idea file still present.
+  // Pattern mirrors extractCandidates() in src/lib/server/extract-candidates.js.
+  const filesToWrite = [
+    [join(dir, 'overview.md'), overviewContentClean],
+    ...(cleanRoute     ? [[join(dir, 'route.md'),     cleanRoute     + '\n']] : []),
+    ...(cleanLogistics ? [[join(dir, 'logistics.md'), cleanLogistics + '\n']] : []),
+  ];
 
-  // Unlink the idea file as soon as the planning folder is written — this is
-  // the real stage-transition moment. If extractCandidates fails downstream
-  // the trip is still recoverable: a fresh POST on a planning-stage trip with
-  // no plan.md runs the extract leg only (no expensive re-research needed).
+  // Phase 1: stage all files to .tmp. On any write failure, clean up .tmp
+  // files and let the error propagate (idea file stays intact).
+  const tmpPaths = filesToWrite.map(([p]) => `${p}.tmp`);
+  try {
+    for (const [path, content] of filesToWrite) {
+      writeFileSync(`${path}.tmp`, content);
+    }
+  } catch (stageErr) {
+    for (const tmp of tmpPaths) {
+      try { unlinkSync(tmp); } catch (_) { /* best-effort cleanup */ }
+    }
+    throw stageErr;
+  }
+
+  // Phase 2: rename all .tmp files into place. Each rename is atomic on POSIX.
+  // On any rename failure, clean up remaining .tmp files and let the error
+  // propagate (idea file stays intact; any already-renamed files are acceptable
+  // since each is independently valid).
+  try {
+    for (const [path] of filesToWrite) {
+      renameSync(`${path}.tmp`, path);
+    }
+  } catch (renameErr) {
+    for (const tmp of tmpPaths) {
+      try { unlinkSync(tmp); } catch (_) { /* best-effort cleanup */ }
+    }
+    throw renameErr;
+  }
+
+  // Unlink the idea file last — only after all renames succeed. This is the
+  // real stage-transition moment. If extractCandidates fails downstream the
+  // trip is still recoverable: a fresh POST on a planning-stage trip with no
+  // plan.md runs the extract leg only (no expensive re-research needed).
   if (unlinkIdea) {
     try { unlinkSync(ideaPath); } catch (e) {
       console.warn(`[deepen] ${slug}: idea unlink after research failed:`, e?.message ?? e);
@@ -265,17 +365,26 @@ export async function POST(event) {
   }
 
   // Re-research prose-overwrite guard: only fires when re-researching a trip
-  // that already has a plan.md with user-curated prose (field_guide_notes /
-  // gotchas). Extract-only recovery (hasPlan === false) is intentionally
-  // excluded — by definition there's no plan.md prose to overwrite.
+  // that already has a plan.md. Detects two categories of dirty prose:
+  //   1. plan.field_guide_notes / plan.gotchas — user-curated plan prose.
+  //   2. Section files (overview, route, logistics) whose mtime is newer than
+  //      last_run_success_at — edited since last research via the Edit button.
+  // Returns 409 with the full list of dirty sections so the UI can name them.
+  // Extract-only recovery (hasPlan === false) is intentionally excluded — by
+  // definition there's no plan.md prose to overwrite and the section files
+  // were written by the (successful) prior research leg.
   if (hasPlan) {
-    const existingPlan = readPlan(slug);
     const force = url.searchParams.get('force') === 'true';
-    if (existingPlan && (existingPlan.field_guide_notes || existingPlan.gotchas) && !force) {
-      return json({
-        code: 'plan_prose_present',
-        message: 'This trip already has field guide notes / gotchas. Re-research will overwrite them. Pass ?force=true to continue.',
-      }, { status: 409 });
+    if (!force) {
+      const dirtySections = _collectDirtySections(slug);
+      if (dirtySections.length > 0) {
+        const list = dirtySections.join(', ');
+        return json({
+          code: 'plan_prose_present',
+          dirty_sections: dirtySections,
+          message: `Re-research will overwrite your edits to: ${list}. Pass ?force=true to continue.`,
+        }, { status: 409 });
+      }
     }
   }
 
