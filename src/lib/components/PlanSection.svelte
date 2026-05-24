@@ -3,7 +3,9 @@
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import StopCard from '$lib/components/StopCard.svelte';
   import LodgingCard from '$lib/components/LodgingCard.svelte';
+  import HideToast from '$lib/components/HideToast.svelte';
   import { failureSentence } from '$lib/errors-registry.js';
+  import { formatDayHeader } from '$lib/format-date.js';
 
   let { plan, candidates, slug, destination = null, readonly = false } = $props();
 
@@ -386,24 +388,8 @@
   }
 
   // ── Display helpers ──
-  // Weekday + short date + day number, per the shape brief. Falls back
-  // to "Day N" when the date isn't set yet so an empty schedule still
-  // renders a meaningful anchor.
-  const WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-  function formatDayHeader(day) {
-    if (!day?.date) return { primary: `Day ${day.number}`, secondary: null };
-    // Parse ISO YYYY-MM-DD as a local date (not UTC) so the displayed
-    // weekday matches what the user typed regardless of timezone offset.
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day.date));
-    if (!m) return { primary: `Day ${day.number}`, secondary: String(day.date) };
-    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-    if (Number.isNaN(d.getTime())) return { primary: `Day ${day.number}`, secondary: String(day.date) };
-    const wd = WEEKDAYS[d.getDay()];
-    const mo = MONTHS[d.getMonth()];
-    return { primary: `${wd} · ${mo} ${d.getDate()}`, secondary: `Day ${day.number}` };
-  }
+  // Day header formatting is shared with CandidatesSection via the
+  // format-date util — see src/lib/format-date.js for the format rules.
 
   // Haversine in miles for the distance chip on each compact StopCard.
   function distanceMi(a, b) {
@@ -711,7 +697,7 @@
         </div>
       {:else if pickerOpen === `lodging:${day.number}`}
         <div class="picker">
-          <h5>Set lodging for {header.primary}</h5>
+          <h5>Assign lodging to {header.primary}</h5>
           {#each unpromotedLodging() as l (l.id)}
             <button onclick={() => setLodging(day.number, l.id)} class="picker-item" disabled={working || readonly}>
               <span class="picker-cat">{l.price_tier}</span> {l.name}
@@ -741,13 +727,12 @@
   <button class="btn-inline add-day" onclick={addDay} disabled={working || readonly}>+ Add day</button>
 {/if}
 
-{#if hideToast}
-  <div class="hide-toast" role="status" aria-live="polite">
-    <span>Removed {hideToast.name} from Day {hideToast.dayNumber}.</span>
-    <button type="button" class="toast-undo" onclick={undoHide}>Undo</button>
-    <button type="button" class="toast-dismiss" onclick={dismissHideToast} aria-label="Dismiss">×</button>
-  </div>
-{/if}
+<HideToast
+  open={!!hideToast}
+  message={hideToast ? `Removed ${hideToast.name} from Day ${hideToast.dayNumber}.` : ''}
+  onUndo={undoHide}
+  onDismiss={dismissHideToast}
+/>
 
 <ConfirmModal
   bind:open={confirmOpen}
@@ -1379,47 +1364,5 @@
     margin-top: 0.5rem;
   }
 
-  /* ── Hide toast (stop removal) ──────────────────────────────────────── */
-  .hide-toast {
-    position: sticky;
-    bottom: 1rem;
-    z-index: 30;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.85rem auto 0;
-    width: max-content;
-    max-width: 100%;
-    background: var(--forest-800);
-    color: var(--bone-100);
-    border: 1px solid color-mix(in oklab, var(--bone-50) 20%, transparent);
-    border-radius: 999px;
-    padding: 0.4rem 0.6rem 0.4rem 0.85rem;
-    font-family: var(--font-sans);
-    font-size: 0.82rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  }
-  .toast-undo {
-    background: transparent;
-    border: 1px solid color-mix(in oklab, var(--bone-50) 30%, transparent);
-    color: var(--bone-50);
-    font-family: var(--font-sans);
-    font-size: 0.78rem;
-    font-weight: 600;
-    padding: 0.18rem 0.55rem;
-    border-radius: 999px;
-    cursor: pointer;
-    transition: background-color 0.12s;
-  }
-  .toast-undo:hover { background: color-mix(in oklab, var(--bone-50) 12%, transparent); }
-  .toast-dismiss {
-    background: transparent;
-    border: none;
-    color: color-mix(in oklab, var(--bone-50) 70%, transparent);
-    font-size: 1rem;
-    line-height: 1;
-    padding: 0 0.15rem;
-    cursor: pointer;
-  }
-  .toast-dismiss:hover { color: var(--bone-50); }
+  /* Hide-toast chrome lives in HideToast.svelte — shared with CandidatesSection. */
 </style>

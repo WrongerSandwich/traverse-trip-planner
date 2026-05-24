@@ -1,9 +1,11 @@
 <script>
   import { invalidate } from '$app/navigation';
   import { failureSentence } from '$lib/errors-registry.js';
+  import { formatDayHeader } from '$lib/format-date.js';
   import CandidatesMap from './CandidatesMap.svelte';
   import StopCard from './StopCard.svelte';
   import LodgingCard from './LodgingCard.svelte';
+  import HideToast from './HideToast.svelte';
 
   let { candidates, plan = null, slug, destination = null, home = null, readonly = false } = $props();
 
@@ -53,8 +55,15 @@
     return promotedIds.has(id);
   }
 
+  // Returns the days a lodging is assigned to as { number, date } objects
+  // so LodgingCard can render a calendar-aware tag (Wed · Thu) rather
+  // than the engineer-coded "Day 1, 2". Sorted by day number for stable
+  // display order.
   function lodgingDays(id) {
-    return (plan?.days ?? []).filter((d) => d.lodging_id === id).map((d) => d.number);
+    return (plan?.days ?? [])
+      .filter((d) => d.lodging_id === id)
+      .sort((a, b) => a.number - b.number)
+      .map((d) => ({ number: d.number, date: d.date ?? null }));
   }
 
   // Haversine in miles. Used to surface the distance chip on each stop card
@@ -96,9 +105,16 @@
         if (n > 0) centroid = { lat: sumLat / n, lng: sumLng / n };
       }
       const distance = candCoords && centroid ? distanceMi(candCoords, centroid) : null;
+      const header = formatDayHeader(d);
       return {
         number: d.number,
         date: d.date ?? null,
+        // Shared header tier — primary "Wednesday · Jul 15" + secondary
+        // "Day 1" — matches PlanSection's day-card and Move-picker
+        // vocabulary so the user sees consistent day naming across the
+        // promote flow.
+        headerPrimary: header.primary,
+        headerSecondary: header.secondary,
         lodgingName,
         stopCount,
         distance,
@@ -358,8 +374,8 @@
                     onclick={() => promoteStop(stop.id, option.number)}
                     disabled={working || readonly}
                   >
-                    <span class="day-num">Day {option.number}</span>
-                    {#if option.date}<span class="day-date">{option.date}</span>{/if}
+                    <span class="day-primary">{option.headerPrimary}</span>
+                    {#if option.headerSecondary}<span class="day-secondary">{option.headerSecondary}</span>{/if}
                     <div class="day-meta">
                       {#if option.lodgingName}<span class="day-lodging">{option.lodgingName}</span>{/if}
                       <span class="day-stops">{option.stopCount} stop{option.stopCount === 1 ? '' : 's'}</span>
@@ -375,7 +391,7 @@
                     onclick={() => promoteStop(stop.id, null)}
                     disabled={working || readonly}
                   >
-                    <span class="day-num">+ Create Day 1</span>
+                    <span class="day-primary">+ Create Day 1</span>
                     <span class="day-meta-empty">No days in the plan yet</span>
                   </button>
                 {/if}
@@ -420,8 +436,8 @@
                       onclick={() => setLodgingForDay(option.number, option.currentlySet ? null : l.id)}
                       disabled={working || readonly}
                     >
-                      <span class="day-num">Day {option.number}</span>
-                      {#if option.date}<span class="day-date">{option.date}</span>{/if}
+                      <span class="day-primary">{option.headerPrimary}</span>
+                      {#if option.headerSecondary}<span class="day-secondary">{option.headerSecondary}</span>{/if}
                       <div class="day-meta">
                         {#if option.currentlySet}
                           <span class="day-lodging currently">Currently set. Click to clear.</span>
@@ -461,13 +477,12 @@
 {/if}
 
 <!-- Hide toast — bottom-of-section pop-up with a 5s Undo window. -->
-{#if hideToast}
-  <div class="hide-toast" role="status" aria-live="polite">
-    <span>Hidden {hideToast.name}.</span>
-    <button type="button" class="toast-undo" onclick={undoHide}>Undo</button>
-    <button type="button" class="toast-dismiss" onclick={dismissHideToast} aria-label="Dismiss">×</button>
-  </div>
-{/if}
+<HideToast
+  open={!!hideToast}
+  message={hideToast ? `Hidden ${hideToast.name}.` : ''}
+  onUndo={undoHide}
+  onDismiss={dismissHideToast}
+/>
 
 <style>
   /* ── Banner ──────────────────────────────────────────────────────────── */
@@ -709,15 +724,19 @@
     border-style: dashed;
     color: var(--text-secondary);
   }
-  .day-num {
+  /* Day-option header tier — matches PlanSection's .day-anchor +
+     .move-picker-primary/.move-picker-secondary so the two sections
+     describe days in the same vocabulary (Wednesday · Jul 15 / Day 1)
+     when the user opens the promote-to-day picker. */
+  .day-primary {
     font-size: 0.86rem;
     font-weight: 600;
     color: var(--text-primary);
   }
-  .day-date {
+  .day-secondary {
     font-size: 0.74rem;
     color: var(--text-tertiary);
-    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
   }
   .day-meta {
     display: flex;
@@ -791,47 +810,5 @@
   }
   .hidden-toggle:hover { color: var(--text-primary); border-bottom-color: var(--text-secondary); }
 
-  /* ── Hide toast ─────────────────────────────────────────────────────── */
-  .hide-toast {
-    position: sticky;
-    bottom: 1rem;
-    z-index: 30;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.85rem auto 0;
-    width: max-content;
-    max-width: 100%;
-    background: var(--forest-800);
-    color: var(--bone-100);
-    border: 1px solid color-mix(in oklab, var(--bone-50) 20%, transparent);
-    border-radius: 999px;
-    padding: 0.4rem 0.6rem 0.4rem 0.85rem;
-    font-family: var(--font-sans);
-    font-size: 0.82rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  }
-  .toast-undo {
-    background: transparent;
-    border: 1px solid color-mix(in oklab, var(--bone-50) 30%, transparent);
-    color: var(--bone-50);
-    font-family: var(--font-sans);
-    font-size: 0.78rem;
-    font-weight: 600;
-    padding: 0.18rem 0.55rem;
-    border-radius: 999px;
-    cursor: pointer;
-    transition: background-color 0.12s;
-  }
-  .toast-undo:hover { background: color-mix(in oklab, var(--bone-50) 12%, transparent); }
-  .toast-dismiss {
-    background: transparent;
-    border: none;
-    color: color-mix(in oklab, var(--bone-50) 70%, transparent);
-    font-size: 1rem;
-    line-height: 1;
-    padding: 0 0.15rem;
-    cursor: pointer;
-  }
-  .toast-dismiss:hover { color: var(--bone-50); }
+  /* Hide-toast chrome lives in HideToast.svelte — shared with PlanSection. */
 </style>

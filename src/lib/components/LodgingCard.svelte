@@ -5,10 +5,16 @@
   // CTA. The brief's "stops look like a place to do; lodging looks
   // like a place to sleep" guidance is implemented as shape, not hue.
 
+  import { formatDayShort } from '$lib/format-date.js';
+
   let {
     lodging,
     promoted = false,
-    daysUsed = [],   // numbers of days currently using this lodging
+    // Array of { number, date } objects for the days this lodging is
+    // assigned to. The tag renders as "Wed · Thu" when dates are set,
+    // falls back to "Day 1, 2" otherwise. Accepts legacy bare-number
+    // arrays too (renders the Day-N form in that case).
+    daysUsed = [],
     hovered = false,
     readonly = false,
     working = false,
@@ -74,8 +80,16 @@
     <div class="head">
       <h4 class="name">{lodging.name}</h4>
       {#if promoted && daysUsed.length && !compact}
+        {@const sortedDays = [...daysUsed].sort((a, b) =>
+          (typeof a === 'object' ? a.number : a) - (typeof b === 'object' ? b.number : b)
+        )}
+        {@const hasDates = sortedDays.every((d) => typeof d === 'object' && d?.date)}
         <span class="in-plan-tag" title="In your plan">
-          Day{daysUsed.length > 1 ? 's' : ''} {daysUsed.sort((a,b) => a-b).join(', ')}
+          {#if hasDates}
+            {sortedDays.map((d) => formatDayShort(d)).join(' · ')}
+          {:else}
+            Day{sortedDays.length > 1 ? 's' : ''} {sortedDays.map((d) => typeof d === 'object' ? d.number : d).join(', ')}
+          {/if}
         </span>
       {/if}
     </div>
@@ -109,7 +123,7 @@
           class="action"
           onclick={(e) => { e.stopPropagation(); onPromote(); }}
           disabled={readonly || working}
-        >Set lodging for day…</button>
+        >Assign to day…</button>
       {/if}
       {#if lodging.booking_url}
         <a
@@ -212,12 +226,15 @@
     gap: 0.3rem;
     margin-top: 0;
   }
+  /* Compact-mode drag handle sizing. PlanSection passes
+     showDragHandle={false} on compact lodging cards (lodging isn't
+     reorderable across days the way stops are), so these rules only
+     kick in if a future caller flips the prop. Matches StopCard's
+     compact treatment so the gesture vocabulary stays consistent if
+     it ever surfaces. */
   .lodging-card.compact .drag-handle {
     padding: 2px 5px;
     font-size: 9.5px;
-  }
-  .lodging-card.compact .drag-handle .drag-label {
-    display: none;
   }
   .lodging-card.compact .drag-dots {
     font-size: 0.75rem;
