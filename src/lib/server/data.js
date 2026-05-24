@@ -326,9 +326,12 @@ function haversine([lat1, lon1], [lat2, lon2]) {
 function fmt(n) { return '$' + (Math.round(n / 50) * 50).toLocaleString('en-US'); }
 
 function estimateCost(trip, homeCoords) {
-  if (trip.cost_tier) {
-    return { budget: '$300–$600', mid: '$700–$1,400', splurge: '$1,500+' }[trip.cost_tier] || null;
-  }
+  // Only short-circuit on a tier we recognize. The deepen prompt asks for
+  // `budget | mid | splurge` but older trips (and lenient models) may carry
+  // free-form values like `moderate`, `low`, or `$$$`. For those, fall
+  // through to the distance-based estimate instead of returning null.
+  const tier = { budget: '$300–$600', mid: '$700–$1,400', splurge: '$1,500+' }[trip.cost_tier];
+  if (tier) return tier;
   if (!homeCoords || !Array.isArray(trip._coords)) return null;
 
   const dist = haversine(homeCoords, trip._coords);

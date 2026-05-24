@@ -177,7 +177,7 @@ avoid_months:
 ev_friendly:
 tags:
 vibe:
-cost_tier:
+cost_tier: <budget | mid | splurge — these exact tokens, no other words>
 waypoints: [key cities along the driving route, e.g. Home City ST, Midpoint City ST, Destination City ST.]
 </frontmatter>
 

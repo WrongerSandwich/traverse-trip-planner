@@ -232,7 +232,17 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   // every brochure stop renders as "unmapped" and the destination map is empty.
   // We use the trip's destination as a fallback query to disambiguate places
   // with common names ("Lake McDonald" alone hits dozens of lakes).
-  const overviewFm = parseFrontmatter(files.overview ?? '') || {};
+  //
+  // getTripFiles() strips frontmatter from `files.overview`, so read overview
+  // directly off disk to recover `destination`. Without this, destinationContext
+  // was always "" and every candidate fell through to a bare-name lookup with no
+  // sanity check — which is how "Capitol Square" pinned to Rome and "The
+  // Edgewater" pinned to Singapore.
+  const overviewFilePath = findTripFile(slug);
+  const overviewRaw = overviewFilePath && existsSync(overviewFilePath)
+    ? readFileSync(overviewFilePath, 'utf8')
+    : '';
+  const overviewFm = parseFrontmatter(overviewRaw) || {};
   const destinationContext = overviewFm.destination ?? '';
   await geocodeCandidates(cands, destinationContext);
 
@@ -252,9 +262,8 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   // a one-time dismissible banner ("Re-research renamed N of your custom
   // candidates…"). The field is removed once the user dismisses the banner.
   // When no renames occurred this run, clear any stale notice from a prior run.
-  const overviewFilePath = findTripFile(slug);
-  if (overviewFilePath && existsSync(overviewFilePath)) {
-    let overviewContent = readFileSync(overviewFilePath, 'utf8');
+  if (overviewFilePath && overviewRaw) {
+    let overviewContent = overviewRaw;
     if (renames.size > 0) {
       // Inline YAML list of {from, to} pairs — compact JSON form is valid YAML.
       const renamesYaml = JSON.stringify([...renames.entries()].map(([from, to]) => ({ from, to })));
@@ -307,9 +316,14 @@ function distanceMi(a, b) {
  *   2. "<name>" alone — bare fallback, only accepted if it lands within
  *      MAX_CANDIDATE_DISTANCE_MI of the reference coords
  *
- * Either attempt is rejected if its result is too far from `refCoords`.
- * When `refCoords` is null (rare — destination didn't geocode itself),
- * we skip the distance check and accept the first non-null result.
+ * When `refCoords` is null (destination itself failed to geocode —
+ * usually a Nominatim rate limit or transient outage), the bare fallback
+ * is skipped entirely. Without a reference point, "accept anything"
+ * lets famous same-name collisions through (Piazza del Campidoglio for
+ * "Capitol Square", Singapore's Edgewater for "The Edgewater", etc.).
+ * Returning null for these candidates leaves them unmapped, which the
+ * UI handles gracefully — far better than pinning them to the wrong
+ * continent.
  */
 async function geocodeWithDisambiguation(name, destinationContext, refCoords) {
   if (destinationContext) {
@@ -318,11 +332,14 @@ async function geocodeWithDisambiguation(name, destinationContext, refCoords) {
       return scoped;
     }
   }
+  // Bare fallback requires a reference point — otherwise any same-name
+  // collision passes the (skipped) distance check unchallenged.
+  if (!refCoords) return null;
   const bare = await geocode(name);
-  if (bare && (!refCoords || distanceMi(bare, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {
+  if (bare && distanceMi(bare, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) {
     return bare;
   }
-  if (bare && refCoords) {
+  if (bare) {
     console.warn(
       `extract-candidates: dropped "${name}" geocode — bare result was ${Math.round(distanceMi(bare, refCoords))}mi from destination "${destinationContext}" (likely a same-name collision)`
     );
@@ -330,11 +347,26 @@ async function geocodeWithDisambiguation(name, destinationContext, refCoords) {
   return null;
 }
 
+// Nominatim's ToS asks for ≤1 req/sec. Without throttling we burn through
+// the limit in a few seconds — Nominatim starts returning 429s, geocode()
+// returns null, and disambiguation degrades to "accept anything" if
+// refCoords also gets null'd. The waypoint geocoder in data.js already
+// follows the same 1100ms cadence; reuse the same number here.
+const NOMINATIM_THROTTLE_MS = 1100;
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
 async function geocodeCandidates(cands, destinationContext) {
-  // Reference point for the sanity check. Skip if there's no destination
-  // string or if it can't be geocoded (rare; the trip wouldn't render its
-  // overview map either in that case).
+  // Reference point for the sanity check. If destinationContext exists but
+  // geocoding it returned null (Nominatim transient failure or rate limit),
+  // disambiguation degrades — see geocodeWithDisambiguation: bare-name
+  // lookups are skipped entirely when refCoords is null, since there's no
+  // way to filter out same-name collisions without a reference point.
   const refCoords = destinationContext ? await geocode(destinationContext) : null;
+  if (destinationContext && !refCoords) {
+    console.warn(
+      `extract-candidates: destination "${destinationContext}" failed to geocode; bare-name candidate lookups will be skipped to avoid same-name collisions`
+    );
+  }
 
   for (const c of [...cands.stops, ...cands.lodging]) {
     // Hidden candidates are user discards — skip geocoding them. They won't
@@ -365,6 +397,7 @@ async function geocodeCandidates(cands, destinationContext) {
       // the candidate as unmapped rather than pinned to the wrong continent.
       delete c.coords;
     }
+    await sleep(NOMINATIM_THROTTLE_MS);
   }
 }
 

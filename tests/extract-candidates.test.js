@@ -5,7 +5,10 @@ vi.mock('$lib/server/ai.js', () => ({ chat: mockChat }));
 
 const mockWriteFileSync = vi.hoisted(() => vi.fn());
 const mockRenameSync = vi.hoisted(() => vi.fn());
-const mockReadFileSync = vi.hoisted(() => vi.fn(() => '---\ntitle: T\n---\n'));
+// Default overview content includes `destination: Glacier MT` so
+// extractCandidates can read it directly off disk (getTripFiles strips
+// frontmatter, so this is the only path that recovers it).
+const mockReadFileSync = vi.hoisted(() => vi.fn(() => '---\ntitle: T\ndestination: Glacier MT\n---\n'));
 const mockExistsSync = vi.hoisted(() => vi.fn(() => true));
 vi.mock('node:fs', () => ({
   writeFileSync: mockWriteFileSync,
@@ -95,7 +98,11 @@ describe('extractCandidates', () => {
     // resetAllMocks does, but that would also nuke the hoisted fn defaults).
     mockGeocode.mockReset();
     mockGeocode.mockResolvedValue(null);
-    mockReadFileSync.mockReturnValue('---\ntitle: T\n---\n');
+    // Default overview content includes `destination: Glacier MT` so
+    // geocodeCandidates can recover it via findTripFile + readFileSync
+    // (getTripFiles strips frontmatter, so the prose-only files.overview
+    // can't be used as the destination source).
+    mockReadFileSync.mockReturnValue('---\ntitle: T\ndestination: Glacier MT\n---\n');
     mockExistsSync.mockReturnValue(true);
     mockFindTripFile.mockReturnValue('/test/planning/t/overview.md');
     mockSetFrontmatterField.mockImplementation((content, _field, _value) => content);
@@ -502,15 +509,20 @@ lodging:
       usage: { input: 0, output: 0 },
     });
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Lake McDonald') return [48.5, -113.9];
-      if (q === 'Whitefish Inn, Glacier MT') return [48.41, -114.34];
+      if (q === 'Glacier MT') return [48.7, -114.0];
+      // Stop hits via scoped query (preferred); lodging only via bare fallback
+      // (mock returns nothing for "Whitefish Inn, Glacier MT"). The bare result
+      // is within MAX_CANDIDATE_DISTANCE_MI of refCoords so it's accepted.
+      if (q === 'Lake McDonald, Glacier MT') return [48.5, -113.9];
+      if (q === 'Whitefish Inn') return [48.41, -114.34];
       return null;
     });
 
     await extractCandidates('t');
 
     expect(capturedCands.value.stops[0].coords).toEqual({ lat: 48.5, lng: -113.9 });
-    // Whitefish Inn: first call returns null, falls back to name+destination.
+    // Whitefish Inn: scoped query returns null, bare fallback accepted because
+    // it lands within the 200mi sanity check around Glacier MT.
     expect(capturedCands.value.lodging[0].coords).toEqual({ lat: 48.41, lng: -114.34 });
   });
 
@@ -574,6 +586,48 @@ lodging: []
 
     const stop = capturedCands.value.stops[0];
     expect(stop.coords).toEqual({ lat: 48.6, lng: -113.9 });
+  });
+
+  it('skips bare-name fallback when destination itself fails to geocode', async () => {
+    // Regression: when Nominatim rate-limits or fails on the destination,
+    // refCoords is null and there's no way to filter out same-name collisions.
+    // Better to leave the candidate unmapped than to pin it to a famous
+    // bare-name match on the wrong continent (the user's actual symptom was
+    // "Capitol Square" landing on Piazza del Campidoglio in Rome).
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Capitol Square
+    category: misc
+    description: ""
+    why_recommended: ""
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+    mockGeocode.mockImplementation(async (q) => {
+      // Destination geocode fails (simulates rate limit or transient outage)
+      if (q === 'Glacier MT') return null;
+      if (q === 'Capitol Square, Glacier MT') return null;
+      // Bare lookup returns Rome's Piazza del Campidoglio — would have been
+      // accepted under the old logic, which skipped the distance check when
+      // refCoords was null.
+      if (q === 'Capitol Square') return [41.89, 12.48];
+      return null;
+    });
+
+    await extractCandidates('t');
+
+    const stop = capturedCands.value.stops[0];
+    expect(stop.coords).toBeUndefined();
   });
 
   it('drops coords when both scoped and bare results are far from destination', async () => {
