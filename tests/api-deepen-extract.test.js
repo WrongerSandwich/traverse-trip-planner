@@ -13,12 +13,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 //   the already-written prose files stay on disk (no rollback).
 
 // --- fs mock ---
-const { mockExistsSync, mockReadFileSync, mockWriteFileSync, mockMkdirSync, mockUnlinkSync } = vi.hoisted(() => ({
+const { mockExistsSync, mockReadFileSync, mockWriteFileSync, mockMkdirSync, mockUnlinkSync, mockRenameSync, mockStatSync } = vi.hoisted(() => ({
   mockExistsSync: vi.fn(),
   mockReadFileSync: vi.fn(),
   mockWriteFileSync: vi.fn(),
   mockMkdirSync: vi.fn(),
   mockUnlinkSync: vi.fn(),
+  mockRenameSync: vi.fn(),
+  mockStatSync: vi.fn(),
 }));
 
 vi.mock('node:fs', () => ({
@@ -27,6 +29,8 @@ vi.mock('node:fs', () => ({
   writeFileSync: mockWriteFileSync,
   mkdirSync: mockMkdirSync,
   unlinkSync: mockUnlinkSync,
+  renameSync: mockRenameSync,
+  statSync: mockStatSync,
 }));
 
 // --- data mock ---
@@ -45,7 +49,6 @@ vi.mock('$lib/server/data.js', () => ({
   parseFrontmatterFields: mockParseFrontmatterFields,
   invalidateEnrichCache: mockInvalidateEnrichCache,
   rejectInvalidSlug: () => null,
-  atomicWrite: mockWriteFileSync,
 }));
 
 // --- AI / search / config mocks ---
