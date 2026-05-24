@@ -2,7 +2,7 @@
   import { invalidate } from '$app/navigation';
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatDayHeader } from '$lib/format-date.js';
-  import CandidatesMap from './CandidatesMap.svelte';
+  import TripMap from './TripMap.svelte';
   import StopCard from './StopCard.svelte';
   import LodgingCard from './LodgingCard.svelte';
   import HideToast from './HideToast.svelte';
@@ -284,7 +284,8 @@
   <!-- Map: visible above the cards. The brief commits to map-IS-the-interface
        on this surface, so it gets first-paint real estate. -->
   <div class="map-block">
-    <CandidatesMap
+    <TripMap
+      mode="candidates"
       stops={visibleStops}
       lodging={visibleLodging}
       home={Array.isArray(home) ? home : null}

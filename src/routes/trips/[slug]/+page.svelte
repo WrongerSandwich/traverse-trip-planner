@@ -3,7 +3,7 @@
   import { untrack } from 'svelte';
   import { invalidateAll, goto, beforeNavigate } from '$app/navigation';
   import { onMount } from 'svelte';
-  import TripDetailMap from '$lib/components/TripDetailMap.svelte';
+  import TripMap from '$lib/components/TripMap.svelte';
   import RetroModal from '$lib/components/RetroModal.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
@@ -1192,11 +1192,13 @@
 
       {#if Array.isArray(trip?._coords)}
         <div class="map-section">
-          <TripDetailMap
+          <TripMap
+            mode="overview"
             {trip}
             home={data.home?.coords}
             color={markerColor}
-            interactive={true}
+            driveLabel={driveLabel}
+            homeDistanceMi={trip?.home_distance_mi ?? null}
           />
         </div>
       {/if}
@@ -1703,9 +1705,12 @@
      route enough room to read; the parent height clamps prevent it from
      dominating short viewports. */
   .map-section {
-    height: 40vh;
-    min-height: 280px;
-    max-height: 480px;
+    /* Shrunk from 40vh / 480px to 280px per the TripMap shape brief so
+       Plan + Candidates come above the fold. The map earns its smaller
+       footprint by being denser (destination popup with drive meta on
+       the unified TripMap, dashed-spoke tooltip explaining the
+       no-route fallback). */
+    height: 280px;
     border-radius: 6px;
     overflow: hidden;
     border: 1px solid var(--border-default);
@@ -2194,7 +2199,7 @@
     .page > header h1 { font-size: 1.05rem; }
     .meta { width: 100%; margin-left: 0; }
     .hero { height: 200px; }
-    .map-section { height: 30vh; min-height: 220px; max-height: 320px; }
+    .map-section { height: 220px; }
     .layout { padding: 1rem 0.85rem 6rem; }
     .section { padding: 1rem 1.1rem 1.2rem; }
   }
