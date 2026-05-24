@@ -803,6 +803,11 @@ async function enrichTripsImpl() {
       }
 
       // Route waypoints → geocode → OSRM road geometry
+      // Propagate route_status from frontmatter (e.g. 'invalid_waypoints') to the
+      // enriched object so the detail page can surface a badge when no route drew.
+      if (trip.route_status) {
+        trip._route_status = trip.route_status;
+      }
       if (trip.waypoints) {
         const geocoded = await geocodeWaypoints(trip.waypoints);
         if (geocoded.length >= 2) {
@@ -812,7 +817,12 @@ async function enrichTripsImpl() {
           // shipping them here added 40 KB per route to every page load.
           trip._has_route = !!(route && route.length >= 2);
         } else {
+          // Waypoints present but none geocoded — set a status code so the UI
+          // can signal "route unavailable" rather than silently showing no line.
           trip._has_route = false;
+          if (!trip._route_status) {
+            trip._route_status = 'geocode_failed';
+          }
         }
       } else {
         trip._has_route = false;
