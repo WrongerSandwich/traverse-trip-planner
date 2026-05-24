@@ -30,6 +30,8 @@ export const MAX_TOKENS = {
   'retro-questions': 600,
   'retro-save': 2000,
   receipts: 800,
+  'add-candidate': 1000,
+  'find-more': 6000,
 };
 
 /** @type {Record<string, Promise>} */
@@ -79,6 +81,18 @@ export const HAND_DEFAULTS = {
     produces: 'A conversational reply and any updated planning sections written directly to disk.',
     time_seconds: 20,
     tokens_range: [2000, 6000],
+  },
+  'add-candidate': {
+    verb: 'Add candidate',
+    produces: 'One new stop or lodging candidate, with category, description, and (when web-searchable) a verified source.',
+    time_seconds: 18,
+    tokens_range: [400, 1200],
+  },
+  'find-more': {
+    verb: 'Find more candidates',
+    produces: 'A batch of additional stop or lodging candidates, scoped to your steering prompt and de-duped against the existing pool.',
+    time_seconds: 90,
+    tokens_range: [4000, 12000],
   },
 };
 
