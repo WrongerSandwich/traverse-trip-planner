@@ -30,8 +30,9 @@
   let addLog = $state(/** @type {string[]} */ ([]));
 
   // Find-more panel state. POSTs to the Ambient Background endpoint; on 202
-  // we close the panel and let TripJobBadge surface progress. On 409 (already
-  // running) or other errors we keep the panel open and render the sentence.
+  // we close the panel and let the global jobs pill surface progress. On 409
+  // (already running) or other errors we keep the panel open and render the
+  // sentence.
   let findSteering = $state('');
   let findCount = $state(5);
   let findSubmitting = $state(false);

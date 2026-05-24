@@ -75,34 +75,16 @@
   let mirror = $state(null);
   let nowTick = $state(Date.now()); // ticks every 1s for elapsed timers
 
-  // Slug of the trip the user is currently viewing (if any). When a running
-  // job belongs to this trip, the per-trip badge in the trip header already
-  // surfaces it — so we suppress that job from the global pill to avoid the
-  // pill overlapping page chrome (e.g. the Ask field guide button on the
-  // planning detail page). Drawer still lists every job.
-  const currentTripSlug = $derived.by(() => {
-    const m = page.url?.pathname?.match(/^\/trips\/([^/]+)/);
-    return m ? decodeURIComponent(m[1]) : null;
-  });
-
   // Home page has a "Home base" link pinned to the bottom-right of the cards
   // column on desktop — the pill at right: 0.9rem would overlap it. Shift the
   // pill leftward when we're on /. Other pages have no bottom-right chrome
   // conflict, so they keep the default corner anchor.
   const isHomePage = $derived(page.url?.pathname === '/');
 
-  const visibleRunningJobs = $derived(
-    mirror
-      ? (currentTripSlug
-          ? mirror.jobs.filter((j) => j.slug !== currentTripSlug)
-          : mirror.jobs)
-      : [],
-  );
-
   const pillState = $derived(
     mirror
-      ? visibleRunningJobs.length > 0
-        ? { variant: 'running', count: visibleRunningJobs.length }
+      ? mirror.jobs.length > 0
+        ? { variant: 'running', count: mirror.jobs.length }
         : (() => {
             const live = mirror.failures.filter(
               (f) => !mirror.dismissedKeys.has(keyFor(f.workflow, f.slug)),

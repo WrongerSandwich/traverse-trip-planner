@@ -10,7 +10,6 @@
   import AffordanceButtons from '$lib/workflow-status/AffordanceButtons.svelte';
   import { failureSentence, ERROR_REGISTRY } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
-  import TripJobBadge from '$lib/components/TripJobBadge.svelte';
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
   import { tripColor } from '$lib/utils/colors.js';
   import { focusTrap } from '$lib/actions/focusTrap.js';
@@ -1105,20 +1104,6 @@
       {/if}
       {#if trip?._cost}<span class="cost">{trip._cost}</span>{/if}
     </div>
-    {#if tripJobs.length > 0}
-      <div class="header-job-badge">
-        <TripJobBadge
-          jobs={tripJobs}
-          oncancel={(workflow, slug) => {
-            // Optimistic: drop the canceled job from allJobs immediately so the
-            // badge collapses without waiting for the 10s poll. The watcher
-            // effect (see prevJobKeys) then triggers invalidateAll() once the
-            // last job disappears, refreshing any partial section files.
-            allJobs = allJobs.filter(j => !(j.workflow === workflow && j.slug === slug));
-          }}
-        />
-      </div>
-    {/if}
     {#if isPlanning && data.features?.chat && data.features?.homeMdReady !== false}
       <button
         class="header-pill header-ask"
@@ -1545,14 +1530,6 @@
     position: sticky;
     top: 0;
     z-index: 50;
-  }
-
-  /* Per-trip job badge inside the page header. Sits between the meta block
-     (which carries margin-left: auto) and the ⋯ menu, so the running-job
-     indicator is inset rather than pinned to the right edge. */
-  .header-job-badge {
-    display: inline-flex;
-    align-items: center;
   }
 
   /* ── Header pill system ──
