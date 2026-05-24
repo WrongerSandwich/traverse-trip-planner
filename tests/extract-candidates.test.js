@@ -1035,4 +1035,46 @@ lodging: []
     // atomicWrite is only called for the frontmatter write; plan/candidates use writeFileSync+renameSync.
     expect(mockAtomicWrite).not.toHaveBeenCalled();
   });
+
+  it('preserves a find-more-style entry (researcher-emitted but user_added: true) across re-extract', async () => {
+    readCandidates.mockReturnValueOnce({
+      stops: [
+        // Simulates a candidate added via find-more — researcher schema, user_added flag.
+        {
+          id: 'tecumseh',
+          name: 'Tecumseh!',
+          category: 'entertainment',
+          description: 'Outdoor drama in a wooded amphitheater.',
+          why_recommended: 'Matches your taste for off-beat live experiences.',
+          source_url: 'https://tecumsehdrama.com',
+          user_added: true,
+        },
+      ],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+cover_query: ohio hopewell earthworks
+field_guide_notes: []
+gotchas: []
+</plan>
+<candidates>
+stops:
+  - name: Mound City Group
+    category: historic
+    description: Hopewell earthworks site.
+    why_recommended: Aligns with your historic tilt.
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 100, output: 100 },
+    });
+
+    await extractCandidates('t');
+    const written = capturedCands.value;
+    expect(written.stops.some((s) => s.id === 'tecumseh' && s.user_added === true)).toBe(true);
+    expect(written.stops.some((s) => s.name === 'Mound City Group')).toBe(true);
+  });
 });
