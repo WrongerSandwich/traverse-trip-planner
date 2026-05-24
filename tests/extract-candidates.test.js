@@ -72,6 +72,7 @@ import { readCandidates } from '../src/lib/server/candidates.js';
 describe('extractCandidates', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGeocode.mockReset(); // clear any mockImplementation set in previous tests
     capturedPlan.value = null;
     capturedCands.value = null;
   });
@@ -688,6 +689,96 @@ lodging: []
 
     const stop = capturedCands.value.stops[0];
     expect(stop.coords).toEqual({ lat: 48.55, lng: -113.95 });
+  });
+
+  it('hidden researcher candidate survives re-extract (Option B: user_added flip)', async () => {
+    // Simulate: researcher produced 'lake-mcdonald'; user hid it (setCandidateHidden
+    // flips user_added to true). On re-extract the model suggests it again — but
+    // because user_added is now true, the merge logic keeps the hidden entry and
+    // does NOT re-add the fresh researcher version.
+    readCandidates.mockReturnValueOnce({
+      stops: [
+        {
+          id: 'lake-mcdonald',
+          name: 'Lake McDonald',
+          category: 'outdoors',
+          user_added: true,  // flipped by setCandidateHidden
+          hidden: true,
+        },
+      ],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Lake McDonald
+    category: outdoors
+    description: Glacial lake.
+    why_recommended: Iconic.
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+
+    // The hidden entry should still be present …
+    const hidden = capturedCands.value.stops.find((s) => s.hidden);
+    expect(hidden).toBeDefined();
+    expect(hidden.id).toBe('lake-mcdonald');
+    // … and there must be exactly one entry for this name (no duplicate visible copy).
+    const allLake = capturedCands.value.stops.filter((s) => s.name === 'Lake McDonald');
+    expect(allLake).toHaveLength(1);
+  });
+
+  it('un-hidden candidate can reappear on re-extract', async () => {
+    // After un-hiding, user_added is flipped back to false. The merge logic
+    // treats it as a researcher candidate and replaces it — so if the model
+    // suggests it again the fresh version replaces the old entry (visible, no hidden flag).
+    readCandidates.mockReturnValueOnce({
+      stops: [
+        {
+          id: 'lake-mcdonald',
+          name: 'Lake McDonald',
+          category: 'outdoors',
+          user_added: false,  // restored by setCandidateHidden(…, false)
+          // hidden field absent (deleted on un-hide)
+        },
+      ],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+    mockChat.mockResolvedValueOnce({
+      text: `<extract>
+<plan>
+field_guide_notes: ""
+gotchas: ""
+</plan>
+<candidates>
+stops:
+  - name: Lake McDonald
+    category: outdoors
+    description: Glacial lake.
+    why_recommended: Iconic.
+lodging: []
+</candidates>
+</extract>`,
+      usage: { input: 0, output: 0 },
+    });
+
+    await extractCandidates('t');
+
+    const stop = capturedCands.value.stops.find((s) => s.name === 'Lake McDonald');
+    expect(stop).toBeDefined();
+    expect(stop.hidden).toBeUndefined();  // visible again
+    expect(stop.user_added).toBe(false);  // researcher-owned
   });
 
   it('throws TraverseError when getTripFiles returns null (trip not found)', async () => {
