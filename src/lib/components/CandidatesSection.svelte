@@ -29,6 +29,15 @@
   let addErrorCtx = $state(/** @type {Record<string,string>} */ ({}));
   let addLog = $state(/** @type {string[]} */ ([]));
 
+  // Find-more panel state. POSTs to the Ambient Background endpoint; on 202
+  // we close the panel and let TripJobBadge surface progress. On 409 (already
+  // running) or other errors we keep the panel open and render the sentence.
+  let findSteering = $state('');
+  let findCount = $state(5);
+  let findSubmitting = $state(false);
+  let findErrorCode = $state(/** @type {string|null} */ (null));
+  let findErrorCtx = $state(/** @type {Record<string,string>} */ ({}));
+
   // Focuses the panel input on mount. Used via `use:focusOnMount` instead of
   // the HTML autofocus attribute — autofocus's a11y warning applies to
   // page-load focus, but here the element only mounts when the user has
@@ -212,6 +221,36 @@
       addErrorCtx = {};
     } finally {
       addRunning = false;
+    }
+  }
+
+  // Submit handler for the find-more Ambient Background endpoint. Returns
+  // 202 on a successful start (panel closes, badge takes over) and 409 if
+  // a job is already running for this trip. Other errors flow through
+  // ERROR_REGISTRY via `code`.
+  async function submitFindMore() {
+    findSubmitting = true;
+    findErrorCode = null;
+    findErrorCtx = {};
+    try {
+      const res = await fetch(`/api/actions/find-more/${encodeURIComponent(slug)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: currentTabType, steering: findSteering, count: findCount }),
+      });
+      if (res.status === 202) {
+        openPanel = null;
+        findSteering = '';
+        await invalidate('app:trip');
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      findErrorCode = body.code || 'network_error';
+      findErrorCtx = body.context || {};
+    } catch {
+      findErrorCode = 'network_error';
+    } finally {
+      findSubmitting = false;
     }
   }
 
@@ -463,6 +502,50 @@
           <summary>{addLog[addLog.length - 1]}</summary>
           <ul>{#each addLog as line}<li>{line}</li>{/each}</ul>
         </details>
+      {/if}
+    </form>
+  {/if}
+
+  {#if openPanel === 'find-more' && !readonly}
+    <form
+      class="panel panel-find-more"
+      onsubmit={(e) => { e.preventDefault(); submitFindMore(); }}
+    >
+      <label class="panel-label">
+        What kind? <span class="panel-hint">(optional — e.g. "more food stops", "splurge lodging")</span>
+        <textarea
+          class="panel-input panel-textarea"
+          rows="2"
+          maxlength="300"
+          bind:value={findSteering}
+          disabled={findSubmitting}
+        ></textarea>
+      </label>
+      <label class="panel-label">
+        How many?
+        <input
+          type="number"
+          class="panel-input panel-number"
+          min="3"
+          max="10"
+          bind:value={findCount}
+          disabled={findSubmitting}
+        />
+      </label>
+      <p class="panel-note">You can navigate away while this runs — the badge will update when it's done.</p>
+      <div class="panel-actions">
+        <button type="submit" class="panel-submit" disabled={findSubmitting}>
+          {#if findSubmitting}Starting…{:else}Find more{/if}
+        </button>
+        <button type="button" class="panel-cancel" onclick={() => { openPanel = null; }} disabled={findSubmitting}>
+          Close
+        </button>
+      </div>
+      {#if findErrorCode}
+        <div class="panel-error" role="alert">
+          <span>{failureSentence(findErrorCode, findErrorCtx)}</span>
+          <button type="button" class="banner-dismiss" onclick={() => { findErrorCode = null; }}>Dismiss</button>
+        </div>
       {/if}
     </form>
   {/if}
@@ -1069,4 +1152,17 @@
   }
   .panel-log summary { cursor: pointer; }
   .panel-log ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
+  .panel-textarea { resize: vertical; font-family: var(--font-sans); }
+  .panel-number { width: 5em; }
+  .panel-hint {
+    font-weight: 400;
+    color: var(--text-tertiary);
+    font-size: 0.74rem;
+  }
+  .panel-note {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: 0.78rem;
+    font-style: italic;
+  }
 </style>
