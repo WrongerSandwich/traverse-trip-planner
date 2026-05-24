@@ -48,6 +48,9 @@ function migrateCandidatesIfNeeded(slug) {
     }
   } catch (e) {
     console.warn(`candidates.js: migration of candidates.md failed for "${slug}" —`, e.message);
+    // Rethrow parse errors (TraverseError) so callers know the data is invalid.
+    // Other errors (fs failures) are swallowed so a missing file doesn't break reads.
+    if (e?.code === 'model_returned_invalid_yaml') throw e;
   }
 }
 

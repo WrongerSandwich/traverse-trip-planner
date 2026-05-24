@@ -41,5 +41,6 @@ export async function load({ params, depends }) {
     candidates: hasPlanFiles ? readCandidates(slug) : null,
     dangling: hasPlanFiles ? findDanglingCandidateIds(slug) : [],
     planExtractionFailed,
+    extractRenames: Array.isArray(trip.last_extract_renames) ? trip.last_extract_renames : [],
   };
 }
