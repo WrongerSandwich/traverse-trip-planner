@@ -27,6 +27,8 @@ const TRAVERSE_KEYS = [
   'TRAVERSE_MODEL_ADD_PROVIDER', 'TRAVERSE_MODEL_ADD',
   'TRAVERSE_MODEL_CHAT_PROVIDER', 'TRAVERSE_MODEL_CHAT',
   'TRAVERSE_MODEL_DEEPEN_PROVIDER', 'TRAVERSE_MODEL_DEEPEN',
+  'TRAVERSE_MODEL_ADD_CANDIDATE_PROVIDER', 'TRAVERSE_MODEL_ADD_CANDIDATE',
+  'TRAVERSE_MODEL_FIND_MORE_PROVIDER', 'TRAVERSE_MODEL_FIND_MORE',
 ];
 
 function clearEnv() {
@@ -61,6 +63,35 @@ describe('config defaults', () => {
     expect(config.modelDefault).toEqual({ provider: 'openai', model: 'gpt-4o-mini' });
     expect(config.search.provider).toBe('tavily');
     expect(config.assistantName).toBe('GPT');
+  });
+
+  // Regression: add-candidate and find-more endpoints spread
+  // `cfg.features[<key>]` into chat() args. If the keys are missing from
+  // FEATURE_SLOT, the spread is undefined → chat() called without
+  // provider/model → throws a plain Error → routed through code: 'unknown'.
+  // Both must be present and carry the slot's provider+model.
+  it('exposes add-candidate (modelDefault slot)', async () => {
+    const { config } = await loadConfig();
+    expect(config.features['add-candidate']).toEqual({
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-6',
+    });
+  });
+
+  it('exposes find-more (modelResearch slot)', async () => {
+    const { config } = await loadConfig();
+    expect(config.features['find-more']).toEqual({
+      provider: 'anthropic',
+      model: 'claude-opus-4-7',
+    });
+  });
+
+  it('honors per-feature env overrides with hyphenated names', async () => {
+    const { config } = await loadConfig({
+      TRAVERSE_MODEL_FIND_MORE_PROVIDER: 'openai',
+      TRAVERSE_MODEL_FIND_MORE: 'gpt-4o',
+    });
+    expect(config.features['find-more']).toEqual({ provider: 'openai', model: 'gpt-4o' });
   });
 });
 
@@ -111,6 +142,7 @@ describe('getFeatureAvailability', () => {
     const { getFeatureAvailability } = await loadConfig();
     expect(getFeatureAvailability()).toEqual({
       seed: false, add: false, chat: false, retro: false, receipts: false, deepen: false,
+      'add-candidate': false, 'find-more': false,
       homeMdReady: false,
       pexelsConfigured: false,
     });
@@ -120,6 +152,7 @@ describe('getFeatureAvailability', () => {
     const { getFeatureAvailability } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
     expect(getFeatureAvailability()).toEqual({
       seed: true, add: true, chat: true, retro: true, receipts: true, deepen: true,
+      'add-candidate': true, 'find-more': true,
       homeMdReady: false,
       pexelsConfigured: false,
     });

@@ -16,6 +16,12 @@ const FEATURE_SLOT = {
   retro: 'modelDefault',
   receipts: 'modelDefault',
   deepen: 'modelResearch',
+  // add-candidate is a quick single-add call (peers with `add`). find-more
+  // is a web-search-heavy batch (peers with `deepen`). Both endpoints spread
+  // cfg.features[key] into chat(); missing entries silently produce
+  // chat({ provider: undefined }) and the call throws.
+  'add-candidate': 'modelDefault',
+  'find-more': 'modelResearch',
 };
 
 const PROVIDER_KEYS = Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.envKey]));
@@ -39,7 +45,10 @@ function buildConfig(envObj) {
 
   const features = {};
   for (const [feature, slotKey] of Object.entries(FEATURE_SLOT)) {
-    const upper = feature.toUpperCase();
+    // Hyphens aren't portable in env var names — kebab-case feature keys
+    // (e.g. add-candidate, find-more) map to underscored env vars
+    // (TRAVERSE_MODEL_ADD_CANDIDATE_*, TRAVERSE_MODEL_FIND_MORE_*).
+    const upper = feature.replace(/-/g, '_').toUpperCase();
     features[feature] = {
       provider: env(envObj, `TRAVERSE_MODEL_${upper}_PROVIDER`, slots[slotKey].provider),
       model: env(envObj, `TRAVERSE_MODEL_${upper}`, slots[slotKey].model),
@@ -129,9 +138,13 @@ export function getFeatureAvailability() {
   const cfg = buildConfig(effectiveEnv);
   const search = searchOkIn(cfg, effectiveEnv);
   const result = {};
+  // deepen and find-more both invoke web_search and the prompts assume it's
+  // available — gate both on search backend health. add-candidate uses search
+  // softly ("if you don't recognize the place") so it stays independent.
+  const searchDependent = new Set(['deepen', 'find-more']);
   for (const feature of Object.keys(FEATURE_SLOT)) {
     const ok = providerKeyOkIn(effectiveEnv, cfg.features[feature].provider);
-    result[feature] = feature === 'deepen' ? (ok && search) : ok;
+    result[feature] = searchDependent.has(feature) ? (ok && search) : ok;
   }
   result.homeMdReady = isHomeMdReady();
   result.pexelsConfigured = isRealKey(effectiveEnv.PEXELS_API_KEY);
@@ -177,7 +190,8 @@ export function describeConfig() {
   for (const [feature, info] of Object.entries(effective.features)) {
     const slot = slotForFeature(feature);
     const overridden = info.provider !== slot.provider || info.model !== slot.model;
-    const ok = providerKeyOkIn(effectiveEnv, info.provider) && (feature === 'deepen' ? searchOkIn(effective, effectiveEnv) : true);
+    const needsSearch = feature === 'deepen' || feature === 'find-more';
+    const ok = providerKeyOkIn(effectiveEnv, info.provider) && (needsSearch ? searchOkIn(effective, effectiveEnv) : true);
     featureDetails[feature] = { ...info, ok, overridden };
   }
   return {
