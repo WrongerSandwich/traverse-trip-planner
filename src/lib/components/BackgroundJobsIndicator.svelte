@@ -22,6 +22,7 @@
   const WORKFLOW_LABELS = {
     deepen: 'Deepen',
     'deepen-section': 'Deepen section',
+    'find-more': 'Find more',
     lock: 'Lock',
     research: 'Research',
   };
@@ -50,6 +51,7 @@
   const ESTIMATES_S = {
     deepen: 90,
     'deepen-section': 35,
+    'find-more': 30,
     lock: 30,
     research: 60,
   };
