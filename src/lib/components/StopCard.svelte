@@ -424,8 +424,21 @@
   }
   .hide:hover:not(:disabled) { color: var(--state-danger); }
   .hide:disabled { opacity: 0.3; cursor: not-allowed; }
-  /* Touch — keep the hide affordance visible at all times on coarse pointers. */
+  /* Touch — coarse pointers have no :hover, so the hover-reveal hide
+     button was effectively invisible. Force it visible and give it
+     real tap area. Same for the primary action button (Promote/Un-
+     promote), which sits at 20px tall in its compact desktop form. */
   @media (pointer: coarse) {
-    .hide { opacity: 0.65; }
+    .hide {
+      opacity: 1;
+      min-width: var(--tap-min);
+      min-height: var(--tap-min);
+      padding: 0 0.5rem;
+    }
+    .action {
+      min-height: var(--tap-min);
+      padding: 0.6rem 0.85rem;
+      font-size: 13px;
+    }
   }
 </style>

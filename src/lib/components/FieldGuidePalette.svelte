@@ -372,6 +372,32 @@
       width: 100vw;
       border-radius: 8px 8px 0 0;
     }
+
+    /* Reflow the row so the input gets the full viewport width. The
+       desktop pattern (chip | input | Send) at 375px squeezed the input
+       to ~184px and clipped long queries. Mobile: input on its own row
+       above the scope chip + Send so the user can see what they typed. */
+    .palette-row {
+      flex-wrap: wrap;
+      padding: 0.55rem;
+      gap: 0.4rem;
+    }
+    .palette-input {
+      order: 1;
+      flex: 1 1 100%;
+      padding: 0.65rem 0.7rem;
+      font-size: 16px; /* iOS will not auto-zoom on focus at 16px+ */
+    }
+    .palette-chip {
+      order: 2;
+      min-height: var(--tap-min);
+    }
+    .palette-submit,
+    .palette-cancel {
+      order: 3;
+      margin-left: auto;
+      min-height: var(--tap-min);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

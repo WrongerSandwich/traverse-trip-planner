@@ -636,6 +636,15 @@
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // Keycap hint shown on the Ask buttons. SSR-safe default of ⌘K; swapped
+  // to Ctrl+K on mount for non-Mac platforms. The shortcut handler below
+  // accepts either modifier regardless.
+  let modKeyHint = $state('⌘K');
+  onMount(() => {
+    const plat = (navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || '');
+    if (!/Mac|iPhone|iPad|iPod/i.test(plat)) modKeyHint = 'Ctrl+K';
+  });
+
   // Cmd-K (Mac) / Ctrl-K (Win/Linux) opens the palette from anywhere on a
   // planning trip detail page. Respects text-input focus so the shortcut
   // doesn't fight section editors.
@@ -1041,6 +1050,18 @@
     // primary in-page workflow.
     const lifecycleItems = [];
     if (isPlanning) {
+      // Re-research lives here on touch because the header pill is hidden
+      // on pointer-coarse devices; desktop users keep using the header
+      // button. Duplicating the entry here on desktop is fine — kebab is
+      // a secondary path and the header chrome is the primary one.
+      if (canReResearch) {
+        lifecycleItems.push({
+          type: 'button',
+          label: reResearching ? 'Starting…' : '↺ Re-research',
+          onclick: () => reResearch(),
+          disabled: reResearching,
+        });
+      }
       lifecycleItems.push({
         type: 'button',
         label: completing ? 'Completing…' : '✓ Mark as completed',
@@ -1105,7 +1126,7 @@
         title="Open the {data.assistantName} palette"
         aria-label="Open {data.assistantName}"
       >
-        Ask <kbd class="header-ask-kbd" aria-hidden="true">⌘K</kbd>
+        Ask <kbd class="header-ask-kbd" aria-hidden="true">{modKeyHint}</kbd>
       </button>
     {/if}
     {#if canReResearch}
@@ -1298,7 +1319,7 @@
             {#if isPlanning && section !== 'candidates' && section !== 'plan' && sections[section] !== undefined && !editing[section]}
               <div class="section-header-actions">
                 <button class="btn-section-ask" onclick={() => openPalette(section)} title="Ask {data.assistantName} to edit this section">
-                  Ask <kbd class="section-ask-kbd" aria-hidden="true">⌘K</kbd>
+                  Ask <kbd class="section-ask-kbd" aria-hidden="true">{modKeyHint}</kbd>
                 </button>
                 <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
               </div>
@@ -1555,6 +1576,7 @@
     align-items: center;
     gap: 0.4rem;
     transition: background 0.12s, border-color 0.12s, color 0.12s;
+    min-height: var(--tap-min);
   }
   .header-pill:hover:not(:disabled) {
     background: var(--forest-700);
@@ -1802,30 +1824,35 @@
     align-items: center;
     gap: 0.5rem;
   }
-  /* Quieter than .btn-secondary so the section's primary action stays Edit;
-     "Ask" is the secondary AI affordance. The inline ⌘K keycap doubles
-     as a discoverability hint so users learn the shortcut from any
-     section header, not just a hover-only title. */
+  /* Shares Edit's box dimensions (padding, font, radius) so the two buttons
+     sit as siblings in the section header. Tonally quieter at rest
+     (--text-tertiary, --border-subtle) and shifts to an accent tint on
+     hover to signal "this is the AI affordance." The inline keycap doubles
+     as a discoverability hint so users learn the shortcut from any section
+     header, not just a hover-only title. */
   .btn-section-ask {
     background: transparent;
     border: 0.5px solid var(--border-subtle);
     color: var(--text-tertiary);
     font-family: var(--font-sans);
-    font-size: 0.78rem;
-    font-weight: 600;
-    padding: 0.32rem 0.5rem 0.32rem 0.6rem;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    padding: 8px 14px;
     border-radius: 4px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
   }
   .btn-section-ask:hover {
     background: color-mix(in oklab, var(--accent) 8%, transparent);
     border-color: color-mix(in oklab, var(--accent) 35%, var(--border-default));
     color: var(--accent-text);
   }
+  .btn-section-ask:active { transform: scale(0.98); }
   .section-ask-kbd {
     font-family: var(--font-mono);
     font-size: 0.68rem;
@@ -1845,8 +1872,10 @@
   .editor {
     width: 100%;
     min-height: 260px;
-    font-family: var(--font-mono);
-    font-size: 0.86rem;
+    /* User-facing prose, not source code — sans matches what the rendered
+       section looks like at rest, so the edit-mode jump is smaller. */
+    font-family: var(--font-sans);
+    font-size: 0.92rem;
     line-height: 1.6;
     color: var(--text-primary);
     background: var(--surface-page);
@@ -1932,6 +1961,18 @@
     color: var(--text-tertiary);
     font-size: 1rem;
     font-weight: 500;
+  }
+  /* Prose headings inside a muted section must rank BELOW the section title,
+     otherwise a `## Subsection` in logistics.md visually outranks the
+     Logistics title above it. Smaller + lighter than the muted h2 keeps
+     the hierarchy intact. */
+  .muted-section .prose :global(h1),
+  .muted-section .prose :global(h2),
+  .muted-section .prose :global(h3) {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0;
   }
 
   /* Legacy stops.md disclosure. Research stopped writing this file once the
@@ -2280,11 +2321,66 @@
 
   @media (max-width: 768px) {
     .page > header { padding: 0.85rem 1rem; gap: 0.55rem; }
-    .page > header h1 { font-size: 1.05rem; }
+
+    /* H1 takes its own row on mobile. order:99 pushes it visually below
+       the chrome row (back / PLANNING / meta / kebab), where it gets the
+       full content width to wrap on long titles. Bumped from 1.05rem so
+       the identity element is larger than body prose, not smaller. */
+    .page > header h1 {
+      flex: 1 1 100%;
+      order: 99;
+      font-size: 1.4rem;
+      line-height: 1.2;
+      letter-spacing: 0;
+      margin-top: 0.15rem;
+    }
+
+    /* Icon-only back button — the "All trips" label was eating ~85px of
+       header width that the H1 needs. The back glyph is still 44px tall
+       and labeled via aria-label. */
+    .header-pill.back {
+      font-size: 0;
+      padding: 0.4rem 0.7rem;
+      min-width: var(--tap-min);
+    }
+    .header-pill.back::before {
+      content: '←';
+      font-size: 1rem;
+      line-height: 1;
+    }
+
     .meta { width: 100%; margin-left: 0; }
     .hero { height: 200px; }
     .map-section { height: 220px; }
     .layout { padding: 1rem 0.85rem 6rem; }
     .section { padding: 1rem 1.1rem 1.2rem; }
+
+    /* Section edit Save/Cancel sit ~120px from the bottom of a 667px
+       viewport — easily hidden by the iOS keyboard once the textarea is
+       focused. Stick them to the visible bottom of the section so they
+       float above the keyboard while editing. */
+    .editor-actions {
+      position: sticky;
+      bottom: 0;
+      background: var(--surface-raised);
+      padding: 0.55rem 0;
+      margin: 0.55rem 0 0;
+      border-top: 1px solid var(--border-subtle);
+      z-index: 2;
+    }
+  }
+
+  /* Touch: hide affordances that don't translate to a phone. The Ask
+     and Re-research pills both have entries in the kebab; on a thumb
+     they were redundant chrome eating one full row of the sticky band.
+     The ⌘K keycap glyph hints at a shortcut that doesn't exist on
+     pointer-coarse devices. */
+  @media (hover: none) and (pointer: coarse) {
+    .header-ask,
+    .header-rerun,
+    .header-ask-kbd,
+    .section-ask-kbd {
+      display: none;
+    }
   }
 </style>

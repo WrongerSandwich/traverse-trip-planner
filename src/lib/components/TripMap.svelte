@@ -322,11 +322,13 @@
   }
 
   function fitToCandidates(L, map) {
+    // Home is intentionally excluded — including it stretches the bounds
+    // so far that the candidates themselves become unreadable. The home
+    // marker is still drawn; it just falls outside the initial viewport.
     const points = [];
     for (const s of stops) { const p = coordsOf(s); if (p) points.push(p); }
     for (const l of lodging) { const p = coordsOf(l); if (p) points.push(p); }
     if (Array.isArray(destination) && destination.length === 2) points.push(destination);
-    if (homeCoords) points.push(homeCoords);
     if (points.length < 2) return;
     map.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 12, animate: false });
   }

@@ -1365,4 +1365,43 @@
   }
 
   /* Hide-toast chrome lives in HideToast.svelte — shared with CandidatesSection. */
+
+  /* Touch: every interactive element in a Day card sits below 44px on
+     desktop. The day header chips (drive / date / × remove-day), the
+     dashed + Add stop / + Add lodging / + Add notes affordances, the
+     move-to-day controls and the inline Save/Cancel buttons all need a
+     real tap floor on a phone. */
+  @media (pointer: coarse) {
+    .chip {
+      min-height: var(--tap-min);
+      padding: 0.55rem 0.85rem;
+      font-size: 0.85rem;
+    }
+    .btn-inline {
+      min-height: var(--tap-min);
+      padding: 0.5rem 0.95rem;
+      font-size: 13px;
+    }
+    .btn-inline.btn-icon {
+      min-width: var(--tap-min);
+      min-height: var(--tap-min);
+      padding: 0.4rem 0.55rem;
+      font-size: 1.05rem;
+    }
+    .add-stop {
+      min-height: var(--tap-min);
+      padding: 0.6rem 0.95rem;
+      font-size: 0.85rem;
+    }
+    .lodging-empty {
+      min-height: var(--tap-min);
+      padding: 0.7rem 0.85rem;
+    }
+    .move-btn {
+      min-height: var(--tap-min);
+      min-width: var(--tap-min);
+      font-size: 0.95rem;
+      padding: 0 12px;
+    }
+  }
 </style>

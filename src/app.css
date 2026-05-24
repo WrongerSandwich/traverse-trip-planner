@@ -399,6 +399,14 @@ body {
 .btn-danger:hover:not(:disabled)  { background: var(--state-danger-surface); }
 .btn-danger:active:not(:disabled) { transform: scale(0.98); }
 
+/* Touch devices: every .btn gets a 44px tap floor regardless of its
+   visual padding. The btn-compact density variant is intended for dense
+   desktop rows; on a phone or a touchscreen those rows are unreachable
+   without zooming in. */
+@media (pointer: coarse) {
+  .btn { min-height: var(--tap-min); }
+}
+
 /* ── AI assistant card ───────────────────────────────────────────────── */
 /* "Field guide says…" pattern. Bone-200 surface (inset cream) in light mode;
    in dark mode the "inset" concept doesn't translate — a darker-than-page

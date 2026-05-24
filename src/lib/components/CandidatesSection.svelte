@@ -565,6 +565,23 @@
     .map-block { height: 200px; }
   }
 
+  /* Touch: filter chips and Stops/Lodging tabs both render below the
+     44px floor on desktop (chips ~18px, tabs ~20px). The filter row is
+     the gate to every candidate decision — on a phone a thumb has to
+     hit eight chips inline. Floor them. */
+  @media (pointer: coarse) {
+    .chip {
+      min-height: var(--tap-min);
+      padding: 0.5rem 0.75rem 0.5rem 0.65rem;
+      font-size: 12.5px;
+    }
+    .tabs button {
+      min-height: var(--tap-min);
+      padding: 0.5rem 0.95rem;
+      font-size: 13px;
+    }
+  }
+
   /* ── Filter strip ───────────────────────────────────────────────────── */
   .filter-strip {
     display: flex;

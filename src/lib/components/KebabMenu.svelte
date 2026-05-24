@@ -341,4 +341,17 @@
     line-height: 1.4;
     font-family: var(--font-mono);
   }
+
+  /* Touch: bump every menu item to the 44px tap floor. The desktop
+     density (0.45rem vertical) reads at ~32px on a phone — under spec
+     and easy to mis-tap. Group labels stay tight; they're presentational. */
+  @media (pointer: coarse) {
+    .kebab-item {
+      min-height: var(--tap-min);
+      display: flex;
+      align-items: center;
+      padding-top: 0.65rem;
+      padding-bottom: 0.65rem;
+    }
+  }
 </style>

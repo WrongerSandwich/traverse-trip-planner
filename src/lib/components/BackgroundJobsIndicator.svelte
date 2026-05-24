@@ -356,6 +356,19 @@
     }
   }
 
+  /* When the Field guide palette is open on a phone, both surfaces want
+     the bottom edge — the palette is a bottom sheet (`bottom: 0`) and
+     the global jobs pill is `bottom: 0.7rem; right: 0.9rem` with a
+     higher z-index. Without this rule the pill floats on top of the
+     palette's Send button. The :global() wrappers are required because
+     `.palette` is scoped to FieldGuidePalette; the body selector also
+     has to escape this component's scope. */
+  @media (max-width: 640px) {
+    :global(body:has(.palette)) .indicator-root {
+      display: none;
+    }
+  }
+
   /* ── Pill ──────────────────────────────────────────────────────────────── */
   .pill {
     display: inline-flex;
