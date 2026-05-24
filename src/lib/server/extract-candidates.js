@@ -24,7 +24,7 @@ import {
   setFrontmatterField,
 } from './data.js';
 import { readPlan, emptyPlan, planPath, serializePlanFile } from './plan.js';
-import { readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS, candidatesPath, serializeCandidatesFile } from './candidates.js';
+import { readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS, candidatesPath, serializeCandidatesFile, geocodeCandidate, getDestinationRefCoords, MAX_CANDIDATE_DISTANCE_MI } from './candidates.js';
 import { getEffectiveConfig } from './config.js';
 import { TraverseError } from './errors.js';
 import { MAX_TOKENS } from './promises.js';
@@ -244,7 +244,30 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
     : '';
   const overviewFm = parseFrontmatter(overviewRaw) || {};
   const destinationContext = overviewFm.destination ?? '';
-  await geocodeCandidates(cands, destinationContext);
+  const refCoords = await getDestinationRefCoords(destinationContext);
+  if (destinationContext && !refCoords) {
+    console.warn(
+      `extract-candidates: destination "${destinationContext}" failed to geocode; bare-name candidate lookups will be skipped to avoid same-name collisions`
+    );
+  }
+  for (const c of [...cands.stops, ...cands.lodging]) {
+    if (c.hidden) continue;
+    if (c.coords && refCoords) {
+      const existing = [Number(c.coords.lat), Number(c.coords.lng)];
+      if (distanceMi(existing, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) continue;
+      console.warn(
+        `extract-candidates: re-geocoding "${c.name}" — existing coords were ${Math.round(distanceMi(existing, refCoords))}mi from destination (above ${MAX_CANDIDATE_DISTANCE_MI}mi sanity threshold)`
+      );
+    } else if (c.coords) {
+      continue;
+    }
+    const coords = await geocodeCandidate(c.name, destinationContext, refCoords);
+    if (coords) {
+      c.coords = { lat: coords[0], lng: coords[1] };
+    } else if (c.coords) {
+      delete c.coords;
+    }
+  }
 
   // Write both files atomically: stage each to a .tmp first, then rename both
   // so a mid-write crash cannot leave plan.yaml updated while candidates.yaml is stale.
@@ -279,21 +302,8 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   return { usage, renames: renamesArray };
 }
 
-// Sequential geocoding — Nominatim rate-limits to 1 req/sec. The geocode()
-// helper caches results so repeat runs are cheap. Cache hits short-circuit
-// without a network call, so re-extraction stays fast even with the loop.
-//
-// Disambiguation: Nominatim almost always returns *something* for a bare
-// name query, even when the name collides across regions (e.g. "Bear Lake"
-// hits dozens of lakes worldwide). The previous order tried the bare name
-// first and fell back to scoped only on null — which meant the scoped
-// fallback never ran, and same-name places thousands of miles away
-// hijacked the result (#347). We now try the scoped query first AND
-// sanity-check every result against the destination's coords. Anything
-// beyond MAX_CANDIDATE_DISTANCE_MI is treated as a same-name collision
-// and dropped rather than pinned to the wrong continent.
-const MAX_CANDIDATE_DISTANCE_MI = 200;
-
+// Private duplicate of candidates.js's distanceMi — kept here to avoid
+// widening that module's public API. Must stay in sync with the other copy.
 function distanceMi(a, b) {
   const lat1 = a[0], lng1 = a[1];
   const lat2 = b[0], lng2 = b[1];
@@ -306,101 +316,3 @@ function distanceMi(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-/**
- * Geocode a candidate with destination-scoped disambiguation and a
- * distance sanity check. Returns `[lat, lng]` or `null`.
- *
- * Order of attempts:
- *   1. "<name>, <destination>" — scoped query first so common names
- *      resolve to the right region
- *   2. "<name>" alone — bare fallback, only accepted if it lands within
- *      MAX_CANDIDATE_DISTANCE_MI of the reference coords
- *
- * When `refCoords` is null (destination itself failed to geocode —
- * usually a Nominatim rate limit or transient outage), the bare fallback
- * is skipped entirely. Without a reference point, "accept anything"
- * lets famous same-name collisions through (Piazza del Campidoglio for
- * "Capitol Square", Singapore's Edgewater for "The Edgewater", etc.).
- * Returning null for these candidates leaves them unmapped, which the
- * UI handles gracefully — far better than pinning them to the wrong
- * continent.
- */
-async function geocodeWithDisambiguation(name, destinationContext, refCoords) {
-  if (destinationContext) {
-    const scoped = await geocode(`${name}, ${destinationContext}`);
-    if (scoped && (!refCoords || distanceMi(scoped, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {
-      return scoped;
-    }
-  }
-  // Bare fallback requires a reference point — otherwise any same-name
-  // collision passes the (skipped) distance check unchallenged.
-  if (!refCoords) return null;
-  const bare = await geocode(name);
-  if (bare && distanceMi(bare, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) {
-    return bare;
-  }
-  if (bare) {
-    console.warn(
-      `extract-candidates: dropped "${name}" geocode — bare result was ${Math.round(distanceMi(bare, refCoords))}mi from destination "${destinationContext}" (likely a same-name collision)`
-    );
-  }
-  return null;
-}
-
-// Nominatim's ToS asks for ≤1 req/sec. Without throttling we burn through
-// the limit in a few seconds — Nominatim starts returning 429s, geocode()
-// returns null, and disambiguation degrades to "accept anything" if
-// refCoords also gets null'd. The waypoint geocoder in data.js already
-// follows the same 1100ms cadence; reuse the same number here.
-const NOMINATIM_THROTTLE_MS = 1100;
-function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-
-async function geocodeCandidates(cands, destinationContext) {
-  // Reference point for the sanity check. If destinationContext exists but
-  // geocoding it returned null (Nominatim transient failure or rate limit),
-  // disambiguation degrades — see geocodeWithDisambiguation: bare-name
-  // lookups are skipped entirely when refCoords is null, since there's no
-  // way to filter out same-name collisions without a reference point.
-  const refCoords = destinationContext ? await geocode(destinationContext) : null;
-  if (destinationContext && !refCoords) {
-    console.warn(
-      `extract-candidates: destination "${destinationContext}" failed to geocode; bare-name candidate lookups will be skipped to avoid same-name collisions`
-    );
-  }
-
-  for (const c of [...cands.stops, ...cands.lodging]) {
-    // Hidden candidates are user discards — skip geocoding them. They won't
-    // appear on any map and re-geocoding a rejected place is wasteful.
-    if (c.hidden) continue;
-
-    // Self-heal pre-existing bad coords: if a candidate already has coords
-    // but they're far from the destination, they were almost certainly
-    // mis-geocoded by the previous (bare-first) logic. Re-geocode through
-    // the new disambiguation path. If the existing coords look plausible,
-    // leave them alone.
-    if (c.coords && refCoords) {
-      const existing = [Number(c.coords.lat), Number(c.coords.lng)];
-      if (distanceMi(existing, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) continue;
-      console.warn(
-        `extract-candidates: re-geocoding "${c.name}" — existing coords were ${Math.round(distanceMi(existing, refCoords))}mi from destination (above ${MAX_CANDIDATE_DISTANCE_MI}mi sanity threshold)`
-      );
-    } else if (c.coords) {
-      // No reference to validate against; trust the existing coords.
-      continue;
-    }
-    const coords = await geocodeWithDisambiguation(c.name, destinationContext, refCoords);
-    if (coords) {
-      c.coords = { lat: coords[0], lng: coords[1] };
-    } else if (c.coords) {
-      // We're here because we tried to re-geocode an existing-but-suspicious
-      // coord and got nothing usable. Remove the bad coord so the map shows
-      // the candidate as unmapped rather than pinned to the wrong continent.
-      delete c.coords;
-    }
-    await sleep(NOMINATIM_THROTTLE_MS);
-  }
-}
-
-// Exported for tests; the disambiguation behavior is the contract that
-// matters here, not the unit's internal call signature.
-export const __testing__ = { geocodeCandidates, geocodeWithDisambiguation, distanceMi, MAX_CANDIDATE_DISTANCE_MI };

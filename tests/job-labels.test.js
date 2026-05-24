@@ -69,3 +69,15 @@ describe('filterJobsForSlug', () => {
     expect(result[0]).toEqual({ workflow: 'deepen', slug: 'ozarks-loop', startedAt: 2000 });
   });
 });
+
+// ─── jobLabel for find-more ───────────────────────────────────────────────────
+
+describe('jobLabel for find-more', () => {
+  it('labels find-more:stop and find-more:lodging with the same prose', () => {
+    expect(jobLabel('find-more:stop')).toBe('Finding more candidates…');
+    expect(jobLabel('find-more:lodging')).toBe('Finding more candidates…');
+  });
+  it('labels bare find-more workflow too', () => {
+    expect(jobLabel('find-more')).toBe('Finding more candidates…');
+  });
+});

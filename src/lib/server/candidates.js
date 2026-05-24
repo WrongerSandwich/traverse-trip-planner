@@ -11,7 +11,7 @@ import { readFileSync, existsSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { atomicWrite } from './atomic-write.js';
-import { findTripLocation } from './data.js';
+import { findTripLocation, geocode } from './data.js';
 import { TraverseError } from './errors.js';
 // Circular with plan.js — safe only because unPromoteCandidate is invoked lazily
 // (call-time, not module-init). Don't add top-level uses of plan.js exports here.
@@ -260,4 +260,78 @@ export function setCandidateHidden(slug, id, hidden) {
   if (hidden) unPromoteCandidate(slug, id);
   writeCandidates(slug, cands);
   return updated;
+}
+
+// ── Geocoding helpers ─────────────────────────────────────────────────────────
+//
+// Shared by extract-candidates.js and any new endpoint that needs to geocode
+// candidate names with destination-scoped disambiguation. Extracted here so
+// downstream route handlers can import without creating circular dependencies.
+
+// Same threshold as the prior extract-candidates implementation.
+// Anything farther than this from the destination is treated as a same-name
+// collision and dropped.
+export const MAX_CANDIDATE_DISTANCE_MI = 200;
+const NOMINATIM_THROTTLE_MS = 1100;
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+function distanceMi(a, b) {
+  const lat1 = a[0], lng1 = a[1];
+  const lat2 = b[0], lng2 = b[1];
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Infinity;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 3959;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+/**
+ * Resolve the destination's coords once so candidate lookups can be
+ * sanity-checked against it. Returns null on geocode failure (rate-limit,
+ * outage). When null, callers must skip the bare-name fallback in
+ * geocodeCandidate to avoid same-name collisions.
+ */
+export async function getDestinationRefCoords(destinationContext) {
+  if (!destinationContext) return null;
+  return await geocode(destinationContext);
+}
+
+/**
+ * Geocode a single candidate with destination-scoped disambiguation.
+ * Returns `[lat, lng]` or `null` if no plausible match.
+ *
+ * Order of attempts:
+ *   1. "<name>, <destination>" — scoped query first
+ *   2. "<name>" alone — bare fallback, only accepted if within
+ *      MAX_CANDIDATE_DISTANCE_MI of refCoords
+ *
+ * Bare fallback is skipped entirely when refCoords is null — without a
+ * reference, any same-name collision passes the (skipped) distance check.
+ *
+ * Throttles between calls so callers can run this in a loop without
+ * hitting Nominatim's 1 req/sec ToS limit.
+ */
+export async function geocodeCandidate(name, destinationContext, refCoords) {
+  let coords = null;
+  if (destinationContext) {
+    const scoped = await geocode(`${name}, ${destinationContext}`);
+    if (scoped && (!refCoords || distanceMi(scoped, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {
+      coords = scoped;
+    }
+  }
+  if (!coords && refCoords) {
+    const bare = await geocode(name);
+    if (bare && distanceMi(bare, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) {
+      coords = bare;
+    } else if (bare) {
+      console.warn(
+        `geocodeCandidate: dropped "${name}" geocode — bare result was ${Math.round(distanceMi(bare, refCoords))}mi from destination "${destinationContext}" (likely a same-name collision)`
+      );
+    }
+  }
+  await sleep(NOMINATIM_THROTTLE_MS);
+  return coords;
 }

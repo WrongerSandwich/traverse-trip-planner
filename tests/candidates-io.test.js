@@ -5,6 +5,8 @@ import { join } from 'path';
 
 let ROOT;
 
+const mockGeocode = vi.hoisted(() => vi.fn());
+
 vi.mock('$lib/server/data.js', async () => {
   const actual = await vi.importActual('$lib/server/data.js');
   return {
@@ -13,6 +15,7 @@ vi.mock('$lib/server/data.js', async () => {
       const path = join(ROOT, 'planning', slug);
       return existsSync(path) ? { kind: 'dir', path, stage: 'planning' } : null;
     },
+    geocode: mockGeocode,
   };
 });
 
@@ -211,5 +214,42 @@ describe('candidates.js', () => {
     const { readPlan } = await import('../src/lib/server/plan.js');
     const plan = readPlan('mytrip');
     expect(plan.days[0].stops).not.toContain('s1');
+  });
+});
+
+describe('geocodeCandidate', () => {
+  beforeEach(() => {
+    mockGeocode.mockReset();
+    mockGeocode.mockResolvedValue(null);
+  });
+
+  it('returns scoped result when within MAX_CANDIDATE_DISTANCE_MI of refCoords', async () => {
+    const { geocodeCandidate } = await import('$lib/server/candidates.js');
+    // Scoped query returns a result near the destination; bare query returns null.
+    mockGeocode.mockImplementation(async (query) => {
+      if (query === 'Mound City Group, Chillicothe OH') return [39.37, -83.0];
+      return null;
+    });
+    const result = await geocodeCandidate('Mound City Group', 'Chillicothe OH', [39.33, -82.98]);
+    expect(result).toEqual([39.37, -83.0]);
+  });
+
+  it('rejects a scoped result more than MAX_CANDIDATE_DISTANCE_MI away and falls back to bare query', async () => {
+    const { geocodeCandidate, MAX_CANDIDATE_DISTANCE_MI } = await import('$lib/server/candidates.js');
+    // Scoped query returns a result that is far from refCoords (simulate a same-name
+    // collision with a distant place). Bare query also returns a far result.
+    // The scoped result is 300+ mi from the ref point, so it should be rejected.
+    // refCoords = Chillicothe OH area; far result = somewhere in Texas (~1200 mi away).
+    const farCoords = [31.0, -100.0]; // central Texas
+    const refCoords = [39.33, -82.98]; // Chillicothe OH
+    mockGeocode.mockImplementation(async (query) => {
+      if (query === 'Mound City Group, Chillicothe OH') return farCoords;
+      if (query === 'Mound City Group') return farCoords;
+      return null;
+    });
+    const result = await geocodeCandidate('Mound City Group', 'Chillicothe OH', refCoords);
+    // Both scoped and bare results are far away, so null is returned.
+    expect(result).toBeNull();
+    expect(MAX_CANDIDATE_DISTANCE_MI).toBeGreaterThan(0);
   });
 });
