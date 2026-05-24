@@ -114,10 +114,6 @@ waypoints: [key cities along the driving route, e.g. Home City ST, Midpoint City
 Brief editorial drive notes — ≤2 sentences, ~200 characters max. Scenic-only: what to slow down for, when to detour, the character of the drive. NO turn-by-turn directions, NO mileage tables, NO road numbers as the primary content — GPS handles all of that. For purely utilitarian drives (interstate slog to a city), write a single short sentence acknowledging the journey. No headers inside.
 </route_md>
 
-<stops_md>
-Full markdown for stops.md. ## headers per location. Key sights, food, lodging matching their taste profile (independent, characterful). Current hours, admission, booking info.
-</stops_md>
-
 <logistics_md>
 Full markdown for logistics.md. Reservations checklist (table), seasonal notes, pet sitter reminder for overnights, cell coverage, gotchas. Flag anything that needs re-verification before the trip.
 </logistics_md>
@@ -147,7 +143,6 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   const prose = parseSection(text, 'overview_prose');
   const fmRaw = parseSection(text, 'frontmatter');
   const routeMd = parseSection(text, 'route_md');
-  const stopsMd = parseSection(text, 'stops_md');
   const logisticsMd = parseSection(text, 'logistics_md');
 
   if (!prose) {
@@ -183,13 +178,11 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   // pass; the frontmatter block is left untouched (already plain YAML).
   const cleanProse      = cleanupLLMMarkdown(prose);
   const cleanRoute      = routeMd     ? cleanupLLMMarkdown(routeMd)     : null;
-  const cleanStops      = stopsMd     ? cleanupLLMMarkdown(stopsMd)     : null;
   const cleanLogistics  = logisticsMd ? cleanupLLMMarkdown(logisticsMd) : null;
   const overviewContentClean = `---\n${fmLines}\n---\n\n${cleanProse}\n`;
 
   atomicWrite(join(dir, 'overview.md'), overviewContentClean);
   if (cleanRoute)     atomicWrite(join(dir, 'route.md'),     cleanRoute     + '\n');
-  if (cleanStops)     atomicWrite(join(dir, 'stops.md'),     cleanStops     + '\n');
   if (cleanLogistics) atomicWrite(join(dir, 'logistics.md'), cleanLogistics + '\n');
 
   // Unlink the idea file as soon as the planning folder is written — this is

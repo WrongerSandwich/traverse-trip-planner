@@ -246,6 +246,21 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(mockUnlinkSync).toHaveBeenCalled();
   });
 
+  it('does not write stops.md even when model emits a <stops_md> block', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    mockChat.mockResolvedValue({
+      text: '<overview_prose>prose</overview_prose><stops_md>## Stop A\nGreat stop.</stops_md>',
+      usage: {},
+    });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    const writtenPaths = mockWriteFileSync.mock.calls.map(([p]) => p);
+    const stopsWrites = writtenPaths.filter(p => p.endsWith('stops.md'));
+    expect(stopsWrites).toHaveLength(0);
+  });
+
   it('idea file is unlinked even when extract leg fails', async () => {
     mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
     mockChat.mockResolvedValue({
