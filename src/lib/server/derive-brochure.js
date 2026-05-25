@@ -37,6 +37,26 @@ function toBulletArray(value) {
     .filter(Boolean);
 }
 
+// candidates.yaml stores coords as { lat, lng } objects (see find-more,
+// add-candidate, geocode-job). The brochure subsystem (+page.server.js,
+// Brochure.svelte, DestinationMap.svelte) consumes them as [lat, lng]
+// arrays so projection.project(...coords) can spread cleanly. Normalize
+// here so disk-shape stays expressive and consumers stay convenient. Also
+// tolerates the legacy array shape if any old data still has it.
+function normalizeCoords(c) {
+  if (!c) return null;
+  if (Array.isArray(c) && c.length === 2) {
+    const [lat, lng] = c.map(Number);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+  }
+  if (typeof c === 'object' && c.lat != null && c.lng != null) {
+    const lat = Number(c.lat);
+    const lng = Number(c.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+  }
+  return null;
+}
+
 export function deriveBrochure(slug) {
   const fm = readOverviewFm(slug);
   const plan = readPlan(slug);
@@ -56,10 +76,10 @@ export function deriveBrochure(slug) {
         category: c.category,
         description: c.description,
         notes: c.description,           // legacy alias for the print view
-        coords: c.coords ?? null,
+        coords: normalizeCoords(c.coords),
       }));
     const dayLodging = d.lodging_id && lookup.get(d.lodging_id)?.kind === 'lodging'
-      ? { name: lookup.get(d.lodging_id).name, coords: lookup.get(d.lodging_id).coords ?? null }
+      ? { name: lookup.get(d.lodging_id).name, coords: normalizeCoords(lookup.get(d.lodging_id).coords) }
       : null;
     return {
       n: d.number,
@@ -99,7 +119,7 @@ export function deriveBrochure(slug) {
         name: c.name,
         category: c.category,
         notes: c.description,
-        coords: c.coords ?? null,
+        coords: normalizeCoords(c.coords),
       });
     }
     const lid = d.lodging_id;
@@ -110,7 +130,7 @@ export function deriveBrochure(slug) {
         topLodging.push({
           name: c.name,
           nights: typeof c.nights === 'number' ? c.nights : undefined,
-          coords: c.coords ?? null,
+          coords: normalizeCoords(c.coords),
         });
       }
     }
