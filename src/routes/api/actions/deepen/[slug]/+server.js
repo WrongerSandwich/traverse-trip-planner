@@ -228,7 +228,14 @@ Formatting rules for the markdown content inside route_md / logistics_md (these 
 - Plain quotes (" '), em-dashes (—), and ellipses (…) are fine. Don't escape with HTML entities (&amp;, &quot;).
 - No leading or trailing whitespace inside any of the section tags. No content outside the six tags.`;
 
-  const { text, usage } = await chat({
+  // Some models (notably reasoning/preview ones like gemini-3.x-pro-preview)
+  // occasionally exit the tool-use loop with empty final content after a long
+  // search loop — burning ~4 min for nothing. Retry once on a fully-empty
+  // response; usage is accumulated across attempts so completeJob reflects
+  // total spend. We don't retry partial/malformed responses: those mean the
+  // model tried and a retry tends to yield the same garbage; empty means the
+  // model ghosted us.
+  const callChat = () => chat({
     ...getEffectiveConfig().features.deepen,
     label: 'deepen',
     maxTokens: MAX_TOKENS.deepen,
@@ -241,6 +248,22 @@ Formatting rules for the markdown content inside route_md / logistics_md (these 
       return null;
     },
   });
+  const usage = { input: 0, output: 0, total: 0, turns: 0 };
+  let text = '';
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const result = await callChat();
+    // Accept both the normalized adapter shape ({input, output}) and the raw
+    // provider shape ({input_tokens, output_tokens}) — matches usageToTokens.
+    usage.input  += result.usage?.input  ?? result.usage?.input_tokens  ?? 0;
+    usage.output += result.usage?.output ?? result.usage?.output_tokens ?? 0;
+    usage.total  += result.usage?.total  ?? 0;
+    usage.turns  += result.usage?.turns  ?? 0;
+    text = result.text ?? '';
+    if (text.length > 0) break;
+    if (attempt < 2) {
+      console.warn(`[deepen] ${slug}: empty model response on attempt ${attempt}, retrying once.`);
+    }
+  }
 
   const prose = parseSection(text, 'overview_prose');
   const fmRaw = parseSection(text, 'frontmatter');

@@ -703,6 +703,56 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(mockStartJob).toHaveBeenCalled();
   });
 
+  // ── Empty-response retry ────────────────────────────────────────────────
+  //
+  // Models like gemini-3.x-pro-preview occasionally exit the tool-use loop
+  // with empty final content. doResearch() retries once before giving up.
+
+  it('retries the chat call once when the first response is empty text', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    mockChat
+      .mockResolvedValueOnce({ text: '', usage: { input: 1000, output: 500 } })
+      .mockResolvedValueOnce({ text: VALID_ENVELOPE, usage: { input: 1200, output: 600 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockChat).toHaveBeenCalledTimes(2);
+    expect(mockFailJob).not.toHaveBeenCalled();
+    expect(mockCompleteJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({
+      // Accumulated usage across both attempts: (1000+500) + (1200+600) = 3300.
+      tokens: 3300,
+    }));
+  });
+
+  it('fails after one retry when both responses are empty', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    mockChat
+      .mockResolvedValueOnce({ text: '', usage: { input: 1000, output: 500 } })
+      .mockResolvedValueOnce({ text: '', usage: { input: 1100, output: 550 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockChat).toHaveBeenCalledTimes(2);
+    expect(mockFailJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({
+      code: expect.any(String),
+    }));
+  });
+
+  it('does not retry when the first response has content but is missing tags', async () => {
+    // Non-empty text with no <overview_prose> — model "tried" and emitted
+    // something; retry would likely yield the same garbage, so we fail fast.
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    mockChat.mockResolvedValueOnce({ text: 'I cannot help with that.', usage: { input: 1000, output: 50 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockChat).toHaveBeenCalledTimes(1);
+    expect(mockFailJob).toHaveBeenCalled();
+  });
+
 });
 
 // ── _collectDirtySections ──────────────────────────────────────────────────────

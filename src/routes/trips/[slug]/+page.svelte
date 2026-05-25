@@ -756,45 +756,53 @@
     }
 
     reResearching = true;
+    // Loop instead of recursing: the prose-overwrite 409 prompts the user, then
+    // retries with ?force=true in the same lock window. A recursive call would
+    // be short-circuited by the `reResearching` guard at the top of this function.
+    let useForce = force;
     try {
-      const url = `/api/actions/deepen/${encodeURIComponent(trip._slug)}${force ? '?force=true' : ''}`;
-      const res = await fetch(url, { method: 'POST' });
+      while (true) {
+        const url = `/api/actions/deepen/${encodeURIComponent(trip._slug)}${useForce ? '?force=true' : ''}`;
+        const res = await fetch(url, { method: 'POST' });
 
-      if (res.status === 409) {
-        let body = null;
-        try { body = await res.json(); } catch { /* tolerate parse failures */ }
-        if (body?.code === 'plan_prose_present') {
-          const dirtySections = body.dirty_sections ?? [];
-          const sectionList = dirtySections.length > 0
-            ? dirtySections.join(', ')
-            : 'field guide notes / gotchas';
-          const ok2 = await showConfirm({
-            title:        'Re-research will overwrite edited sections',
-            body:         `This will replace your edits to: ${sectionList}. Re-research rewrites these sections from scratch.`,
-            confirmLabel: 'Re-research anyway',
-            danger:       true,
-          });
-          if (ok2) await reResearch({ force: true });
+        if (res.status === 409) {
+          let body = null;
+          try { body = await res.json(); } catch { /* tolerate parse failures */ }
+          if (body?.code === 'plan_prose_present' && !useForce) {
+            const dirtySections = body.dirty_sections ?? [];
+            const sectionList = dirtySections.length > 0
+              ? dirtySections.join(', ')
+              : 'field guide notes / gotchas';
+            const ok2 = await showConfirm({
+              title:        'Re-research will overwrite edited sections',
+              body:         `This will replace your edits to: ${sectionList}. Re-research rewrites these sections from scratch.`,
+              confirmLabel: 'Re-research anyway',
+              danger:       true,
+            });
+            if (!ok2) return;
+            useForce = true;
+            continue;
+          }
+          // already_running or other 409
+          actionError = { code: 'already_running' };
           return;
         }
-        // already_running or other 409
-        actionError = { code: 'already_running' };
-        return;
-      }
 
-      if (!res.ok && res.status !== 202) {
-        actionError = { code: 'action_failed', ctx: { action: 're-research this trip' } };
-        return;
-      }
-
-      // 202 Accepted — refresh jobs poll immediately so the per-trip badge appears.
-      try {
-        const jobsRes = await fetch('/api/jobs');
-        if (jobsRes.ok) {
-          const body2 = await jobsRes.json();
-          allJobs = body2.jobs ?? [];
+        if (!res.ok && res.status !== 202) {
+          actionError = { code: 'action_failed', ctx: { action: 're-research this trip' } };
+          return;
         }
-      } catch { /* the 10s poll will pick it up */ }
+
+        // 202 Accepted — refresh jobs poll immediately so the per-trip badge appears.
+        try {
+          const jobsRes = await fetch('/api/jobs');
+          if (jobsRes.ok) {
+            const body2 = await jobsRes.json();
+            allJobs = body2.jobs ?? [];
+          }
+        } catch { /* the 10s poll will pick it up */ }
+        return;
+      }
     } catch {
       actionError = { code: 'network_error' };
     } finally {
