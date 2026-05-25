@@ -49,6 +49,10 @@ vi.mock('node:fs', async (importOriginal) => {
       setFile(dst, entry.content, prev?.mtimeMs ?? Date.now());
       delete fs.files[src];
     },
+    unlinkSync: (p) => {
+      if (!(p in fs.files)) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      delete fs.files[p];
+    },
     readdirSync: (dir, opts) => {
       if (!fs.dirs.has(dir)) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
       const prefix = dir.endsWith('/') ? dir : `${dir}/`;
@@ -577,59 +581,161 @@ describe('listRecentEvents', () => {
 });
 
 // ─── sweepStaleJobs ──────────────────────────────────────────────────────────
+//
+// New shape (post-#377): the sweep reads `.cache/.jobs.json`, marks each
+// listed trip's frontmatter with `last_run_error: 'interrupted'` + timestamp +
+// message, then deletes the registry file. A one-release-cycle legacy scan
+// also walks the stage dirs for any pre-#375 `running:` flag and applies the
+// same triple. No age threshold — a single-instance Node server can't race
+// itself, and the sweep runs before any request is served. See
+// docs/jobs-source-of-truth.md.
 
 describe('sweepStaleJobs', () => {
-  it('clears stale running flags older than the threshold and marks last_run_aborted', () => {
-    seedIdea('stale-idea', { running: 'deepen' });
-    // Force its mtime to 20 minutes ago
-    fs.files[`${ROOT}/ideas/stale-idea.md`].mtimeMs = Date.now() - 20 * 60 * 1000;
+  /** Write a fake registry to `.cache/.jobs.json` as if the previous boot
+   *  had jobs in flight when the process died. */
+  function seedRegistry(entries) {
+    setFile(`${ROOT}/.cache/.jobs.json`, JSON.stringify(entries, null, 2));
+  }
 
-    const cleared = sweepStaleJobs({ maxAgeMinutes: 10 });
-    expect(cleared).toBe(1);
+  it('reads .cache/.jobs.json and writes the interrupted triple to each listed trip', () => {
+    seedIdea('marfa-tx');
+    seedPlanning('ozarks-loop');
+    seedRegistry([
+      { workflow: 'deepen', slug: 'marfa-tx', startedAt: 1700000000000 },
+      { workflow: 'brochure', slug: 'ozarks-loop', startedAt: 1700000000000 },
+    ]);
 
-    const fm = readIdeaFm('stale-idea');
+    const result = sweepStaleJobs();
+    expect(result.fromRegistry).toBe(2);
+
+    const idea = readIdeaFm('marfa-tx');
+    expect(idea.last_run_error).toBe('interrupted');
+    expect(idea.last_run_error_at).toBeTruthy();
+    expect(idea.last_run_message).toContain('Server restarted mid-job.');
+
+    const plan = readPlanningFm('ozarks-loop');
+    expect(plan.last_run_error).toBe('interrupted');
+    expect(plan.last_run_error_at).toBeTruthy();
+    expect(plan.last_run_message).toContain('Server restarted mid-job.');
+  });
+
+  it('deletes .cache/.jobs.json after a successful sweep pass', () => {
+    seedIdea('marfa-tx');
+    seedRegistry([{ workflow: 'deepen', slug: 'marfa-tx', startedAt: 1 }]);
+    expect(readJobsFile()).toHaveLength(1);
+
+    sweepStaleJobs();
+
+    expect(readJobsFile()).toBeNull();
+  });
+
+  it('is a no-op when .cache/.jobs.json is absent and no legacy flags exist', () => {
+    seedIdea('clean-idea');
+
+    const result = sweepStaleJobs();
+    expect(result.fromRegistry).toBe(0);
+    expect(result.fromLegacy).toBe(0);
+  });
+
+  it('skips registry entries whose trip file no longer exists (and still deletes the file)', () => {
+    seedRegistry([{ workflow: 'deepen', slug: 'ghost-trip', startedAt: 1 }]);
+
+    const result = sweepStaleJobs();
+    // Counts only entries we actually wrote frontmatter for.
+    expect(result.fromRegistry).toBe(0);
+    expect(readJobsFile()).toBeNull();
+  });
+
+  // ── Legacy scan: drain `running:` flags from pre-#375 installs ──
+
+  it('legacy scan removes a `running:` flag and writes the interrupted triple', () => {
+    seedIdea('legacy-idea', { running: 'deepen' });
+
+    const result = sweepStaleJobs();
+    expect(result.fromLegacy).toBe(1);
+
+    const fm = readIdeaFm('legacy-idea');
     expect(fm.running).toBeUndefined();
-    expect(fm.last_run_aborted).toBe(true);
-    expect(fm.last_run_aborted_at).toBeTruthy();
+    expect(fm.last_run_error).toBe('interrupted');
+    expect(fm.last_run_error_at).toBeTruthy();
+    expect(fm.last_run_message).toContain('Server restarted mid-job.');
   });
 
-  it('leaves recent running flags alone', () => {
-    seedIdea('fresh-idea', { running: 'deepen' });
-    // Default mtime is "now"
-    const cleared = sweepStaleJobs({ maxAgeMinutes: 10 });
-    expect(cleared).toBe(0);
+  it('legacy scan covers planning-stage overview.md', () => {
+    seedPlanning('legacy-plan', { running: 'brochure' });
 
-    expect(readIdeaFm('fresh-idea').running).toBe('deepen');
-  });
+    const result = sweepStaleJobs();
+    expect(result.fromLegacy).toBe(1);
 
-  it('clears flags on planning-stage overview.md too', () => {
-    seedPlanning('stale-plan', { running: 'brochure' });
-    fs.files[`${ROOT}/planning/stale-plan/overview.md`].mtimeMs = Date.now() - 30 * 60 * 1000;
-
-    const cleared = sweepStaleJobs({ maxAgeMinutes: 10 });
-    expect(cleared).toBe(1);
-
-    const fm = readPlanningFm('stale-plan');
+    const fm = readPlanningFm('legacy-plan');
     expect(fm.running).toBeUndefined();
-    expect(fm.last_run_aborted).toBe(true);
+    expect(fm.last_run_error).toBe('interrupted');
   });
 
-  it('ignores files without a running flag entirely', () => {
+  it('legacy scan ignores files that have no `running:` flag', () => {
     seedIdea('idle-idea');
-    fs.files[`${ROOT}/ideas/idle-idea.md`].mtimeMs = Date.now() - 60 * 60 * 1000;
 
-    const cleared = sweepStaleJobs({ maxAgeMinutes: 10 });
-    expect(cleared).toBe(0);
+    const result = sweepStaleJobs();
+    expect(result.fromLegacy).toBe(0);
 
     expect(readIdeaFm('idle-idea').running).toBeUndefined();
-    expect(readIdeaFm('idle-idea').last_run_aborted).toBeUndefined();
+    expect(readIdeaFm('idle-idea').last_run_error).toBeUndefined();
   });
 
-  it('uses the default threshold of 10 minutes', () => {
-    seedIdea('borderline', { running: 'deepen' });
-    fs.files[`${ROOT}/ideas/borderline.md`].mtimeMs = Date.now() - 11 * 60 * 1000;
+  it('runs the legacy scan even when no .cache/.jobs.json is present', () => {
+    seedIdea('legacy-only', { running: 'deepen' });
+    // No registry file seeded.
 
-    const cleared = sweepStaleJobs();
-    expect(cleared).toBe(1);
+    const result = sweepStaleJobs();
+    expect(result.fromRegistry).toBe(0);
+    expect(result.fromLegacy).toBe(1);
+  });
+
+  it('no longer accepts a maxAgeMinutes parameter (no-op if passed; sweeps unconditionally)', () => {
+    // Pre-#377 callers passed { maxAgeMinutes }. The parameter is gone; the
+    // sweep is unconditional now. We assert by passing a fresh `running:` flag
+    // (mtime ≈ now) that the old code would have spared — it must now be cleared.
+    seedIdea('fresh-flag', { running: 'deepen' });
+
+    const result = sweepStaleJobs();
+    expect(result.fromLegacy).toBe(1);
+    expect(readIdeaFm('fresh-flag').running).toBeUndefined();
+  });
+
+  it('logs a single line with split counts (from registry vs. legacy frontmatter)', () => {
+    seedIdea('marfa-tx');
+    seedIdea('legacy-idea', { running: 'deepen' });
+    seedRegistry([{ workflow: 'deepen', slug: 'marfa-tx', startedAt: 1 }]);
+
+    const logs = [];
+    const originalLog = console.log;
+    console.log = (...args) => { logs.push(args.join(' ')); };
+    try {
+      sweepStaleJobs();
+    } finally {
+      console.log = originalLog;
+    }
+
+    // One boot log line, with both counts visible.
+    const sweepLines = logs.filter((l) => l.includes('[jobs] sweep'));
+    expect(sweepLines).toHaveLength(1);
+    expect(sweepLines[0]).toMatch(/registry/);
+    expect(sweepLines[0]).toMatch(/legacy/);
+    expect(sweepLines[0]).toMatch(/1/);
+  });
+
+  it('does not log when there is nothing to sweep', () => {
+    seedIdea('clean-idea');
+
+    const logs = [];
+    const originalLog = console.log;
+    console.log = (...args) => { logs.push(args.join(' ')); };
+    try {
+      sweepStaleJobs();
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(logs.filter((l) => l.includes('[jobs] sweep'))).toHaveLength(0);
   });
 });

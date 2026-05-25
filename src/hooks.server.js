@@ -131,15 +131,17 @@ function printConfigBanner() {
 
 printConfigBanner();
 
-// Unified job-registry sweep. On boot, any `running:` flag still on disk
-// is orphaned by definition (the in-memory registry that holds the
-// AbortController is empty after restart). The age threshold guards
-// against clobbering an in-flight write from another process.
+// Unified job-registry sweep. On boot, any entry in `.cache/.jobs.json` or
+// any `running:` flag still on disk is orphaned by definition (the in-memory
+// registry that holds the AbortController is empty after restart). No age
+// threshold needed — a single-instance Node server can't race itself, and
+// this runs before any request is served.
 //
 // Deferred via setImmediate so it runs on the next tick — sync I/O inside
 // sweepStaleJobs would otherwise block the first incoming request.
 //
-// See src/lib/server/jobs.js and docs/ai-workflow-ux.md §8.
+// See src/lib/server/jobs.js, docs/jobs-source-of-truth.md, and
+// docs/ai-workflow-ux.md §8.
 setImmediate(() => sweepStaleJobs());
 
 // Stage dirs must be writable by the running uid; otherwise Research, Retro,

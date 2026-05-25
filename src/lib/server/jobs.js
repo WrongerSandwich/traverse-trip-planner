@@ -49,7 +49,7 @@
 // resolves to the same label as 'deepen-section'. New multi-instance workflows
 // must register their bare-workflow label there.
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ROOT,
@@ -371,37 +371,99 @@ export function assertNotRunning(workflow, slug) {
 }
 
 // ─── Restart sweep ───────────────────────────────────────────────────────────
+//
+// On boot, recover orphaned in-flight state from the previous process. Two
+// paths run in sequence:
+//
+//   1. Registry sweep — read `.cache/.jobs.json` (the post-#375 source of
+//      truth for in-flight jobs), mark each listed trip's frontmatter with
+//      the `interrupted` triple, then delete the file.
+//
+//   2. Legacy frontmatter scan — walk `ideas/`, `planning/`, `completed/`
+//      for trips with a `running:` flag left over from pre-#375 installs.
+//      Same recovery action: clear the flag, write the `interrupted` triple.
+//      After one boot post-deploy on a given install, no `running:` flags
+//      remain anywhere; the scan stays as a one-release-cycle safety net.
+//      Remove after 2026-Q4 if no `running:` flags appear in production
+//      sweeps. See docs/jobs-source-of-truth.md.
+//
+// No age threshold (the pre-#377 `maxAgeMinutes` is gone): a single-instance
+// Node server can't race itself, and the sweep runs via setImmediate before
+// any request is served, so every entry we see is by definition orphaned.
+
+const INTERRUPTED_MESSAGE = 'Server restarted mid-job.';
+
+function interruptedTriple() {
+  return {
+    last_run_error: 'interrupted',
+    last_run_error_at: new Date().toISOString(),
+    last_run_message: INTERRUPTED_MESSAGE,
+  };
+}
 
 /**
- * Scan all trip files for `running:` flags older than `maxAgeMinutes`. For
- * each match, clear the flag and record `last_run_aborted: true` with a
- * timestamp. Used at server startup to recover from crashes mid-job.
- *
- * Returns the count of flags cleared.
- *
- * Threshold uses file mtime as a proxy for "how long has this job been
- * orphaned". A job that's truly still running on a fresh process boot is
- * impossible — the in-memory map is the only place the AbortController lives —
- * so any `running:` flag on disk after startup is orphaned. The age threshold
- * exists only to guard against accidentally clobbering an in-progress write
- * (e.g. another process touching the file). Default: 10 minutes.
+ * Boot-time recovery sweep. Returns `{ fromRegistry, fromLegacy }` so the
+ * boot log can split the two sources for observability.
  */
-export function sweepStaleJobs({ maxAgeMinutes = 10 } = {}) {
-  const threshold = Date.now() - maxAgeMinutes * 60 * 1000;
+export function sweepStaleJobs() {
+  const fromRegistry = sweepRegistry();
+  const fromLegacy = sweepLegacyFrontmatter();
+
+  if (fromRegistry > 0 || fromLegacy > 0) {
+    invalidateEnrichCache();
+    console.log(
+      `[jobs] sweep: recovered ${fromRegistry} from registry, ${fromLegacy} from legacy frontmatter.`,
+    );
+  }
+
+  return { fromRegistry, fromLegacy };
+}
+
+function sweepRegistry() {
+  if (!existsSync(JOBS_REGISTRY_PATH)) return 0;
+
+  let entries;
+  try {
+    const raw = readFileSync(JOBS_REGISTRY_PATH, 'utf8');
+    entries = JSON.parse(raw);
+    if (!Array.isArray(entries)) entries = [];
+  } catch (e) {
+    console.warn(`[jobs] sweep: failed to read ${JOBS_REGISTRY_PATH}:`, e.message);
+    entries = [];
+  }
+
+  let marked = 0;
+  for (const entry of entries) {
+    if (!entry || typeof entry.slug !== 'string') continue;
+    if (markInterrupted(entry.slug)) marked++;
+  }
+
+  try {
+    unlinkSync(JOBS_REGISTRY_PATH);
+  } catch (e) {
+    if (e?.code !== 'ENOENT') {
+      console.warn(`[jobs] sweep: failed to delete ${JOBS_REGISTRY_PATH}:`, e.message);
+    }
+  }
+
+  return marked;
+}
+
+function sweepLegacyFrontmatter() {
   let cleared = 0;
 
   for (const stage of ['ideas', 'planning', 'completed']) {
     const dir = join(ROOT, stage);
     if (!existsSync(dir)) continue;
 
-    let entries;
+    let dirEntries;
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      dirEntries = readdirSync(dir, { withFileTypes: true });
     } catch {
       continue;
     }
 
-    for (const entry of entries) {
+    for (const entry of dirEntries) {
       let filePath;
       if (entry.isFile() && entry.name.endsWith('.md')) {
         filePath = join(dir, entry.name);
@@ -421,31 +483,52 @@ export function sweepStaleJobs({ maxAgeMinutes = 10 } = {}) {
       if (!fm) continue;
       if (!fm.running) continue;
 
-      let mtimeMs;
-      try {
-        mtimeMs = statSync(filePath).mtimeMs;
-      } catch {
-        mtimeMs = 0;
-      }
-      if (mtimeMs > threshold) continue;
-
       let updated = removeFrontmatterField(content, 'running');
-      updated = setFrontmatterField(updated, 'last_run_aborted', 'true');
-      updated = setFrontmatterField(updated, 'last_run_aborted_at', new Date().toISOString());
+      const triple = interruptedTriple();
+      for (const [field, value] of Object.entries(triple)) {
+        updated = setFrontmatterField(updated, field, value);
+      }
       try {
         atomicWrite(filePath, updated);
         cleared++;
       } catch (e) {
-        console.warn(`[jobs] sweep: failed to clear flag on ${filePath}:`, e.message);
+        console.warn(`[jobs] sweep: failed to clear legacy running flag on ${filePath}:`, e.message);
       }
     }
   }
 
-  if (cleared > 0) {
-    invalidateEnrichCache();
-    console.log(`[jobs] sweep: cleared ${cleared} stale running flag(s).`);
-  }
   return cleared;
+}
+
+/**
+ * Write the `interrupted` triple to the trip's frontmatter. Returns true when
+ * the write happened, false when the trip file couldn't be found (we silently
+ * skip those — the registry can outlive the trip if a slug was renamed or
+ * deleted between the previous boot and this one).
+ */
+function markInterrupted(slug) {
+  const path = findTripFile(slug);
+  if (!path) return false;
+  let content;
+  try {
+    content = readFileSync(path, 'utf8');
+  } catch {
+    return false;
+  }
+  if (!parseFrontmatter(content)) return false;
+
+  let updated = content;
+  const triple = interruptedTriple();
+  for (const [field, value] of Object.entries(triple)) {
+    updated = setFrontmatterField(updated, field, value);
+  }
+  try {
+    atomicWrite(path, updated);
+    return true;
+  } catch (e) {
+    console.warn(`[jobs] sweep: failed to write interrupted triple to ${path}:`, e.message);
+    return false;
+  }
 }
 
 // ─── Test seam ───────────────────────────────────────────────────────────────
