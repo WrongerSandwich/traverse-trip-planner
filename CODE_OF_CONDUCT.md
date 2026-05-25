@@ -36,7 +36,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported privately to the community leaders responsible for enforcement at **conduct@traverse.example** (TODO: replace with a real maintainer alias before public launch). All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported privately at **taxes-7-monoid@icloud.com**. This is a single-maintainer project, so the address routes directly to the project maintainer rather than to a separate enforcement team; reports are read and handled by one person. All reports will be reviewed and investigated promptly and fairly, and the reporter's identity will not be disclosed beyond what's strictly necessary to act on the report.
 
 Please do **not** use GitHub's private security advisories for conduct reports — that channel is reserved for credential leaks, code-execution paths, and authentication bypasses (see [SECURITY.md](SECURITY.md)). Routing conduct reports through the security channel makes triage harder for both reporters and maintainers.
 
