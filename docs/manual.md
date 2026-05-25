@@ -47,7 +47,7 @@ Traverse runs on your own machine. The recommended way to start it is Docker —
 
 The first thing the app will want is for you to tell it about yourself. You will be guided through an onboarding flow that creates `home.md` — your home base, your vehicle, your travelers, what you like, what you don't, when you can't travel, who feeds the cat. Take a minute with this. Everything Traverse does, from the first generated idea to the last printed brochure, is filtered through `home.md`. It is the closest thing this software has to a personality dial, and it is yours.
 
-You will also need an AI provider key (Anthropic, OpenAI, or OpenRouter), a free Pexels key for the trip card photos, and, optionally, a Tavily key if you are using a non-Anthropic research model. Paste them into the Settings page. From here on, the rest of the manual assumes the app is up and the keys are in place.
+You will also need an AI provider key (Anthropic, OpenAI, or OpenRouter), a free Pexels key for the trip card photos, and, optionally, a Tavily key if you are using a non-Anthropic research model. Paste them into the Configuration page (under the header → *Configuration*; this is the keys-and-models side of what used to be the Settings page). From here on, the rest of the manual assumes the app is up and the keys are in place.
 
 ---
 
@@ -307,7 +307,7 @@ The single most important file in Traverse is `home.md`. It is created during on
 - **Frontmatter.** Structured values — `home_coords`, default radius, vehicle specs, travelers, pet sitter, EV info. The AI reads these as facts.
 - **Prose.** A free-form description of your taste, your constraints, your weekly commitments, what kind of trip you want and what kind you don't. The AI reads this as voice.
 
-The Settings page — accessible from the header — lets you edit all of this without opening a text editor. There is also a separate Configuration page where you set provider keys, the default model, and feature flags (like whether the receipts feature is available based on your model's vision support).
+The Home base page — accessible from the header (formerly *Settings*) — lets you edit all of this without opening a text editor. A sibling Configuration page (linked from the same subnav) is where you set provider keys, the default model, and feature flags.
 
 Two principles for editing `home.md`:
 
@@ -338,7 +338,7 @@ A short list of failure modes and what to do about them.
 
 **Something deeper is wrong with a file.** Edit it. The whole point of Traverse is that trips are plain markdown. Open the file in your editor of choice, fix what's wrong, save, reload. The app re-reads on every page load.
 
-**Provider errors.** Check the Settings page for the configured provider and model. The `npm run smoke` command does a one-token round-trip across every configured provider — useful after rotating keys.
+**Provider errors.** Check the Configuration page for the configured provider and model. The `npm run smoke` command does a one-token round-trip across every configured provider — useful after rotating keys.
 
 ---
 

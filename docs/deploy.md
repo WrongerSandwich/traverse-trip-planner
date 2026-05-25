@@ -76,7 +76,7 @@ The startup banner lists which providers are wired and which features are availa
 
 ## Settings overlay (settings.json)
 
-The Settings page (`/settings`) lets you manage API keys and routing configuration from the browser without editing files or restarting the server. Values are stored in `data/settings.json`.
+The settings UI — split into `/home-base` (personal preferences, `home.md`) and `/configuration` (API keys, model routing, feature flags), linked by a subnav — lets you manage everything from the browser without editing files or restarting the server. Values written via `/configuration` are stored in `data/settings.json`; values written via `/home-base` go directly to `data/home.md`. (`/settings` from older bookmarks 308-redirects to `/home-base`.)
 
 **Precedence (highest to lowest):**
 1. `settings.json` — set via the UI; takes effect on the next request, no restart needed
@@ -87,7 +87,7 @@ The Settings page (`/settings`) lets you manage API keys and routing configurati
 
 To revert to `.env`-only behavior, delete `data/settings.json` or use the **Remove** button next to a stored key on the Settings page. Removing a key deletes only that key's entry from `data/settings.json`; other stored settings are untouched. Once removed, the corresponding `.env` value resumes as the active key. If no `.env` fallback exists, the next AI call using that provider will fail with a missing-key error.
 
-**`TRAVERSE_DISABLE_SETTINGS_UI`** — set to any non-empty value to disable the `/settings` page and `POST /api/settings` entirely (both return 403). Recommended for production deployments where the server is reachable over an untrusted network and you prefer `.env`-only key management.
+**`TRAVERSE_DISABLE_SETTINGS_UI`** — set to any non-empty value to disable `/home-base`, `/configuration`, and `POST /api/settings` entirely (all return 403). Recommended for production deployments where the server is reachable over an untrusted network and you prefer `.env`-only key management.
 
 ## Configuration reference
 
@@ -128,7 +128,6 @@ These are intentionally not in `settings.json`. Each row explains why.
 | Disable the Settings UI         | `TRAVERSE_DISABLE_SETTINGS_UI`                              | Trust boundary — if it lived in `settings.json`, the UI it disables could re-enable itself.           |
 | Allow LAN writes to config      | `TRAVERSE_ALLOW_LAN_WRITES`                                 | Auth gate for `POST /api/settings` and `PUT /api/home`. Same trust-boundary reasoning.                |
 | Trust proxy for auth            | `TRUST_PROXY_FOR_AUTH`                                      | Auth gate behavior; see [Config-write auth](#config-write-auth-loopback-by-default) below.            |
-| Share-link HMAC secret          | `TRAVERSE_SHARE_SECRET`                                     | Long-lived secret; rotating it should invalidate existing share links, so it shouldn't round-trip through a UI. |
 | Rate-limit overrides            | `TRAVERSE_RATELIMIT_<endpoint>_CAPACITY`, `_REFILL_PER_MIN` | Operational tuning, not user preferences.                                                             |
 
 If you need a knob that's currently `.env`-only to be UI-editable, open an issue — the current split is intentional but not sacred.
@@ -179,10 +178,10 @@ Traverse talks to model and search providers through a thin adapter layer. The d
 | Feature                    | Requires                                                |
 | -------------------------- | ------------------------------------------------------- |
 | Seed / Add (`+`, pin)      | `modelDefault` provider with valid key                  |
-| Lock & generate itinerary  | `modelDefault` provider with valid key                  |
 | Ask Field guide (planning chat) | `modelDefault` provider with valid key             |
 | Retro on completion        | `modelDefault` provider with valid key                  |
-| Add receipts (completed trips) | `modelDefault` provider with valid key **+ vision-capable model** (e.g. `claude-sonnet-4-6`, `gpt-4o`; non-vision models like `gpt-3.5-turbo` will error at runtime) |
+| Add candidate / Find more (manual stop add, batch refresh) | `modelDefault` / `modelResearch` provider with valid key (find-more also needs a search backend) |
+| Add receipts (disabled pre-launch — see `getFeatureAvailability().receipts`) | `modelDefault` provider with valid key **+ vision-capable model** (e.g. `claude-sonnet-4-6`, `gpt-4o`) — UI is hidden until the receipts-as-ledger redesign lands |
 | Research → (deepen)        | `modelResearch` provider with key **+** search backend  |
 
 If a feature's backing provider isn't configured, its button is disabled in the UI with a tooltip pointing at either `.env` or the Settings page. The startup banner (printed to the server log) lists which features are wired and tags each effective value's source.
@@ -197,7 +196,7 @@ If a feature's backing provider isn't configured, its button is disabled in the 
 | Research model | `TRAVERSE_MODEL_RESEARCH`              | tool-use-capable model id           |
 | Search backend | `TRAVERSE_SEARCH_PROVIDER`             | `anthropic-builtin` (default) · `tavily` |
 | Assistant name | `TRAVERSE_ASSISTANT_NAME`              | display name in UI (default `Field guide`)    |
-| Per-feature    | `TRAVERSE_MODEL_<FEATURE>(_PROVIDER)?` | optional override; `<FEATURE>` ∈ `SEED`, `ADD`, `LOCK`, `CHAT`, `RETRO`, `RECEIPTS`, `DEEPEN` |
+| Per-feature    | `TRAVERSE_MODEL_<FEATURE>(_PROVIDER)?` | optional override; `<FEATURE>` ∈ `SEED`, `ADD`, `CHAT`, `RETRO`, `RECEIPTS`, `DEEPEN`, `ADD_CANDIDATE`, `FIND_MORE` |
 
 `anthropic-builtin` runs Anthropic's server-side `web_search` tool — only valid when the research model is also Anthropic. `tavily` is portable across any model provider but requires a `TAVILY_API_KEY`.
 
@@ -221,13 +220,11 @@ OPENROUTER_API_KEY=sk-or-...
 
 `TRAVERSE_ASSISTANT_NAME` only affects user-facing UI strings ("Ask Field guide…", SSE progress messages). Set it to whatever fits the model you've configured.
 
-**Public share links** are off by default. Set `TRAVERSE_SHARE_SECRET` (e.g. `openssl rand -base64 32`) to enable a "Generate share link" button on the trip detail view. The link is `/share/<token>` where the token is `HMAC-SHA256(slug, secret)`; tokens are deterministic but tied per-trip via a `shared: true` frontmatter flag, so disabling share on a trip revokes access immediately even if someone has the URL. Rotating `TRAVERSE_SHARE_SECRET` invalidates every existing share link.
-
-**Per-feature overrides** let you route specific actions to a different model than the slot default — e.g. use Haiku for the deterministic itinerary-generation call (`lock`) while keeping Sonnet for everything else:
+**Per-feature overrides** let you route specific actions to a different model than the slot default — e.g. use Haiku for the cheap single-add `add-candidate` call while keeping Sonnet for everything else:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
-TRAVERSE_MODEL_LOCK=claude-haiku-4-5
+TRAVERSE_MODEL_ADD_CANDIDATE=claude-haiku-4-5
 ```
 
 Both `TRAVERSE_MODEL_<FEATURE>` (model id) and `TRAVERSE_MODEL_<FEATURE>_PROVIDER` (provider) are independent overrides; either or both can be set. An override that points to a provider with no key configured disables only that feature, leaving the rest working — the startup banner shows per-feature provider/model and marks overrides explicitly.

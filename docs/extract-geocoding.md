@@ -1,5 +1,7 @@
 # Non-blocking geocoding in the extract leg
 
+> **Status: shipped.** The recommended bundle (Option A + Option E) landed via #382 (defer to follow-on `geocode-candidates` background job) and #383 (HTTP-conditional throttle). The two-pill UX and `X of Y pinned` hint are live. Note that "extract leg" is now a historical term — the deepen pipeline was consolidated into a single envelope in #380 (see [`research-pipeline-consolidation.md`](research-pipeline-consolidation.md)); the geocode job hangs off `realizePlan()`'s output rather than a separate Leg 2.
+
 Design doc for [#353](https://github.com/WrongerSandwich/traverse-trip-planner/issues/353) — removing the ~15s Nominatim throttle from the deepen critical path.
 
 ## Current behavior

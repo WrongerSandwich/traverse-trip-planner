@@ -16,7 +16,7 @@ The mental model is closer to a personal wiki than a SaaS app. The LLM is fast a
 
 - **Seed** — generate trip ideas based on your home base, taste, and constraints (uses an LLM)
 - **Research** — flesh out an idea with live web-searched details: hours, prices, lodging, routes (uses an LLM + web search)
-- **Plan** — edit trip sections in-browser, chat with the assistant to refine them, then lock the trip to generate a day-by-day itinerary
+- **Plan** — edit prose sections (Overview, Route, Logistics) in-browser, chat with the Field guide (Cmd-K) to refine them, and arrange day-by-day stops + lodging via the structured Plan and Candidates UI
 - **Retro** — when a trip is marked completed, an AI-prompted Q&A writes a `notes.md` retrospective (rating, highlights, would-do-again) you can revisit later
 - **Map** — all trips rendered on an interactive map with drive-time routing
 - **Filter** — by stage, drive time, cost tier, NPS units, bookmarks
@@ -49,7 +49,7 @@ cp .env.example .env         # leave keys commented; set UID/GID if your host us
 docker compose up -d --build
 ```
 
-Open `http://<server-ip>:3456/settings`, paste your API keys, save. Then go through the in-app onboarding to set up your home base. **You won't need to edit `.env` again.**
+Open `http://<server-ip>:3456/configuration`, paste your API keys, save. Then go through the in-app onboarding to set up your home base (`/home-base`). **You won't need to edit `.env` again.** (`/settings` is preserved as a 308 redirect to `/home-base` for old bookmarks.)
 
 ### Path B — Infra-as-code / secrets manager
 
@@ -63,7 +63,7 @@ git clone <repo-url> traverse && cd traverse
 docker compose up -d --build
 ```
 
-Rotate keys via your existing pipeline. **You don't need to open `/settings`.**
+Rotate keys via your existing pipeline. **You don't need to open `/configuration`.**
 
 ---
 

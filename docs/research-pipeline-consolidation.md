@@ -1,5 +1,7 @@
 # Research pipeline consolidation
 
+> **Status: shipped.** Option 1 (single envelope) landed via #380; the dead `stops.md` reference cleanup landed via #381. `extract-candidates.js` was renamed to `realize-plan.js`; the extract-only recovery banner and `planExtractionFailed` loader flag are gone. Use this doc as the architectural rationale; the **Current behavior** section reflects the *pre*-consolidation pipeline.
+
 Design doc for [#352](https://github.com/WrongerSandwich/traverse-trip-planner/issues/352) — collapsing the two-leg research/extract pipeline into a single envelope.
 
 ## Why the split exists today (vestigial)

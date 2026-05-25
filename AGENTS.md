@@ -81,7 +81,7 @@ the source. Knowing these up front saves debugging time.
 ## Repo shape
 
 - `src/lib/server/` — server-only modules (AI adapters, file I/O,
-  geocode/route/image caches, share-token HMAC, brochure extraction).
+  geocode/route/image caches, job registry, brochure derivation).
   Pure logic that can be unit-tested without DOM goes here.
 - `src/lib/utils/` — isomorphic pure utilities (projection math,
   terrain helpers, action streaming). Easiest place to add tests.
@@ -126,9 +126,8 @@ These are load-bearing. Violations should fail review.
 - Mirror the source path: `src/lib/server/foo.js` →
   `tests/foo.test.js`.
 - Pure functions are the easiest target (no SDK mocks, no fs
-  fixtures). Edge-indicator math, projection helpers, brochure YAML
-  parsing, share-token HMAC, frontmatter formatters — all good
-  candidates.
+  fixtures). Edge-indicator math, projection helpers, brochure
+  derivation, frontmatter formatters — all good candidates.
 - For modules with side effects, use `vi.mock()` to stub at the
   adapter boundary (`@anthropic-ai/sdk`, `node:fs`, etc.). See
   `tests/ai-anthropic.test.js` for the canonical mocking pattern,
@@ -169,8 +168,8 @@ well-understood reasons.
   run the handler synchronously and collect sent messages into an array.
   For fire-and-forget paths (deepen), flush the microtask queue with
   `await new Promise(r => setTimeout(r, 50))` before asserting on cleanup.
-- **Pure-function test** → `tests/share.test.js` or
-  `tests/format-usage.test.js` — no mocks, deterministic input/output.
+- **Pure-function test** → `tests/format-usage.test.js` or
+  `tests/derive-brochure.test.js` — no mocks, deterministic input/output.
 - **Frontmatter parsing test** → `tests/data-frontmatter.test.js` —
   hand-written YAML samples + assertions on parsed shape.
 - **Disk-backed cache** → the cache helpers in `src/lib/server/data.js`

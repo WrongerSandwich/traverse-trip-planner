@@ -116,13 +116,15 @@ The SvelteKit app in `src/` is the primary interface. Two ways to run it:
 - **Dev:** `npm run dev -- --port 3456` (hot reload)
 - **Prod:** Docker (`docker compose up -d` / `docker compose logs -f traverse`) — the home server runs the `traverse` container, port 3456. PM2 / `node build/index.js` are legacy paths, no longer in use.
 
-The frontend reads trip data from the markdown files on each page load. All three external lookups are disk-backed under `.cache/` and persist across restarts:
+The frontend reads trip data from the markdown files on each page load. All three external lookups are disk-backed under `data/.cache/` and persist across restarts:
 
-- `.cache/.geocode-cache.json` — Nominatim destination + waypoint coordinates
-- `.cache/.image-cache.json` — Pexels photo URLs
-- `.cache/.route-cache.json` — OSRM road route geometries
+- `data/.cache/.geocode-cache.json` — Nominatim destination + waypoint coordinates
+- `data/.cache/.image-cache.json` — Pexels photo URLs
+- `data/.cache/.route-cache.json` — OSRM road route geometries
 
-A fourth disk-backed file, `.cache/.workflow-stats.json`, holds rolling p50 telemetry for the `_promise` time/token estimates (see `src/lib/server/workflow-stats.js`). It's written from `chat()` on every AI call and read by `getResolvedPromises()` at load time; the layout server passes the resolved map to the client as `data.promises`.
+A fourth disk-backed file, `data/.cache/.workflow-stats.json`, holds rolling p50 telemetry for the `_promise` time/token estimates (see `src/lib/server/workflow-stats.js`). It's written from `chat()` on every AI call and read by `getResolvedPromises()` at load time; the layout server passes the resolved map to the client as `data.promises`.
+
+A fifth file, `data/.cache/.jobs.json`, is the volatile registry of in-flight Ambient Background jobs (written by `startJob` / `completeJob` / `failJob` in `src/lib/server/jobs.js`). On boot, `sweepStaleJobs()` reads it, marks each listed trip's frontmatter with `last_run_error: 'interrupted'`, then deletes the file. It lives under `.cache/` for the bind-mount reasons below but is registry state, not memoized lookups.
 
 The `.cache/` directory rather than root-level files is so Docker can bind-mount a directory: per-file bind mounts break the atomic-write rename with `EBUSY` (kernel won't replace a bind-mount target). A one-shot migration in `data.js` / `workflow-stats.js` moves any pre-`.cache/` files into the new location on first read.
 
@@ -137,7 +139,7 @@ After adding or renaming trips, the next page load picks them up automatically; 
 - File names: kebab-case, no dates (e.g. `ozarks-backroads.md`)
 - Never remove frontmatter fields during promotion; only add or refine
 - When uncertain about a field at creation, omit it
-- Research subagents write to their own files (`route.md`, `logistics.md`, etc.) and summarize in `overview.md`; no silent edits to user-written prose
+- Research is a single `chat()` envelope (post-#380): the deepen handler asks for `<overview_prose>`, `<frontmatter>`, `<route_md>`, `<logistics_md>`, `<plan>` YAML, and `<candidates>` YAML in one round-trip, then `realizePlan()` writes them atomically. No subagents, no per-file prompts, no separate extract leg. Re-running on a planning trip is gated by a dirty-section scan (`_collectDirtySections` in `src/routes/api/actions/deepen/[slug]/+server.js`) that returns 409 with the list of edited sections so the UI can confirm an overwrite.
 - Distance, radius, and vehicle-specific logic read from `home.md` frontmatter; don't hardcode user-specific numbers in commands or subagents
 - All model calls go through `chat()` in `src/lib/server/ai.js`; all web search goes through `search()` / `searchToolDefinition()` in `src/lib/server/search.js`. Don't `import Anthropic` (or any other SDK) in route handlers — add a new adapter under `src/lib/server/{ai,search}/` instead. Pass a `label` to `chat()` so token-usage logs are grouped by feature.
 - AI workflows must pick an archetype from [`docs/ai-workflow-ux.md`](docs/ai-workflow-ux.md) and reuse the shared primitives (`src/lib/workflow-status/`, `src/lib/components/BackgroundJobsIndicator.svelte`, `src/lib/components/TripJobBadge.svelte`, `src/lib/components/PromiseTooltip.svelte`, `src/lib/components/ConfirmModal.svelte`). Ambient Background workflows register with `src/lib/server/jobs.js`; failures map to `ERROR_REGISTRY` codes from `src/lib/errors-registry.js` — no inline catch sentences.

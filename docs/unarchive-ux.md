@@ -1,5 +1,7 @@
 # In-UI unarchive
 
+> **Status: shipped.** Option B (Show-archived filter toggle) landed via #384 — the `/api/unarchive/[slug]` endpoint, `moveTrip()` file/dir extension, archived card treatment, and filter toggle are all live. `docs/manual.md` §12 was updated to describe the in-UI flow.
+
 Design doc for [#365](https://github.com/WrongerSandwich/traverse-trip-planner/issues/365) — closing the archive loop in the browser instead of requiring filesystem operations.
 
 ## Current state

@@ -1,7 +1,7 @@
 # Candidates — manual add + "find more" batch (design)
 
 **Date:** 2026-05-24
-**Status:** Draft (pending review)
+**Status:** Shipped via [#369](https://github.com/WrongerSandwich/traverse-trip-planner/pull/369). Both endpoints (`POST /api/actions/add-candidate/[slug]` Instant Inline, `POST /api/actions/find-more/[slug]` Ambient Background) are live; the `user_added: true` preservation contract is in `realize-plan.js`. Doc stays in `specs/` (not `specs/archive/`) because the companion plan at [`../plans/2026-05-24-candidates-add-and-find-more.md`](../plans/2026-05-24-candidates-add-and-find-more.md) links to it at this path.
 
 ## Problem
 

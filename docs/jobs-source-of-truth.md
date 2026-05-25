@@ -1,5 +1,7 @@
 # Jobs source of truth
 
+> **Status: shipped.** All five follow-up tickets landed (#375, #376, #377, #378, #379 — see `git log --grep="(#375|#376|#377|#378|#379)"`). This doc stays in place as the architectural reference for the registry; the source comments under `src/lib/server/jobs.js`, `src/hooks.server.js`, and the deepen routes link back here. Treat the **Current behavior**, **Decision space**, and **Migration sketch** sections as historical; the **Implications for related work** and **Open questions** sections describe what's now live.
+
 Design doc for [#355](https://github.com/WrongerSandwich/traverse-trip-planner/issues/355) — picking one source of truth for in-flight Ambient Background job state.
 
 ## Current behavior
