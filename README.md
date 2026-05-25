@@ -32,6 +32,10 @@ The trip detail page — overview, route, logistics, plan, and candidates each r
 
 ![Trip detail page with sectioned content and per-section Edit buttons](docs/screenshots/detail.png)
 
+The Candidates section — a tabbed Stops / Lodging pool seeded by research, with each card promotable into a specific day on the Plan. Pins land on the trip map alongside the route; the section header shows `X of Y pinned` as the background geocode job fills them in:
+
+![Candidates section with tabbed Stops/Lodging cards and pinned destination map](docs/screenshots/candidates.png)
+
 The print-optimized brochure: cover photo, paper-map route inset from home, destination map with numbered pins, and day-by-day stops + lodging — derived freshly from `plan.md` + `candidates.md` on every view:
 
 ![Brochure print view with cover photo, route inset, and numbered destination map](docs/screenshots/brochure.png)

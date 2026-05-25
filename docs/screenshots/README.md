@@ -6,6 +6,7 @@ Referenced from the project [README](../../README.md). Keep the filenames stable
 
 - `home.png` — home page with trip cards + interactive map
 - `detail.png` — trip detail page (any planning-stage trip; sections visible)
+- `candidates.png` — Candidates section on the trip detail page with at least one card visible in both the Stops and Lodging tabs and pins on the trip map; capture *after* the geocode job settles so the section header reads `X of Y pinned`, not `Geocoding…`
 - `brochure.png` — print-optimized brochure view (`/trips/<slug>/brochure`)
 - `home-base.png` — `/home-base` (the `home.md` profile editor)
 
