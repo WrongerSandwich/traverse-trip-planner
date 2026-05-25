@@ -13,21 +13,35 @@ When a user preference or constraint surfaces that isn't in `home.md`, flag it r
 ```
 traverse/
 ├── CLAUDE.md          # this file — repo conventions
-├── home.md            # user-specific preferences and constraints
-├── PRODUCT.md         # design context for the frontend
+├── AGENTS.md          # async-agent handoff conventions
+├── docs/
+│   ├── product.md     # design context for the frontend
+│   ├── deploy.md      # self-host walkthrough (Docker / Node)
+│   └── …              # additional design + ops docs
 ├── src/               # SvelteKit frontend (npm run dev -- --port 3456)
-├── ideas/             # parked, lightly sketched (single .md files)
-├── planning/          # researched and actively becoming reality (folders with overview.md, route.md, logistics.md, plan.md, candidates.md)
-├── completed/         # archive with retrospectives
-└── archived/          # hidden from frontend; structure mirrors source stage
-    ├── ideas/
-    ├── planning/
-    └── completed/
+├── sample-data/       # bundled demo dataset for `npm run seed-sample`
+└── data/              # user-managed runtime state (gitignored)
+    ├── home.md        # personal preferences and constraints
+    ├── settings.json  # runtime-editable provider keys + feature flags
+    ├── ideas/         # parked, lightly sketched (single .md files)
+    ├── planning/      # researched and actively becoming reality
+    ├── completed/     # archive with retrospectives
+    ├── archived/      # hidden from frontend; structure mirrors source stage
+    │   ├── ideas/
+    │   ├── planning/
+    │   └── completed/
+    └── .cache/        # geocode/image/route/workflow-stats caches
 ```
 
-(Legacy `archived/exploring/` may exist for trips archived before the
+(Legacy `data/archived/exploring/` may exist for trips archived before the
 exploring stage was retired — `collectExistingDestinations()` still
 scans it so those destinations stay in the seed-avoidance list.)
+
+Everything user-managed lives under `data/`. Path constants in
+`src/lib/server/data.js` are anchored to `DATA_DIR = join(ROOT, 'data')`;
+new code that touches trip files should join from `DATA_DIR`, never from
+`ROOT` directly. The pre-`data/` layout is auto-migrated on first boot by
+`migrateRootDataToDataDir()` in `src/lib/server/migrate-to-data-dir.js`.
 
 ## Lifecycle
 

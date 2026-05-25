@@ -29,6 +29,7 @@ const mockSetFrontmatterField = vi.hoisted(() => vi.fn((content, _field, _value)
 const mockRemoveFrontmatterField = vi.hoisted(() => vi.fn((content, _field) => content));
 const mockAtomicWrite = vi.hoisted(() => vi.fn());
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test/data',
   ROOT: '/test',
   readHomeMd: () => '---\ntravelers: [you]\n---\n',
   getTripFiles: () => ({

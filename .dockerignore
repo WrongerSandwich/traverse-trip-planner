@@ -3,24 +3,26 @@ node_modules
 build
 .svelte-kit
 
-# Secrets and personal config (provided at runtime via bind mounts or env_file)
+# Secrets (env file is provided at runtime via docker-compose env_file)
 .env
 .env.*
+
+# Everything user-managed (trip stages, home.md, settings.json, .cache/) lives
+# under data/ post-#411 and is provided at runtime via the bind mount.
+data
+
+# Legacy pre-#411 paths — guard against stragglers at the repo root.
+ideas
+planning
+completed
+archived
 home.md
 settings.json
-
-# Runtime cache files (provided at runtime via bind mount of the .cache/ dir)
 .cache
 .geocode-cache.json
 .image-cache.json
 .route-cache.json
 .workflow-stats.json
-
-# User trip data (provided at runtime via bind mounts)
-ideas
-planning
-completed
-archived
 
 # Tooling, tests, docs — not needed in the runtime image
 .claude

@@ -63,6 +63,7 @@ const { mockGetTripFiles, mockAtomicWrite, mockInvalidateEnrichCache } = vi.hois
 
 vi.mock('$lib/server/data.js', () => ({
   ROOT: '/test-root',
+  DATA_DIR: '/test-root/data',
   rejectInvalidSlug: () => null,
   readHomeMd: () => '---\ntravelers: [test]\n---\n',
   getTripFiles: mockGetTripFiles,

@@ -32,11 +32,10 @@ COPY --from=builder  /app/build         ./build
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 
-# WORKDIR creates /app as root. Atomic cache writes (.geocode-cache.json,
-# .image-cache.json, .route-cache.json, .workflow-stats.json) need to
-# create a `.tmp` sibling before renaming into place, which requires write
-# permission on the parent directory. Without this chown the .tmp create
-# fails with EACCES and the caches silently never persist across restarts.
+# WORKDIR creates /app as root. Atomic writes (cache files + frontmatter
+# rewrites under /app/data/) create a `.tmp` sibling before renaming into
+# place, which requires write permission on the parent directory. Without
+# this chown the .tmp create fails with EACCES and writes silently fail.
 RUN chown node:node /app
 
 EXPOSE 3456

@@ -44,7 +44,8 @@ vi.mock('$lib/server/data.js', () => ({
   invalidateEnrichCache: vi.fn(),
   rejectInvalidSlug: () => null,
   ROOT: '/test',
-  findTripFile: () => '/test/planning/great-smoky-ramble/overview.md',
+  DATA_DIR: '/test/data',
+  findTripFile: () => '/test/data/planning/great-smoky-ramble/overview.md',
 }));
 
 const mockExistsSync = vi.hoisted(() => vi.fn(() => true));

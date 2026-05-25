@@ -1,10 +1,10 @@
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { ROOT, parseFrontmatter } from '$lib/server/data.js';
+import { DATA_DIR, parseFrontmatter } from '$lib/server/data.js';
 import { tripsToIcs } from '$lib/server/ics.js';
 
 function listPlanningTrips() {
-  const planningDir = join(ROOT, 'planning');
+  const planningDir = join(DATA_DIR, 'planning');
   if (!existsSync(planningDir)) return [];
   const trips = [];
   for (const entry of readdirSync(planningDir, { withFileTypes: true })) {

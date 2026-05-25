@@ -114,6 +114,8 @@ vi.mock('../src/lib/server/settings.js', () => ({
 }));
 
 const ROOT = '/prune-test-root';
+// User-managed runtime state (trip dirs, .cache/) lives under data/ post-#411.
+const DATA = `${ROOT}/data`;
 const ORIGINAL_CWD = process.cwd;
 
 process.cwd = () => ROOT;
@@ -129,16 +131,16 @@ function seedIdea(slug, extraFm = {}) {
   })
     .map(([k, v]) => `${k}: ${v}`)
     .join('\n');
-  seedFile(`${ROOT}/ideas/${slug}.md`, `---\n${fmLines}\n---\n\nBody.\n`);
+  seedFile(`${DATA}/ideas/${slug}.md`, `---\n${fmLines}\n---\n\nBody.\n`);
 }
 
 beforeEach(() => {
   fsState.files = {};
   fsState.dirs = new Set();
   ensureDir(ROOT);
-  ensureDir(`${ROOT}/ideas`);
-  ensureDir(`${ROOT}/planning`);
-  ensureDir(`${ROOT}/completed`);
+  ensureDir(`${DATA}/ideas`);
+  ensureDir(`${DATA}/planning`);
+  ensureDir(`${DATA}/completed`);
   process.cwd = () => ROOT;
   invalidateEnrichCache();
 });

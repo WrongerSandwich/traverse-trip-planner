@@ -34,6 +34,7 @@ const { mockFindTripLocation, mockInvalidateEnrichCache } = vi.hoisted(() => ({
 }));
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   ROOT: '/test-root',
   findTripLocation: mockFindTripLocation,
   invalidateEnrichCache: mockInvalidateEnrichCache,
@@ -57,19 +58,19 @@ describe('POST /api/archive/[slug]', () => {
       slug: 'ozarks',
       stage: 'planning',
       kind: 'dir',
-      path: '/test-root/planning/ozarks',
+      path: '/test-root/data/planning/ozarks',
     });
 
     const res = POST({ params: { slug: 'ozarks' } });
     expect(res._status).toBe(200);
     expect(res._body).toEqual({ ok: true, slug: 'ozarks', fromStage: 'planning' });
     expect(mockMkdirSync).toHaveBeenCalledWith(
-      '/test-root/archived/planning',
+      '/test-root/data/archived/planning',
       { recursive: true }
     );
     expect(mockRenameSync).toHaveBeenCalledWith(
-      '/test-root/planning/ozarks',
-      '/test-root/archived/planning/ozarks'
+      '/test-root/data/planning/ozarks',
+      '/test-root/data/archived/planning/ozarks'
     );
     expect(mockInvalidateEnrichCache).toHaveBeenCalledOnce();
   });
@@ -79,14 +80,14 @@ describe('POST /api/archive/[slug]', () => {
       slug: 'parked-idea',
       stage: 'ideas',
       kind: 'file',
-      path: '/test-root/ideas/parked-idea.md',
+      path: '/test-root/data/ideas/parked-idea.md',
     });
 
     const res = POST({ params: { slug: 'parked-idea' } });
     expect(res._body.fromStage).toBe('ideas');
     expect(mockRenameSync).toHaveBeenCalledWith(
-      '/test-root/ideas/parked-idea.md',
-      '/test-root/archived/ideas/parked-idea.md'
+      '/test-root/data/ideas/parked-idea.md',
+      '/test-root/data/archived/ideas/parked-idea.md'
     );
     expect(mockInvalidateEnrichCache).toHaveBeenCalledOnce();
   });

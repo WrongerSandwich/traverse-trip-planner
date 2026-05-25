@@ -488,7 +488,7 @@
 
       <div class="subsection">
         <span class="subsection-label">Environment-only configuration</span>
-        <p class="field-hint">These knobs live only in <code>.env</code>, each has a reason it can't be UI-edited. See the configuration reference in <code>DEPLOY.md</code> for the full list.</p>
+        <p class="field-hint">These knobs live only in <code>.env</code>, each has a reason it can't be UI-edited. See the configuration reference in <code>docs/deploy.md</code> for the full list.</p>
 
         <div class="field-group env-only-list">
           {#each data.envOnlyKnobs as knob (knob.name)}

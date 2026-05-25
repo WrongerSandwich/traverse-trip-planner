@@ -8,6 +8,7 @@ vi.mock('@sveltejs/kit', () => ({
 const mockToggleStarred = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   toggleStarred: mockToggleStarred,
   rejectInvalidSlug: () => null,
 }));

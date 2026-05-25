@@ -17,19 +17,18 @@ From the repo root, after `npm install`:
 npm run seed-sample
 ```
 
-This copies `sample-data/home.md` to `home.md` and the trip folders into `ideas/`, `planning/`, `completed/`. It will **not** overwrite an existing `home.md` or any trip whose slug already exists — re-running is safe.
+This copies `sample-data/home.md` to `data/home.md` and the trip folders into `data/ideas/`, `data/planning/`, `data/completed/`. It will **not** overwrite an existing `data/home.md` or any trip whose slug already exists — re-running is safe.
 
 ## Removing it
 
 The script doesn't track what it copied. To start fresh:
 
 ```bash
-rm home.md
-rm -r ideas planning completed
+rm -rf data/home.md data/ideas data/planning data/completed
 ```
 
-(Those directories are gitignored, so you won't disturb the repo state.)
+(The `data/` tree is gitignored, so you won't disturb the repo state.)
 
 ## Replacing it
 
-The fastest way to make Traverse feel like *yours* is to replace `home.md` with your real home base + preferences (or work through the in-app onboarding flow, when available), then use the **Seed** action on the home page to generate ideas tailored to you.
+The fastest way to make Traverse feel like *yours* is to replace `data/home.md` with your real home base + preferences (or work through the in-app onboarding flow), then use the **Seed** action on the home page to generate ideas tailored to you.

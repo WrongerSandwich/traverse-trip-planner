@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { parse as yamlParse } from 'yaml';
 import {
-  ROOT,
+  DATA_DIR,
   readHomeMd,
   parseFrontmatter,
   invalidateEnrichCache,
@@ -44,12 +44,12 @@ function normalize(name) {
 }
 
 function findPlanningOverview(slug) {
-  const p = join(ROOT, 'planning', slug, 'overview.md');
+  const p = join(DATA_DIR, 'planning', slug, 'overview.md');
   return existsSync(p) ? p : null;
 }
 
 function readSectionFile(slug, name) {
-  const p = join(ROOT, 'planning', slug, `${name}.md`);
+  const p = join(DATA_DIR, 'planning', slug, `${name}.md`);
   if (!existsSync(p)) return '';
   try { return readFileSync(p, 'utf8'); } catch { return ''; }
 }

@@ -1,7 +1,8 @@
-// Runtime-editable settings overlay. Lives in `settings.json` at the repo
-// root and overlays on top of process.env — settings values win where present,
-// env is the fallback. Re-read on every getEffectiveConfig() call so changes
-// made via the Settings UI take effect on the next request without a restart.
+// Runtime-editable settings overlay. Lives at `data/settings.json` under the
+// repo root and overlays on top of process.env — settings values win where
+// present, env is the fallback. Re-read on every getEffectiveConfig() call so
+// changes made via the Settings UI take effect on the next request without a
+// restart.
 //
 // Public API:
 //   readSettings()                   → parsed settings.json or {}
@@ -15,7 +16,10 @@ import { resolve } from 'node:path';
 import { PROVIDERS } from './providers.js';
 import { atomicWrite } from './atomic-write.js';
 
-const SETTINGS_PATH = resolve('settings.json');
+// Resolve from cwd at module-load time. Direct constant rather than importing
+// DATA_DIR from data.js, since data.js itself depends on this module —
+// avoid a circular import.
+const SETTINGS_PATH = resolve('data', 'settings.json');
 
 const PROVIDER_KEY_ENV = Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.envKey]));
 

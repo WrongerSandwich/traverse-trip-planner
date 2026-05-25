@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { ROOT, appendToNotes, rejectInvalidSlug } from '$lib/server/data.js';
+import { DATA_DIR, appendToNotes, rejectInvalidSlug } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
@@ -28,7 +28,7 @@ export async function POST(event) {
   if (invalid) return invalid;
   const { slug } = params;
 
-  if (!existsSync(join(ROOT, 'completed', slug))) {
+  if (!existsSync(join(DATA_DIR, 'completed', slug))) {
     return new Response('Trip not in completed stage', { status: 404 });
   }
 

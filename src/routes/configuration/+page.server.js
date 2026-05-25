@@ -8,8 +8,9 @@ import {
 import { getFeatureAvailability, getEffectiveConfig } from '$lib/server/config.js';
 
 // Env-only knobs the Settings UI surfaces as read-only. Each row has a reason
-// it's not editable from the UI; the canonical full list lives in DEPLOY.md's
-// "Configuration reference" section. The order here is the rendering order.
+// it's not editable from the UI; the canonical full list lives in
+// docs/deploy.md's "Configuration reference" section. The order here is the
+// rendering order.
 //
 // Display modes:
 //   - 'boolean'  — render "on" / "off" based on isActiveIf(rawValue). Each

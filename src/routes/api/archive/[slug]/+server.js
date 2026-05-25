@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { ROOT, findTripLocation, invalidateEnrichCache, rejectInvalidSlug, crossMountRename } from '$lib/server/data.js';
+import { DATA_DIR, findTripLocation, invalidateEnrichCache, rejectInvalidSlug, crossMountRename } from '$lib/server/data.js';
 
 export function POST({ params }) {
   const invalid = rejectInvalidSlug(params.slug);
@@ -11,7 +11,7 @@ export function POST({ params }) {
   if (!trip) return new Response('Trip not found', { status: 404 });
 
   // Mirror the source stage under archived/ so an unarchive could restore it later.
-  const archiveStageDir = join(ROOT, 'archived', trip.stage);
+  const archiveStageDir = join(DATA_DIR, 'archived', trip.stage);
   mkdirSync(archiveStageDir, { recursive: true });
 
   const dest = trip.kind === 'file'

@@ -14,17 +14,12 @@ services:
     env_file:
       - .env
     volumes:
-      - ./ideas:/app/ideas
-      - ./planning:/app/planning
-      - ./completed:/app/completed
-      - ./archived:/app/archived
-      - ./home.md:/app/home.md
-      - ./settings.json:/app/settings.json
-      # Bind-mount the cache DIRECTORY rather than individual files: atomic
-      # writes do a tmp-then-rename, and renaming onto a single bind-mounted
-      # file fails with EBUSY (the kernel won't replace a bind-mount target).
-      # A directory mount has no such restriction.
-      - ./.cache:/app/.cache
+      # Single bind mount for everything user-managed: trip stages (ideas,
+      # planning, completed, archived), home.md, settings.json, and the
+      # runtime .cache/. Atomic writes do a tmp-then-rename, which requires
+      # a directory mount (not per-file) — the kernel won't replace a single
+      # bind-mounted file target.
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3456/"]
       interval: 30s

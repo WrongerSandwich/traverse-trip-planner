@@ -1,11 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { ROOT, PLANNING_SECTIONS, writePlanningSection, rejectInvalidSlug } from '$lib/server/data.js';
+import { DATA_DIR, PLANNING_SECTIONS, writePlanningSection, rejectInvalidSlug } from '$lib/server/data.js';
 const VALID_SECTIONS = new Set(PLANNING_SECTIONS);
 
 function sectionPath(slug, section) {
-  return join(ROOT, 'planning', slug, `${section}.md`);
+  return join(DATA_DIR, 'planning', slug, `${section}.md`);
 }
 
 export async function PUT({ params, request }) {
@@ -16,7 +16,7 @@ export async function PUT({ params, request }) {
     return new Response('Invalid section', { status: 400 });
   }
 
-  const dir = join(ROOT, 'planning', slug);
+  const dir = join(DATA_DIR, 'planning', slug);
   if (!existsSync(dir)) {
     return new Response('Trip not in planning stage', { status: 404 });
   }

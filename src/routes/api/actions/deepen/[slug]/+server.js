@@ -29,7 +29,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, renameS
 import { join } from 'path';
 import { parse as yamlParse } from 'yaml';
 import {
-  ROOT,
+  DATA_DIR,
   readHomeMd,
   parseFrontmatter,
   parseFrontmatterFields,
@@ -54,12 +54,12 @@ import { isValidWaypoints } from '$lib/utils/waypoints.js';
 export const _promise = HAND_DEFAULTS.deepen;
 
 function findIdeaFile(slug) {
-  const p = join(ROOT, 'ideas', `${slug}.md`);
+  const p = join(DATA_DIR, 'ideas', `${slug}.md`);
   return existsSync(p) ? p : null;
 }
 
 function findPlanningOverview(slug) {
-  const p = join(ROOT, 'planning', slug, 'overview.md');
+  const p = join(DATA_DIR, 'planning', slug, 'overview.md');
   return existsSync(p) ? p : null;
 }
 
@@ -102,7 +102,7 @@ export function _isValidWaypoints(v) {
  */
 export function _collectDirtySections(slug, { stat } = {}) {
   const safeStat = stat ?? ((p) => { try { return statSync(p); } catch { return null; } });
-  const dir = join(ROOT, 'planning', slug);
+  const dir = join(DATA_DIR, 'planning', slug);
   const dirty = [];
 
   // 1. plan.md prose fields (field_guide_notes / gotchas).
@@ -307,7 +307,7 @@ Formatting rules for the markdown content inside route_md / logistics_md (these 
     .map(([k, v]) => `${k}: ${Array.isArray(v) ? `[${v.join(', ')}]` : v}`)
     .join('\n');
 
-  const dir = join(ROOT, 'planning', slug);
+  const dir = join(DATA_DIR, 'planning', slug);
   mkdirSync(dir, { recursive: true });
 
   // Deterministic post-processing — strips outer code fences, normalizes

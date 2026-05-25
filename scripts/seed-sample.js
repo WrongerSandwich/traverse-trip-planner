@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Copies sample-data/* into the repo root for first-run exploration.
+// Copies sample-data/* into data/ for first-run exploration.
 //   node scripts/seed-sample.js
-// Safe to re-run: never overwrites an existing home.md or trip slug.
+// Safe to re-run: never overwrites an existing data/home.md or trip slug.
 
 import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SAMPLE = join(ROOT, 'sample-data');
+const DATA = join(ROOT, 'data');
 
 if (!existsSync(SAMPLE)) {
   console.error(`No sample-data/ directory at ${SAMPLE}. Are you running this from a fresh clone?`);
@@ -20,16 +21,16 @@ let skipped = 0;
 
 function copyIfMissing(srcRel, dstRel) {
   const src = join(SAMPLE, srcRel);
-  const dst = join(ROOT, dstRel);
+  const dst = join(DATA, dstRel);
   if (existsSync(dst)) {
     skipped++;
-    console.log(`  skip   ${dstRel} (already exists)`);
+    console.log(`  skip   data/${dstRel} (already exists)`);
     return;
   }
   mkdirSync(dirname(dst), { recursive: true });
   copyFileSync(src, dst);
   copied++;
-  console.log(`  copy   ${dstRel}`);
+  console.log(`  copy   data/${dstRel}`);
 }
 
 function copyDirIfMissingSlug(stageRel) {
@@ -38,10 +39,10 @@ function copyDirIfMissingSlug(stageRel) {
   for (const entry of readdirSync(sampleStage, { withFileTypes: true })) {
     if (entry.name === 'README.md') continue;
     const srcPath = join(sampleStage, entry.name);
-    const dstPath = join(ROOT, stageRel, entry.name);
+    const dstPath = join(DATA, stageRel, entry.name);
     if (existsSync(dstPath)) {
       skipped++;
-      console.log(`  skip   ${stageRel}/${entry.name} (already exists)`);
+      console.log(`  skip   data/${stageRel}/${entry.name} (already exists)`);
       continue;
     }
     if (entry.isFile() && entry.name.endsWith('.md')) {
@@ -55,14 +56,14 @@ function copyDirIfMissingSlug(stageRel) {
         if (statSync(innerSrc).isFile()) {
           copyFileSync(innerSrc, innerDst);
           copied++;
-          console.log(`  copy   ${stageRel}/${entry.name}/${inner}`);
+          console.log(`  copy   data/${stageRel}/${entry.name}/${inner}`);
         }
       }
     }
   }
 }
 
-console.log('Seeding sample data into the repo root…');
+console.log('Seeding sample data into data/…');
 console.log('');
 
 // home.md (single file; only if not present)

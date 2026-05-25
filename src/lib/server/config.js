@@ -118,13 +118,13 @@ export function isHomeFrontmatterReady(content) {
 }
 
 /**
- * Returns true iff home.md exists at the repo root and its frontmatter
- * passes isHomeFrontmatterReady(). Used to gate AI features that require
- * the traveler's home context.
+ * Returns true iff data/home.md exists and its frontmatter passes
+ * isHomeFrontmatterReady(). Used to gate AI features that require the
+ * traveler's home context.
  */
 function isHomeMdReady() {
   try {
-    const p = join(process.cwd(), 'home.md');
+    const p = join(process.cwd(), 'data', 'home.md');
     if (!existsSync(p)) return false;
     return isHomeFrontmatterReady(readFileSync(p, 'utf8'));
   } catch {

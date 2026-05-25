@@ -35,6 +35,7 @@ vi.mock('node:fs', () => ({
 }));
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   findTripFile: mockFindTripFile,
   parseFrontmatter: (text) => {
     const match = text.match(/^---\n([\s\S]*?)\n---/);

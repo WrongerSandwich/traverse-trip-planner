@@ -28,17 +28,18 @@ vi.mock('node:fs', async (importOriginal) => {
 
 const { updateImageMeta } = await import('../src/lib/server/data.js');
 
-// data.js builds paths via `join(ROOT, 'ideas', `${slug}.md`)` or
-// `join(ROOT, 'planning', slug, 'overview.md')`. We seed both locations
-// using the same join logic so findTripFile() resolves them.
+// data.js builds paths via `join(DATA_DIR, 'ideas', `${slug}.md`)` or
+// `join(DATA_DIR, 'planning', slug, 'overview.md')` where DATA_DIR is
+// `join(process.cwd(), 'data')`. We seed both locations using the same join
+// logic so findTripFile() resolves them.
 import { join } from 'node:path';
-const ROOT = process.cwd();
+const DATA = join(process.cwd(), 'data');
 
 function seedIdea(slug, content) {
-  fsState.files[join(ROOT, 'ideas', `${slug}.md`)] = content;
+  fsState.files[join(DATA, 'ideas', `${slug}.md`)] = content;
 }
 function seedPlanning(slug, content) {
-  fsState.files[join(ROOT, 'planning', slug, 'overview.md')] = content;
+  fsState.files[join(DATA, 'planning', slug, 'overview.md')] = content;
 }
 function readBack(path) {
   return fsState.files[path];
@@ -48,7 +49,7 @@ beforeEach(() => { fsState.files = {}; });
 
 describe('updateImageMeta', () => {
   it('writes image_query to an idea-stage trip', () => {
-    const path = join(ROOT, 'ideas', 'demo.md');
+    const path = join(DATA, 'ideas', 'demo.md');
     seedIdea('demo', `---
 title: Demo
 status: idea
@@ -64,7 +65,7 @@ body
   });
 
   it('writes image_pick when value is a positive integer', () => {
-    const path = join(ROOT, 'ideas', 'demo.md');
+    const path = join(DATA, 'ideas', 'demo.md');
     seedIdea('demo', `---
 title: Demo
 status: idea
@@ -78,7 +79,7 @@ body
   });
 
   it('removes image_pick when value is 0', () => {
-    const path = join(ROOT, 'ideas', 'demo.md');
+    const path = join(DATA, 'ideas', 'demo.md');
     seedIdea('demo', `---
 title: Demo
 status: idea
@@ -93,7 +94,7 @@ body
   });
 
   it('writes both fields in one call (planning stage)', () => {
-    const path = join(ROOT, 'planning', 'demo', 'overview.md');
+    const path = join(DATA, 'planning', 'demo', 'overview.md');
     seedPlanning('demo', `---
 title: Demo
 status: planning
