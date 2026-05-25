@@ -1,4 +1,5 @@
 <script>
+  import OverviewMap from '$lib/components/OverviewMap.svelte';
   import TripCard from '$lib/components/TripCard.svelte';
   import TripRow from '$lib/components/TripRow.svelte';
   import TripJobBadge from '$lib/components/TripJobBadge.svelte';
@@ -207,6 +208,10 @@
   const selectedTrip = $derived(
     selectedSlug ? data.trips.find(t => t._slug === selectedSlug) ?? null : null
   );
+  // Map highlight driven by mouse hover on a card. Desktop-only — the map
+  // itself is hidden below 768px, so we don't need a scroll-driven fallback.
+  let hoveredSlug = $state(null);
+
   // "Newly active" highlights: slugs the user hasn't yet acknowledged.
   // Set when seed/add adds a trip, or when a deepen completes. Cleared on
   // hover or click of the affected card. In-memory only (resets on page
@@ -985,6 +990,12 @@
   {/if}
 
   <div class="layout">
+    <div class="map-col">
+      <OverviewMap {trips} home={data.home} hoveredSlug={hoveredSlug}
+        selectedSlug={selectedTrip?._slug}
+        onTripClick={t => openTrip(t)} />
+    </div>
+
     <div class="cards-col">
       <!-- Stage tabs + filter toggle + sort -->
       <div class="controls-wrap">
@@ -1166,7 +1177,8 @@
                 fresh={highlightedSlugs.has(trip._slug)}
                 archived={trip._archived === true}
                 onclick={trip._archived ? null : () => openTrip(trip)}
-                onhover={() => clearFresh(trip._slug)}
+                onhover={() => { hoveredSlug = trip._slug; clearFresh(trip._slug); }}
+                onleave={() => hoveredSlug = null}
                 onbookmark={trip._archived ? null : (e) => toggleBookmark(trip, e)}
                 ondeepen={(!trip._archived && data.features?.deepen) ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
                 onrestore={trip._archived ? (e) => restoreTrip(trip, e) : null}
@@ -1178,7 +1190,8 @@
                 fresh={highlightedSlugs.has(trip._slug)}
                 archived={trip._archived === true}
                 onclick={trip._archived ? null : () => openTrip(trip)}
-                onhover={() => clearFresh(trip._slug)}
+                onhover={() => { hoveredSlug = trip._slug; clearFresh(trip._slug); }}
+                onleave={() => hoveredSlug = null}
                 onbookmark={trip._archived ? null : (e) => toggleBookmark(trip, e)}
                 ondeepen={(!trip._archived && data.features?.deepen) ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
                 oncancel={null}
@@ -1698,23 +1711,19 @@
   }
 
   .layout {
-    display: block;
+    display: grid;
+    grid-template-columns: 42% 1fr;
     overflow: hidden;
     height: 100%;
   }
 
-  /* Single-column layout (map column retired). Constrained max-width so card
-     rows don't stretch into uncomfortable line lengths on wide monitors;
-     centered horizontally with auto margins. */
+  .map-col { height: 100%; overflow: hidden; }
+
   .cards-col {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
+    display: flex; flex-direction: column;
+    height: 100%; overflow: hidden;
+    box-shadow: -6px 0 24px rgba(0, 0, 0, 0.07);
     background: var(--surface-page);
-    max-width: 960px;
-    width: 100%;
-    margin: 0 auto;
   }
 
   /* ── Controls wrap (tabs + filter panel) ── */
@@ -2085,14 +2094,17 @@
        overflow-y as hidden makes .page a scroll container, which traps position:sticky inside
        .page (height:auto = no scroll room) instead of letting it stick to the body scroll. */
     .page { height: auto; overflow: clip; grid-template-rows: auto auto; }
-    .layout { overflow: visible; height: auto; }
+    /* Mobile collapses to a single cards column; the interactive map column
+       isn't reliable on small viewports, so it's retired here only. */
+    .layout { grid-template-columns: 1fr; overflow: visible; height: auto; }
+    .map-col { display: none; }
 
-    /* Cards column: simple block flow on mobile */
+    /* Cards column: simple block flow, no desktop flex/shadow */
     .cards-col {
       height: auto;
       display: block;
       overflow-x: clip;
-      max-width: 100%;
+      box-shadow: none;
     }
 
     /* ── Controls ── */
