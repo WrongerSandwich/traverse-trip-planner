@@ -35,6 +35,10 @@
     color = null,           // tripColor (stage-aware); falls back to forest-800
     driveLabel = null,      // pre-formatted "8 hr" string (parent owns formatting)
     homeDistanceMi = null,
+    // ── waypoints-missing hint (overview mode, planning stage only) ──
+    showWaypointHint = false,  // true when trip is planning-stage with no usable waypoints
+    onResearch = null,         // () => void — fires the research action
+    onEditOverview = null,     // () => void — opens the overview section edit
     // ── candidates-mode props ──
     stops = [],
     lodging = [],
@@ -341,16 +345,53 @@
   );
 </script>
 
-<div
-  bind:this={mapEl}
-  class="trip-map"
-  class:trip-map--overview={mode === 'overview'}
-  class:trip-map--candidates={mode === 'candidates'}
-  role="region"
-  aria-label={ariaLabel}
-></div>
+<div class="trip-map-wrap">
+  <div
+    bind:this={mapEl}
+    class="trip-map"
+    class:trip-map--overview={mode === 'overview'}
+    class:trip-map--candidates={mode === 'candidates'}
+    role="region"
+    aria-label={ariaLabel}
+  ></div>
+
+  {#if showWaypointHint && mode === 'overview'}
+    <div class="waypoint-hint" role="status" aria-live="polite">
+      <p class="waypoint-hint-copy">No route line — this trip is missing waypoints.</p>
+      <div class="waypoint-hint-actions">
+        {#if onResearch}
+          <button
+            class="btn btn-secondary btn-compact waypoint-hint-btn"
+            onclick={onResearch}
+            type="button"
+          >
+            Run Research →
+          </button>
+        {/if}
+        {#if onEditOverview}
+          <button
+            class="btn btn-tertiary btn-compact waypoint-hint-btn"
+            onclick={onEditOverview}
+            type="button"
+          >
+            Edit overview
+          </button>
+        {/if}
+      </div>
+    </div>
+  {/if}
+</div>
 
 <style>
+  /* Wrapper holds both the map canvas and the hint overlay in a stacking
+     context so the overlay can sit over the map without disrupting the map's
+     own z-index layers (Leaflet controls, popups, etc.). */
+  .trip-map-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
   .trip-map {
     width: 100%;
     height: 100%;
@@ -422,5 +463,47 @@
   }
   .trip-map :global(.tm-popup-line) {
     color: var(--text-secondary);
+  }
+
+  /* ── Waypoints-missing empty-state hint ─────────────────────────────── */
+  /* Subtle bottom overlay — informs without blocking map interaction.
+     Uses a scrim (rgba) over photographic content per the CSS-literal
+     exception in CLAUDE.md; all other values reference tokens. */
+  .waypoint-hint {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 0.6rem 0.75rem 0.7rem;
+    background: color-mix(in oklab, var(--surface-overlay) 88%, transparent);
+    backdrop-filter: blur(3px);
+    border-top: 1px solid var(--border-subtle);
+    border-radius: 0 0 4px 4px;
+    pointer-events: auto;
+  }
+
+  .waypoint-hint-copy {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+  }
+
+  .waypoint-hint-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .waypoint-hint-btn {
+    /* Lift above Leaflet controls (z-index 400–1000) so the buttons are
+       always clickable when the hint is visible. */
+    position: relative;
+    z-index: 1;
   }
 </style>

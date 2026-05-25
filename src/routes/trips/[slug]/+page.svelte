@@ -15,6 +15,7 @@
   import { focusTrap } from '$lib/actions/focusTrap.js';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { isSectionsDirty } from '$lib/utils/sectionDirty.js';
+  import { hasWaypoints } from '$lib/utils/waypoints.js';
   import { browser } from '$app/environment';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
   import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
@@ -1086,6 +1087,18 @@
   const canReResearch = $derived(
     isPlanning && data.features?.deepen && data.features?.homeMdReady !== false,
   );
+
+  // Show the "missing waypoints" hint on the map for planning trips that have
+  // no usable waypoints yet. Idea-stage trips are excluded — the absence is
+  // expected pre-research and adding the hint would be noise.
+  const showWaypointHint = $derived(isPlanning && !hasWaypoints(trip));
+
+  // Navigate to the overview section and open its edit mode.
+  function editOverview() {
+    const el = document.getElementById('section-overview');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    startEdit('overview');
+  }
 </script>
 
 <svelte:head>
@@ -1225,6 +1238,9 @@
             color={markerColor}
             driveLabel={driveLabel}
             homeDistanceMi={trip?.home_distance_mi ?? null}
+            {showWaypointHint}
+            onResearch={canReResearch ? () => reResearch() : null}
+            onEditOverview={() => editOverview()}
           />
         </div>
       {/if}
