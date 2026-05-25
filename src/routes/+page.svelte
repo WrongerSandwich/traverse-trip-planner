@@ -15,6 +15,7 @@
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import { focusTrap } from '$lib/actions/focusTrap.js';
+  import { serializeFilters, parseFilters, FILTER_STORAGE_KEY } from '$lib/utils/filterPersist.js';
 
   let { data } = $props();
 
@@ -170,10 +171,21 @@
     node.focus();
   }
 
+  // ── Filter persistence ────────────────────────────────────────────────────
+  // Hydrate synchronously from localStorage so filters are applied before the
+  // first render — no flash of unfiltered cards. Falls back to defaults when
+  // localStorage is unavailable (SSR, private mode) or the stored schema has
+  // changed. A $effect below writes on every change.
+  function _readPersistedFilters() {
+    if (!browser) return null;
+    try { return parseFilters(localStorage.getItem(FILTER_STORAGE_KEY)); } catch { return null; }
+  }
+  const _pf = _readPersistedFilters();
+
   // Stage filter
-  let activeFilter = $state('all');
+  let activeFilter = $state(_pf?.activeFilter ?? 'all');
   // Sort
-  let activeSort   = $state('modified');
+  let activeSort   = $state(_pf?.activeSort ?? 'modified');
   // Card density — 'cards' (full hero cards) | 'rows' (condensed row list).
   // Persisted per-browser via localStorage so a chosen density survives reloads.
   const DENSITY_KEY = 'traverse:home-card-density';
@@ -224,10 +236,20 @@
   }
   // Extended filters
   let filterOpen   = $state(false);
-  let activeDist   = $state('any');   // 'any' | 'u3' | '3-6' | '6plus'
-  let activeCost   = $state('any');   // 'any' | 'budget' | 'mid' | 'splurge'
-  let activeNPS      = $state(false);
-  let activeStarred  = $state(false);
+  let activeDist   = $state(_pf?.activeDist ?? 'any');   // 'any' | 'u3' | '3-6' | '6plus'
+  let activeCost   = $state(_pf?.activeCost ?? 'any');   // 'any' | 'budget' | 'mid' | 'splurge'
+  let activeNPS      = $state(_pf?.activeNPS ?? false);
+  let activeStarred  = $state(_pf?.activeStarred ?? false);
+
+  // Persist filter changes to localStorage whenever any filter value changes.
+  $effect(() => {
+    if (!browser) return;
+    try {
+      localStorage.setItem(FILTER_STORAGE_KEY, serializeFilters({
+        activeFilter, activeSort, activeDist, activeCost, activeNPS, activeStarred,
+      }));
+    } catch { /* private mode etc */ }
+  });
   // Optimistic bookmark overrides (slug → boolean) so toggles feel instant
   let bookmarkOverrides = $state({});
 
