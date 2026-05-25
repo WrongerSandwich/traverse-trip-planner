@@ -233,7 +233,7 @@ Across the top of the home page:
 
 Bookmarking lives on every card as a star icon. Pressing it toggles `starred: true|false` in the trip's frontmatter — so the bookmark survives even if you nuke the cache, and is visible to anything reading the file.
 
-The filters are sticky for the session but do not persist across hard reloads. This is deliberate. Traverse is a browsing tool; filters are meant to be small, satisfying acts, not a saved view you maintain.
+Active filters are saved to your browser's local storage and restored on reload, so your preferred view survives closing the tab or hard-refreshing. "Clear all" removes both the runtime state and the saved state. If local storage is unavailable (private-browsing mode, blocked by browser policy), filters default to their unfiltered state on each load.
 
 ---
 
