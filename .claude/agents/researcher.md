@@ -40,9 +40,9 @@ Research the destination and return a structured report covering the sections be
 
 The drive itself. Key scenic segments, notable towns along the way worth a stop, route choices worth flagging (e.g., "I-44 vs. the 66 alignment"). Include rough timing.
 
-### 4. Notable stops (for `stops.md`)
+### 4. Candidate stops and lodging (for `candidates.md` pool)
 
-Specific places at the destination with a one-line why for each. Group by category where useful (food, sights, outdoors, music). Specific beats generic — name actual places, not "plenty of restaurants downtown."
+Specific places worth visiting, each with a one-line why. Group by category: historic, food, outdoors, view, entertainment, cultural, quirky, shopping. Aim for 8–15 stop candidates and 2–5 lodging options at varying price tiers. Specific beats generic — name actual places, not "plenty of restaurants downtown." The Research action extracts these into the structured `candidates.md` pool; do not write `stops.md` (retired).
 
 ### 5. Logistics (for `logistics.md`)
 

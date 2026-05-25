@@ -130,7 +130,7 @@ After adding or renaming trips, the next page load picks them up automatically; 
 - File names: kebab-case, no dates (e.g. `ozarks-backroads.md`)
 - Never remove frontmatter fields during promotion; only add or refine
 - When uncertain about a field at creation, omit it
-- Research subagents write to their own files (`route.md`, `stops.md`, etc.) and summarize in `overview.md`; no silent edits to user-written prose
+- Research subagents write to their own files (`route.md`, `logistics.md`, etc.) and summarize in `overview.md`; no silent edits to user-written prose
 - Distance, radius, and vehicle-specific logic read from `home.md` frontmatter; don't hardcode user-specific numbers in commands or subagents
 - All model calls go through `chat()` in `src/lib/server/ai.js`; all web search goes through `search()` / `searchToolDefinition()` in `src/lib/server/search.js`. Don't `import Anthropic` (or any other SDK) in route handlers — add a new adapter under `src/lib/server/{ai,search}/` instead. Pass a `label` to `chat()` so token-usage logs are grouped by feature.
 - AI workflows must pick an archetype from [`docs/ai-workflow-ux.md`](docs/ai-workflow-ux.md) and reuse the shared primitives (`src/lib/workflow-status/`, `src/lib/components/BackgroundJobsIndicator.svelte`, `src/lib/components/TripJobBadge.svelte`, `src/lib/components/PromiseTooltip.svelte`, `src/lib/components/ConfirmModal.svelte`). Ambient Background workflows register with `src/lib/server/jobs.js`; failures map to `ERROR_REGISTRY` codes from `src/lib/errors-registry.js` — no inline catch sentences.
