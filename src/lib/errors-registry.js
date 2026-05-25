@@ -144,6 +144,10 @@ export const ERROR_REGISTRY = {
     sentence: 'A trip with that name already exists — rename or delete it first, then restore the archived copy.',
     affordances: ['dismiss'],
   },
+  interrupted: {
+    sentence: 'A previous research job was interrupted by a server restart. Try re-running it.',
+    affordances: ['retry', 'dismiss'],
+  },
 };
 
 /**
