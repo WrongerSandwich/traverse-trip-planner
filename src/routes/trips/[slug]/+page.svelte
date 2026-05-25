@@ -2410,11 +2410,18 @@
 
     /* Icon-only back button — the "All trips" label was eating ~85px of
        header width that the H1 needs. The back glyph is still 44px tall
-       and labeled via aria-label. */
+       and labeled via aria-label.
+
+       gap:0 + justify-content:center neutralize the base .header-pill's
+       0.4rem gap, which would otherwise sit between the ::before arrow
+       and the (font-size:0, width:0 but still flex-laid-out) "All trips"
+       text node, shoving the arrow left of the button's center. */
     .header-pill.back {
       font-size: 0;
       padding: 0.4rem 0.7rem;
       min-width: var(--tap-min);
+      gap: 0;
+      justify-content: center;
     }
     .header-pill.back::before {
       content: '←';

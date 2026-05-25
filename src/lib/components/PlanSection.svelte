@@ -399,10 +399,13 @@
     for (const d of plan?.days ?? []) for (const s of d.stops) inPlan.add(s);
     return (candidates?.stops ?? []).filter((s) => !inPlan.has(s.id) && !s.hidden);
   }
+  // Lodging is intentionally NOT filtered by "already used in another day".
+  // The common pattern is staying at the same place for consecutive nights,
+  // so prior assignment in other days shouldn't remove a candidate from
+  // the picker. The server side (setLodgingForDay in plan.js) allows the
+  // same lodging_id on multiple days without complaint.
   function unpromotedLodging() {
-    const inPlan = new Set();
-    for (const d of plan?.days ?? []) if (d.lodging_id) inPlan.add(d.lodging_id);
-    return (candidates?.lodging ?? []).filter((l) => !inPlan.has(l.id) && !l.hidden);
+    return (candidates?.lodging ?? []).filter((l) => !l.hidden);
   }
 
   // ── Display helpers ──
@@ -742,7 +745,7 @@
             </button>
           {/each}
           {#if unpromotedLodging().length === 0}
-            <p class="picker-empty">All lodging already in plan.</p>
+            <p class="picker-empty">No lodging candidates yet.</p>
           {/if}
         </div>
       {/if}
