@@ -28,9 +28,9 @@ All trip data is plain markdown on disk — readable, portable, and easy to edit
 
 ## What it looks like
 
-The trip detail page — overview, route, logistics, plan, and candidates each render as their own section with an inline `Edit` button; the Field guide (Cmd-K) proposes edits as inline diffs you accept or revert:
+The trip detail page — hero photo with the trip's stage badge and quick stats, the drive map from home, and the start of the section stack (overview, route, logistics, plan, candidates) where each block has its own inline `Edit` button and `Ask` shortcut into the Field guide (Cmd-K):
 
-![Trip detail page with sectioned content and per-section Edit buttons](docs/screenshots/detail.png)
+![Trip detail page with hero photo, drive map, and the start of the section stack](docs/screenshots/detail.png)
 
 The Candidates section — a tabbed Stops / Lodging pool seeded by research, with each card promotable into a specific day on the Plan. Pins land on the trip map alongside the route; the section header shows `X of Y pinned` as the background geocode job fills them in:
 
