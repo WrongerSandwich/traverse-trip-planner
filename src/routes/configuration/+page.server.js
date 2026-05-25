@@ -42,11 +42,6 @@ const ENV_ONLY_KNOBS = [
     isActiveIf: (v) => v === '1',
     reason: 'Trust the first hop of X-Forwarded-For when gating auth, set when running behind a reverse proxy that overwrites this header.',
   },
-  {
-    name: 'TRAVERSE_SHARE_SECRET',
-    display: 'secret',
-    reason: 'HMAC secret for public share links. Generate with `openssl rand -base64 32`; rotating it invalidates every existing link.',
-  },
 ];
 
 function describeEnvOnlyKnob(knob) {
