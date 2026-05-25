@@ -16,18 +16,27 @@ vi.mock('@sveltejs/kit', () => ({
 
 const mockEnrichTrips = vi.hoisted(() => vi.fn());
 const mockGetHome = vi.hoisted(() => vi.fn());
+const mockCollectArchivedTrips = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/data.js', () => ({
   enrichTrips: mockEnrichTrips,
   getHome: mockGetHome,
+  collectArchivedTrips: mockCollectArchivedTrips,
 }));
 
 let load;
+
+// Helper to build a minimal event object matching SvelteKit's load() signature.
+function makeEvent(path = '/') {
+  return { url: new URL(`http://localhost${path}`) };
+}
 
 beforeEach(async () => {
   vi.resetModules();
   mockEnrichTrips.mockReset();
   mockGetHome.mockReset();
+  mockCollectArchivedTrips.mockReset();
+  mockCollectArchivedTrips.mockReturnValue([]); // no archived trips by default
   ({ load } = await import('../src/routes/+page.server.js'));
 });
 
@@ -36,7 +45,7 @@ describe('index +page.server.js — fresh-install redirect', () => {
     mockEnrichTrips.mockResolvedValue([]);
     mockGetHome.mockReturnValue(null);
 
-    await expect(load()).rejects.toMatchObject({
+    await expect(load(makeEvent())).rejects.toMatchObject({
       status: 303,
       location: '/onboarding',
     });
@@ -46,7 +55,7 @@ describe('index +page.server.js — fresh-install redirect', () => {
     mockEnrichTrips.mockResolvedValue([]);
     mockGetHome.mockReturnValue({ city: 'Somewhere', coords: null });
 
-    await expect(load()).rejects.toMatchObject({
+    await expect(load(makeEvent())).rejects.toMatchObject({
       status: 303,
       location: '/onboarding',
     });
@@ -57,8 +66,11 @@ describe('index +page.server.js — fresh-install redirect', () => {
     mockEnrichTrips.mockResolvedValue(trips);
     mockGetHome.mockReturnValue(null);
 
-    const result = await load();
-    expect(result).toEqual({ trips, home: null });
+    const result = await load(makeEvent());
+    expect(result.trips).toEqual(trips);
+    expect(result.home).toBeNull();
+    expect(result.showArchived).toBe(false);
+    expect(result.archivedCount).toBe(0);
   });
 
   it('does NOT redirect when home is configured, even without trips', async () => {
@@ -66,8 +78,9 @@ describe('index +page.server.js — fresh-install redirect', () => {
     mockEnrichTrips.mockResolvedValue([]);
     mockGetHome.mockReturnValue(home);
 
-    const result = await load();
-    expect(result).toEqual({ trips: [], home });
+    const result = await load(makeEvent());
+    expect(result.trips).toEqual([]);
+    expect(result.home).toEqual(home);
   });
 
   it('returns data normally when both home and trips are present', async () => {
@@ -76,7 +89,8 @@ describe('index +page.server.js — fresh-install redirect', () => {
     mockEnrichTrips.mockResolvedValue(trips);
     mockGetHome.mockReturnValue(home);
 
-    const result = await load();
-    expect(result).toEqual({ trips, home });
+    const result = await load(makeEvent());
+    expect(result.trips).toEqual(trips);
+    expect(result.home).toEqual(home);
   });
 });

@@ -11,12 +11,14 @@
     starred = false,
     jobs = [],
     fresh = false,
+    archived = false,
     onclick,
     onhover,
     onleave,
     onbookmark,
     ondeepen,
     oncancel,
+    onrestore,
   } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
@@ -58,7 +60,7 @@
   }
 </script>
 
-<article class="card" class:fresh id="card-{trip._slug}"
+<article class="card" class:fresh class:archived id="card-{trip._slug}"
   onmouseenter={onhover}
   onmouseleave={onleave}
   aria-label={fresh ? `${trip.title || trip._slug} (newly active)` : undefined}>
@@ -80,7 +82,11 @@
         alt={trip.title || trip.destination}
         loading="lazy"
       />
-      <span class="badge" style="--stage-color: {color}">{status}</span>
+      {#if archived}
+        <span class="badge badge-archived">Archived</span>
+      {:else}
+        <span class="badge" style="--stage-color: {color}">{status}</span>
+      {/if}
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
       <div class="credit">
         <a href={trip._image.photographer_url} target="_blank" rel="noopener">{trip._image.photographer}</a> / Pexels
@@ -89,7 +95,11 @@
   {:else if Array.isArray(trip._coords)}
     <div class="thumb">
       <MiniMap coords={trip._coords} {color} />
-      <span class="badge" style="--stage-color: {color}">{status}</span>
+      {#if archived}
+        <span class="badge badge-archived">Archived</span>
+      {:else}
+        <span class="badge" style="--stage-color: {color}">{status}</span>
+      {/if}
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
       {#if showWaypointHint}
         <div class="waypoint-hint" role="status">
@@ -110,7 +120,11 @@
   {:else}
     <div class="thumb placeholder">
       <Logo variant="mono-dark" size={48} class="placeholder-mark" />
-      <span class="badge" style="--stage-color: {color}">{status}</span>
+      {#if archived}
+        <span class="badge badge-archived">Archived</span>
+      {:else}
+        <span class="badge" style="--stage-color: {color}">{status}</span>
+      {/if}
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
     </div>
   {/if}
@@ -139,7 +153,15 @@
 
     {#if trip.pitch}<p class="pitch">{trip.pitch}</p>{/if}
 
-    {#if isIdea && !deepenRunning}
+    {#if archived}
+      <button
+        class="btn btn-secondary btn-compact card-cta"
+        onclick={onrestore}
+        title="Move this trip back to its original stage"
+      >
+        Restore
+      </button>
+    {:else if isIdea && !deepenRunning}
       <button
         class="btn btn-secondary btn-compact card-cta"
         onclick={ondeepen}
@@ -425,6 +447,45 @@
     position: relative;
     z-index: 2;
     align-self: flex-start;
+  }
+
+  /* ── Archived card treatment ──
+     55% opacity at rest; rises to 75% on hover to signal the Restore
+     affordance is interactive. No raw color literals — uses tokens only. */
+  .card.archived {
+    opacity: 0.55;
+    transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.18s;
+  }
+  .card.archived:hover { opacity: 0.75; }
+
+  /* Archived badge — desaturated muted-grey palette, replaces the stage pill. */
+  .badge-archived {
+    position: absolute;
+    bottom: 0.6rem;
+    left: 0.6rem;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.18rem 0.5rem;
+    border-radius: 2px;
+    background: rgba(31, 25, 14, 0.72);
+    color: var(--text-tertiary);
+    backdrop-filter: blur(4px);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+  }
+  .badge-archived::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--border-strong);
+    flex-shrink: 0;
   }
 
   @media (max-width: 768px) {
