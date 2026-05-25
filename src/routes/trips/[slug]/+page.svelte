@@ -1505,6 +1505,15 @@
     color: var(--text-primary);
     font-family: var(--font-sans);
     display: grid;
+    /* minmax(0, 1fr) — without this, the implicit single column defaults to
+       auto (minmax(min-content, max-content)) and sizes to the widest grid
+       item's min-content. On narrow viewports that lets a long header pill,
+       a nowrap tooltip body, or a wide hero img push every direct child of
+       .page (header, hero, trip-meta, layout) past the viewport width. The
+       0 floor lets the track shrink below min-content so descendants reflow
+       (or get clipped by the @media safety net) instead of stretching the
+       whole page. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto auto 1fr;
   }
   .page > header { grid-row: 1; }
