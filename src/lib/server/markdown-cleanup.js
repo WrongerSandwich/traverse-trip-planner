@@ -1,7 +1,7 @@
 /**
  * Deterministic markdown cleanup for LLM-generated section content.
  *
- * Used after parsing the model's XML-wrapped output (e.g. <stops_md>...</stops_md>)
+ * Used after parsing the model's XML-wrapped output (e.g. <route_md>...</route_md>)
  * and before writing to disk. Handles the mechanical formatting issues that
  * tend to leak through even with explicit prompt rules — the kinds of fixes
  * a model can't reliably self-review for. Leaves semantic structure

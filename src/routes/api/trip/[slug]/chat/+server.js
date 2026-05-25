@@ -76,7 +76,7 @@ export async function POST(event) {
     .map(s => `<current section="${s}">\n${trip.sections[s]}\n</current>`)
     .join('\n\n');
 
-  const system = `You are Traverse, a hands-on travel planning assistant helping refine an active trip plan. The trip is in the "planning" stage and the user is iterating on the section files (overview.md, route.md, stops.md, logistics.md).
+  const system = `You are Traverse, a hands-on travel planning assistant helping refine an active trip plan. The trip is in the "planning" stage and the user is iterating on the section files (overview.md, route.md, logistics.md).
 
 Trip frontmatter (do not modify):
 ${trip.frontmatter || '(none)'}

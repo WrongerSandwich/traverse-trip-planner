@@ -154,7 +154,7 @@ beforeEach(() => {
 
   // Default fs state: idea file exists (deepen), trip dir + overview exist (deepen-section)
   mockExistsSync.mockImplementation((p) => {
-    if (p.includes('stops.md') || p.includes('route.md') || p.includes('logistics.md'))
+    if (p.includes('route.md') || p.includes('logistics.md'))
       return false;
     return true; // idea file, trip dir, overview.md all exist by default
   });
@@ -245,7 +245,7 @@ describe('deepen-section handler', () => {
     mockReadFileSync.mockReturnValue(OVERVIEW_CONTENT);
     // Provide a section-specific chat response
     mockChat.mockResolvedValue({
-      text: '<stops_md>## Stop A\nDetails here.</stops_md>',
+      text: '<route_md>Scenic drive through rolling hills.</route_md>',
       usage: { input_tokens: 1000, output_tokens: 500 },
     });
   });
@@ -255,7 +255,7 @@ describe('deepen-section handler', () => {
       throw new Error('ENOSPC: disk full');
     });
 
-    await deepenSectionPost({ params: { slug: 'test-trip', section: 'stops' } });
+    await deepenSectionPost({ params: { slug: 'test-trip', section: 'route' } });
     await flushMicrotasks();
 
     expect(unhandledRejections).toHaveLength(0);
@@ -267,7 +267,7 @@ describe('deepen-section handler', () => {
       throw new Error('EBUSY: resource busy or locked');
     });
 
-    await deepenSectionPost({ params: { slug: 'test-trip', section: 'stops' } });
+    await deepenSectionPost({ params: { slug: 'test-trip', section: 'route' } });
     await flushMicrotasks();
 
     expect(unhandledRejections).toHaveLength(0);
