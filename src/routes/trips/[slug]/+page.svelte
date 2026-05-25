@@ -295,6 +295,35 @@
     tripJobs.some(j => j.workflow?.startsWith('deepen-section:')),
   );
 
+  // ── Candidates pin hint (issue #382) ──
+  // While a geocode-candidates job is in flight: "Geocoding X of Y…".
+  // When settled with some unpinned: "X of Y pinned".
+  // When all pinned: no hint (avoid noise on the happy path).
+  // Derived at render time from the candidates list + polled jobs state —
+  // no new frontmatter field.
+  const geocodeJobRunning = $derived(
+    tripJobs.some(j => j.workflow === 'geocode-candidates'),
+  );
+  const candidatesPinCounts = $derived.by(() => {
+    const stops = data.candidates?.stops ?? [];
+    const lodging = data.candidates?.lodging ?? [];
+    let total = 0;
+    let pinned = 0;
+    for (const c of [...stops, ...lodging]) {
+      if (c.hidden) continue;
+      total++;
+      if (c.coords) pinned++;
+    }
+    return { total, pinned };
+  });
+  const candidatesPinHint = $derived.by(() => {
+    const { total, pinned } = candidatesPinCounts;
+    if (total === 0) return null;
+    if (geocodeJobRunning) return `Geocoding ${pinned} of ${total}…`;
+    if (pinned < total) return `${pinned} of ${total} pinned`;
+    return null;
+  });
+
   // Trigger invalidateAll() when a tripJobs entry disappears between polls —
   // that means an Ambient Background job for this trip (deepen-section)
   // finished or failed and its file was written. Without this the user has
@@ -1267,6 +1296,9 @@
         >
           <header class="section-header">
             <h2>{SECTION_LABELS[section] || section}</h2>
+            {#if section === 'candidates' && candidatesPinHint}
+              <span class="section-header-hint" aria-live="polite">{candidatesPinHint}</span>
+            {/if}
             {#if isPlanning && section !== 'candidates' && section !== 'plan' && sections[section] !== undefined && !editing[section]}
               <div class="section-header-actions">
                 <button class="btn-section-ask" onclick={() => openPalette(section)} title="Ask {data.assistantName} to edit this section">
@@ -1793,6 +1825,17 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+  }
+  /* Pinning hint for the Candidates section (issue #382). Derived at render
+     time from candidates list + polled jobs state — "Geocoding X of Y…"
+     while the geocode job is in flight, "X of Y pinned" after it settles
+     with some unpinned, hidden when all candidates are pinned. */
+  .section-header-hint {
+    margin-left: auto;
+    color: var(--text-tertiary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
   }
   /* Shares Edit's box dimensions (padding, font, radius) so the two buttons
      sit as siblings in the section header. Tonally quieter at rest

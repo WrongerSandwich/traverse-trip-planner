@@ -99,6 +99,16 @@ export const HAND_DEFAULTS = {
     time_seconds: 90,
     tokens_range: [4000, 12000],
   },
+  // Geocode-candidates is the follow-on job kicked off after deepen returns
+  // (issue #382). No `chat()` call — pure Nominatim loop — so MAX_TOKENS has
+  // no entry. Hand default of 15s reflects the typical ~13 candidates × 1.1s
+  // throttle path; telemetry recalibrates via workflow-stats rolling p50.
+  'geocode-candidates': {
+    verb: 'Geocode candidates',
+    produces: "Pins the trip's stop and lodging candidates on the map by looking up each by name. Runs in the background after research completes.",
+    time_seconds: 15,
+    tokens_range: [0, 0],
+  },
 };
 
 /**

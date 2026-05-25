@@ -42,6 +42,7 @@ import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
 import { realizePlan } from '$lib/server/realize-plan.js';
+import { _startGeocodeCandidatesJob } from '../../geocode-candidates/[slug]/+server.js';
 import { readPlan } from '$lib/server/plan.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
@@ -476,6 +477,16 @@ export async function POST(event) {
         completeJob('deepen', slug, { tokens: totalTokens });
       } catch (e) {
         console.error(`[deepen] ${slug}: completeJob threw after success:`, e?.message ?? e);
+      }
+      // Kick off the geocode-candidates follow-on job (issue #382). realizePlan
+      // returned with candidates carrying no coords; this fires the Nominatim
+      // loop in the background so the deepen pill flips to "complete" without
+      // waiting on the ~15s throttle. Fire-and-forget — startJob registers its
+      // own AbortController so the jobs drawer can cancel it independently.
+      try {
+        _startGeocodeCandidatesJob(slug);
+      } catch (e) {
+        console.error(`[deepen] ${slug}: _startGeocodeCandidatesJob threw:`, e?.message ?? e);
       }
     } catch (err) {
       if (isAbort(err)) return; // cancelJob() owns the failure event

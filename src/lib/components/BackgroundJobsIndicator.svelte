@@ -23,6 +23,7 @@
     deepen: 'Deepen',
     'deepen-section': 'Deepen section',
     'find-more': 'Find more',
+    'geocode-candidates': 'Geocode',
     lock: 'Lock',
     research: 'Research',
   };
@@ -52,6 +53,7 @@
     deepen: 90,
     'deepen-section': 35,
     'find-more': 30,
+    'geocode-candidates': 15,
     lock: 30,
     research: 60,
   };
