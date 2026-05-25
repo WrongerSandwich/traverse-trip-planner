@@ -4,20 +4,20 @@ Traverse is maintained as a personal project that ships as open source. This pag
 
 ## Before opening an issue
 
-1. **Check the docs.** Most setup confusion is covered in the [README](README.md), [DEPLOY.md](DEPLOY.md), and [CONTRIBUTING.md](CONTRIBUTING.md). The startup banner reports which providers/features are wired; the `/settings` page shows live config.
+1. **Check the docs.** Most setup confusion is covered in the [README](README.md), [docs/deploy.md](docs/deploy.md), and [CONTRIBUTING.md](CONTRIBUTING.md). The startup banner reports which providers/features are wired; the `/settings` page shows live config.
 2. **Search existing issues.** The tracker is the source of truth for known limitations and in-flight work.
 3. **For security concerns**, follow [SECURITY.md](SECURITY.md) — use private advisories, not public issues.
 
 ## What to expect
 
 - **Best effort, no SLA.** Most issues get a first response within a couple of weeks. Self-hosting reports that need careful repro may take longer.
-- **Bugs that affect the daily-use path** (the supported provider configs in DEPLOY.md, the documented Docker deployment, the canonical lifecycle) get priority.
+- **Bugs that affect the daily-use path** (the supported provider configs in docs/deploy.md, the documented Docker deployment, the canonical lifecycle) get priority.
 - **Reports with clear repro steps + `.env` provider context** (no keys) get answered faster than vague ones. The PR template's "Approach / What changed / How verified" structure is also a good template for bug reports.
 
 ## What gets fixed
 
 - Security issues — see SECURITY.md.
-- Bugs in any supported provider configuration documented in DEPLOY.md.
+- Bugs in any supported provider configuration documented in docs/deploy.md.
 - Setup friction (unclear docs, missing env var coverage, surprising defaults).
 - Accessibility regressions on supported browsers.
 - Things broken by your environment that an adapter or doc tweak can absorb.

@@ -19,7 +19,7 @@
 import { json } from '@sveltejs/kit';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROOT, readHomeMd, parseFrontmatter, invalidateEnrichCache, rejectInvalidSlug, atomicWrite, findTripLocation } from '$lib/server/data.js';
+import { readHomeMd, parseFrontmatter, invalidateEnrichCache, rejectInvalidSlug, atomicWrite, findTripLocation } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { cleanupLLMMarkdown } from '$lib/server/markdown-cleanup.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';

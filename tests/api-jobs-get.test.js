@@ -21,6 +21,7 @@ const { mockFindTripFile, mockParseFrontmatter } = vi.hoisted(() => ({
 }));
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   findTripFile: mockFindTripFile,
   parseFrontmatter: mockParseFrontmatter,
 }));

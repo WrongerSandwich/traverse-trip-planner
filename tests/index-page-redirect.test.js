@@ -19,6 +19,7 @@ const mockGetHome = vi.hoisted(() => vi.fn());
 const mockCollectArchivedTrips = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   enrichTrips: mockEnrichTrips,
   getHome: mockGetHome,
   collectArchivedTrips: mockCollectArchivedTrips,

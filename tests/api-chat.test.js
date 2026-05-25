@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // rather than untyped text, so the UI can use failureSentence() from the registry.
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   readHomeMd: () => '# Home\nTest home context.',
   readPlanningTrip: (slug) =>
     slug === 'test-trip'

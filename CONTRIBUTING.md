@@ -14,9 +14,9 @@ npm run smoke                    # 1-token round-trip per provider — verifies 
 npm run dev                      # http://localhost:3456 — onboarding wizard creates home.md on first run
 ```
 
-Trip data (`ideas/`, `planning/`, `completed/`, `archived/`) is gitignored — those directories hold your own trips, not project source. Use `npm run seed-sample` if you want a populated UI to develop against.
+Trip data (everything under `data/`: trip stages, `home.md`, `settings.json`, `.cache/`) is gitignored — it holds your own trips and runtime state, not project source. Use `npm run seed-sample` if you want a populated UI to develop against.
 
-Prefer Docker for a prod-style local run? `docker compose up -d --build` works the same way as on a server (see [DEPLOY.md](DEPLOY.md#option-b--docker)). The inner dev loop is still `npm run dev` — Vite HMR is not containerized.
+Prefer Docker for a prod-style local run? `docker compose up -d --build` works the same way as on a server (see [docs/deploy.md](docs/deploy.md#option-b--docker)). The inner dev loop is still `npm run dev` — Vite HMR is not containerized.
 
 ## Before opening a PR
 

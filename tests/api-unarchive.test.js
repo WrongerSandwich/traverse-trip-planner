@@ -35,6 +35,7 @@ const { mockFindArchivedTripLocation, mockInvalidateEnrichCache, mockRejectInval
 }));
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   ROOT: '/test-root',
   findArchivedTripLocation: mockFindArchivedTripLocation,
   invalidateEnrichCache: mockInvalidateEnrichCache,
@@ -59,19 +60,19 @@ describe('POST /api/unarchive/[slug]', () => {
       slug: 'ozarks',
       stage: 'planning',
       kind: 'dir',
-      path: '/test-root/archived/planning/ozarks',
+      path: '/test-root/data/archived/planning/ozarks',
     });
 
     const res = POST({ params: { slug: 'ozarks' } });
     expect(res._status).toBe(200);
     expect(res._body).toEqual({ ok: true, slug: 'ozarks', toStage: 'planning' });
     expect(mockMkdirSync).toHaveBeenCalledWith(
-      '/test-root/planning',
+      '/test-root/data/planning',
       { recursive: true }
     );
     expect(mockRenameSync).toHaveBeenCalledWith(
-      '/test-root/archived/planning/ozarks',
-      '/test-root/planning/ozarks'
+      '/test-root/data/archived/planning/ozarks',
+      '/test-root/data/planning/ozarks'
     );
     expect(mockInvalidateEnrichCache).toHaveBeenCalledOnce();
   });
@@ -81,14 +82,14 @@ describe('POST /api/unarchive/[slug]', () => {
       slug: 'parked-idea',
       stage: 'ideas',
       kind: 'file',
-      path: '/test-root/archived/ideas/parked-idea.md',
+      path: '/test-root/data/archived/ideas/parked-idea.md',
     });
 
     const res = POST({ params: { slug: 'parked-idea' } });
     expect(res._body.toStage).toBe('ideas');
     expect(mockRenameSync).toHaveBeenCalledWith(
-      '/test-root/archived/ideas/parked-idea.md',
-      '/test-root/ideas/parked-idea.md'
+      '/test-root/data/archived/ideas/parked-idea.md',
+      '/test-root/data/ideas/parked-idea.md'
     );
     expect(mockInvalidateEnrichCache).toHaveBeenCalledOnce();
   });
@@ -98,15 +99,15 @@ describe('POST /api/unarchive/[slug]', () => {
       slug: 'done-trip',
       stage: 'completed',
       kind: 'dir',
-      path: '/test-root/archived/completed/done-trip',
+      path: '/test-root/data/archived/completed/done-trip',
     });
 
     const res = POST({ params: { slug: 'done-trip' } });
     expect(res._status).toBe(200);
     expect(res._body).toEqual({ ok: true, slug: 'done-trip', toStage: 'completed' });
     expect(mockRenameSync).toHaveBeenCalledWith(
-      '/test-root/archived/completed/done-trip',
-      '/test-root/completed/done-trip'
+      '/test-root/data/archived/completed/done-trip',
+      '/test-root/data/completed/done-trip'
     );
   });
 
@@ -124,7 +125,7 @@ describe('POST /api/unarchive/[slug]', () => {
       slug: 'dup',
       stage: 'planning',
       kind: 'dir',
-      path: '/test-root/archived/planning/dup',
+      path: '/test-root/data/archived/planning/dup',
     });
     // Target exists at planning/dup
     mockExistsSync.mockReturnValue(true);
@@ -149,7 +150,7 @@ describe('POST /api/unarchive/[slug]', () => {
       slug: 'crash',
       stage: 'planning',
       kind: 'dir',
-      path: '/test-root/archived/planning/crash',
+      path: '/test-root/data/archived/planning/crash',
     });
     mockRenameSync.mockImplementation(() => { throw new Error('EXDEV'); });
 

@@ -74,6 +74,7 @@ vi.mock('$lib/server/config.js', () => ({
 
 // ── data.js mock ──
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   ROOT: '/test-root',
   readHomeMd: () => '---\nhome_city: Test City\nhome_coords: [39.0, -94.0]\n---\n',
   parseFrontmatter: vi.fn(() => ({})),

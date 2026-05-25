@@ -22,6 +22,7 @@ vi.mock('node:path', () => ({
 const mockPurgeNullImages = vi.hoisted(() => vi.fn(() => 0));
 const mockInvalidateEnrich = vi.hoisted(() => vi.fn());
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   purgeNullImageEntries: mockPurgeNullImages,
   invalidateEnrichCache: mockInvalidateEnrich,
 }));

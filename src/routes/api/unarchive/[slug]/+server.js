@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { ROOT, findArchivedTripLocation, invalidateEnrichCache, rejectInvalidSlug, crossMountRename } from '$lib/server/data.js';
+import { DATA_DIR, findArchivedTripLocation, invalidateEnrichCache, rejectInvalidSlug, crossMountRename } from '$lib/server/data.js';
 
 export function POST({ params }) {
   const invalid = rejectInvalidSlug(params.slug);
@@ -11,7 +11,7 @@ export function POST({ params }) {
   const trip = findArchivedTripLocation(slug);
   if (!trip) return new Response('Not in archive', { status: 404 });
 
-  const destDir = join(ROOT, trip.stage);
+  const destDir = join(DATA_DIR, trip.stage);
   const dest = trip.kind === 'file'
     ? join(destDir, `${slug}.md`)
     : join(destDir, slug);

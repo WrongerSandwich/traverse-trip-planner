@@ -61,6 +61,7 @@ vi.mock('node:fs', () => ({
 // data mock
 vi.mock('$lib/server/data.js', () => ({
   ROOT: '/test-root',
+  DATA_DIR: '/test-root/data',
   readHomeMd: () => '---\ntravelers: [you]\npets_need_sitter: false\n---\n',
   parseFrontmatter: vi.fn(() => ({ title: 'Test Trip', status: 'idea' })),
   parseFrontmatterFields: vi.fn(() => ({})),

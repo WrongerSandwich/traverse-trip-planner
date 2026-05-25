@@ -83,6 +83,8 @@ vi.mock('../src/lib/server/settings.js', () => ({
 }));
 
 const ROOT = '/plan-candidates-test-root';
+// User-managed runtime state (trip dirs, .cache/) lives under data/ post-#411.
+const DATA = `${ROOT}/data`;
 const ORIGINAL_CWD = process.cwd;
 
 process.cwd = () => ROOT;
@@ -93,9 +95,9 @@ beforeEach(() => {
   fsState.files = {};
   fsState.dirs = new Set();
   ensureDir(ROOT);
-  ensureDir(`${ROOT}/ideas`);
-  ensureDir(`${ROOT}/planning`);
-  ensureDir(`${ROOT}/completed`);
+  ensureDir(`${DATA}/ideas`);
+  ensureDir(`${DATA}/planning`);
+  ensureDir(`${DATA}/completed`);
   process.cwd = () => ROOT;
 });
 
@@ -106,10 +108,10 @@ afterEach(() => {
 
 describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
   it('picks up candidate stop and lodging names as geocode keys', () => {
-    ensureDir(`${ROOT}/planning/t`);
-    seedFile(`${ROOT}/planning/t/overview.md`,
+    ensureDir(`${DATA}/planning/t`);
+    seedFile(`${DATA}/planning/t/overview.md`,
       '---\ntitle: T\nstatus: planning\ndestination: Whitefish MT\n---\n');
-    seedFile(`${ROOT}/planning/t/candidates.md`,
+    seedFile(`${DATA}/planning/t/candidates.md`,
       '---\nstops:\n  - id: lm\n    name: Lake McDonald\n    coords:\n      lat: 48.5\n      lng: -113.9\nlodging:\n  - id: wf\n    name: Whitefish Inn\n    coords:\n      lat: 48.4\n      lng: -114.3\n---\n');
 
     const keys = collectLiveCacheKeys();
@@ -118,7 +120,7 @@ describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
   });
 
   it('still picks up overview-level keys (destination, image_query)', () => {
-    seedFile(`${ROOT}/ideas/i.md`,
+    seedFile(`${DATA}/ideas/i.md`,
       '---\ntitle: Idea\nstatus: idea\ndestination: Bend OR\nimage_query: Cascades pines\n---\n');
 
     const keys = collectLiveCacheKeys();
@@ -127,7 +129,7 @@ describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
   });
 
   it('handles trips without plan.md or candidates.md gracefully', () => {
-    seedFile(`${ROOT}/ideas/i.md`,
+    seedFile(`${DATA}/ideas/i.md`,
       '---\ntitle: Idea\nstatus: idea\ndestination: Reno NV\n---\n');
 
     expect(() => collectLiveCacheKeys()).not.toThrow();
@@ -136,10 +138,10 @@ describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
   });
 
   it('scans completed/ folders too', () => {
-    ensureDir(`${ROOT}/completed/done`);
-    seedFile(`${ROOT}/completed/done/overview.md`,
+    ensureDir(`${DATA}/completed/done`);
+    seedFile(`${DATA}/completed/done/overview.md`,
       '---\ntitle: Done\nstatus: completed\ndestination: Moab UT\n---\n');
-    seedFile(`${ROOT}/completed/done/candidates.md`,
+    seedFile(`${DATA}/completed/done/candidates.md`,
       '---\nstops:\n  - id: dg\n    name: Delicate Arch\n    coords:\n      lat: 38.7\n      lng: -109.5\nlodging: []\n---\n');
 
     const keys = collectLiveCacheKeys();
@@ -148,8 +150,8 @@ describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
 
   it('skips orphan dirs without overview.md (mirrors collectTrips contract)', () => {
     // Orphan dir: has candidates.md but no overview.md (half-failed promotion).
-    ensureDir(`${ROOT}/planning/orphan`);
-    seedFile(`${ROOT}/planning/orphan/candidates.md`,
+    ensureDir(`${DATA}/planning/orphan`);
+    seedFile(`${DATA}/planning/orphan/candidates.md`,
       '---\nstops:\n  - id: ghost\n    name: Ghost Stop\nlodging: []\n---\n');
 
     const keys = collectLiveCacheKeys();
@@ -159,21 +161,21 @@ describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
 
   it('returns a plans map with entries for planning and completed trips that have a parseable plan.md', () => {
     // planning trip with plan.md
-    ensureDir(`${ROOT}/planning/glacier`);
-    seedFile(`${ROOT}/planning/glacier/overview.md`,
+    ensureDir(`${DATA}/planning/glacier`);
+    seedFile(`${DATA}/planning/glacier/overview.md`,
       '---\ntitle: Glacier\nstatus: planning\ndestination: Glacier National Park MT\n---\n');
-    seedFile(`${ROOT}/planning/glacier/plan.md`,
+    seedFile(`${DATA}/planning/glacier/plan.md`,
       '---\ncover_query: Glacier mountains lake\ndays: []\nfield_guide_notes: ""\n---\n');
 
     // completed trip with plan.md
-    ensureDir(`${ROOT}/completed/zion`);
-    seedFile(`${ROOT}/completed/zion/overview.md`,
+    ensureDir(`${DATA}/completed/zion`);
+    seedFile(`${DATA}/completed/zion/overview.md`,
       '---\ntitle: Zion\nstatus: completed\ndestination: Zion National Park UT\n---\n');
-    seedFile(`${ROOT}/completed/zion/plan.md`,
+    seedFile(`${DATA}/completed/zion/plan.md`,
       '---\ncover_query: Zion canyon red rock\ndays: []\nfield_guide_notes: ""\n---\n');
 
     // idea trip — should NOT appear in plans map
-    seedFile(`${ROOT}/ideas/city.md`,
+    seedFile(`${DATA}/ideas/city.md`,
       '---\ntitle: City\nstatus: idea\ndestination: Nashville TN\nimage_query: Nashville skyline\n---\n');
 
     const keys = collectLiveCacheKeys();
@@ -187,8 +189,8 @@ describe('collectLiveCacheKeys: plan.md + candidates.md', () => {
   });
 
   it('does not add a plans entry for planning trips whose plan.md is absent', () => {
-    ensureDir(`${ROOT}/planning/no-plan`);
-    seedFile(`${ROOT}/planning/no-plan/overview.md`,
+    ensureDir(`${DATA}/planning/no-plan`);
+    seedFile(`${DATA}/planning/no-plan/overview.md`,
       '---\ntitle: No Plan\nstatus: planning\ndestination: Somewhere\n---\n');
     // no plan.md seeded
 

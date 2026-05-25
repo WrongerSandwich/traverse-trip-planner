@@ -3,6 +3,7 @@ import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { resolveEnv } from './settings.js';
 import { TraverseError } from './errors.js';
+import { migrateRootDataToDataDir } from './migrate-to-data-dir.js';
 // Canonical atomic-write module. Both imported for internal use and re-exported
 // so callers that import atomicWrite from data.js continue to work without change.
 export { atomicWrite } from './atomic-write.js';
@@ -12,19 +13,31 @@ import { crossMountRename } from './cross-mount-rename.js';
 
 export const ROOT = process.cwd();
 
-// Cache files live in a `.cache/` subdir rather than at the project root so
+// All user-managed runtime state — trip stage dirs, home.md, settings.json,
+// and the .cache/ directory — lives under `data/` so a fresh `ls` of the repo
+// keeps source and user data visually separate (and so Docker can bind-mount
+// the single directory rather than one mount per top-level path).
+export const DATA_DIR = join(ROOT, 'data');
+
+// One-shot migration: if a pre-#411 install has its trip data at the repo
+// root (ideas/, home.md, .cache/, …), move it into data/ before anything
+// else reads it. Idempotent — no-op once data/ exists.
+migrateRootDataToDataDir(ROOT);
+
+// Cache files live in a `.cache/` subdir rather than next to trip data so
 // Docker can bind-mount the directory (renaming the atomic-write `.tmp` onto
 // an individually bind-mounted file fails with EBUSY — the kernel won't
 // replace a bind-mount target). The directory mount also means new cache
 // files appear without needing a docker-compose.yml change.
-const CACHE_DIR = join(ROOT, '.cache');
+const CACHE_DIR = join(DATA_DIR, '.cache');
 try { mkdirSync(CACHE_DIR, { recursive: true }); } catch {}
 
-// One-shot migration: move pre-`.cache/` files from the project root into the
-// new directory so installs that predate this change don't lose their warm
-// caches on first boot. Idempotent — skip when the destination already exists.
+// One-shot migration: move pre-`.cache/` files that may still be sitting next
+// to home.md inside data/ (legacy installs whose `.cache/` was already at the
+// repo root will have come through the data-dir migration above). Idempotent —
+// skip when the destination already exists.
 for (const name of ['.geocode-cache.json', '.image-cache.json', '.route-cache.json']) {
-  const oldPath = join(ROOT, name);
+  const oldPath = join(DATA_DIR, name);
   const newPath = join(CACHE_DIR, name);
   if (existsSync(oldPath) && !existsSync(newPath)) {
     try { renameSync(oldPath, newPath); } catch (e) {
@@ -572,7 +585,7 @@ function tripMtimeMs(stage, slug, ideaFilePath) {
     if (stage === 'ideas') {
       return statSync(ideaFilePath).mtimeMs;
     }
-    const dir = join(ROOT, stage, slug);
+    const dir = join(DATA_DIR, stage, slug);
     let max = 0;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isFile()) continue;
@@ -599,7 +612,7 @@ function tripMtimeMs(stage, slug, ideaFilePath) {
 function collectTrips() {
   const bySlug = new Map();
   for (const stage of ['ideas', 'planning', 'completed']) {
-    const dir = join(ROOT, stage);
+    const dir = join(DATA_DIR, stage);
     if (!existsSync(dir)) continue;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       let filePath;
@@ -630,7 +643,7 @@ function collectTrips() {
 
 // ── Home ──
 export function readHomeMd() {
-  const p = join(ROOT, 'home.md');
+  const p = join(DATA_DIR, 'home.md');
   if (!existsSync(p)) {
     throw new Error('home.md not found — open the app and complete the onboarding wizard, or run the in-app Settings to create it.');
   }
@@ -681,7 +694,7 @@ export function splitHomeBody(body) {
  * @returns {{ frontmatter: object, prose: { preamble: string, sections: Array<{heading, body}> } } | null}
  */
 export function parseHomeMd() {
-  const p = join(ROOT, 'home.md');
+  const p = join(DATA_DIR, 'home.md');
   if (!existsSync(p)) return null;
 
   const content = readFileSync(p, 'utf8');
@@ -736,13 +749,13 @@ export function writeHomeMd({ frontmatter, prose }) {
   const body = bodyParts.join('\n\n');
   const final = `---\n${yamlBlock}\n---\n\n${body}\n`;
 
-  const p = join(ROOT, 'home.md');
+  const p = join(DATA_DIR, 'home.md');
   atomicWrite(p, final);
   invalidateEnrichCache();
 }
 
 export function getHome() {
-  const p = join(ROOT, 'home.md');
+  const p = join(DATA_DIR, 'home.md');
   if (!existsSync(p)) return null;
   const fm = parseFrontmatter(readFileSync(p, 'utf8'));
   if (!fm) return null;
@@ -808,7 +821,7 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
   // Walk planning + completed folders for plan.md (cover_query) and
   // candidates.md (stop/lodging names → geocoded later).
   for (const stage of ['planning', 'completed']) {
-    const stageDir = join(ROOT, stage);
+    const stageDir = join(DATA_DIR, stage);
     if (!existsSync(stageDir)) continue;
     for (const slug of readdirSync(stageDir)) {
       const tripDir = join(stageDir, slug);
@@ -1050,7 +1063,7 @@ async function enrichTripsImpl() {
 // for any trip enrichTrips has already touched.
 export async function getTripRoute(slug) {
   for (const stage of ['planning', 'completed']) {
-    const fp = join(ROOT, stage, slug, 'overview.md');
+    const fp = join(DATA_DIR, stage, slug, 'overview.md');
     if (!existsSync(fp)) continue;
     const fm = parseFrontmatter(readFileSync(fp, 'utf8'));
     if (!fm?.waypoints) return null;
@@ -1107,7 +1120,7 @@ export function isArtifactStale(dir, sources, artifact, stat) {
 // from overview.md (with trailing newline); `sections` maps section name →
 // prose body (frontmatter stripped for overview).
 export function readPlanningTrip(slug) {
-  const dir = join(ROOT, 'planning', slug);
+  const dir = join(DATA_DIR, 'planning', slug);
   if (!existsSync(dir)) return null;
   const out = { dir, frontmatter: '', sections: {} };
   for (const name of PLANNING_SECTIONS) {
@@ -1187,7 +1200,7 @@ export function removeFrontmatterField(content, field) {
 // ── Slug + AI-path validation ──
 //
 // Defends two attack surfaces:
-//   1. URL [slug] params reach the filesystem via `join(ROOT, …, slug)`. An
+//   1. URL [slug] params reach the filesystem via `join(DATA_DIR, …, slug)`. An
 //      unsanitized slug like `../../home.md` resolves outside the trip tree.
 //      SvelteKit decodes %2e%2e%2f before we see it, so the slug we receive
 //      is the post-decode string — we just need a strict character allowlist.
@@ -1232,10 +1245,10 @@ export function assertSafeIdeaPath(p) {
 // Returns { kind: 'file'|'dir', path, stage } for the trip's current live location,
 // or null if not found. kind='file' means an idea .md; kind='dir' means a stage folder.
 export function findTripLocation(slug) {
-  const ideaPath = join(ROOT, 'ideas', `${slug}.md`);
+  const ideaPath = join(DATA_DIR, 'ideas', `${slug}.md`);
   if (existsSync(ideaPath)) return { kind: 'file', path: ideaPath, stage: 'ideas' };
   for (const stage of ['planning', 'completed']) {
-    const dir = join(ROOT, stage, slug);
+    const dir = join(DATA_DIR, stage, slug);
     if (existsSync(dir)) return { kind: 'dir', path: dir, stage };
   }
   return null;
@@ -1246,10 +1259,10 @@ export function findTripLocation(slug) {
 // or null if not found. Only scans archived/ideas, archived/planning, and
 // archived/completed — never archived/exploring/ (legacy stage, seed-avoidance only).
 export function findArchivedTripLocation(slug) {
-  const ideaPath = join(ROOT, 'archived', 'ideas', `${slug}.md`);
+  const ideaPath = join(DATA_DIR, 'archived', 'ideas', `${slug}.md`);
   if (existsSync(ideaPath)) return { kind: 'file', path: ideaPath, stage: 'ideas' };
   for (const stage of ['planning', 'completed']) {
-    const dir = join(ROOT, 'archived', stage, slug);
+    const dir = join(DATA_DIR, 'archived', stage, slug);
     if (existsSync(dir)) return { kind: 'dir', path: dir, stage };
   }
   return null;
@@ -1263,7 +1276,7 @@ export function findArchivedTripLocation(slug) {
 export function collectArchivedTrips() {
   const result = [];
   for (const stage of ['ideas', 'planning', 'completed']) {
-    const dir = join(ROOT, 'archived', stage);
+    const dir = join(DATA_DIR, 'archived', stage);
     if (!existsSync(dir)) continue;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       let filePath;
@@ -1361,7 +1374,7 @@ export function updateImageMeta(slug, { image_query, image_pick } = {}) {
 // ── Trip file content ──
 export function getTripFiles(slug) {
   for (const stage of ['planning', 'completed']) {
-    const dir = join(ROOT, stage, slug);
+    const dir = join(DATA_DIR, stage, slug);
     if (existsSync(dir) && statSync(dir).isDirectory()) {
       const files = {};
       for (const name of ['overview', 'route', 'stops', 'logistics', 'itinerary', 'notes']) {
@@ -1377,7 +1390,7 @@ export function getTripFiles(slug) {
       return { slug, stage, files };
     }
   }
-  const ideaPath = join(ROOT, 'ideas', `${slug}.md`);
+  const ideaPath = join(DATA_DIR, 'ideas', `${slug}.md`);
   if (existsSync(ideaPath)) {
     const raw = readFileSync(ideaPath, 'utf8').replace(/^---\n[\s\S]*?\n---\n*/, '').trimStart();
     return { slug, stage: 'ideas', files: raw ? { overview: raw } : {} };
@@ -1388,7 +1401,7 @@ export function getTripFiles(slug) {
 // Append a block of text to notes.md for a completed trip, separated by a
 // blank line. Creates the file if it does not exist. Returns true on success.
 export function appendToNotes(slug, text) {
-  const notesPath = join(ROOT, 'completed', slug, 'notes.md');
+  const notesPath = join(DATA_DIR, 'completed', slug, 'notes.md');
   const existing = existsSync(notesPath) ? readFileSync(notesPath, 'utf8') : '';
   const separator = existing.trimEnd().length > 0 ? '\n\n' : '';
   atomicWrite(notesPath, existing.trimEnd() + separator + text.trim() + '\n');
@@ -1400,14 +1413,14 @@ export function appendToNotes(slug, text) {
 // Moves a trip folder from one stage directory to another and updates
 // the status field in overview.md. Used by promote, complete, and archive routes.
 export function moveTrip(slug, fromStage, toStage, newStatus) {
-  const fromDir = join(ROOT, fromStage, slug);
-  const toDir   = join(ROOT, toStage, slug);
+  const fromDir = join(DATA_DIR, fromStage, slug);
+  const toDir   = join(DATA_DIR, toStage, slug);
 
   if (!existsSync(fromDir)) return { error: `Trip not in ${fromStage} stage`, status: 404 };
   if (existsSync(toDir))    return { error: `Trip already exists in ${toStage}`, status: 409 };
 
   try {
-    mkdirSync(join(ROOT, toStage), { recursive: true });
+    mkdirSync(join(DATA_DIR, toStage), { recursive: true });
     crossMountRename(fromDir, toDir);
 
     const overviewPath = join(toDir, 'overview.md');

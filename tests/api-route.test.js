@@ -8,6 +8,7 @@ vi.mock('@sveltejs/kit', () => ({
 const mockGetTripRoute = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   getTripRoute: mockGetTripRoute,
   rejectInvalidSlug: () => null,
 }));

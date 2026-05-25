@@ -52,7 +52,7 @@
 import { readFileSync, existsSync, readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  ROOT,
+  DATA_DIR,
   atomicWrite,
   parseFrontmatter,
   setFrontmatterField,
@@ -63,10 +63,10 @@ import {
 import { TraverseError } from './errors.js';
 
 // Volatile in-flight job registry (not a cache — see docs/jobs-source-of-truth.md).
-// Lives under .cache/ for the same Docker bind-mount reason as the caches, but
-// the writers (startJob/completeJob/failJob/cancelJob) are the only managers;
-// no GC, no read in the hot path.
-const JOBS_REGISTRY_PATH = join(ROOT, '.cache', '.jobs.json');
+// Lives under data/.cache/ for the same Docker bind-mount reason as the caches,
+// but the writers (startJob/completeJob/failJob/cancelJob) are the only
+// managers; no GC, no read in the hot path.
+const JOBS_REGISTRY_PATH = join(DATA_DIR, '.cache', '.jobs.json');
 
 // ─── In-memory registry ──────────────────────────────────────────────────────
 
@@ -453,7 +453,7 @@ function sweepLegacyFrontmatter() {
   let cleared = 0;
 
   for (const stage of ['ideas', 'planning', 'completed']) {
-    const dir = join(ROOT, stage);
+    const dir = join(DATA_DIR, stage);
     if (!existsSync(dir)) continue;
 
     let dirEntries;

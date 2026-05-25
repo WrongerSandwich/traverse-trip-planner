@@ -20,6 +20,7 @@ const mockEnrichTrips = vi.hoisted(() => vi.fn());
 const mockIsValidSlug = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   enrichTrips: mockEnrichTrips,
   getHome: () => ({}),
   getTripFiles: vi.fn(() => null),

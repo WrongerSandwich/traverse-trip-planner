@@ -37,17 +37,18 @@ each as it surfaces.
 A short list of patterns and constraints that aren't visible from grepping
 the source. Knowing these up front saves debugging time.
 
-- **Disk-backed caches under `.cache/`.** `.cache/.geocode-cache.json`,
-  `.cache/.image-cache.json`, `.cache/.route-cache.json`, and
-  `.cache/.workflow-stats.json` persist across restarts and are
-  **gitignored** — they're runtime state that grows with user activity and
-  must not be committed. The directory itself ships with a tracked
+- **Disk-backed caches under `data/.cache/`.**
+  `data/.cache/.geocode-cache.json`, `data/.cache/.image-cache.json`,
+  `data/.cache/.route-cache.json`, and `data/.cache/.workflow-stats.json`
+  persist across restarts and are **gitignored** under the broader `data/`
+  pattern — they're runtime state that grows with user activity and must
+  not be committed. The `data/` directory itself ships with a tracked
   `.gitkeep` so `git clone` materializes it (dockerd would otherwise
   auto-create the missing bind-mount target as root). Docker mounts the
-  whole directory rather than individual files because per-file bind
-  mounts break the atomic-write rename with `EBUSY`. If your tests
-  exercise code that reads or writes them, clean up after yourself or
-  stub at the boundary. `.cache/.workflow-stats.json` is the rolling-p50
+  whole `data/` tree as a single directory because per-file bind mounts
+  break the atomic-write rename with `EBUSY`. If your tests exercise code
+  that reads or writes the caches, clean up after yourself or stub at the
+  boundary. `data/.cache/.workflow-stats.json` is the rolling-p50
   telemetry that calibrates the `_promise` time/token estimates (see
   `src/lib/server/workflow-stats.js`); it's written from `chat()` on
   every AI call and read at load time by `getResolvedPromises()`.
@@ -115,10 +116,10 @@ These are load-bearing. Violations should fail review.
 - **Frontmatter:** stage transitions only add fields, never remove.
   Dates are ISO 8601. Distances are miles. Omit fields rather than
   guess.
-- **Caches:** `.cache/.geocode-cache.json`, `.cache/.image-cache.json`,
-  `.cache/.route-cache.json` live under the gitignored `.cache/`
-  directory and persist across restarts. `enrichTrips()` GCs orphaned
-  entries on each request.
+- **Caches:** `data/.cache/.geocode-cache.json`,
+  `data/.cache/.image-cache.json`, `data/.cache/.route-cache.json` live
+  under the gitignored `data/` tree and persist across restarts.
+  `enrichTrips()` GCs orphaned entries on each request.
 
 ## Writing tests
 
@@ -193,7 +194,7 @@ For a feature/fix ticket, "done" means:
    or lifecycle stage, `CLAUDE.md` is updated.
 4. The PR description follows the ticket template (goal · approach ·
    what was changed · how it was verified).
-5. No new env vars without documenting them in `DEPLOY.md`.
+5. No new env vars without documenting them in `docs/deploy.md`.
 6. No new top-level dependencies without justification in the PR
    description (the project is intentionally lean).
 

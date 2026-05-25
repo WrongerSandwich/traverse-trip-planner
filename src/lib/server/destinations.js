@@ -1,6 +1,6 @@
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { ROOT } from '$lib/server/data.js';
+import { DATA_DIR } from '$lib/server/data.js';
 
 export function readDestinationsFromStageDir(stageDir, destinations) {
   if (!existsSync(stageDir)) return;
@@ -21,13 +21,13 @@ export function readDestinationsFromStageDir(stageDir, destinations) {
 export function collectExistingDestinations() {
   const destinations = [];
   for (const stage of ['ideas', 'planning', 'completed']) {
-    readDestinationsFromStageDir(join(ROOT, stage), destinations);
+    readDestinationsFromStageDir(join(DATA_DIR, stage), destinations);
   }
   // Archived structure still contains an 'exploring' subdir for trips archived
   // before the stage was retired — keep scanning it so those destinations
   // remain in the seed-avoidance list.
   for (const stage of ['ideas', 'exploring', 'planning', 'completed']) {
-    readDestinationsFromStageDir(join(ROOT, 'archived', stage), destinations);
+    readDestinationsFromStageDir(join(DATA_DIR, 'archived', stage), destinations);
   }
   return destinations;
 }

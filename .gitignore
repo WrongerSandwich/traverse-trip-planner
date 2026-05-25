@@ -6,39 +6,24 @@ build/
 # API keys — never commit
 .env
 
-# Runtime-editable settings (may contain API keys — never commit)
-settings.json
+# Personal trip data + runtime state — managed via the app, not committed.
+# Everything user-managed (trip stages, home.md, settings.json, .cache/) lives
+# under data/ post-#411. The tracked `data/.gitkeep` ensures `git clone`
+# materializes the directory as the cloning user — important for Docker,
+# where dockerd would otherwise auto-create the bind-mount target as root and
+# break writes from the container's non-root uid.
+/data/*
+!/data/.gitkeep
 
-# Personal preferences — copy home.example.md to home.md and edit it
-# (Anchored to repo root so sample-data/home.md still tracks.)
+# Legacy pre-#411 paths — keep ignoring in case anyone has stragglers at the
+# repo root before their first post-upgrade boot runs the migration shim.
+/ideas
+/planning
+/completed
+/archived
 /home.md
-
-# Personal trip data — managed via the app, not committed. Each dir keeps a
-# tracked `.gitkeep` so `git clone` produces the dirs as the cloning user;
-# this matters for Docker, where any missing bind-mount target would otherwise
-# be auto-created by dockerd as root and break writes from the container's
-# non-root uid. (See sample-data/ for the bundled demo dataset and `npm run
-# seed-sample` to populate these dirs.) Patterns anchored to repo root so
-# sample-data/ideas/ etc. still track normally.
-/ideas/*
-!/ideas/.gitkeep
-/planning/*
-!/planning/.gitkeep
-/completed/*
-!/completed/.gitkeep
-/archived/*
-!/archived/.gitkeep
-
-# Runtime caches — generated at startup and written on every lookup; not for
-# VCS. Lives in a `.cache/` subdir so Docker can bind-mount the directory
-# (per-file bind mounts break the atomic-write rename with EBUSY). The
-# directory itself ships with a tracked `.gitkeep` so `git clone` materializes
-# it as the cloning user (same rationale as ideas/ etc. — dockerd would
-# otherwise auto-create the missing bind-mount target as root). Legacy
-# root-level files are auto-migrated on first boot; keep ignoring them so
-# any stragglers don't get tracked.
-/.cache/*
-!/.cache/.gitkeep
+/settings.json
+/.cache
 .geocode-cache.json
 .image-cache.json
 .route-cache.json

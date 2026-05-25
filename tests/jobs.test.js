@@ -95,6 +95,9 @@ vi.mock('node:fs', async (importOriginal) => {
 });
 
 const ROOT = '/test-root';
+// All user-managed runtime state (stage dirs, .cache/) lives under DATA_DIR
+// after #411. ROOT stays as process.cwd() but no path joins use it directly.
+const DATA = `${ROOT}/data`;
 
 // Stub settings so `resolveEnv` and friends don't try to read disk
 vi.mock('../src/lib/server/settings.js', () => ({
@@ -109,9 +112,10 @@ beforeEach(() => {
   fs.files = {};
   fs.dirs = new Set();
   ensureDir(ROOT);
-  ensureDir(`${ROOT}/ideas`);
-  ensureDir(`${ROOT}/planning`);
-  ensureDir(`${ROOT}/completed`);
+  ensureDir(DATA);
+  ensureDir(`${DATA}/ideas`);
+  ensureDir(`${DATA}/planning`);
+  ensureDir(`${DATA}/completed`);
   process.cwd = () => ROOT;
 });
 
@@ -132,29 +136,29 @@ function seedIdea(slug, extraFm = {}) {
   const fmLines = Object.entries({ title: slug, status: 'idea', destination: 'Anywhere', ...extraFm })
     .map(([k, v]) => `${k}: ${v}`)
     .join('\n');
-  setFile(`${ROOT}/ideas/${slug}.md`, `---\n${fmLines}\n---\n\nBody.\n`);
+  setFile(`${DATA}/ideas/${slug}.md`, `---\n${fmLines}\n---\n\nBody.\n`);
 }
 
 function seedPlanning(slug, extraFm = {}) {
-  ensureDir(`${ROOT}/planning/${slug}`);
+  ensureDir(`${DATA}/planning/${slug}`);
   const fmLines = Object.entries({ title: slug, status: 'planning', destination: 'Anywhere', ...extraFm })
     .map(([k, v]) => `${k}: ${v}`)
     .join('\n');
-  setFile(`${ROOT}/planning/${slug}/overview.md`, `---\n${fmLines}\n---\n\nBody.\n`);
+  setFile(`${DATA}/planning/${slug}/overview.md`, `---\n${fmLines}\n---\n\nBody.\n`);
 }
 
 function readIdeaFm(slug) {
-  return parseFrontmatter(fs.files[`${ROOT}/ideas/${slug}.md`].content);
+  return parseFrontmatter(fs.files[`${DATA}/ideas/${slug}.md`].content);
 }
 
 function readPlanningFm(slug) {
-  return parseFrontmatter(fs.files[`${ROOT}/planning/${slug}/overview.md`].content);
+  return parseFrontmatter(fs.files[`${DATA}/planning/${slug}/overview.md`].content);
 }
 
 // Read the central in-flight registry on disk. Returns `null` when the file
 // doesn't exist (which is the expected steady state when no jobs are running).
 function readJobsFile() {
-  const entry = fs.files[`${ROOT}/.cache/.jobs.json`];
+  const entry = fs.files[`${DATA}/.cache/.jobs.json`];
   if (!entry) return null;
   return JSON.parse(entry.content);
 }
@@ -162,7 +166,7 @@ function readJobsFile() {
 beforeEach(() => {
   _resetForTests();
   // The on-disk registry is volatile state; tests start with no in-flight jobs.
-  delete fs.files[`${ROOT}/.cache/.jobs.json`];
+  delete fs.files[`${DATA}/.cache/.jobs.json`];
 });
 
 // ─── startJob / completeJob happy path ───────────────────────────────────────
@@ -494,7 +498,7 @@ describe('listJobs', () => {
 
     // Delete the on-disk file out from under jobs.js. listJobs() must still
     // return the in-memory entry — disk is a recovery hint, not the live read.
-    delete fs.files[`${ROOT}/.cache/.jobs.json`];
+    delete fs.files[`${DATA}/.cache/.jobs.json`];
 
     const snap = listJobs();
     expect(snap).toHaveLength(1);
@@ -594,7 +598,7 @@ describe('sweepStaleJobs', () => {
   /** Write a fake registry to `.cache/.jobs.json` as if the previous boot
    *  had jobs in flight when the process died. */
   function seedRegistry(entries) {
-    setFile(`${ROOT}/.cache/.jobs.json`, JSON.stringify(entries, null, 2));
+    setFile(`${DATA}/.cache/.jobs.json`, JSON.stringify(entries, null, 2));
   }
 
   it('reads .cache/.jobs.json and writes the interrupted triple to each listed trip', () => {

@@ -3,10 +3,9 @@
 // attacker who can write here could poison trip generation or scrub the
 // constraints the AI workflows rely on. Loopback-gated by default.
 import { json } from '@sveltejs/kit';
-import { parseHomeMd, writeHomeMd, invalidateEnrichCache } from '$lib/server/data.js';
+import { parseHomeMd, writeHomeMd, invalidateEnrichCache, DATA_DIR } from '$lib/server/data.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { ROOT } from '$lib/server/data.js';
 import { denyIfNotConfigWriter } from '$lib/server/auth.js';
 
 /**
@@ -54,7 +53,7 @@ import { denyIfNotConfigWriter } from '$lib/server/auth.js';
  */
 
 export async function GET() {
-  const homePath = join(ROOT, 'home.md');
+  const homePath = join(DATA_DIR, 'home.md');
   if (!existsSync(homePath)) {
     return json({ error: 'home.md not found', code: 'home_not_found' }, { status: 404 });
   }

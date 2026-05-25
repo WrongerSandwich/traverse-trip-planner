@@ -10,7 +10,7 @@ A self-hosted road-trip filing cabinet. Trips live as plain markdown files, prog
 
 There are plenty of fancier travel apps. Almost all of them treat your trips as rows in their database, your photos as content for their feed, and your destination history as something to monetize. Traverse takes the opposite bet: trips are markdown, your `home.md` is your taste preferences in plain English, and AI is a useful tool wired into the workflow — not the workflow itself.
 
-The mental model is closer to a personal wiki than a SaaS app. The LLM is fast at generating regional ideas, fleshing out routes, and parsing a long planning thread into a printable brochure; you stay in control of what actually goes into the file. See [PRODUCT.md](PRODUCT.md) for the longer design rationale.
+The mental model is closer to a personal wiki than a SaaS app. The LLM is fast at generating regional ideas, fleshing out routes, and parsing a long planning thread into a printable brochure; you stay in control of what actually goes into the file. See [docs/product.md](docs/product.md) for the longer design rationale.
 
 ## What it does
 
@@ -33,7 +33,7 @@ Traverse is designed to be self-hosted. You bring your own API keys; nothing is 
 - A [Pexels API key](https://www.pexels.com/api/) (free, for trip card photos)
 - *Optional:* a [Tavily](https://tavily.com/) API key — required only if you use a non-Anthropic research model and want `Research →`
 
-Docker is the canonical deployment. See **[DEPLOY.md](DEPLOY.md)** for the full walkthrough.
+Docker is the canonical deployment. See **[docs/deploy.md](docs/deploy.md)** for the full walkthrough.
 
 ## Configure Traverse
 
@@ -46,7 +46,6 @@ For when you'd rather configure from a browser than edit files:
 ```bash
 git clone <repo-url> traverse && cd traverse
 cp .env.example .env         # leave keys commented; set UID/GID if your host user isn't uid 1000
-touch settings.json          # Compose bind-mounts this file; pre-create so dockerd doesn't make it a dir
 docker compose up -d --build
 ```
 
@@ -61,7 +60,6 @@ git clone <repo-url> traverse && cd traverse
 # Generate .env from your secrets pipeline with ANTHROPIC_API_KEY (or OPENAI_API_KEY /
 # OPENROUTER_API_KEY), PEXELS_API_KEY, and TRAVERSE_DISABLE_SETTINGS_UI=1 to lock the
 # runtime UI off.
-touch settings.json          # Compose bind-mounts this file; pre-create so dockerd doesn't make it a dir
 docker compose up -d --build
 ```
 
@@ -69,28 +67,32 @@ Rotate keys via your existing pipeline. **You don't need to open `/settings`.**
 
 ---
 
-Both paths land you at `http://<server-ip>:3456`. The full table of what can live in `.env` vs. `settings.json` is in [DEPLOY.md → Configuration reference](DEPLOY.md#configuration-reference).
+Both paths land you at `http://<server-ip>:3456`. The full table of what can live in `.env` vs. `data/settings.json` is in [docs/deploy.md → Configuration reference](docs/deploy.md#configuration-reference).
 
-Running outside Docker (Node 20+ directly) is supported for development; see [DEPLOY.md](DEPLOY.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for the manual path.
+Running outside Docker (Node 20+ directly) is supported for development; see [docs/deploy.md](docs/deploy.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for the manual path.
 
 ## Trip data
 
-Trips are markdown files organized by stage:
+Trips are markdown files organized by stage under `data/`:
 
 ```
-ideas/          # single .md files — lightly sketched
-planning/       # folders with overview.md + research files; dates, lodging, edits
-completed/      # archive with retrospective in notes.md
-archived/       # hidden from UI; excluded from re-suggestion
+data/
+├── ideas/          # single .md files — lightly sketched
+├── planning/       # folders with overview.md + research files; dates, lodging, edits
+├── completed/      # archive with retrospective in notes.md
+├── archived/       # hidden from UI; excluded from re-suggestion
+├── home.md         # your personal preferences — drives every AI prompt
+├── settings.json   # runtime-editable provider keys + feature flags
+└── .cache/         # geocode / image / route caches; safe to delete
 ```
 
-These directories are **gitignored** — they hold your personal trips, not the project's source. A bundled demo dataset under `sample-data/` is available via `npm run seed-sample`; see [sample-data/README.md](sample-data/README.md) for details.
+The `data/` directory is **gitignored** — it holds your personal trips and runtime state, not project source. A bundled demo dataset under `sample-data/` is available via `npm run seed-sample`; see [sample-data/README.md](sample-data/README.md) for details.
 
-Your personal preferences live in `home.md` (also gitignored). The in-app onboarding flow creates it on first run; from there, the Settings page lets you edit home location, vehicles, taste profile, and seasonal constraints. This file drives all AI prompts.
+Your personal preferences live in `data/home.md`. The in-app onboarding flow creates it on first run; from there, the Settings page lets you edit home location, vehicles, taste profile, and seasonal constraints. This file drives all AI prompts.
 
 ## Tech
 
-SvelteKit · Leaflet · OSRM (routing) · Nominatim (geocoding) · Pexels (photos). AI calls go through a provider-agnostic adapter — Anthropic and OpenAI are supported out of the box. See [DEPLOY.md](DEPLOY.md#provider-configuration-byok).
+SvelteKit · Leaflet · OSRM (routing) · Nominatim (geocoding) · Pexels (photos). AI calls go through a provider-agnostic adapter — Anthropic and OpenAI are supported out of the box. See [docs/deploy.md](docs/deploy.md#provider-configuration-byok).
 
 ## Status
 

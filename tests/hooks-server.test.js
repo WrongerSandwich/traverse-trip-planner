@@ -29,6 +29,7 @@ vi.mock('$lib/server/config.js', () => ({
 }));
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test-root/data',
   ROOT: '/test-root',
   parseFrontmatter: vi.fn(() => ({})),
   removeFrontmatterField: vi.fn((content) => content),

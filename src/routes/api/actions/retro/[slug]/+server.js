@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { ROOT, atomicWrite, readHomeMd, getTripFiles, invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
+import { DATA_DIR, atomicWrite, readHomeMd, getTripFiles, invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
 import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
@@ -11,7 +11,7 @@ import { rateLimitResponse } from '$lib/server/rate-limit.js';
 export const _promise = HAND_DEFAULTS['retro-questions'];
 
 function loadCompletedTrip(slug) {
-  const dir = join(ROOT, 'completed', slug);
+  const dir = join(DATA_DIR, 'completed', slug);
   if (!existsSync(dir)) return null;
   const files = getTripFiles(slug);
   if (!files || files.stage !== 'completed') return null;

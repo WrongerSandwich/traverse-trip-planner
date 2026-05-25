@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { ROOT, readHomeMd, invalidateEnrichCache, assertSafeIdeaPath, atomicWrite } from '$lib/server/data.js';
+import { DATA_DIR, readHomeMd, invalidateEnrichCache, assertSafeIdeaPath, atomicWrite } from '$lib/server/data.js';
 import { collectExistingDestinations } from '$lib/server/destinations.js';
 import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
@@ -96,7 +96,7 @@ national_park: true`;
 
     send(`Saving ${files.length} idea${files.length === 1 ? '' : 's'} to disk…`);
     for (const file of files) {
-      const path = join(ROOT, file.name);
+      const path = join(DATA_DIR, file.name);
       atomicWrite(path, file.content + '\n');
       const title = file.content.match(/^title: (.+)$/m)?.[1] ?? file.name;
       send(`  ✓ ${title}`);

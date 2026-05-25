@@ -14,6 +14,7 @@ const mockAppendToNotes = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/data.js', () => ({
   ROOT: '/test-root',
+  DATA_DIR: '/test-root/data',
   appendToNotes: mockAppendToNotes,
   rejectInvalidSlug: () => null,
 }));

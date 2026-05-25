@@ -1,11 +1,11 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { ROOT, parseFrontmatter, rejectInvalidSlug } from '$lib/server/data.js';
+import { DATA_DIR, parseFrontmatter, rejectInvalidSlug } from '$lib/server/data.js';
 import { tripsToIcs } from '$lib/server/ics.js';
 
 function findTripFrontmatter(slug) {
   for (const stage of ['planning', 'completed']) {
-    const overview = join(ROOT, stage, slug, 'overview.md');
+    const overview = join(DATA_DIR, stage, slug, 'overview.md');
     if (existsSync(overview)) {
       const fm = parseFrontmatter(readFileSync(overview, 'utf8'));
       if (fm) return { ...fm, _slug: slug };

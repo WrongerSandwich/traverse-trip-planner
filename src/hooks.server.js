@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { existsSync, accessSync, constants as fsConstants } from 'node:fs';
 import { join } from 'node:path';
 import { describeConfig } from '$lib/server/config.js';
-import { ROOT } from '$lib/server/data.js';
+import { DATA_DIR } from '$lib/server/data.js';
 import { sweepStaleJobs } from '$lib/server/jobs.js';
 
 // ── Security headers + CSRF Origin check ─────────────────────────────────────
@@ -147,13 +147,13 @@ setImmediate(() => sweepStaleJobs());
 // Stage dirs must be writable by the running uid; otherwise Research, Retro,
 // and Archive all fail with opaque EACCES errors mid-action. Most common cause
 // in Docker: a missing host bind-mount target gets auto-created by dockerd as
-// root, then the container's non-root user can't write into it. Tracked
-// `.gitkeep` files prevent this on fresh clones, but pre-existing installs
+// root, then the container's non-root user can't write into it. The tracked
+// `data/.gitkeep` prevents this on fresh clones, but pre-existing installs
 // (or anyone who recreated the dirs via sudo) can still hit it.
 (function checkStageDirsWritable() {
   const broken = [];
   for (const stage of ['ideas', 'planning', 'completed', 'archived']) {
-    const dir = join(ROOT, stage);
+    const dir = join(DATA_DIR, stage);
     if (!existsSync(dir)) continue;
     try {
       accessSync(dir, fsConstants.W_OK);
@@ -163,8 +163,8 @@ setImmediate(() => sweepStaleJobs());
   }
   if (broken.length === 0) return;
   const uid = typeof process.getuid === 'function' ? process.getuid() : '?';
-  console.warn(`[startup] WARNING: stage dir(s) not writable by uid ${uid}: ${broken.join(', ')}`);
+  console.warn(`[startup] WARNING: data/<stage> dir(s) not writable by uid ${uid}: ${broken.join(', ')}`);
   console.warn(`  Research, Retro, and Archive actions will fail until this is fixed.`);
   console.warn(`  On the host, run:`);
-  console.warn(`    sudo chown -R $(id -u):$(id -g) ${broken.join(' ')}`);
+  console.warn(`    sudo chown -R $(id -u):$(id -g) data`);
 })();

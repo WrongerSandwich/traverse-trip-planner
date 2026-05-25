@@ -27,6 +27,7 @@ vi.mock('$lib/server/candidates.js', () => ({
 }));
 
 vi.mock('$lib/server/data.js', () => ({
+  DATA_DIR: '/test/data',
   readHomeMd: () => '---\ntravelers: [you]\n---\n',
   parseFrontmatter: (text) => {
     const m = text.match(/^---\n([\s\S]*?)\n---/);
