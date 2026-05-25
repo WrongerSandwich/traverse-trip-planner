@@ -1224,13 +1224,22 @@ export function assertSafeIdeaPath(p) {
 // ── Trip location ──
 // Returns { kind: 'file'|'dir', path, stage } for the trip's current live location,
 // or null if not found. kind='file' means an idea .md; kind='dir' means a stage folder.
+//
+// Precedence: planning > completed > ideas. The deepen handler creates
+// `planning/<slug>/` and writes overview.md before unlinking the idea file
+// (so a mid-flow crash leaves the idea intact, per #380), which means both
+// `ideas/<slug>.md` and `planning/<slug>/` briefly coexist during the
+// `realizePlan()` call. Returning the planning dir in that window — rather
+// than the soon-to-be-deleted idea — matches the same "later stage wins"
+// rule `collectTrips()` already applies to the home page (see the
+// `bySlug.set` loop on duplicate slugs).
 export function findTripLocation(slug) {
-  const ideaPath = join(DATA_DIR, 'ideas', `${slug}.md`);
-  if (existsSync(ideaPath)) return { kind: 'file', path: ideaPath, stage: 'ideas' };
   for (const stage of ['planning', 'completed']) {
     const dir = join(DATA_DIR, stage, slug);
     if (existsSync(dir)) return { kind: 'dir', path: dir, stage };
   }
+  const ideaPath = join(DATA_DIR, 'ideas', `${slug}.md`);
+  if (existsSync(ideaPath)) return { kind: 'file', path: ideaPath, stage: 'ideas' };
   return null;
 }
 
