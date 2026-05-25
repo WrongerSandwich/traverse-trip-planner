@@ -29,6 +29,12 @@ function hasImages(messages) {
 }
 
 export async function chat({ provider, model, system, messages, maxTokens, tools, onToolCall, onActivity, label, signal, onText }) {
+  if (typeof provider !== 'string' || !provider) {
+    throw new TraverseError('feature_not_configured', `chat() called with provider=${provider}; check cfg.features[<label>] is populated`);
+  }
+  if (typeof model !== 'string' || !model) {
+    throw new TraverseError('feature_not_configured', `chat() called with model=${model}; check cfg.features[<label>] is populated`);
+  }
   if (typeof maxTokens === 'number' && maxTokens > MAX_TOKENS_CEILING) {
     throw new TraverseError('max_tokens_exceeded', `maxTokens=${maxTokens} exceeds ceiling=${MAX_TOKENS_CEILING}`);
   }

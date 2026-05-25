@@ -136,6 +136,10 @@ export const ERROR_REGISTRY = {
     affordances: ['edit', 'dismiss'],
     interpolate: ['candidate_id'],
   },
+  feature_not_configured: {
+    sentence: 'This feature is not configured. Check provider and model in settings.',
+    affordances: ['edit', 'dismiss'],
+  },
 };
 
 /**
