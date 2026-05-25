@@ -97,12 +97,12 @@ vi.mock('$lib/server/config.js', () => ({
   getFeatureAvailability: () => ({ homeMdReady: true }),
 }));
 
-// extract-candidates mock (chained onto the deepen research job; this file
-// only cares about completeJob/failJob bookkeeping, so a no-op resolution
-// is enough).
-const mockExtractCandidates = vi.hoisted(() => vi.fn());
-vi.mock('$lib/server/extract-candidates.js', () => ({
-  extractCandidates: mockExtractCandidates,
+// realize-plan mock (post-LLM half of the unified deepen pipeline; this
+// file only cares about completeJob/failJob bookkeeping, so a no-op
+// resolution is enough).
+const mockRealizePlan = vi.hoisted(() => vi.fn());
+vi.mock('$lib/server/realize-plan.js', () => ({
+  realizePlan: mockRealizePlan,
 }));
 
 // plan.js mock (deepen consults readPlan for the re-research prose gate;
@@ -160,14 +160,25 @@ beforeEach(() => {
   });
   mockReadFileSync.mockReturnValue(IDEA_CONTENT);
 
-  // Default chat: valid response that doResearch/runResearch can parse
+  // Default chat: valid unified envelope that doResearch can parse.
   mockChat.mockResolvedValue({
-    text: '<overview_prose>prose</overview_prose><stops_md>## Stop A\nDetails.</stops_md>',
+    text: [
+      '<overview_prose>prose</overview_prose>',
+      '<plan>',
+      'cover_query: test',
+      'field_guide_notes: []',
+      'gotchas: []',
+      '</plan>',
+      '<candidates>',
+      'stops: []',
+      'lodging: []',
+      '</candidates>',
+    ].join('\n'),
     usage: { input_tokens: 100, output_tokens: 50 },
   });
 
-  // Default extract: success with no extra usage (keeps existing token math).
-  mockExtractCandidates.mockResolvedValue({ usage: undefined });
+  // Default realize: success with no renames (keeps existing token math).
+  mockRealizePlan.mockResolvedValue({ renames: [] });
 });
 
 afterEach(() => {

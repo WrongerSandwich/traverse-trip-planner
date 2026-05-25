@@ -299,7 +299,7 @@ Every existing workflow is assigned an archetype. **Deviations** from the archet
 | **Seed** | Instant Inline | — |
 | **Add destination** | Instant Inline | — |
 | **Chat turn** | Instant Inline | Lives in a sidebar instead of a button-as-spinner. *Reason:* Chat is a sustained interaction surface, not a one-shot trigger; the sidebar is the persistent UI. The per-turn loading state still follows Instant Inline (input disabled, spinner inline). |
-| **Research → (with chained candidate extraction)** | Ambient Background | Single trigger produces both prose planning files and structured `plan.md` + `candidates.md` (via a chained `extractCandidates()` pass). Confirm modal carries the long promise. Canonical Ambient Background example. |
+| **Research → (unified envelope)** | Ambient Background | Single `chat()` round-trip produces both prose planning files and structured `plan.yaml` + `candidates.yaml` in one envelope; the post-LLM `realizePlan()` step merges + geocodes. Confirm modal carries the long promise. Canonical Ambient Background example. |
 | **Deepen-section** | Ambient Background | Trigger UI migrated to Ambient Background (PR #107). |
 | **Deepen** | Ambient Background | Already navigable. Migration replaces the ad-hoc 4s home-page poll + frontmatter `researching:` flag with the unified global indicator + standard job state. |
 | **Retro** | Conversational / Modal | — |
