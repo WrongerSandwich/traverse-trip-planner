@@ -45,12 +45,13 @@ export const DEFAULT_LIMITS = {
   // asks for ≤1 req/s from a single IP). Keep capacity generous for the
   // legitimate re-geocode use-case but tighten the sustained rate.
   geocode:          { capacity: 10, refillPerMinute: 2   },
-  // stadia-map proxies Stadia static-map requests so the key never reaches
-  // the browser (#265). Per-IP. Generous capacity because the brochure
-  // print page makes one request per visit and the image is browser-cached
-  // for 24h, so legitimate users almost never re-hit. Tightish refill so a
-  // misbehaving client can't drain the Stadia free-tier quota.
-  'stadia-map':     { capacity: 30, refillPerMinute: 6   },
+  // stadia-tile proxies individual Stadia tiles so the key never reaches
+  // the browser (#265). Per-IP. Each brochure render fans out to ~6–10
+  // tiles in parallel; each is browser-cached for 24h, so a legitimate
+  // user almost never re-hits the same tile. Capacity tuned for one full
+  // brochure load + a few tabs; refill is tight enough to limit drain on
+  // the Stadia free-tier quota if a client misbehaves.
+  'stadia-tile':    { capacity: 60, refillPerMinute: 20 },
 };
 
 const buckets = new Map();

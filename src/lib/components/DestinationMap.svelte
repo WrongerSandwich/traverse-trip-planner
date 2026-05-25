@@ -19,12 +19,12 @@
     stops = [],
     destination = '',
     plateLabel = 'plate ii',
-    // When a Stadia (or any Web Mercator) static map is supplied, the
-    // component switches to a Mercator projection matching the tile
-    // center+zoom so pin overlays land precisely on landmarks. The
-    // server is responsible for computing the same center+zoom it
-    // requested from the static-map provider.
-    baseMapUrl = null,
+    // When a Stadia tile mosaic is supplied, the component switches to a
+    // Mercator projection matching the tile center+zoom so pin overlays
+    // land precisely on landmarks. The server is responsible for the
+    // tile-coverage math (src/lib/server/stadia.js); we just place each
+    // tile at the {x, y, w, h} SVG position it computed.
+    baseMapTiles = null,
     baseMapCenterLat = null,
     baseMapCenterLon = null,
     baseMapZoom = null,
@@ -34,7 +34,9 @@
   const VB_H = 480;
   const PAD = 0.12; // slightly more pad than PaperMap; stops sit nearer the edges otherwise
 
-  const hasBaseMap = $derived(Boolean(baseMapUrl && baseMapCenterLat != null && baseMapZoom != null));
+  const hasBaseMap = $derived(
+    Array.isArray(baseMapTiles) && baseMapTiles.length > 0 && baseMapCenterLat != null && baseMapZoom != null,
+  );
 
   const located = $derived(
     (stops || [])
@@ -118,9 +120,20 @@
     aria-label="Stops around {destination}"
   >
     {#if hasBaseMap}
-      <!-- Stadia static map serves as the base layer. SVG's <image>
-           fetches lazily on render; PDF print embeds the bytes. -->
-      <image href={baseMapUrl} x="0" y="0" width={VB_W} height={VB_H} preserveAspectRatio="xMidYMid slice" />
+      <!-- Stadia tile mosaic serves as the base layer. Each tile is a
+           same-origin proxy URL; the browser composites them natively
+           inside the SVG. Clip to the viewBox so partial-edge tiles
+           don't bleed past the map frame. -->
+      <defs>
+        <clipPath id="dest-map-clip">
+          <rect x="0" y="0" width={VB_W} height={VB_H} />
+        </clipPath>
+      </defs>
+      <g clip-path="url(#dest-map-clip)">
+        {#each baseMapTiles as tile}
+          <image href={tile.url} x={tile.x} y={tile.y} width={tile.w} height={tile.h} preserveAspectRatio="none" />
+        {/each}
+      </g>
     {:else}
       <!-- Illustrative paper background -->
       <rect width={VB_W} height={VB_H} fill="var(--bone-100)" />

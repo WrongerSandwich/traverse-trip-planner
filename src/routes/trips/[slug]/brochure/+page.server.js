@@ -1,18 +1,17 @@
 import { error } from '@sveltejs/kit';
 import { enrichTrips, getHome, getTripFiles, getTripRoute, geocode, isValidSlug } from '$lib/server/data.js';
 import { deriveBrochure } from '$lib/server/derive-brochure.js';
-import { stadiaStaticMapUrl } from '$lib/server/stadia.js';
+import { stadiaTileMosaic } from '$lib/server/stadia.js';
 import { chooseZoomForBbox } from '$lib/utils/projection.js';
 
-// Compute a Stadia static-map URL for the destination map.
-// Returns null when there are no geocoded stops or STADIA_API_KEY is unset
-// (the DestinationMap component then falls back to its illustrative
-// paper render).
+// Compute a tile mosaic that backs the destination map. Returns null when
+// there are no geocoded stops or STADIA_API_KEY is unset; DestinationMap
+// then falls back to its illustrative paper render.
 //
 // Center is the centroid of all geocoded stops. Outlying stops may fall
-// outside the visible map; they're still listed in the Stops section so
-// nothing is lost.
-function buildDestinationBaseMap(brochureData) {
+// outside the visible map; they're still listed in the Itinerary section
+// so nothing is lost.
+async function buildDestinationBaseMap(brochureData) {
   if (!brochureData?.stops) return null;
   const located = brochureData.stops.filter(
     s => Array.isArray(s.coords) && s.coords.length === 2,
@@ -47,17 +46,14 @@ function buildDestinationBaseMap(brochureData) {
   // and loses the orientation context the brochure should provide.
   const zoom = Math.max(11, Math.min(14, fitZoom));
 
-  const url = stadiaStaticMapUrl({
+  return stadiaTileMosaic({
     centerLat,
     centerLon,
     zoom,
-    width: 720,
-    height: 480,
+    viewBoxW: 720,
+    viewBoxH: 480,
     style: 'outdoors',
   });
-  if (!url) return null;
-
-  return { url, centerLat, centerLon, zoom };
 }
 
 export async function load({ params }) {
@@ -98,7 +94,7 @@ export async function load({ params }) {
     console.warn(`deriveBrochure failed for ${slug}:`, err.message);
   }
 
-  const destinationBaseMap = buildDestinationBaseMap(brochureData);
+  const destinationBaseMap = await buildDestinationBaseMap(brochureData);
 
   return {
     trip,

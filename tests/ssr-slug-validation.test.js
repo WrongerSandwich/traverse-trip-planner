@@ -40,7 +40,7 @@ vi.mock('$lib/server/candidates.js', () => ({
 
 // --- stadia mock ---
 vi.mock('$lib/server/stadia.js', () => ({
-  stadiaStaticMapUrl: vi.fn(() => null),
+  stadiaTileMosaic: vi.fn(() => null),
 }));
 
 // --- projection util mock ---
