@@ -23,7 +23,7 @@ vi.mock('node:fs', () => ({
   existsSync: mockExistsSync,
 }));
 
-const mockGeocode = vi.hoisted(() => vi.fn(async () => null));
+const mockGeocode = vi.hoisted(() => vi.fn(async () => ({ coords: null, fromCache: true })));
 const mockFindTripFile = vi.hoisted(() => vi.fn(() => '/test/planning/t/overview.md'));
 const mockSetFrontmatterField = vi.hoisted(() => vi.fn((content, _field, _value) => content));
 const mockRemoveFrontmatterField = vi.hoisted(() => vi.fn((content, _field) => content));
@@ -107,7 +107,7 @@ describe('realizePlan', () => {
     mockGeocode.mockReset();
     capturedPlan.value = null;
     capturedCands.value = null;
-    mockGeocode.mockResolvedValue(null);
+    mockGeocode.mockResolvedValue({ coords: null, fromCache: true });
     mockReadFileSync.mockReturnValue('---\ntitle: T\ndestination: Glacier MT\n---\n');
     mockExistsSync.mockReturnValue(true);
     mockFindTripFile.mockReturnValue('/test/planning/t/overview.md');
@@ -332,10 +332,10 @@ describe('realizePlan', () => {
     readCandidates.mockReturnValueOnce(null);
     readPlan.mockReturnValueOnce(null);
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
-      if (q === 'Lake McDonald, Glacier MT') return [48.5, -113.9];
-      if (q === 'Whitefish Inn') return [48.41, -114.34];
-      return null;
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
+      if (q === 'Lake McDonald, Glacier MT') return { coords: [48.5, -113.9], fromCache: true };
+      if (q === 'Whitefish Inn') return { coords: [48.41, -114.34], fromCache: true };
+      return { coords: null, fromCache: true };
     });
 
     await realizePlan('t', makeExtract({
@@ -357,7 +357,7 @@ describe('realizePlan', () => {
       lodging: [],
     });
     readPlan.mockReturnValueOnce(null);
-    mockGeocode.mockResolvedValue(null);
+    mockGeocode.mockResolvedValue({ coords: null, fromCache: true });
 
     await realizePlan('t', makeExtract({
       plan: { field_guide_notes: '', gotchas: '' },
@@ -374,10 +374,10 @@ describe('realizePlan', () => {
     readCandidates.mockReturnValueOnce(null);
     readPlan.mockReturnValueOnce(null);
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
-      if (q === 'Bear Lake, Glacier MT') return [48.6, -113.9];
-      if (q === 'Bear Lake') return [37.6, -80.5];
-      return null;
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
+      if (q === 'Bear Lake, Glacier MT') return { coords: [48.6, -113.9], fromCache: true };
+      if (q === 'Bear Lake') return { coords: [37.6, -80.5], fromCache: true };
+      return { coords: null, fromCache: true };
     });
 
     await realizePlan('t', makeExtract({
@@ -395,10 +395,10 @@ describe('realizePlan', () => {
     readCandidates.mockReturnValueOnce(null);
     readPlan.mockReturnValueOnce(null);
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return null;
-      if (q === 'Capitol Square, Glacier MT') return null;
-      if (q === 'Capitol Square') return [41.89, 12.48];
-      return null;
+      if (q === 'Glacier MT') return { coords: null, fromCache: true };
+      if (q === 'Capitol Square, Glacier MT') return { coords: null, fromCache: true };
+      if (q === 'Capitol Square') return { coords: [41.89, 12.48], fromCache: true };
+      return { coords: null, fromCache: true };
     });
 
     await realizePlan('t', makeExtract({
@@ -416,10 +416,10 @@ describe('realizePlan', () => {
     readCandidates.mockReturnValueOnce(null);
     readPlan.mockReturnValueOnce(null);
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
-      if (q === 'Mystery Place, Glacier MT') return [61.0, -149.0];
-      if (q === 'Mystery Place') return [61.0, -149.0];
-      return null;
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
+      if (q === 'Mystery Place, Glacier MT') return { coords: [61.0, -149.0], fromCache: true };
+      if (q === 'Mystery Place') return { coords: [61.0, -149.0], fromCache: true };
+      return { coords: null, fromCache: true };
     });
 
     await realizePlan('t', makeExtract({
@@ -443,10 +443,10 @@ describe('realizePlan', () => {
     });
     readPlan.mockReturnValueOnce(null);
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
-      if (q === 'Bear Lake, Glacier MT') return [48.6, -113.9];
-      if (q === 'Bear Lake') return [37.6, -80.5];
-      return null;
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
+      if (q === 'Bear Lake, Glacier MT') return { coords: [48.6, -113.9], fromCache: true };
+      if (q === 'Bear Lake') return { coords: [37.6, -80.5], fromCache: true };
+      return { coords: null, fromCache: true };
     });
 
     await realizePlan('t', makeExtract({
@@ -470,9 +470,9 @@ describe('realizePlan', () => {
     });
     readPlan.mockReturnValueOnce(null);
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
-      if (q === 'Bear Lake, Glacier MT') return [48.6, -113.9];
-      return null;
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
+      if (q === 'Bear Lake, Glacier MT') return { coords: [48.6, -113.9], fromCache: true };
+      return { coords: null, fromCache: true };
     });
 
     await realizePlan('t', makeExtract({
@@ -493,7 +493,7 @@ describe('realizePlan', () => {
     });
     readPlan.mockReturnValueOnce(null);
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
       throw new Error(`unexpected geocode call: ${q}`);
     });
 
