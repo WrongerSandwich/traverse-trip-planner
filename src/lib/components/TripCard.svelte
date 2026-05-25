@@ -4,6 +4,7 @@
   import TripJobBadge from './TripJobBadge.svelte';
   import { tripColor } from '$lib/utils/colors.js';
   import { formatDriveLabel } from '$lib/utils/formatDrive.js';
+  import { hasWaypoints } from '$lib/utils/waypoints.js';
 
   let {
     trip,
@@ -19,6 +20,7 @@
   } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
+  const isPlanning = $derived((trip.status || trip._stage) === 'planning');
 
   // Hide the Research CTA while a deepen job is in flight for this trip — the
   // TripJobBadge below already says "Researching…", so showing a disabled
@@ -27,6 +29,12 @@
   const deepenRunning = $derived(
     jobs.some(j => (typeof j.workflow === 'string' ? j.workflow.split(':')[0] : j.workflow) === 'deepen')
   );
+
+  // Show the waypoints-missing hint on the MiniMap thumbnail for planning trips
+  // without usable waypoints. Idea-stage cards are excluded — absence is expected
+  // pre-research and adding the hint would be noise. Also hidden while a research
+  // job is running since waypoints will arrive when the job completes.
+  const showWaypointHint = $derived(isPlanning && !hasWaypoints(trip) && !deepenRunning);
 
   const status  = $derived(trip.status || trip._stage || 'idea');
   const color   = $derived(tripColor(trip));
@@ -83,6 +91,21 @@
       <MiniMap coords={trip._coords} {color} />
       <span class="badge" style="--stage-color: {color}">{status}</span>
       {#if trip.national_park}<span class="np-badge"><svg width="9" height="10" viewBox="0 0 8 9" aria-hidden="true"><path d="M4 0L0 9h8L4 0z" fill="currentColor"/></svg>NPS</span>{/if}
+      {#if showWaypointHint}
+        <div class="waypoint-hint" role="status">
+          <span class="waypoint-hint-copy">No route line — missing waypoints.</span>
+          {#if ondeepen}
+            <button
+              class="waypoint-hint-btn"
+              onclick={(e) => { e.stopPropagation(); ondeepen(e); }}
+              type="button"
+              aria-label="Run Research to add waypoints"
+            >
+              Run Research →
+            </button>
+          {/if}
+        </div>
+      {/if}
     </div>
   {:else}
     <div class="thumb placeholder">
@@ -412,5 +435,56 @@
        Push the hit-area further out on mobile so a thumb can land on it. */
     .bookmark::before { inset: -14px; }
     .card-cta { min-height: var(--tap-min); }
+  }
+
+  /* ── Waypoints-missing hint (card MiniMap thumbnail) ───────────────── */
+  /* Sits at the bottom of the thumbnail, above the stage badge. Uses a
+     scrim (rgba) over the map per the CSS-literal exception in CLAUDE.md;
+     all other values reference tokens. */
+  .waypoint-hint {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.4rem 0.6rem 1.8rem; /* bottom padding clears the .badge */
+    background: color-mix(in oklab, var(--surface-overlay) 86%, transparent);
+    backdrop-filter: blur(3px);
+    pointer-events: auto;
+  }
+
+  .waypoint-hint-copy {
+    font-size: 0.68rem;
+    line-height: 1.3;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .waypoint-hint-btn {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 4;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.68rem;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s;
+  }
+
+  .waypoint-hint-btn:hover {
+    background: var(--surface-sunken);
+    border-color: var(--border-strong);
   }
 </style>

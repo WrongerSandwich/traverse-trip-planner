@@ -16,3 +16,19 @@ export function isValidWaypoints(value) {
   if (value.length < 2) return false;
   return value.every((wp) => typeof wp === 'string' && wp.trim().length > 0);
 }
+
+/**
+ * Returns true when a trip object has usable waypoints — i.e. when the
+ * route line can draw. Treats missing, null, and empty-array as the same
+ * "no waypoints" state so callers don't have to repeat the check.
+ *
+ * Accepts any object with an optional `waypoints` field (idea, planning,
+ * or completed trip shape). Returns false for falsy trip.
+ *
+ * @param {{ waypoints?: unknown } | null | undefined} trip
+ * @returns {boolean}
+ */
+export function hasWaypoints(trip) {
+  if (!trip) return false;
+  return isValidWaypoints(trip.waypoints);
+}

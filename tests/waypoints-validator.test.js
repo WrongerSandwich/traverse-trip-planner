@@ -1,10 +1,11 @@
-// Unit tests for the isValidWaypoints validator (issue #350).
+// Unit tests for the isValidWaypoints validator (issue #350) and the
+// hasWaypoints trip-level helper (issue #366).
 //
-// The validator lives in src/lib/utils/waypoints.js — a pure isomorphic
-// utility with no side-effects, so no mocks are needed.
+// Both live in src/lib/utils/waypoints.js — pure isomorphic utilities
+// with no side-effects, so no mocks are needed.
 
 import { describe, it, expect } from 'vitest';
-import { isValidWaypoints } from '../src/lib/utils/waypoints.js';
+import { isValidWaypoints, hasWaypoints } from '../src/lib/utils/waypoints.js';
 
 describe('isValidWaypoints', () => {
   // ── Happy path ──────────────────────────────────────────────────────────────
@@ -83,5 +84,46 @@ describe('isValidWaypoints', () => {
 
   it('rejects an array where every entry is empty', () => {
     expect(isValidWaypoints(['', ''])).toBe(false);
+  });
+});
+
+// ── hasWaypoints ─────────────────────────────────────────────────────────────
+//
+// hasWaypoints wraps isValidWaypoints at the trip level. The key contract is
+// that missing, null, and empty waypoints all resolve to false, and that a
+// valid waypoints array resolves to true — regardless of other trip fields.
+
+describe('hasWaypoints', () => {
+  it('returns true for a trip with a valid waypoints array', () => {
+    expect(hasWaypoints({ waypoints: ['Cleveland OH', 'Pittsburgh PA'] })).toBe(true);
+  });
+
+  it('returns false for a trip with an empty waypoints array', () => {
+    expect(hasWaypoints({ waypoints: [] })).toBe(false);
+  });
+
+  it('returns false for a trip where waypoints is undefined (key missing)', () => {
+    expect(hasWaypoints({ title: 'Some Trip' })).toBe(false);
+  });
+
+  it('returns false for a trip where waypoints is null', () => {
+    expect(hasWaypoints({ waypoints: null })).toBe(false);
+  });
+
+  it('returns false for a trip where waypoints is a plain string (not array)', () => {
+    // YAML might produce a bare string instead of a flow sequence.
+    expect(hasWaypoints({ waypoints: 'Cleveland OH, Pittsburgh PA' })).toBe(false);
+  });
+
+  it('returns false for a trip with only one waypoint entry', () => {
+    expect(hasWaypoints({ waypoints: ['Cleveland OH'] })).toBe(false);
+  });
+
+  it('returns false for a null trip', () => {
+    expect(hasWaypoints(null)).toBe(false);
+  });
+
+  it('returns false for an undefined trip', () => {
+    expect(hasWaypoints(undefined)).toBe(false);
   });
 });
