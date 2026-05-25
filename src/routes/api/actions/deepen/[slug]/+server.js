@@ -38,6 +38,7 @@ import {
 } from '$lib/server/data.js';
 import { chat, formatUsage } from '$lib/server/ai.js';
 import { cleanupLLMMarkdown } from '$lib/server/markdown-cleanup.js';
+import { cleanupModelYaml } from '$lib/server/yaml-cleanup.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
@@ -194,31 +195,44 @@ Full markdown for logistics.md. Reservations checklist (table), seasonal notes, 
 <plan>
 YAML for the trip's planning scaffold. Days are left empty — the user assembles them in the UI by promoting candidates from the pool below.
 
-cover_query: <2-4 concrete visual nouns for a Pexels hero photo — reward specific landmarks/terrain over atmospheric words, e.g. "Cincinnati Italianate architecture neon" or "Glacier alpine lake mountains">
+cover_query: "2-4 concrete visual nouns for a Pexels hero photo — reward specific landmarks/terrain over atmospheric words, e.g. Cincinnati Italianate architecture neon or Glacier alpine lake mountains"
 field_guide_notes:
-  - <One trip-wide note worth surfacing on the printable brochure>
-  - <Another note, if any>
+  - "One trip-wide note worth surfacing on the printable brochure"
+  - "Another note, if any"
 gotchas:
-  - <One closure, permit, cell-dead zone, or seasonal restriction>
-  - <Another gotcha, if any>
+  - "One closure, permit, cell-dead zone, or seasonal restriction"
+  - "Another gotcha, if any"
 </plan>
 
 <candidates>
 YAML for the candidate pool. Aim for 8–15 stop candidates spanning categories (do NOT only pick outdoors). Aim for 2–5 lodging candidates at varying price tiers. Pull every concrete place worth visiting that you uncovered during research. Skip restaurants unless the trip is food-themed. Skip "id" and "coords" — those are added later.
 
 stops:
-  - name: <Place name>
-    category: <one of: historic | food | outdoors | view | entertainment | cultural | quirky | shopping | misc>
-    description: <1 sentence>
-    why_recommended: <1 sentence linking to trip vibe / home preferences>
-    source_url: <best source if any>
+  - name: "Place name"
+    category: historic
+    description: "One sentence describing the place"
+    why_recommended: "One sentence linking to trip vibe / home preferences"
+    source_url: "best source url if any"
 lodging:
-  - name: <Lodging name>
-    description: <1 sentence>
-    price_tier: <budget | mid | splurge>
-    nights: <typical recommended nights, integer, optional>
-    booking_url: <best source if any>
+  - name: "Lodging name"
+    description: "One sentence describing the lodging"
+    price_tier: mid
+    nights: 2
+    booking_url: "best source url if any"
+
+Allowed values:
+  category    — one of: historic | food | outdoors | view | entertainment | cultural | quirky | shopping | misc
+  price_tier  — one of: budget | mid | splurge
+  nights      — an integer; omit the field entirely if you don't have a recommendation
 </candidates>
+
+Formatting rules for the YAML inside <plan> and <candidates> (these matter — strict YAML parses the output):
+- Every string value MUST be wrapped in double quotes and stay on one line. No wrapping a long description onto a continuation line — keep the whole sentence between the quotes on a single line, even if it's long.
+- Inside a quoted string, use plain ASCII quotes only — no nested " characters. If you'd write a quoted phrase inside a description, use single quotes ('like this'). Em-dashes (—) and ellipses (…) are fine inside the string.
+- Enum-typed fields (category, price_tier) are bare values from the lists above — no quotes around the enum tokens themselves.
+- Integer fields (nights) are bare numbers.
+- URL fields are quoted strings; if you don't have a URL, write \`source_url: ""\` (empty quoted string) rather than omitting the field.
+- Two-space indentation throughout. List items start with \`  - \` (two spaces, dash, space).
 
 Formatting rules for the markdown content inside route_md / logistics_md (these matter — the content is written directly to .md files):
 - Standard markdown only. ## and ### for headings. Use - for bullets (not * or +). Use **bold** and *italic* for emphasis.
@@ -228,13 +242,20 @@ Formatting rules for the markdown content inside route_md / logistics_md (these 
 - Plain quotes (" '), em-dashes (—), and ellipses (…) are fine. Don't escape with HTML entities (&amp;, &quot;).
 - No leading or trailing whitespace inside any of the section tags. No content outside the six tags.`;
 
-  // Some models (notably reasoning/preview ones like gemini-3.x-pro-preview)
-  // occasionally exit the tool-use loop with empty final content after a long
-  // search loop — burning ~4 min for nothing. Retry once on a fully-empty
-  // response; usage is accumulated across attempts so completeJob reflects
-  // total spend. We don't retry partial/malformed responses: those mean the
-  // model tried and a retry tends to yield the same garbage; empty means the
-  // model ghosted us.
+  // Retry policy (issue #417):
+  //   - Empty model response: opus / reasoning models occasionally exit the
+  //     tool loop with empty final content after a long search. Retry once.
+  //   - Missing <plan> or <candidates> tag: the XML envelope is incomplete.
+  //     Retry once — usually a truncation or off-by-one tag-emission glitch.
+  //   - YAML parse failure on <plan> / <candidates>: opus reliably wraps
+  //     long description values onto column-1 continuation lines. We run
+  //     cleanupModelYaml() first to fold the most common emission mistakes;
+  //     if that still doesn't yield parseable YAML, retry once.
+  //   - We do NOT retry once <overview_prose> is present but malformed in
+  //     some other way (the existing prose-missing throw stays a hard fail —
+  //     a retry usually yields the same garbage).
+  //
+  // Usage is accumulated across attempts so completeJob reflects total spend.
   const callChat = () => chat({
     ...getEffectiveConfig().features.deepen,
     label: 'deepen',
@@ -250,6 +271,13 @@ Formatting rules for the markdown content inside route_md / logistics_md (these 
   });
   const usage = { input: 0, output: 0, total: 0, turns: 0 };
   let text = '';
+  let planRaw = null;
+  let candidatesRaw = null;
+  let planData = null;
+  let candidatesData = null;
+  /** @type {{ code: string, message: string } | null} */
+  let lastFailure = null;
+
   for (let attempt = 1; attempt <= 2; attempt++) {
     const result = await callChat();
     // Accept both the normalized adapter shape ({input, output}) and the raw
@@ -259,18 +287,58 @@ Formatting rules for the markdown content inside route_md / logistics_md (these 
     usage.total  += result.usage?.total  ?? 0;
     usage.turns  += result.usage?.turns  ?? 0;
     text = result.text ?? '';
-    if (text.length > 0) break;
-    if (attempt < 2) {
-      console.warn(`[deepen] ${slug}: empty model response on attempt ${attempt}, retrying once.`);
+
+    if (text.length === 0) {
+      lastFailure = { code: 'empty', message: 'empty model response' };
+      if (attempt < 2) {
+        console.warn(`[deepen] ${slug}: empty model response on attempt ${attempt}, retrying once.`);
+        continue;
+      }
+      break;
     }
+
+    planRaw = parseSection(text, 'plan');
+    candidatesRaw = parseSection(text, 'candidates');
+    if (!planRaw || !candidatesRaw) {
+      lastFailure = { code: 'missing_tags', message: 'missing <plan> or <candidates> tag' };
+      const preview = text.slice(0, 200) + (text.length > 200 ? '… [truncated]' : '');
+      if (attempt < 2) {
+        console.warn(`[deepen] ${slug}: missing <plan>/<candidates> tag on attempt ${attempt} (${text.length} chars), retrying once. Preview:\n${preview}`);
+        continue;
+      }
+      console.warn(`[deepen] ${slug}: missing <plan>/<candidates> tag on final attempt (${text.length} chars). Preview:\n${preview}`);
+      break;
+    }
+
+    try {
+      planData = yamlParse(cleanupModelYaml(planRaw)) || {};
+      candidatesData = yamlParse(cleanupModelYaml(candidatesRaw)) || {};
+      lastFailure = null;
+      break;
+    } catch (err) {
+      lastFailure = { code: 'invalid_yaml', message: err.message };
+      if (attempt < 2) {
+        console.warn(`[deepen] ${slug}: YAML parse failed on attempt ${attempt} (${err.message}), retrying once.`);
+        continue;
+      }
+      // Fall through — handled after the loop.
+    }
+  }
+
+  if (lastFailure) {
+    if (lastFailure.code === 'invalid_yaml') {
+      throw new TraverseError('model_returned_invalid_yaml', `deepen YAML parse failed: ${lastFailure.message}`);
+    }
+    if (lastFailure.code === 'missing_tags') {
+      throw new TraverseError('model_returned_invalid_yaml', 'Research did not produce a structured plan — try again.');
+    }
+    // empty: fall through to the existing prose-missing handling below.
   }
 
   const prose = parseSection(text, 'overview_prose');
   const fmRaw = parseSection(text, 'frontmatter');
   const routeMd = parseSection(text, 'route_md');
   const logisticsMd = parseSection(text, 'logistics_md');
-  const planRaw = parseSection(text, 'plan');
-  const candidatesRaw = parseSection(text, 'candidates');
 
   if (!prose) {
     // Some models (notably reasoning/preview ones) occasionally drop or
@@ -281,23 +349,6 @@ Formatting rules for the markdown content inside route_md / logistics_md (these 
       `[deepen] ${slug}: no <overview_prose> tag in model response (${text.length} chars). Preview:\n${preview}`
     );
     throw new Error('No overview prose returned — try again.');
-  }
-
-  if (!planRaw || !candidatesRaw) {
-    const preview = text.slice(0, 200) + (text.length > 200 ? '… [truncated]' : '');
-    console.warn(
-      `[deepen] ${slug}: missing <plan> or <candidates> tag in model response (${text.length} chars). Preview:\n${preview}`
-    );
-    throw new TraverseError('model_returned_invalid_yaml', 'Research did not produce a structured plan — try again.');
-  }
-
-  let planData;
-  let candidatesData;
-  try {
-    planData = yamlParse(planRaw) || {};
-    candidatesData = yamlParse(candidatesRaw) || {};
-  } catch (err) {
-    throw new TraverseError('model_returned_invalid_yaml', `deepen YAML parse failed: ${err.message}`);
   }
 
   const existingFm = parseFrontmatter(ideaContent) || {};
