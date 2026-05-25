@@ -1,18 +1,24 @@
 // Server-side job registry for Ambient Background workflows.
 //
 // See docs/ai-workflow-ux.md §6 (background-status surface) and §8 (edge cases).
+// See docs/jobs-source-of-truth.md for the registry-on-disk design (#355/#375).
 //
 // Two coordinated sources of truth:
 //   1. An in-memory Map keyed by `${workflow}:${slug}` — authoritative for live
 //      state. The indicator UI reads `listJobs()` and the per-job AbortController
 //      lives here.
-//   2. A `running: '<workflow>'` flag in the trip's frontmatter — a recovery
-//      hint that survives server restart. On boot, `sweepStaleJobs()` reconciles
-//      any orphaned flags left by a crashed process.
+//   2. A central `.cache/.jobs.json` file — the volatile registry of in-flight
+//      jobs. Survives server restart so the boot sweep can recover orphaned
+//      entries. Written on every startJob/completeJob/failJob/cancelJob. Not a
+//      cache: cleared by the writers, not by GC.
 //
-// The in-memory map is authoritative when present. Frontmatter is only consulted
-// during the restart sweep — not during normal live-state reads. This avoids
-// re-parsing files on every indicator poll.
+// The in-memory map is authoritative for normal live reads; the disk file is
+// only consulted during the restart sweep (see sweepStaleJobs / hooks.server.js).
+// This avoids re-parsing the file on every 10s indicator poll.
+//
+// Trip frontmatter still carries historical fields (`last_run_error*`,
+// `last_run_success_at`, `last_run_tokens`) that drive the trip-detail
+// "last background job failed" banner — those are written by completeJob/failJob.
 //
 // ─── Multi-instance workflow key convention ─────────────────────────────────
 //
@@ -55,6 +61,12 @@ import {
   invalidateEnrichCache,
 } from './data.js';
 import { TraverseError } from './errors.js';
+
+// Volatile in-flight job registry (not a cache — see docs/jobs-source-of-truth.md).
+// Lives under .cache/ for the same Docker bind-mount reason as the caches, but
+// the writers (startJob/completeJob/failJob/cancelJob) are the only managers;
+// no GC, no read in the hot path.
+const JOBS_REGISTRY_PATH = join(ROOT, '.cache', '.jobs.json');
 
 // ─── In-memory registry ──────────────────────────────────────────────────────
 
@@ -118,24 +130,17 @@ function readTripFile(path) {
   }
 }
 
-function writeRunningFlag(slug, workflow) {
-  const path = tripFilePath(slug);
-  if (!path) return;
-  const content = readTripFile(path);
-  if (content === null) return;
-  if (!parseFrontmatter(content)) return;
-  atomicWrite(path, setFrontmatterField(content, 'running', workflow));
-  invalidateEnrichCache();
-}
-
-function clearRunningFlag(slug, extraFields = {}, removeFields = []) {
+// Writes the per-trip historical fields that drive the trip-detail
+// "last background job failed" banner (see data flow in
+// docs/jobs-source-of-truth.md). The in-flight `running:` flag is no longer
+// written here — that's tracked in the central .cache/.jobs.json file instead.
+function writeHistoricalFields(slug, extraFields = {}, removeFields = []) {
   const path = tripFilePath(slug);
   if (!path) return;
   let content = readTripFile(path);
   if (content === null) return;
   if (!parseFrontmatter(content)) return;
 
-  content = removeFrontmatterField(content, 'running');
   for (const field of removeFields) {
     content = removeFrontmatterField(content, field);
   }
@@ -146,11 +151,45 @@ function clearRunningFlag(slug, extraFields = {}, removeFields = []) {
   invalidateEnrichCache();
 }
 
+// ─── On-disk registry helpers ────────────────────────────────────────────────
+//
+// The registry is a JSON array of { workflow, slug, startedAt, est_seconds? }.
+// Mirrors the in-memory map exactly. Written via atomicWrite() on every job
+// transition so a crash never leaves a torn file.
+
+function snapshotForDisk() {
+  const out = [];
+  for (const entry of jobs.values()) {
+    const row = {
+      workflow: entry.workflow,
+      slug: entry.slug,
+      startedAt: entry.startedAt,
+    };
+    if (typeof entry.opts?.est_seconds === 'number') {
+      row.est_seconds = entry.opts.est_seconds;
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+function persistRegistry() {
+  // .cache/.jobs.json is the volatile in-flight registry (NOT a cache) —
+  // see docs/jobs-source-of-truth.md.
+  try {
+    atomicWrite(JOBS_REGISTRY_PATH, JSON.stringify(snapshotForDisk(), null, 2));
+  } catch (e) {
+    console.warn(`[jobs] failed to persist registry to ${JOBS_REGISTRY_PATH}:`, e.message);
+  }
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Register a new job. Adds an entry to the in-memory map and writes the
- * `running: '<workflow>'` flag to the trip's frontmatter as a recovery hint.
+ * Register a new job. Adds an entry to the in-memory map and appends it to
+ * the on-disk registry (`.cache/.jobs.json`) so the boot sweep can recover
+ * orphaned entries after a crash. Frontmatter is no longer touched here —
+ * see docs/jobs-source-of-truth.md.
  *
  * Returns a handle: { workflow, slug, startedAt, controller, opts }.
  * Callers wire `controller.signal` into the `chat()` call so cancellation
@@ -173,13 +212,14 @@ export function startJob(workflow, slug, opts = {}) {
     opts,
   };
   jobs.set(key, entry);
-  writeRunningFlag(slug, workflow);
+  persistRegistry();
   return entry;
 }
 
 /**
- * Mark a job complete. Removes the in-memory entry and clears the running
- * flag. Optionally records `last_run_success` + token count for indicator UI.
+ * Mark a job complete. Removes the in-memory entry and the on-disk registry
+ * line, then records `last_run_success_at` + token count on the trip's
+ * frontmatter for the trip-detail banner.
  */
 export function completeJob(workflow, slug, result = {}) {
   const key = keyFor(workflow, slug);
@@ -189,6 +229,7 @@ export function completeJob(workflow, slug, result = {}) {
     return;
   }
   jobs.delete(key);
+  persistRegistry();
 
   const extras = { last_run_success_at: new Date().toISOString() };
   // Accept { tokens } directly (spec-preferred), or extract from usage in either
@@ -204,7 +245,7 @@ export function completeJob(workflow, slug, result = {}) {
   if (tokens > 0) extras.last_run_tokens = String(tokens);
   // A successful run supersedes any earlier failure; clear the stale error
   // fields so the planning page banner reflects current state, not history.
-  clearRunningFlag(slug, extras, ['last_run_error', 'last_run_error_at', 'last_run_message']);
+  writeHistoricalFields(slug, extras, ['last_run_error', 'last_run_error_at', 'last_run_message']);
 
   pushEvent({
     workflow,
@@ -215,8 +256,9 @@ export function completeJob(workflow, slug, result = {}) {
 }
 
 /**
- * Mark a job failed. Removes the in-memory entry, clears the running flag,
- * and records `last_run_error` + `last_run_error_at` for indicator UI.
+ * Mark a job failed. Removes the in-memory entry and the on-disk registry
+ * line, then records `last_run_error` + `last_run_error_at` (+ optional
+ * `last_run_message`) on the trip's frontmatter for the trip-detail banner.
  *
  * `error` may be a TraverseError, a plain Error, or `{ code, message }`.
  */
@@ -224,6 +266,7 @@ export function failJob(workflow, slug, error = {}) {
   const key = keyFor(workflow, slug);
   if (!jobs.has(key)) return;
   jobs.delete(key);
+  persistRegistry();
 
   const code = error?.code || 'unknown';
   const extras = {
@@ -232,7 +275,7 @@ export function failJob(workflow, slug, error = {}) {
   };
   const message = sanitizeFrontmatterMessage(error?.message);
   if (message) extras.last_run_message = message;
-  clearRunningFlag(slug, extras);
+  writeHistoricalFields(slug, extras);
 
   pushEvent({
     workflow,
@@ -407,7 +450,8 @@ export function sweepStaleJobs({ maxAgeMinutes = 10 } = {}) {
 
 // ─── Test seam ───────────────────────────────────────────────────────────────
 
-/** Resets the in-memory map. Tests only. */
+/** Resets the in-memory map. Tests only. The on-disk registry is left to the
+ *  test harness (cleanup belongs with whatever mocked the filesystem). */
 export function _resetForTests() {
   jobs.clear();
   recentEvents.length = 0;

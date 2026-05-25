@@ -5,8 +5,10 @@
 //   job is already in flight for the same trip + section. Using the section as
 //   part of the workflow key lets route and stops (for example) run concurrently
 //   for the same trip.
-// - startJob registers the in-flight entry and writes `running: 'deepen-section:{section}'`
-//   to the trip's overview.md frontmatter (per-trip badge picks it up).
+// - startJob registers the in-flight entry in the in-memory map and persists
+//   it to the central volatile registry at .cache/.jobs.json (per-trip badge
+//   picks it up via the /api/jobs in-memory snapshot). See
+//   docs/jobs-source-of-truth.md.
 // - POST returns 202 Accepted immediately. The user can navigate away.
 // - The background worker threads the registry's AbortController.signal into
 //   chat() so /api/jobs/cancel can abort the model call. On AbortError we

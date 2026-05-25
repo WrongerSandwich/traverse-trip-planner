@@ -2,10 +2,9 @@
 //
 // Contract (docs/ai-workflow-ux.md §2.3, §6):
 // - assertNotRunning('deepen', slug) → 409 Conflict if already in flight.
-// - startJob('deepen', slug, { est_seconds }) registers the job and writes
-//   `running: 'deepen'` to the idea's frontmatter (standard per-trip badge
-//   picks this up automatically). Replaces the old ad-hoc `researching: true`
-//   flag.
+// - startJob('deepen', slug, { est_seconds }) registers the job in the
+//   in-memory map and persists it to the central volatile registry at
+//   .cache/.jobs.json (see docs/jobs-source-of-truth.md).
 // - POST returns 202 Accepted immediately. The user is free to navigate away.
 // - The background worker forwards the AbortController signal from the job
 //   handle into chat() so /api/jobs/cancel can interrupt the model call.
@@ -388,9 +387,10 @@ export async function POST(event) {
     }
   }
 
-  // Register the in-flight job. startJob writes `running: 'deepen'` to
-  // frontmatter (standard per-trip badge reads this). The AbortController
-  // signal flows into chat() so /api/jobs/cancel can interrupt mid-run.
+  // Register the in-flight job. startJob persists the entry to the central
+  // volatile registry at .cache/.jobs.json (not a cache — see
+  // docs/jobs-source-of-truth.md). The AbortController signal flows into chat()
+  // so /api/jobs/cancel can interrupt mid-run.
   const job = startJob('deepen', slug, { est_seconds: _promise.time_seconds });
 
   // Fire-and-forget. Three modes depending on what's on disk:
@@ -444,8 +444,9 @@ export async function DELETE({ params }) {
   if (invalid) return invalid;
   const { slug } = params;
   // Delegate entirely to jobs.js — it aborts the in-flight controller and
-  // clears the `running:` flag. No need to touch cancelRegistry (removed) or
-  // the `researching:` flag (replaced by `running:`).
+  // removes the entry from the central .cache/.jobs.json registry. No need to
+  // touch cancelRegistry (removed) or the `researching:` flag (replaced by
+  // the central registry — see docs/jobs-source-of-truth.md).
   cancelJob('deepen', slug);
   return new Response(null, { status: 200 });
 }
