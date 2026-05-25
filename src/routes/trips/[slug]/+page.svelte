@@ -1632,7 +1632,10 @@
     font-family: var(--font-serif);
     font-size: 1.6rem;
     font-weight: 500;
-    line-height: 1.1;
+    /* 1.3 (was 1.1) leaves room for serif descenders (g, p, y). With
+       overflow:hidden on this same box, a tighter line-height clipped
+       the bottom of descenders flat. */
+    line-height: 1.3;
     letter-spacing: 0.005em;
     margin: 0;
     overflow: hidden;
@@ -1860,11 +1863,20 @@
      hover to signal "this is the AI affordance." The inline keycap doubles
      as a discoverability hint so users learn the shortcut from any section
      header, not just a hover-only title. */
+  /* Shares Edit's box dimensions AND rest-state tokens (border-default,
+     text-secondary) so the two buttons read as a tokenized pair at rest.
+     The hover state below adds the accent tint that signals "this is the
+     AI affordance" — the visual differentiation lives in the interaction,
+     not the resting weight.
+
+     Height is locked to Edit's natural 29px (border-box: 12px text +
+     16px padding + 1px border) so the slightly-taller keycap child can
+     keep a breathable padding without pushing the button past its
+     sibling. The keycap overflows the 12px content area into the 8px
+     padding zone but stays well inside the border box. The coarse-
+     pointer rule below floors this with var(--tap-min) on mobile. */
   .btn-section-ask {
     background: transparent;
-    /* Border + text tokens match the sibling Edit button (.btn-secondary
-       .btn-compact) so the two read as a tokenized pair at rest. The
-       hover state below adds the accent tint that signals "AI affordance". */
     border: 0.5px solid var(--border-default);
     color: var(--text-secondary);
     font-family: var(--font-sans);
@@ -1878,13 +1890,15 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
+    box-sizing: border-box;
+    height: 29px;
     transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
   }
-  /* Match the global .btn tap-floor on coarse pointers so Ask and Edit
-     line up as siblings on mobile instead of the Edit button being 44px
-     tall while Ask sits at ~28px. */
   @media (pointer: coarse) {
-    .btn-section-ask { min-height: var(--tap-min); }
+    .btn-section-ask {
+      height: auto;
+      min-height: var(--tap-min);
+    }
   }
   .btn-section-ask:hover {
     background: color-mix(in oklab, var(--accent) 8%, transparent);
@@ -1892,14 +1906,18 @@
     color: var(--accent-text);
   }
   .btn-section-ask:active { transform: scale(0.98); }
+  /* Keycap can be its natural breathable size — the parent .btn-section-ask
+     locks its own border-box height to 29px, so the keycap (~16px tall)
+     overflows the content area into the padding zone without pushing the
+     button past its Edit sibling. */
   .section-ask-kbd {
     font-family: var(--font-mono);
     font-size: 0.68rem;
     font-weight: 500;
     line-height: 1;
-    padding: 0.16rem 0.32rem;
+    padding: 0.15rem 0.32rem;
     background: var(--surface-page);
-    border: 1px solid var(--border-default);
+    border: 0.5px solid var(--border-default);
     border-radius: 3px;
     color: var(--text-tertiary);
   }
