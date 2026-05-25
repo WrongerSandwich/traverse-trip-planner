@@ -24,3 +24,6 @@ build/
 
 # Generated design-critique artifacts from the impeccable agent
 .impeccable/
+
+# Claude Code per-machine state: local permissions + agent worktrees
+.claude/
