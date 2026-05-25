@@ -42,6 +42,20 @@ git pull
 docker compose up -d --build
 ```
 
+### Upgrading from pre-#411 (one-time)
+
+If your current install has trip data at the repo root (`./ideas/`, `./planning/`, `./completed/`, `./archived/`, `./home.md`, `./settings.json`, `./.cache/`) — i.e. you set up Traverse before the May 2026 `data/` reorg — you need a one-time host-side migration before `docker compose up`:
+
+```bash
+git pull
+./scripts/migrate-host-data.sh        # moves legacy root paths into ./data/
+docker compose up -d --build
+```
+
+The script is idempotent and safe to re-run — it does nothing if there's no legacy state. Skip this step if you don't see those paths at the repo root.
+
+**Why a host-side step.** The new compose mounts a single `./data:/app/data` directory instead of six per-path bind mounts. The in-container migration shim can no longer reach the legacy host paths through the old mounts, so the move has to happen on the host before the new container starts. No data is at risk if you forget — the legacy files stay intact at the repo root — but the app will appear to have no trips until you run the script and restart.
+
 ### Stopping and uninstalling
 
 ```bash
