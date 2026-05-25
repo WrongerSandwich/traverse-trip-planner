@@ -1,120 +1,70 @@
-// Extractor pass — runs after research to populate plan.yaml
-// and candidates.yaml from the prose research output.
+// Post-LLM half of the deepen pipeline.
 //
-// Inputs: home.md + the four research sections (overview/route/stops/logistics).
-// Outputs: plan.yaml (cover_query, field_guide_notes, gotchas; days empty) and
-// candidates.yaml (stops + lodging, with assigned ids and `user_added: false`).
+// `realizePlan(slug, parsedExtract, { signal })` accepts the already-parsed
+// `plan` and `candidates` YAML blocks that `doResearch()` carved out of the
+// unified envelope, then runs the deterministic work: merge with any prior
+// user-added candidates, geocode every visible candidate, write plan.yaml +
+// candidates.yaml atomically, and persist any id-rename notice to the
+// overview frontmatter.
 //
-// The prompt asks the model for a fixed XML envelope (<extract><plan>YAML</plan>
-// <candidates>YAML</candidates></extract>) so we get cheap, regex-cut parsing
-// at the outer layer and structured YAML at the inner — the same dual-format
-// shape the deepen call uses for its section tags.
+// This module does NOT call chat(); the LLM call lives in doResearch(). The
+// module was renamed from extract-candidates.js as part of issue #380 — the
+// extractor's "fetch the model output and process it" became "process the
+// already-fetched model output."
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { parse as yamlParse } from 'yaml';
-import { chat } from './ai.js';
 import {
   atomicWrite,
   findTripFile,
-  geocode,
   getTripFiles,
   parseFrontmatter,
-  readHomeMd,
   removeFrontmatterField,
   setFrontmatterField,
 } from './data.js';
-import { readPlan, emptyPlan, planPath, serializePlanFile } from './plan.js';
-import { readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS, candidatesPath, serializeCandidatesFile, geocodeCandidate, getDestinationRefCoords, MAX_CANDIDATE_DISTANCE_MI, distanceMi } from './candidates.js';
-import { getEffectiveConfig } from './config.js';
+import {
+  emptyPlan,
+  planPath,
+  readPlan,
+  serializePlanFile,
+} from './plan.js';
+import {
+  candidatesPath,
+  distanceMi,
+  emptyCandidates,
+  geocodeCandidate,
+  getDestinationRefCoords,
+  LODGING_PRICE_TIERS,
+  makeCandidateId,
+  MAX_CANDIDATE_DISTANCE_MI,
+  readCandidates,
+  serializeCandidatesFile,
+  STOP_CATEGORIES,
+} from './candidates.js';
 import { TraverseError } from './errors.js';
-import { MAX_TOKENS } from './promises.js';
 
-const SYSTEM_PROMPT = `You extract a structured plan + candidate pool from a road trip's planning notes.
-
-INPUTS you will receive in the user message:
-- home.md frontmatter + preferences (taste/constraints)
-- overview.md, route.md, stops.md, logistics.md prose
-
-OUTPUT exactly one XML block, nothing else:
-
-<extract>
-<plan>
-cover_query: <2-4 concrete visual nouns for a Pexels hero photo — reward specific landmarks/terrain over atmospheric words, e.g. "Cincinnati Italianate architecture neon" or "Glacier alpine lake mountains">
-field_guide_notes:
-  - <One trip-wide note worth surfacing on the printable brochure>
-  - <Another note, if any>
-gotchas:
-  - <One closure, permit, cell-dead zone, or seasonal restriction>
-  - <Another gotcha, if any>
-</plan>
-<candidates>
-stops:
-  - name: <Place name>
-    category: <one of: ${STOP_CATEGORIES.join(' | ')}>
-    description: <1 sentence>
-    why_recommended: <1 sentence linking to trip vibe / home preferences>
-    source_url: <best source if any>
-lodging:
-  - name: <Lodging name>
-    description: <1 sentence>
-    price_tier: <budget | mid | splurge>
-    nights: <typical recommended nights, integer, optional>
-    booking_url: <best source if any>
-</candidates>
-</extract>
-
-Aim for 8–15 stop candidates spanning categories (do NOT only pick outdoors). Aim for 2–5 lodging candidates at varying price tiers. Pull every concrete place mentioned in stops.md, plus any worth-mentioning bonus the prose hints at. Skip restaurants unless the trip is food-themed. Skip "id" and "coords" — those are added later.`;
-
-// One outer envelope + two inner blocks. The outer match anchors the parser
-// so stray prose around the XML doesn't bleed into the YAML.
-const EXTRACT_RE = /<extract>([\s\S]*?)<\/extract>/;
-const PLAN_RE = /<plan>([\s\S]*?)<\/plan>/;
-const CANDIDATES_RE = /<candidates>([\s\S]*?)<\/candidates>/;
-
-export async function extractCandidates(slug, { signal, onActivity } = {}) {
+/**
+ * @param {string} slug
+ * @param {{ plan?: object, candidates?: object }} parsedExtract — the
+ *   already-parsed `<plan>` and `<candidates>` YAML blocks from the unified
+ *   deepen envelope. doResearch() parses them; this function consumes them.
+ * @param {{ signal?: AbortSignal }} [opts] — `signal` is accepted for API
+ *   symmetry with the prior extractCandidates contract; the function itself
+ *   makes no abortable calls (Nominatim requests use the disk cache layer).
+ */
+export async function realizePlan(slug, parsedExtract, _opts = {}) {
   const tripResult = getTripFiles(slug);
-  if (!tripResult) throw new TraverseError('trip_not_found', `extractCandidates: trip "${slug}" not found.`);
-  const { files } = tripResult;
-  const home = readHomeMd();
-  const userMessage = `# home.md\n${home}\n\n# overview.md\n${files.overview ?? ''}\n\n# route.md\n${files.route ?? ''}\n\n# stops.md\n${files.stops ?? ''}\n\n# logistics.md\n${files.logistics ?? ''}`;
+  if (!tripResult) throw new TraverseError('trip_not_found', `realizePlan: trip "${slug}" not found.`);
 
-  // `features.extract` is optional in config; fall back to the deepen feature
-  // so extraction inherits the research model unless the user configures a
-  // dedicated one. See config.js — neither slot is mandatory.
-  const cfg = getEffectiveConfig();
-  const featureCfg = cfg.features?.extract ?? cfg.features?.deepen;
-  const { text, usage } = await chat({
-    ...featureCfg,
-    label: 'extract-candidates',
-    maxTokens: MAX_TOKENS.extract ?? 8000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userMessage }],
-    signal,
-    onActivity,
-  });
-
-  const extract = EXTRACT_RE.exec(text);
-  if (!extract) throw new TraverseError('model_returned_invalid_yaml', `extract-candidates: missing <extract> block`);
-
-  const planMatch = PLAN_RE.exec(extract[1]);
-  const candMatch = CANDIDATES_RE.exec(extract[1]);
-  if (!planMatch || !candMatch) {
-    throw new TraverseError('model_returned_invalid_yaml', `extract-candidates: missing <plan> or <candidates> block`);
-  }
-
-  let planData, candData;
-  try {
-    planData = yamlParse(planMatch[1]) || {};
-    candData = yamlParse(candMatch[1]) || {};
-  } catch (err) {
-    throw new TraverseError('model_returned_invalid_yaml', `extract-candidates YAML parse failed: ${err.message}`);
-  }
+  const planData = parsedExtract?.plan ?? {};
+  const candData = parsedExtract?.candidates ?? {};
 
   // Build plan: prose fields, days empty. The user assembles days in the UI.
   // field_guide_notes and gotchas are stored as arrays; we normalise whatever
   // the model emitted (array → passthrough; block string → split on newlines).
   const plan = emptyPlan();
-  plan.cover_query = typeof planData.cover_query === 'string' && planData.cover_query.trim() ? planData.cover_query.trim() : null;
+  plan.cover_query = typeof planData.cover_query === 'string' && planData.cover_query.trim()
+    ? planData.cover_query.trim()
+    : null;
   plan.field_guide_notes = Array.isArray(planData.field_guide_notes)
     ? planData.field_guide_notes.map(String).filter(Boolean)
     : (typeof planData.field_guide_notes === 'string'
@@ -160,11 +110,10 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
     });
   }
 
-  // Merge with prior plan + candidates so re-extracting doesn't blow away the
-  // user's day-by-day work or anything they added manually.
-  // Rules (see Task 7.1):
-  //   - plan.days is preserved untouched (never auto-unpromoted; orphan ids
-  //     become "dangling" and surface in the UI banner).
+  // Merge with prior plan + candidates so re-realize doesn't blow away the
+  // user's day-by-day work or anything they added manually. Rules:
+  //   - plan.days is preserved untouched (orphan ids become "dangling" and
+  //     surface in the UI banner).
   //   - Researcher-sourced candidates (user_added: false) are wholesale-replaced
   //     by the new extraction (already the case, since `cands` is built fresh).
   //   - User-added candidates (user_added: true) are preserved, with ids
@@ -199,9 +148,6 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
     }
 
     const newIds = new Set([...cands.stops.map((s) => s.id), ...cands.lodging.map((l) => l.id)]);
-    // Track id renames so we can rewrite plan.days references — without this,
-    // a user's promoted day silently re-binds to whichever researcher candidate
-    // took the original slug (real data corruption, no dangling-banner warning).
 
     for (const u of userAddedStops) {
       const idToUse = newIds.has(u.id) ? makeCandidateId(u.name, [...newIds]) : u.id;
@@ -247,7 +193,7 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   const refCoords = await getDestinationRefCoords(destinationContext);
   if (destinationContext && !refCoords) {
     console.warn(
-      `extract-candidates: destination "${destinationContext}" failed to geocode; bare-name candidate lookups will be skipped to avoid same-name collisions`
+      `realize-plan: destination "${destinationContext}" failed to geocode; bare-name candidate lookups will be skipped to avoid same-name collisions`
     );
   }
   for (const c of [...cands.stops, ...cands.lodging]) {
@@ -256,7 +202,7 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
       const existing = [Number(c.coords.lat), Number(c.coords.lng)];
       if (distanceMi(existing, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) continue;
       console.warn(
-        `extract-candidates: re-geocoding "${c.name}" — existing coords were ${Math.round(distanceMi(existing, refCoords))}mi from destination (above ${MAX_CANDIDATE_DISTANCE_MI}mi sanity threshold)`
+        `realize-plan: re-geocoding "${c.name}" — existing coords were ${Math.round(distanceMi(existing, refCoords))}mi from destination (above ${MAX_CANDIDATE_DISTANCE_MI}mi sanity threshold)`
       );
     } else if (c.coords) {
       continue;
@@ -288,7 +234,6 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   if (overviewFilePath && overviewRaw) {
     let overviewContent = overviewRaw;
     if (renames.size > 0) {
-      // Inline YAML list of {from, to} pairs — compact JSON form is valid YAML.
       const renamesYaml = JSON.stringify([...renames.entries()].map(([from, to]) => ({ from, to })));
       overviewContent = setFrontmatterField(overviewContent, 'last_extract_renames', renamesYaml);
     } else {
@@ -299,8 +244,5 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
 
   // Build the renames array for callers that want to inspect or log them.
   const renamesArray = [...renames.entries()].map(([from, to]) => ({ from, to }));
-  return { usage, renames: renamesArray };
+  return { renames: renamesArray };
 }
-
-
-

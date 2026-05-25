@@ -205,7 +205,7 @@ export function deleteCandidateLodging(slug, id) {
  *
  * **Re-extract persistence (Option B):** When hiding a researcher-sourced
  * candidate (`user_added: false`), we also flip `user_added` to `true` so
- * the existing merge logic in `extractCandidates` treats this entry as
+ * the existing merge logic in `realizePlan` treats this entry as
  * user-owned and preserves it across re-extracts. When un-hiding, we flip
  * `user_added` back to `false` so the entry is again replaceable by a
  * fresh researcher run (the candidate can reappear if the model still
@@ -264,13 +264,13 @@ export function setCandidateHidden(slug, id, hidden) {
 
 // ── Geocoding helpers ─────────────────────────────────────────────────────────
 //
-// Shared by extract-candidates.js and any new endpoint that needs to geocode
+// Shared by realize-plan.js and any new endpoint that needs to geocode
 // candidate names with destination-scoped disambiguation. Extracted here so
 // downstream route handlers can import without creating circular dependencies.
 
-// Same threshold as the prior extract-candidates implementation.
-// Anything farther than this from the destination is treated as a same-name
-// collision and dropped.
+// Same 200-mile threshold realize-plan applies post-LLM. Anything farther
+// than this from the destination is treated as a same-name collision and
+// dropped.
 export const MAX_CANDIDATE_DISTANCE_MI = 200;
 const NOMINATIM_THROTTLE_MS = 1100;
 

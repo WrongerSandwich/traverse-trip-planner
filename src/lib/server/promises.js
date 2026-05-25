@@ -23,9 +23,12 @@ import { resolvePromise } from './workflow-stats.js';
 export const MAX_TOKENS = {
   seed: 3000,
   add: 600,
-  deepen: 8000,
+  // deepen now produces six tags in one envelope (prose + structured plan +
+  // candidates YAML) — bumped from 8000 to accommodate the combined payload
+  // that the old extract leg used to emit separately. Telemetry recalibrates
+  // the `_promise` time/token defaults via workflow-stats rolling p50.
+  deepen: 12000,
   'deepen-section': 8000,
-  extract: 8000,
   chat: 6000,
   'retro-questions': 600,
   'retro-save': 2000,
@@ -50,10 +53,12 @@ export const HAND_DEFAULTS = {
   },
   deepen: {
     verb: 'Research trip',
-    // Rough estimate: research pass (~90s, 4–8k tokens) + extract pass (~60s, 4–8k tokens)
-    // run back-to-back in a single job. Telemetry will recalibrate via rolling p50.
-    produces: 'Detailed overview, route, stops, and logistics files — plus a structured plan and candidate pool — with web-searched hours, prices, lodging, and route specifics.',
-    time_seconds: 150,
+    // Single unified envelope: prose sections + structured plan + candidate
+    // pool emitted in one chat() round-trip with web search. Hand-default
+    // starts at the prior two-leg total; telemetry recalibrates via
+    // workflow-stats rolling p50 once real runs land.
+    produces: 'Detailed overview, route, and logistics files — plus a structured plan and candidate pool — with web-searched hours, prices, lodging, and route specifics.',
+    time_seconds: 120,
     tokens_range: [8000, 16000],
   },
   'deepen-section': {

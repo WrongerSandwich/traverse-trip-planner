@@ -89,8 +89,6 @@
   const stage = $derived(data.stage);
   const isPlanning = $derived(stage === 'planning');
   const isCompleted = $derived(stage === 'completed');
-  const planExtractionFailed = $derived(data.planExtractionFailed ?? false);
-
   // ── Candidate rename notice (issue #349) ──
   let extractRenamesDismissed = $state(false);
   const extractRenames = $derived(data.extractRenames ?? []);
@@ -775,49 +773,12 @@
     }
   }
 
-  // ── Extract-only retry (recovery banner) ──
-  // Fired when planning trip has overview.md but no plan.md: the research leg
-  // succeeded but the extract leg failed. The deepen endpoint detects this
-  // state automatically and skips re-research. No confirm needed — the retry
-  // is cheap (extract-only) and non-destructive.
-  let retryingExtraction = $state(false);
-
-  async function retryExtraction() {
-    if (!trip || retryingExtraction) return;
-    retryingExtraction = true;
-    try {
-      const res = await fetch(`/api/actions/deepen/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
-
-      if (res.status === 409) {
-        let body = null;
-        try { body = await res.json(); } catch { /* tolerate parse failures */ }
-        if (body?.code === 'already_running') {
-          actionError = { code: 'already_running' };
-        } else {
-          actionError = { code: 'action_failed', ctx: { action: 'retry plan extraction' } };
-        }
-        return;
-      }
-
-      if (!res.ok && res.status !== 202) {
-        actionError = { code: 'action_failed', ctx: { action: 'retry plan extraction' } };
-        return;
-      }
-
-      // 202 Accepted — refresh jobs poll immediately so the per-trip badge appears.
-      try {
-        const jobsRes = await fetch('/api/jobs');
-        if (jobsRes.ok) {
-          const body2 = await jobsRes.json();
-          allJobs = body2.jobs ?? [];
-        }
-      } catch { /* the 10s poll will pick it up */ }
-    } catch {
-      actionError = { code: 'network_error' };
-    } finally {
-      retryingExtraction = false;
-    }
-  }
+  // Note: the prior `retryExtraction()` helper and its companion
+  // "extract-recovery-banner" UI were retired alongside the deepen+extract
+  // consolidation (issue #380). The unified envelope means there's no
+  // mid-pipeline "Leg 1 succeeded, Leg 2 failed" state to recover from — a
+  // failed deepen leaves no half-written planning folder, and re-running it
+  // via the standard Re-research affordance is the only recovery path.
 
   // ── Retro ──
   let retroOpen = $state(false);
@@ -1280,22 +1241,6 @@
             rel="noopener"
           >↗ View brochure (for print)</a>
         </div>
-      {/if}
-
-      {#if planExtractionFailed}
-        <aside class="extract-recovery-banner" role="alert" aria-label="Plan extraction incomplete">
-          <div class="extract-recovery-body">
-            <strong>Plan extraction didn't finish during research.</strong>
-            The web-search leg succeeded but the extract step failed. Retry just the extract step; no need to re-run research.
-          </div>
-          <button
-            class="btn btn-secondary btn-compact extract-recovery-btn"
-            onclick={retryExtraction}
-            disabled={retryingExtraction}
-          >
-            {retryingExtraction ? 'Starting…' : 'Retry extraction →'}
-          </button>
-        </aside>
       {/if}
 
       {#if showExtractRenamesBanner}
@@ -2150,35 +2095,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  /* ── Extract-only recovery banner ──
-     Surfaces when planning trip has overview.md but no plan.md (research leg
-     succeeded, extract leg failed). Uses warning palette to distinguish it
-     from danger (dangling) and success (completed) banners. */
-  .extract-recovery-banner {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 0.75rem 0.95rem;
-    background: var(--state-warning-surface);
-    color: var(--state-warning);
-    border: 1px solid var(--state-warning);
-    border-radius: 4px;
-    font-size: 0.84rem;
-    line-height: 1.55;
-    margin-bottom: 0.25rem;
-  }
-  .extract-recovery-body {
-    flex: 1;
-    color: var(--text-primary);
-  }
-  .extract-recovery-body strong {
-    color: var(--state-warning);
-  }
-  .extract-recovery-btn {
-    flex-shrink: 0;
-    align-self: center;
   }
 
   /* ── Candidate rename notice banner (#349) ──

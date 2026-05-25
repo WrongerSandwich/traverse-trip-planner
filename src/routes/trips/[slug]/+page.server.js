@@ -1,7 +1,5 @@
-import { existsSync } from 'fs';
-import { join } from 'path';
 import { error } from '@sveltejs/kit';
-import { enrichTrips, getHome, getTripFiles, isValidSlug, ROOT } from '$lib/server/data.js';
+import { enrichTrips, getHome, getTripFiles, isValidSlug } from '$lib/server/data.js';
 import { readPlan, findDanglingCandidateIds } from '$lib/server/plan.js';
 import { readCandidates } from '$lib/server/candidates.js';
 
@@ -21,16 +19,12 @@ export async function load({ params, depends }) {
 
   const plan = hasPlanFiles ? readPlan(slug) : null;
 
-  // Detect extract-only recovery state: planning trip where the research leg
-  // succeeded (overview.md exists) but the extract leg never wrote plan.yaml
-  // (or legacy plan.md). The deepen endpoint handles this automatically
-  // (skips research, runs only extract), but we surface it with a distinct
-  // banner so the user knows the retry is cheap and doesn't need Re-research.
-  const planExtractionFailed =
-    resolvedStage === 'planning' &&
-    existsSync(join(ROOT, 'planning', slug, 'overview.md')) &&
-    !existsSync(join(ROOT, 'planning', slug, 'plan.yaml')) &&
-    !existsSync(join(ROOT, 'planning', slug, 'plan.md'));
+  // Note: the prior `planExtractionFailed` flag and its companion
+  // "extract-recovery-banner" UI were retired alongside the deepen+extract
+  // consolidation (issue #380). The unified envelope means there's no
+  // mid-pipeline "Leg 1 succeeded, Leg 2 failed" state to recover from — a
+  // failed deepen leaves no half-written planning folder, and re-running it
+  // is the only recovery path.
 
   return {
     trip,
@@ -40,7 +34,6 @@ export async function load({ params, depends }) {
     plan,
     candidates: hasPlanFiles ? readCandidates(slug) : null,
     dangling: hasPlanFiles ? findDanglingCandidateIds(slug) : [],
-    planExtractionFailed,
     extractRenames: Array.isArray(trip.last_extract_renames) ? trip.last_extract_renames : [],
   };
 }

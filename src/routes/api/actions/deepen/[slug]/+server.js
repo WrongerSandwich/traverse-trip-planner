@@ -15,10 +15,19 @@
 // DELETE handler: thin shim that calls cancelJob('deepen', slug).
 // The old per-slug cancelRegistry Map and the ad-hoc `researching` flag
 // writes are fully removed — jobs.js now owns both concerns.
+//
+// Pipeline (issue #380): one chat() round-trip produces a flat XML envelope
+// with six top-level tags — <overview_prose>, <frontmatter>, <route_md>,
+// <logistics_md>, <plan>YAML</plan>, <candidates>YAML</candidates>. All five
+// output files (overview.md, route.md, logistics.md, plan.yaml,
+// candidates.yaml) are written via a single staged-rename pass so a mid-flow
+// failure leaves no half-written planning folder. realizePlan() then merges
+// with prior user-added candidates, geocodes, and persists the rename notice.
 
 import { json } from '@sveltejs/kit';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, renameSync, statSync } from 'fs';
 import { join } from 'path';
+import { parse as yamlParse } from 'yaml';
 import {
   ROOT,
   readHomeMd,
@@ -32,7 +41,7 @@ import { cleanupLLMMarkdown } from '$lib/server/markdown-cleanup.js';
 import { search, searchToolDefinition } from '$lib/server/search.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { assertNotRunning, startJob, completeJob, failJob, cancelJob } from '$lib/server/jobs.js';
-import { extractCandidates } from '$lib/server/extract-candidates.js';
+import { realizePlan } from '$lib/server/realize-plan.js';
 import { readPlan } from '$lib/server/plan.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
@@ -51,13 +60,6 @@ function findIdeaFile(slug) {
 function findPlanningOverview(slug) {
   const p = join(ROOT, 'planning', slug, 'overview.md');
   return existsSync(p) ? p : null;
-}
-
-function planningHasPlan(slug) {
-  // Accept both new (plan.yaml) and legacy (plan.md) to handle trips that
-  // haven't been migrated yet (migration happens lazily on readPlan()).
-  return existsSync(join(ROOT, 'planning', slug, 'plan.yaml'))
-    || existsSync(join(ROOT, 'planning', slug, 'plan.md'));
 }
 
 function parseSection(text, tag) {
@@ -140,7 +142,7 @@ async function doResearch(slug, ideaPath, signal, { unlinkIdea = true } = {}) {
   const today = new Date().toISOString().slice(0, 10);
   const fm = parseFrontmatter(ideaContent) || {};
 
-  const system = `You are a meticulous travel researcher. Your job is to produce detailed, accurate, useful research for a specific trip idea using web search to find current information.
+  const system = `You are a meticulous travel researcher. Your job is to produce detailed, accurate, useful research for a specific trip idea using web search to find current information, AND to derive a structured plan + candidate pool from that research in the same pass.
 
 The trip to research:
 ${ideaContent}
@@ -152,10 +154,10 @@ Today's date: ${today}
 
 Search the web for current information: museum hours, admission prices, lodging options and rates, restaurant details, road conditions, seasonal events. Verify facts before including them.
 
-Produce four research sections inside XML tags. Be concrete and specific — name actual places, hours, prices. Note anything that requires on-site verification.
+Produce SIX top-level XML tags, in this order, with nothing outside them. Be concrete and specific — name actual places, hours, prices. Note anything that requires on-site verification.
 
 <overview_prose>
-Keep this concise — about 3 sentences (max ~500 characters). What makes this trip worth doing, the actual experience, what's distinctive vs nearby alternatives. Save the detailed write-up for route_md / stops_md / logistics_md; this is the hook, not the encyclopedia entry.
+Keep this concise — about 3 sentences (max ~500 characters). What makes this trip worth doing, the actual experience, what's distinctive vs nearby alternatives. Save the detailed write-up for route_md / logistics_md; this is the hook, not the encyclopedia entry.
 
 Optionally open with a one-sentence italicized lede on its own line, followed by a blank line, then the prose. Use markdown italics:
 *Three days threading the Loess Hills along a forgotten scenic byway.*
@@ -188,20 +190,49 @@ Brief editorial drive notes — ≤2 sentences, ~200 characters max. Scenic-only
 Full markdown for logistics.md. Reservations checklist (table), seasonal notes, pet sitter reminder for overnights, cell coverage, gotchas. Flag anything that needs re-verification before the trip.
 </logistics_md>
 
-Formatting rules for the markdown content inside route_md / stops_md / logistics_md (these matter — the content is written directly to .md files):
+<plan>
+YAML for the trip's planning scaffold. Days are left empty — the user assembles them in the UI by promoting candidates from the pool below.
+
+cover_query: <2-4 concrete visual nouns for a Pexels hero photo — reward specific landmarks/terrain over atmospheric words, e.g. "Cincinnati Italianate architecture neon" or "Glacier alpine lake mountains">
+field_guide_notes:
+  - <One trip-wide note worth surfacing on the printable brochure>
+  - <Another note, if any>
+gotchas:
+  - <One closure, permit, cell-dead zone, or seasonal restriction>
+  - <Another gotcha, if any>
+</plan>
+
+<candidates>
+YAML for the candidate pool. Aim for 8–15 stop candidates spanning categories (do NOT only pick outdoors). Aim for 2–5 lodging candidates at varying price tiers. Pull every concrete place worth visiting that you uncovered during research. Skip restaurants unless the trip is food-themed. Skip "id" and "coords" — those are added later.
+
+stops:
+  - name: <Place name>
+    category: <one of: historic | food | outdoors | view | entertainment | cultural | quirky | shopping | misc>
+    description: <1 sentence>
+    why_recommended: <1 sentence linking to trip vibe / home preferences>
+    source_url: <best source if any>
+lodging:
+  - name: <Lodging name>
+    description: <1 sentence>
+    price_tier: <budget | mid | splurge>
+    nights: <typical recommended nights, integer, optional>
+    booking_url: <best source if any>
+</candidates>
+
+Formatting rules for the markdown content inside route_md / logistics_md (these matter — the content is written directly to .md files):
 - Standard markdown only. ## and ### for headings. Use - for bullets (not * or +). Use **bold** and *italic* for emphasis.
 - Do NOT wrap any of the markdown sections in a triple-backtick fence. Inline code fences (\`\`\`lang ... \`\`\`) are fine only for actual code or terminal commands.
 - Blank line between paragraphs, blank line before every heading, blank line after every heading. Never 3+ consecutive blank lines.
 - Tables use the standard pipe-and-dash syntax with a separator row. Don't use HTML <table>.
 - Plain quotes (" '), em-dashes (—), and ellipses (…) are fine. Don't escape with HTML entities (&amp;, &quot;).
-- No leading or trailing whitespace inside any of the section tags. No content outside the tags besides the ones we've named.`;
+- No leading or trailing whitespace inside any of the section tags. No content outside the six tags.`;
 
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.deepen,
     label: 'deepen',
     maxTokens: MAX_TOKENS.deepen,
     system,
-    messages: [{ role: 'user', content: 'Research this trip thoroughly using web search.' }],
+    messages: [{ role: 'user', content: 'Research this trip thoroughly using web search, then emit all six required tags.' }],
     tools: [searchToolDefinition()],
     signal,
     onToolCall: async ({ name, input }) => {
@@ -214,6 +245,8 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   const fmRaw = parseSection(text, 'frontmatter');
   const routeMd = parseSection(text, 'route_md');
   const logisticsMd = parseSection(text, 'logistics_md');
+  const planRaw = parseSection(text, 'plan');
+  const candidatesRaw = parseSection(text, 'candidates');
 
   if (!prose) {
     // Some models (notably reasoning/preview ones) occasionally drop or
@@ -224,6 +257,23 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
       `[deepen] ${slug}: no <overview_prose> tag in model response (${text.length} chars). Preview:\n${preview}`
     );
     throw new Error('No overview prose returned — try again.');
+  }
+
+  if (!planRaw || !candidatesRaw) {
+    const preview = text.slice(0, 200) + (text.length > 200 ? '… [truncated]' : '');
+    console.warn(
+      `[deepen] ${slug}: missing <plan> or <candidates> tag in model response (${text.length} chars). Preview:\n${preview}`
+    );
+    throw new TraverseError('model_returned_invalid_yaml', 'Research did not produce a structured plan — try again.');
+  }
+
+  let planData;
+  let candidatesData;
+  try {
+    planData = yamlParse(planRaw) || {};
+    candidatesData = yamlParse(candidatesRaw) || {};
+  } catch (err) {
+    throw new TraverseError('model_returned_invalid_yaml', `deepen YAML parse failed: ${err.message}`);
   }
 
   const existingFm = parseFrontmatter(ideaContent) || {};
@@ -267,51 +317,68 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   const cleanLogistics  = logisticsMd ? cleanupLLMMarkdown(logisticsMd) : null;
   const overviewContentClean = `---\n${fmLines}\n---\n\n${cleanProse}\n`;
 
-  // Stage all Leg 1 files to .tmp first, then rename them in sequence.
-  // This ensures that a crash or SIGTERM mid-write leaves either:
-  //   (a) the original idea file intact with no planning folder, or
-  //   (b) a complete planning folder with the idea file unlinked.
-  // Never a partial planning folder with the idea file still present.
-  // Pattern mirrors extractCandidates() in src/lib/server/extract-candidates.js.
-  const filesToWrite = [
+  // Stage all prose files to .tmp first. Combined with realizePlan's own
+  // .tmp+rename pass for plan.yaml + candidates.yaml below, this gives us
+  // atomic five-file all-or-nothing semantics: a crash before realizePlan()
+  // returns leaves prose .tmp files but no renamed prose files and no
+  // plan.yaml/candidates.yaml — the idea file is still intact. On success
+  // we rename the prose .tmp files into place and unlink the idea last so
+  // the idea → planning stage transition is the final visible step.
+  const proseFilesToWrite = [
     [join(dir, 'overview.md'), overviewContentClean],
     ...(cleanRoute     ? [[join(dir, 'route.md'),     cleanRoute     + '\n']] : []),
     ...(cleanLogistics ? [[join(dir, 'logistics.md'), cleanLogistics + '\n']] : []),
   ];
 
-  // Phase 1: stage all files to .tmp. On any write failure, clean up .tmp
-  // files and let the error propagate (idea file stays intact).
-  const tmpPaths = filesToWrite.map(([p]) => `${p}.tmp`);
+  // Phase 1: stage all prose files to .tmp. On any write failure, clean up
+  // .tmp files and let the error propagate (idea file stays intact).
+  const proseTmpPaths = proseFilesToWrite.map(([p]) => `${p}.tmp`);
   try {
-    for (const [path, content] of filesToWrite) {
+    for (const [path, content] of proseFilesToWrite) {
       writeFileSync(`${path}.tmp`, content);
     }
   } catch (stageErr) {
-    for (const tmp of tmpPaths) {
+    for (const tmp of proseTmpPaths) {
       try { unlinkSync(tmp); } catch (_) { /* best-effort cleanup */ }
     }
     throw stageErr;
   }
 
-  // Phase 2: rename all .tmp files into place. Each rename is atomic on POSIX.
-  // On any rename failure, clean up remaining .tmp files and let the error
-  // propagate (idea file stays intact; any already-renamed files are acceptable
-  // since each is independently valid).
+  // Phase 2: realizePlan() processes the parsed plan + candidates blocks,
+  // merges with any existing user-added candidates, geocodes, and
+  // stages+renames plan.yaml + candidates.yaml itself. realizePlan needs to
+  // read the overview from disk to recover `destination` for geocoding
+  // disambiguation, so we rename the overview .tmp into place first.
+  //
+  // Trade-off: on a realizePlan failure the overview is on disk but other
+  // prose files aren't. That's acceptable because (a) the idea file is
+  // still present (we haven't unlinked yet) so the trip stays recoverable,
+  // and (b) a partial planning folder without plan.yaml is reachable via
+  // re-running deepen, which overwrites it cleanly. Without this overview-
+  // first rename, realizePlan can't read the destination and every
+  // candidate falls through to bare-name geocoding with no sanity check.
+  let realizeResult;
+  let overviewRenamed = false;
   try {
-    for (const [path] of filesToWrite) {
-      renameSync(`${path}.tmp`, path);
+    renameSync(`${proseFilesToWrite[0][0]}.tmp`, proseFilesToWrite[0][0]);
+    overviewRenamed = true;
+
+    realizeResult = await realizePlan(slug, { plan: planData, candidates: candidatesData }, { signal });
+
+    // realizePlan returned cleanly. Rename the remaining prose .tmp files.
+    for (let i = 1; i < proseFilesToWrite.length; i++) {
+      renameSync(`${proseFilesToWrite[i][0]}.tmp`, proseFilesToWrite[i][0]);
     }
-  } catch (renameErr) {
-    for (const tmp of tmpPaths) {
-      try { unlinkSync(tmp); } catch (_) { /* best-effort cleanup */ }
+  } catch (err) {
+    // Clean up any prose tmps that didn't get renamed.
+    for (let i = overviewRenamed ? 1 : 0; i < proseFilesToWrite.length; i++) {
+      try { unlinkSync(`${proseFilesToWrite[i][0]}.tmp`); } catch (_) { /* best-effort */ }
     }
-    throw renameErr;
+    throw err;
   }
 
   // Unlink the idea file last — only after all renames succeed. This is the
-  // real stage-transition moment. If extractCandidates fails downstream the
-  // trip is still recoverable: a fresh POST on a planning-stage trip with no
-  // plan.md runs the extract leg only (no expensive re-research needed).
+  // real stage-transition moment.
   if (unlinkIdea) {
     try { unlinkSync(ideaPath); } catch (e) {
       console.warn(`[deepen] ${slug}: idea unlink after research failed:`, e?.message ?? e);
@@ -319,9 +386,9 @@ Formatting rules for the markdown content inside route_md / stops_md / logistics
   }
   invalidateEnrichCache();
 
-  console.log(`[deepen] ${fm.title || slug}: research complete. ${formatUsage(usage)}`);
+  console.log(`[deepen] ${fm.title || slug}: research+realize complete. ${formatUsage(usage)}`);
 
-  return { usage };
+  return { usage, renames: realizeResult?.renames ?? [] };
 }
 
 export function GET({ params }) {
@@ -341,12 +408,16 @@ export async function POST(event) {
   if (invalid) return invalid;
   const { slug } = params;
 
-  // Determine mode: idea-stage (full research + extract), planning-stage with
-  // no plan.md (extract-only recovery), or planning-stage with plan.md (full
-  // re-research). 404 only when neither source exists.
-  const ideaPath       = findIdeaFile(slug);
-  const overviewPath   = !ideaPath ? findPlanningOverview(slug) : null;
-  const hasPlan        = overviewPath ? planningHasPlan(slug) : false;
+  // Two-mode dispatch (issue #380 collapsed the old three modes):
+  //   - idea-stage (ideaPath set): full deepen, promotes idea → planning,
+  //     unlinks the idea file atomically with the promotion.
+  //   - planning-stage (overviewPath set): full re-research, gated by the
+  //     `plan_prose_present` dirty-section guard.
+  // The old extract-only recovery branch is gone — the unified envelope
+  // means there's no mid-pipeline "Leg 1 succeeded, Leg 2 failed" state to
+  // recover from.
+  const ideaPath     = findIdeaFile(slug);
+  const overviewPath = !ideaPath ? findPlanningOverview(slug) : null;
 
   if (!ideaPath && !overviewPath) return new Response('Not found', { status: 404 });
 
@@ -363,16 +434,13 @@ export async function POST(event) {
     throw err;
   }
 
-  // Re-research prose-overwrite guard: only fires when re-researching a trip
-  // that already has a plan.md. Detects two categories of dirty prose:
+  // Re-research prose-overwrite guard: only fires on the planning-stage
+  // path (overviewPath set). Detects two categories of dirty prose:
   //   1. plan.field_guide_notes / plan.gotchas — user-curated plan prose.
-  //   2. Section files (overview, route, logistics) whose mtime is newer than
-  //      last_run_success_at — edited since last research via the Edit button.
+  //   2. Section files (overview, route, logistics) whose mtime is newer
+  //      than last_run_success_at — edited since last research.
   // Returns 409 with the full list of dirty sections so the UI can name them.
-  // Extract-only recovery (hasPlan === false) is intentionally excluded — by
-  // definition there's no plan.md prose to overwrite and the section files
-  // were written by the (successful) prior research leg.
-  if (hasPlan) {
+  if (overviewPath) {
     const force = url.searchParams.get('force') === 'true';
     if (!force) {
       const dirtySections = _collectDirtySections(slug);
@@ -393,30 +461,17 @@ export async function POST(event) {
   // so /api/jobs/cancel can interrupt mid-run.
   const job = startJob('deepen', slug, { est_seconds: _promise.time_seconds });
 
-  // Fire-and-forget. Three modes depending on what's on disk:
-  // 1. idea-stage (ideaPath set): doResearch writes planning/ and unlinks the
-  //    idea file atomically with the promotion, then extractCandidates runs.
-  // 2. planning-stage, no plan.md (overviewPath set, !hasPlan): extract-only
-  //    recovery — research already succeeded last time; skip the expensive leg.
-  // 3. planning-stage with plan.md (overviewPath set, hasPlan): full
-  //    re-research — doResearch overwrites planning/ files, then re-extracts.
+  // Fire-and-forget. doResearch() runs the full unified pipeline (chat →
+  // parse → 5-file atomic write via realizePlan) in a single call.
   (async () => {
     try {
-      let researchResult = { usage: undefined };
+      const sourcePath = ideaPath ?? overviewPath;
+      const result = await doResearch(slug, sourcePath, job.controller.signal, {
+        unlinkIdea: Boolean(ideaPath),
+      });
 
-      if (ideaPath) {
-        // Full flow: research promotes idea → planning, unlinks idea file.
-        researchResult = await doResearch(slug, ideaPath, job.controller.signal);
-      } else if (hasPlan) {
-        // Re-research path: planning folder exists with plan.md — redo both legs.
-        // Read the overview as the "idea" source so doResearch has content.
-        researchResult = await doResearch(slug, overviewPath, job.controller.signal, { unlinkIdea: false });
-      }
-      // else: extract-only recovery — skip doResearch entirely.
-
-      const extractResult = await extractCandidates(slug, { signal: job.controller.signal });
       invalidateEnrichCache();
-      const totalTokens = usageToTokens(researchResult?.usage) + usageToTokens(extractResult?.usage);
+      const totalTokens = usageToTokens(result?.usage);
       try {
         completeJob('deepen', slug, { tokens: totalTokens });
       } catch (e) {
@@ -426,7 +481,7 @@ export async function POST(event) {
       if (isAbort(err)) return; // cancelJob() owns the failure event
       const code = err instanceof TraverseError ? err.code : 'unknown';
       // Log the raw error server-side; send only a safe public message to the client.
-      console.error(`[deepen] ${slug}: research+extract failed (${code}):`, err?.message ?? err);
+      console.error(`[deepen] ${slug}: research failed (${code}):`, err?.message ?? err);
       const publicMessage = err instanceof TraverseError ? err.message : 'Research failed — try again.';
       try {
         failJob('deepen', slug, { code, message: publicMessage });
