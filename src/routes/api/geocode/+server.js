@@ -23,7 +23,7 @@ export async function GET(event) {
     return json({ error: 'Query parameter "q" is required.', code: 'invalid_input' }, { status: 400 });
   }
 
-  const coords = await geocode(q);
+  const { coords } = await geocode(q);
   flushCaches();
 
   if (!coords) {

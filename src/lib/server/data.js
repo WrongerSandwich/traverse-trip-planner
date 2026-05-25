@@ -207,8 +207,22 @@ export function isOffAxis(wpCoord, homeCoord, destCoord, thresholdMi = 100) {
 // matches if nothing better exists. The viewbox is *not* part of the cache
 // key: a destination resolves to one canonical coord pair, and the first
 // trip's viewbox effectively wins.
+/**
+ * Geocode a destination string via Nominatim.
+ *
+ * Returns `{ coords, fromCache }` where:
+ *   - `coords` is `[lat, lng]` or `null` on miss/error.
+ *   - `fromCache` is `true` when the result came from the in-memory cache
+ *     (no network request was made), `false` when a real fetch() was issued.
+ *
+ * Callers that need to rate-limit Nominatim (1 req/sec ToS) should sleep
+ * ONLY when `fromCache` is false — sleeping on a cache hit wastes time and
+ * is not required by the ToS.
+ */
 export async function geocode(destination, opts = {}) {
-  if (geocodeCache[destination] !== undefined) return geocodeCache[destination];
+  if (geocodeCache[destination] !== undefined) {
+    return { coords: geocodeCache[destination], fromCache: true };
+  }
   let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=5`;
   if (Array.isArray(opts.viewbox) && opts.viewbox.length === 4) {
     url += `&viewbox=${encodeURIComponent(opts.viewbox.join(','))}`;
@@ -222,20 +236,20 @@ export async function geocode(destination, opts = {}) {
       }
       if (!res.ok) {
         console.warn('geocode HTTP', res.status, 'for', destination);
-        return null;
+        return { coords: null, fromCache: false };
       }
       const data = await res.json();
       const coords = pickBestGeocodeResult(data);
       geocodeCache[destination] = coords;
       geocodeDirty = true;
-      return coords;
+      return { coords, fromCache: false };
     } catch (e) {
       if (attempt === 0) { await sleep(500); continue; }
       console.warn('geocode error for', destination, '—', e.message);
-      return null;
+      return { coords: null, fromCache: false };
     }
   }
-  return null;
+  return { coords: null, fromCache: false };
 }
 
 // ── Pexels images ──
@@ -853,10 +867,9 @@ export async function geocodeWaypoints(waypoints, { homeCoords, destCoords } = {
       delete geocodeCache[wp];
       geocodeDirty = true;
     }
-    const needsFetch = geocodeCache[wp] === undefined;
     try {
-      const coord = await geocode(wp, { viewbox });
-      if (needsFetch) await sleep(1100);
+      const { coords: coord, fromCache } = await geocode(wp, { viewbox });
+      if (!fromCache) await sleep(1100);
       if (coord) geocoded.push(coord);
     } catch (e) {
       if (e instanceof TraverseError && e.code === 'geocode_quota') {
@@ -918,9 +931,9 @@ async function enrichTripsImpl() {
   async function geocodeCached(destination) {
     if (geocodeCache[destination] !== undefined) return geocodeCache[destination] ?? null;
     if (geocodeInflight.has(destination)) return geocodeInflight.get(destination);
-    const promise = geocode(destination).then(async (coord) => {
-      await sleep(1100);
-      return coord;
+    const promise = geocode(destination).then(async ({ coords, fromCache }) => {
+      if (!fromCache) await sleep(1100);
+      return coords;
     });
     geocodeInflight.set(destination, promise);
     return promise;
@@ -1043,7 +1056,7 @@ export async function getTripRoute(slug) {
     // and evict off-axis cached coords. Both calls hit the geocode cache for
     // any trip enrichTrips has already touched, so this is free in practice.
     const homeCoords = getHome()?.coords ?? null;
-    const destCoords = fm.destination ? await geocode(fm.destination) : null;
+    const destCoords = fm.destination ? (await geocode(fm.destination)).coords : null;
     const geocoded = await geocodeWaypoints(fm.waypoints, { homeCoords, destCoords });
     if (geocoded.length < 2) { flushCaches(); return null; }
     const route = await fetchRoute(geocoded);

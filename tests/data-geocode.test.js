@@ -190,8 +190,9 @@ describe('geocode(): fetch integration', () => {
       { class: 'waterway', addresstype: 'river',  lat: '40.9180637', lon: '-93.1270364' },
       { class: 'place',    addresstype: 'hamlet', lat: '41.4332421', lon: '-95.8666517' },
     ]);
-    const coords = await mod.geocode('Honey Creek IA');
+    const { coords, fromCache } = await mod.geocode('Honey Creek IA');
     expect(coords).toEqual([41.4332421, -95.8666517]);
+    expect(fromCache).toBe(false);
   });
 
   it('passes viewbox option through to the Nominatim URL', async () => {
@@ -214,19 +215,22 @@ describe('geocode(): fetch integration', () => {
     expect(url).not.toMatch(/viewbox=/);
   });
 
-  it('returns null for empty result set', async () => {
+  it('returns null coords for empty result set', async () => {
     mockFetch([]);
-    const coords = await mod.geocode('xyzzy');
+    const { coords, fromCache } = await mod.geocode('xyzzy');
     expect(coords).toBeNull();
+    expect(fromCache).toBe(false);
   });
 
   it('caches by query string only (second call to same q skips fetch even with different viewbox)', async () => {
     const fetchMock = mockFetch([
       { class: 'place', addresstype: 'town', lat: '41', lon: '-95' },
     ]);
-    await mod.geocode('Somewhere', { viewbox: [-96, 38, -94, 42] });
-    await mod.geocode('Somewhere', { viewbox: [-100, 30, -90, 50] });
+    const first = await mod.geocode('Somewhere', { viewbox: [-96, 38, -94, 42] });
+    const second = await mod.geocode('Somewhere', { viewbox: [-100, 30, -90, 50] });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(first.fromCache).toBe(false);
+    expect(second.fromCache).toBe(true);
   });
 });
 
