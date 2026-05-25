@@ -328,28 +328,6 @@ describe('realizePlan', () => {
     expect(capturedPlan.value.days[0].stops).toEqual(['pine-lodge-2']);
   });
 
-  it('geocodes candidate names that arrive without coords', async () => {
-    readCandidates.mockReturnValueOnce(null);
-    readPlan.mockReturnValueOnce(null);
-    mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
-      if (q === 'Lake McDonald, Glacier MT') return { coords: [48.5, -113.9], fromCache: true };
-      if (q === 'Whitefish Inn') return { coords: [48.41, -114.34], fromCache: true };
-      return { coords: null, fromCache: true };
-    });
-
-    await realizePlan('t', makeExtract({
-      plan: { field_guide_notes: '', gotchas: '' },
-      candidates: {
-        stops: [{ name: 'Lake McDonald', category: 'outdoors', description: '', why_recommended: '' }],
-        lodging: [{ name: 'Whitefish Inn', price_tier: 'mid' }],
-      },
-    }));
-
-    expect(capturedCands.value.stops[0].coords).toEqual({ lat: 48.5, lng: -113.9 });
-    expect(capturedCands.value.lodging[0].coords).toEqual({ lat: 48.41, lng: -114.34 });
-  });
-
   it('preserves pre-existing coords on user-added candidates instead of re-geocoding', async () => {
     const preCoords = { lat: 1, lng: 2 };
     readCandidates.mockReturnValueOnce({
@@ -368,122 +346,7 @@ describe('realizePlan', () => {
     expect(a.coords).toEqual(preCoords);
   });
 
-  // ── Geocode disambiguation (regression suite) ────────────────────────────
-
-  it('prefers destination-scoped result when bare-name geocode lands far away', async () => {
-    readCandidates.mockReturnValueOnce(null);
-    readPlan.mockReturnValueOnce(null);
-    mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
-      if (q === 'Bear Lake, Glacier MT') return { coords: [48.6, -113.9], fromCache: true };
-      if (q === 'Bear Lake') return { coords: [37.6, -80.5], fromCache: true };
-      return { coords: null, fromCache: true };
-    });
-
-    await realizePlan('t', makeExtract({
-      plan: { field_guide_notes: '', gotchas: '' },
-      candidates: {
-        stops: [{ name: 'Bear Lake', category: 'outdoors', description: '', why_recommended: '' }],
-        lodging: [],
-      },
-    }));
-
-    expect(capturedCands.value.stops[0].coords).toEqual({ lat: 48.6, lng: -113.9 });
-  });
-
-  it('skips bare-name fallback when destination itself fails to geocode', async () => {
-    readCandidates.mockReturnValueOnce(null);
-    readPlan.mockReturnValueOnce(null);
-    mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return { coords: null, fromCache: true };
-      if (q === 'Capitol Square, Glacier MT') return { coords: null, fromCache: true };
-      if (q === 'Capitol Square') return { coords: [41.89, 12.48], fromCache: true };
-      return { coords: null, fromCache: true };
-    });
-
-    await realizePlan('t', makeExtract({
-      plan: { field_guide_notes: '', gotchas: '' },
-      candidates: {
-        stops: [{ name: 'Capitol Square', category: 'misc', description: '', why_recommended: '' }],
-        lodging: [],
-      },
-    }));
-
-    expect(capturedCands.value.stops[0].coords).toBeUndefined();
-  });
-
-  it('drops coords when both scoped and bare results are far from destination', async () => {
-    readCandidates.mockReturnValueOnce(null);
-    readPlan.mockReturnValueOnce(null);
-    mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
-      if (q === 'Mystery Place, Glacier MT') return { coords: [61.0, -149.0], fromCache: true };
-      if (q === 'Mystery Place') return { coords: [61.0, -149.0], fromCache: true };
-      return { coords: null, fromCache: true };
-    });
-
-    await realizePlan('t', makeExtract({
-      plan: { field_guide_notes: '', gotchas: '' },
-      candidates: {
-        stops: [{ name: 'Mystery Place', category: 'outdoors', description: '', why_recommended: '' }],
-        lodging: [],
-      },
-    }));
-
-    expect(capturedCands.value.stops[0].coords).toBeUndefined();
-  });
-
-  it('re-realize fixes researcher candidates that had bad coords on disk', async () => {
-    readCandidates.mockReturnValueOnce({
-      stops: [{
-        id: 'bear-lake', name: 'Bear Lake', category: 'outdoors', user_added: false,
-        coords: { lat: 37.6, lng: -80.5 },
-      }],
-      lodging: [],
-    });
-    readPlan.mockReturnValueOnce(null);
-    mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
-      if (q === 'Bear Lake, Glacier MT') return { coords: [48.6, -113.9], fromCache: true };
-      if (q === 'Bear Lake') return { coords: [37.6, -80.5], fromCache: true };
-      return { coords: null, fromCache: true };
-    });
-
-    await realizePlan('t', makeExtract({
-      plan: { field_guide_notes: '', gotchas: '' },
-      candidates: {
-        stops: [{ name: 'Bear Lake', category: 'outdoors', description: '', why_recommended: '' }],
-        lodging: [],
-      },
-    }));
-
-    expect(capturedCands.value.stops[0].coords).toEqual({ lat: 48.6, lng: -113.9 });
-  });
-
-  it('self-heals user-added candidate coords that are far from destination', async () => {
-    readCandidates.mockReturnValueOnce({
-      stops: [{
-        id: 'bear-lake', name: 'Bear Lake', category: 'outdoors', user_added: true,
-        coords: { lat: 37.6, lng: -80.5 },
-      }],
-      lodging: [],
-    });
-    readPlan.mockReturnValueOnce(null);
-    mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: true };
-      if (q === 'Bear Lake, Glacier MT') return { coords: [48.6, -113.9], fromCache: true };
-      return { coords: null, fromCache: true };
-    });
-
-    await realizePlan('t', makeExtract({
-      plan: { field_guide_notes: '', gotchas: '' },
-      candidates: { stops: [], lodging: [] },
-    }));
-
-    expect(capturedCands.value.stops[0].coords).toEqual({ lat: 48.6, lng: -113.9 });
-  });
-
-  it('preserves user-added candidate coords when they pass the distance sanity check', async () => {
+  it('preserves user-added candidate coords across re-realize', async () => {
     readCandidates.mockReturnValueOnce({
       stops: [{
         id: 'lake-mcdonald', name: 'Lake McDonald', category: 'outdoors', user_added: true,
@@ -668,6 +531,27 @@ describe('realizePlan', () => {
     expect(src).not.toMatch(/\bchat\s*\(/);
   });
 
+  // Geocoding moved to a follow-on background job (issue #382). The deepen
+  // handler kicks off `geocode-candidates` after realizePlan() returns; coords
+  // fill in incrementally so the deepen pill completes ~15s sooner.
+  it("does not call geocode anymore: geocoding moved to a follow-on job", async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+    mockGeocode.mockImplementation(async () => {
+      throw new Error("realizePlan should not call geocode() - that work moved to geocode-job.js");
+    });
+    await realizePlan("t", makeExtract({
+      plan: { field_guide_notes: "", gotchas: "" },
+      candidates: {
+        stops: [{ name: "Lake McDonald", category: "outdoors", description: "", why_recommended: "" }],
+        lodging: [{ name: "Whitefish Inn", price_tier: "mid" }],
+      },
+    }));
+    expect(mockGeocode).not.toHaveBeenCalled();
+    expect(capturedCands.value.stops[0].coords).toBeUndefined();
+    expect(capturedCands.value.lodging[0].coords).toBeUndefined();
+  });
+
   it('preserves a find-more-style entry (researcher-emitted but user_added: true) across re-realize', async () => {
     readCandidates.mockReturnValueOnce({
       stops: [{
@@ -694,3 +578,4 @@ describe('realizePlan', () => {
     expect(written.stops.some((s) => s.name === 'Mound City Group')).toBe(true);
   });
 });
+

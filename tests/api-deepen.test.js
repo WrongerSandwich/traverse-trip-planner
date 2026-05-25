@@ -98,6 +98,15 @@ vi.mock('$lib/server/realize-plan.js', () => ({
   realizePlan: mockRealizePlan,
 }));
 
+// --- geocode-candidates kickoff mock (issue #382) ---
+// The deepen handler fires this after realizePlan() returns; we mock at the
+// endpoint module boundary so the worker doesn't actually start a job.
+const mockStartGeocodeCandidatesJob = vi.hoisted(() => vi.fn(() => null));
+
+vi.mock('../src/routes/api/actions/geocode-candidates/[slug]/+server.js', () => ({
+  _startGeocodeCandidatesJob: mockStartGeocodeCandidatesJob,
+}));
+
 // --- plan mock (re-research gate consults readPlan; null = no prior plan) ---
 const mockReadPlan = vi.hoisted(() => vi.fn());
 
@@ -159,6 +168,9 @@ beforeEach(() => {
   // Default chat: resolves with a fully-formed unified envelope so the
   // six-section parser in doResearch() doesn't throw.
   mockChat.mockResolvedValue({ text: VALID_ENVELOPE, usage: { input_tokens: 100, output_tokens: 50 } });
+  // Reset the geocode-candidates kickoff mock so each test starts fresh.
+  mockStartGeocodeCandidatesJob.mockReset();
+  mockStartGeocodeCandidatesJob.mockReturnValue(null);
   // Default realize: resolves cleanly with no renames.
   mockRealizePlan.mockResolvedValue({ renames: [] });
   // Default: no prior plan — re-research gate stays out of the way.
@@ -228,7 +240,22 @@ describe('POST /api/actions/deepen/[slug]', () => {
     expect(researchingCall).toBeUndefined();
   });
 
-  it('fire-and-forget success path: calls completeJob with tokens', async () => {
+  it('after realizePlan() returns, fires _startGeocodeCandidatesJob for the slug (issue #382)', async () => {
+    mockExistsSync.mockReturnValue(true);
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+    expect(mockStartGeocodeCandidatesJob).toHaveBeenCalledWith('test-trip');
+  });
+
+  it('does not call _startGeocodeCandidatesJob when realizePlan throws', async () => {
+    mockExistsSync.mockReturnValue(true);
+    mockRealizePlan.mockRejectedValue(new Error('realize boom'));
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+    expect(mockStartGeocodeCandidatesJob).not.toHaveBeenCalled();
+  });
+
+    it('fire-and-forget success path: calls completeJob with tokens', async () => {
     mockExistsSync.mockReturnValue(true);
     mockChat.mockResolvedValue({
       text: VALID_ENVELOPE,

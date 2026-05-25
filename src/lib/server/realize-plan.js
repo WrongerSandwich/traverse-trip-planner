@@ -3,9 +3,13 @@
 // `realizePlan(slug, parsedExtract, { signal })` accepts the already-parsed
 // `plan` and `candidates` YAML blocks that `doResearch()` carved out of the
 // unified envelope, then runs the deterministic work: merge with any prior
-// user-added candidates, geocode every visible candidate, write plan.yaml +
-// candidates.yaml atomically, and persist any id-rename notice to the
-// overview frontmatter.
+// user-added candidates, write plan.yaml + candidates.yaml atomically, and
+// persist any id-rename notice to the overview frontmatter.
+//
+// Geocoding moved out of this module in issue #382. Candidates land with
+// `coords: undefined`; the deepen handler kicks off a separate
+// `geocode-candidates` background job that fills coords in incrementally so
+// the deepen pill completes ~15s sooner.
 //
 // This module does NOT call chat(); the LLM call lives in doResearch(). The
 // module was renamed from extract-candidates.js as part of issue #380 — the
@@ -17,7 +21,6 @@ import {
   atomicWrite,
   findTripFile,
   getTripFiles,
-  parseFrontmatter,
   removeFrontmatterField,
   setFrontmatterField,
 } from './data.js';
@@ -29,13 +32,9 @@ import {
 } from './plan.js';
 import {
   candidatesPath,
-  distanceMi,
   emptyCandidates,
-  geocodeCandidate,
-  getDestinationRefCoords,
   LODGING_PRICE_TIERS,
   makeCandidateId,
-  MAX_CANDIDATE_DISTANCE_MI,
   readCandidates,
   serializeCandidatesFile,
   STOP_CATEGORIES,
@@ -49,7 +48,8 @@ import { TraverseError } from './errors.js';
  *   deepen envelope. doResearch() parses them; this function consumes them.
  * @param {{ signal?: AbortSignal }} [opts] — `signal` is accepted for API
  *   symmetry with the prior extractCandidates contract; the function itself
- *   makes no abortable calls (Nominatim requests use the disk cache layer).
+ *   makes no abortable calls (candidates are written without geocoding; the
+ *   follow-on geocode-candidates job handles the abortable Nominatim work).
  */
 export async function realizePlan(slug, parsedExtract, _opts = {}) {
   const tripResult = getTripFiles(slug);
@@ -118,6 +118,10 @@ export async function realizePlan(slug, parsedExtract, _opts = {}) {
   //     by the new extraction (already the case, since `cands` is built fresh).
   //   - User-added candidates (user_added: true) are preserved, with ids
   //     reassigned via makeCandidateId on collision with new researcher ids.
+  //   - Pre-existing coords on any candidate (user-added or otherwise) are
+  //     preserved when the new researcher entry doesn't carry coords of its
+  //     own. The follow-on geocode-candidates job only fills in coords that
+  //     are missing, so already-pinned candidates stay pinned across re-realize.
   const existingPlan = readPlan(slug);
   const existingCands = readCandidates(slug);
 
@@ -128,6 +132,25 @@ export async function realizePlan(slug, parsedExtract, _opts = {}) {
   // Track id renames across the merge pass so we can rewrite plan.days
   // references and surface a banner on the detail page (#349).
   const renames = new Map();
+
+  // Preserve coords from any prior candidate of the same id, so the
+  // geocode-candidates job only has to fill in the freshly-extracted entries
+  // that don't already have coords on disk.
+  if (existingCands) {
+    const priorCoordsById = new Map();
+    for (const s of existingCands.stops ?? []) {
+      if (s.id && s.coords) priorCoordsById.set(s.id, s.coords);
+    }
+    for (const l of existingCands.lodging ?? []) {
+      if (l.id && l.coords) priorCoordsById.set(l.id, l.coords);
+    }
+    for (const c of cands.stops) {
+      if (!c.coords && priorCoordsById.has(c.id)) c.coords = priorCoordsById.get(c.id);
+    }
+    for (const c of cands.lodging) {
+      if (!c.coords && priorCoordsById.has(c.id)) c.coords = priorCoordsById.get(c.id);
+    }
+  }
 
   if (existingCands) {
     const userAddedStops = (existingCands.stops ?? []).filter((s) => s.user_added);
@@ -174,46 +197,21 @@ export async function realizePlan(slug, parsedExtract, _opts = {}) {
     }
   }
 
-  // Geocode every candidate that doesn't already have coords. Without this,
-  // every brochure stop renders as "unmapped" and the destination map is empty.
-  // We use the trip's destination as a fallback query to disambiguate places
-  // with common names ("Lake McDonald" alone hits dozens of lakes).
-  //
-  // getTripFiles() strips frontmatter from `files.overview`, so read overview
-  // directly off disk to recover `destination`. Without this, destinationContext
-  // was always "" and every candidate fell through to a bare-name lookup with no
-  // sanity check — which is how "Capitol Square" pinned to Rome and "The
-  // Edgewater" pinned to Singapore.
+  // Geocoding deferred to the follow-on `geocode-candidates` background job
+  // (issue #382). Candidates land with `coords: undefined`; the geocode job
+  // reads candidates.yaml from disk, runs the Nominatim loop, and writes back
+  // incrementally so the deepen pill completes without waiting on the ~15s
+  // throttle. Disambiguation logic (destination-ref distance check) lives in
+  // geocode-job.js and reuses `getDestinationRefCoords` / `geocodeCandidate`
+  // from candidates.js — the same per-candidate semantics, just off the
+  // critical path.
+
+  // We still need to read the overview file (raw) so the rename-notice write
+  // at the bottom can mutate frontmatter without dropping prose.
   const overviewFilePath = findTripFile(slug);
   const overviewRaw = overviewFilePath && existsSync(overviewFilePath)
     ? readFileSync(overviewFilePath, 'utf8')
     : '';
-  const overviewFm = parseFrontmatter(overviewRaw) || {};
-  const destinationContext = overviewFm.destination ?? '';
-  const refCoords = await getDestinationRefCoords(destinationContext);
-  if (destinationContext && !refCoords) {
-    console.warn(
-      `realize-plan: destination "${destinationContext}" failed to geocode; bare-name candidate lookups will be skipped to avoid same-name collisions`
-    );
-  }
-  for (const c of [...cands.stops, ...cands.lodging]) {
-    if (c.hidden) continue;
-    if (c.coords && refCoords) {
-      const existing = [Number(c.coords.lat), Number(c.coords.lng)];
-      if (distanceMi(existing, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) continue;
-      console.warn(
-        `realize-plan: re-geocoding "${c.name}" — existing coords were ${Math.round(distanceMi(existing, refCoords))}mi from destination (above ${MAX_CANDIDATE_DISTANCE_MI}mi sanity threshold)`
-      );
-    } else if (c.coords) {
-      continue;
-    }
-    const coords = await geocodeCandidate(c.name, destinationContext, refCoords);
-    if (coords) {
-      c.coords = { lat: coords[0], lng: coords[1] };
-    } else if (c.coords) {
-      delete c.coords;
-    }
-  }
 
   // Write both files atomically: stage each to a .tmp first, then rename both
   // so a mid-write crash cannot leave plan.yaml updated while candidates.yaml is stale.
