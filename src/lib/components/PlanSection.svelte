@@ -250,6 +250,24 @@
     });
   }
 
+  // Touch-friendly within-day reorder. Drag handles don't fire on coarse
+  // pointers, so the ↑/↓ buttons next to each stop are the primary gesture
+  // on mobile. Same endpoint as the drag drop, just constructed from idx
+  // shifts instead of a drop target.
+  async function nudgeStop(dayNumber, fromIdx, direction) {
+    const day = plan.days.find((d) => d.number === dayNumber);
+    if (!day) return;
+    const toIdx = fromIdx + direction;
+    if (toIdx < 0 || toIdx >= day.stops.length) return;
+    const order = [...day.stops];
+    const [moved] = order.splice(fromIdx, 1);
+    order.splice(toIdx, 0, moved);
+    await api(`/api/plan/${slug}/day/${dayNumber}/stops`, {
+      method: 'PUT',
+      body: JSON.stringify({ order }),
+    });
+  }
+
   // ── API plumbing ──
   async function api(path, opts) {
     working = true;
@@ -574,6 +592,26 @@
                       ondragend={onStopDragEnd}
                       onHide={() => removeStopWithUndo(day.number, id)}
                     />
+                    {#if !readonly && day.stops.length > 1}
+                      <div class="nudge-stack" role="group" aria-label="Reorder {cand.name}">
+                        <button
+                          type="button"
+                          class="nudge-btn"
+                          onclick={() => nudgeStop(day.number, i, -1)}
+                          aria-label="Move {cand.name} up"
+                          title="Move up"
+                          disabled={working || i === 0}
+                        >↑</button>
+                        <button
+                          type="button"
+                          class="nudge-btn"
+                          onclick={() => nudgeStop(day.number, i, +1)}
+                          aria-label="Move {cand.name} down"
+                          title="Move down"
+                          disabled={working || i === day.stops.length - 1}
+                        >↓</button>
+                      </div>
+                    {/if}
                     {#if !readonly && plan.days.length > 1}
                       <button
                         type="button"
@@ -1108,6 +1146,57 @@
   .move-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   @media (pointer: coarse) {
     .move-btn { opacity: 1; pointer-events: auto; }
+  }
+
+  /* Within-day reorder buttons — touch substitute for the drag handle on
+     the StopCard. ↑/↓ stacked so they take one column of the row instead
+     of two. Hidden by default on fine pointers (drag is the primary gesture);
+     revealed on focus-within and always on coarse pointers, matching the
+     .move-btn pattern. */
+  .nudge-stack {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s;
+  }
+  .stop-row-controls:focus-within .nudge-stack,
+  .nudge-stack:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  @media (pointer: coarse) {
+    .nudge-stack { opacity: 1; pointer-events: auto; }
+  }
+  .nudge-btn {
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    padding: 0;
+    width: 26px;
+    flex: 1;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
+  }
+  .nudge-btn:hover:not(:disabled) {
+    background: var(--surface-page);
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+  }
+  .nudge-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  @media (pointer: coarse) {
+    .nudge-btn {
+      width: var(--tap-min);
+      min-height: calc(var(--tap-min) / 2 - 1px);
+      font-size: 1rem;
+    }
   }
 
   /* Move-to-day picker — opens below the stop row when the move button

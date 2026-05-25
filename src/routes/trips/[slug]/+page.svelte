@@ -1607,6 +1607,14 @@
     border-color: var(--forest-600);
     color: var(--bone-200);
   }
+  /* Trailing-edge anchor goes on the kebab-menu wrapper (the actual flex
+     child of the header), not the trigger button inside it. On desktop the
+     flex:1 H1 already absorbs free space so this is a no-op; on touch
+     mobile the H1 wraps to its own row AND the Ask / Re-research pills
+     are display:none, leaving nothing to push the kebab right. */
+  .page > header :global(.kebab-menu) {
+    margin-left: auto;
+  }
   .page > header :global(.kebab-trigger:hover),
   .page > header :global(.kebab-trigger[aria-expanded="true"]) {
     background: var(--forest-700);
@@ -1854,8 +1862,11 @@
      header, not just a hover-only title. */
   .btn-section-ask {
     background: transparent;
-    border: 0.5px solid var(--border-subtle);
-    color: var(--text-tertiary);
+    /* Border + text tokens match the sibling Edit button (.btn-secondary
+       .btn-compact) so the two read as a tokenized pair at rest. The
+       hover state below adds the accent tint that signals "AI affordance". */
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
     font-family: var(--font-sans);
     font-size: 12px;
     font-weight: 500;
@@ -1868,6 +1879,12 @@
     align-items: center;
     gap: 0.4rem;
     transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  }
+  /* Match the global .btn tap-floor on coarse pointers so Ask and Edit
+     line up as siblings on mobile instead of the Edit button being 44px
+     tall while Ask sits at ~28px. */
+  @media (pointer: coarse) {
+    .btn-section-ask { min-height: var(--tap-min); }
   }
   .btn-section-ask:hover {
     background: color-mix(in oklab, var(--accent) 8%, transparent);
@@ -1958,8 +1975,33 @@
   .prose :global(strong) { font-weight: 700; color: var(--text-primary); }
   .prose :global(a) { color: var(--accent-text); text-decoration: none; }
   .prose :global(a:hover) { text-decoration: underline; }
-  .prose :global(table) { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin: 0 0 1rem; }
-  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.4rem 0.6rem; border-bottom: 2px solid var(--border-default); color: var(--text-primary); }
+  /* Tables are emitted from renderMarkdown wrapped in .md-table-scroll
+     (see src/lib/sanitize.js) so wide tables overflow horizontally on
+     narrow viewports instead of compressing cells.
+     Strategy: table fills the wrapper when it fits (width:100%), but a
+     min-width floor forces horizontal scroll on viewports too narrow to
+     give each column a comfortable share. Cells still wrap text normally
+     inside their column, so a long "Notes" entry breaks across lines
+     instead of pushing the table to several screens of horizontal scroll. */
+  .prose :global(.md-table-scroll) {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 0 1rem;
+  }
+  .prose :global(table) {
+    width: 100%;
+    min-width: 30rem;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+    margin: 0;
+    /* Prose's overflow-wrap: anywhere shreds cell content at the character
+       level which is what was driving the original "smooshed" look. Restore
+       word-boundary wrapping inside tables. */
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .prose :global(th) { text-align: left; font-weight: 700; padding: 0.4rem 0.6rem; border-bottom: 2px solid var(--border-default); color: var(--text-primary); white-space: nowrap; }
   .prose :global(td) { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
   .prose :global(code) { font-family: monospace; font-size: 0.82em; background: var(--surface-sunken); color: var(--text-primary); padding: 0.1em 0.4em; border-radius: 3px; }
 

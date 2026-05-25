@@ -20,5 +20,12 @@ import DOMPurify from 'isomorphic-dompurify';
  */
 export function renderMarkdown(md) {
   const raw = marked.parse(md || '', { mangle: false, headerIds: false });
-  return DOMPurify.sanitize(raw);
+  const clean = DOMPurify.sanitize(raw);
+  // Wrap tables in a scroll container so wide markdown tables (e.g. the
+  // reservations / planning table in logistics.md) overflow horizontally
+  // on narrow viewports instead of compressing cells to unreadable widths.
+  // Done after sanitize so the wrapper is a fixed string, not user input.
+  return clean
+    .replace(/<table>/g, '<div class="md-table-scroll"><table>')
+    .replace(/<\/table>/g, '</table></div>');
 }

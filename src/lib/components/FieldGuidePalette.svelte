@@ -188,11 +188,28 @@
 <style>
   .palette-backdrop {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    /* dvh tracks the dynamic visible viewport (URL bar shown/hidden, etc.);
+       lvh is the largest possible viewport. Listing both lets browsers
+       that support either unit reach the visible bottom edge. */
+    height: 100dvh;
+    height: 100lvh;
     background: color-mix(in oklab, var(--text-primary) 35%, transparent);
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
     z-index: 950;
+    /* Known limitation: iOS 26 Safari's liquid-glass toolbar lives in the
+       page's safe-area region. Without `viewport-fit=cover` on the page's
+       viewport meta (which would require auditing every bottom-anchored
+       fixed element across the app for safe-area handling), the backdrop
+       gets clipped at the safe area and a strip of page shows through
+       behind / around the URL bar when the keyboard is up. Safari blurs
+       that strip with its own glass effect, but the visual contrast with
+       our backdrop reads as a seam. Revisit post-launch with a coordinated
+       viewport-fit=cover migration. */
   }
 
   .palette {
@@ -371,6 +388,12 @@
       transform: none;
       width: 100vw;
       border-radius: 8px 8px 0 0;
+      /* Extend the palette's surface into the home-indicator safe area so
+         its background fills the visible bottom of the screen instead of
+         leaving a strip of unblurred page peeking below it. The interior
+         row paddings already provide enough breathing room for the touch
+         targets without separately respecting the inset. */
+      padding-bottom: env(safe-area-inset-bottom, 0);
     }
 
     /* Reflow the row so the input gets the full viewport width. The
