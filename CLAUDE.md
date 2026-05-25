@@ -15,8 +15,6 @@ traverse/
 ├── CLAUDE.md          # this file — repo conventions
 ├── home.md            # user-specific preferences and constraints
 ├── PRODUCT.md         # design context for the frontend
-├── .claude/
-│   └── agents/        # subagents (researcher) — for ad-hoc Claude Code use
 ├── src/               # SvelteKit frontend (npm run dev -- --port 3456)
 ├── ideas/             # parked, lightly sketched (single .md files)
 ├── planning/          # researched and actively becoming reality (folders with overview.md, route.md, logistics.md, plan.md, candidates.md)
@@ -97,10 +95,6 @@ All lifecycle operations live in the SvelteKit app — the browser is the canoni
 - **Add retro** (completed trips, when `notes.md` is absent) — accessed from the `⋯` menu (Activity group). Opens the same AI-prompted retro modal as the initial Mark-as-completed flow.
 - **Add receipts** — _disabled pre-launch (see issue #367)._ `getFeatureAvailability().receipts` is hard-coded to `false` in `src/lib/server/config.js`, which hides the `⋯` menu entry. The endpoint, error mapping, telemetry promise, and UI block all remain mounted so the redesign can iterate without re-plumbing. Reintroduction is gated on the receipts-as-ledger design — touch this code path when reviving the feature, not for incidental refactors. The shipped (now-hidden) behavior: accepts JPEG/PNG/WebP/GIF uploads on completed trips (max 10 × 5 MB), sends images to `chat()` as `{type: 'image', mediaType, data}` content blocks (Anthropic + OpenAI/OpenRouter both translate), parses each into a `date · merchant · amount · category` line, appends a `## Receipts` section to `notes.md` via `appendToNotes()`.
 - **Archive** (detail view, gated by confirm) — accessed from the `⋯` menu (Lifecycle group, danger styling). Moves the trip to `archived/<stage>/<slug>/`. The trip vanishes from the UI but stays in the seed-avoidance list.
-
-### Ad-hoc research via Claude Code
-
-`.claude/agents/researcher.md` defines a `researcher` subagent that Claude Code can dispatch for one-off destination research outside the formal lifecycle ("what's the best time of year to visit Glacier?"). It's not invoked by any in-browser action — those reimplement the research loop directly via `chat()` + the `web_search` tool. Use the subagent when you want Claude Code to do exploratory research without writing files.
 
 ## Frontend
 
