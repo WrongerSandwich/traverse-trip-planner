@@ -6,6 +6,8 @@ A self-hosted road-trip filing cabinet. Trips live as plain markdown files, prog
 
 > Built to be lived in, not to be sold. Stable enough for daily personal use, rough enough that you'll want to be the kind of person who's comfortable editing the markdown directly when something gets weird.
 
+![Home page with trip cards and an interactive map](docs/screenshots/home.png)
+
 ## Why this exists
 
 There are plenty of fancier travel apps. Almost all of them treat your trips as rows in their database, your photos as content for their feed, and your destination history as something to monetize. Traverse takes the opposite bet: trips are markdown, your `home.md` is your taste preferences in plain English, and AI is a useful tool wired into the workflow — not the workflow itself.
@@ -23,6 +25,20 @@ The mental model is closer to a personal wiki than a SaaS app. The LLM is fast a
 - **Calendar** — subscribe to `/api/cal.ics` from Google/Apple/Outlook to see planned trips on your calendar; per-trip feed at `/api/cal/<slug>.ics`
 
 All trip data is plain markdown on disk — readable, portable, and easy to edit directly.
+
+## What it looks like
+
+The trip detail page — overview, route, logistics, plan, and candidates each render as their own section with an inline `Edit` button; the Field guide (Cmd-K) proposes edits as inline diffs you accept or revert:
+
+![Trip detail page with sectioned content and per-section Edit buttons](docs/screenshots/detail.png)
+
+The print-optimized brochure: cover photo, paper-map route inset from home, destination map with numbered pins, and day-by-day stops + lodging — derived freshly from `plan.md` + `candidates.md` on every view:
+
+![Brochure print view with cover photo, route inset, and numbered destination map](docs/screenshots/brochure.png)
+
+Home base — your `home.md` profile (home location, vehicles, taste, seasonal constraints) edited in-browser without dropping to a terminal; a sibling Configuration tab handles provider keys and per-feature model routing:
+
+![Home base page with home.md profile fields](docs/screenshots/home-base.png)
 
 ## Self-hosting
 
