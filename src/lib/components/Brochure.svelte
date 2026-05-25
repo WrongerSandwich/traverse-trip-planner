@@ -3,7 +3,6 @@
   import Logo from '$lib/components/Logo.svelte';
   import PaperMap from '$lib/components/PaperMap.svelte';
   import DestinationMap from '$lib/components/DestinationMap.svelte';
-  import BrochureDayBlocks from '$lib/components/BrochureDayBlocks.svelte';
 
   let { data } = $props();
 
@@ -78,15 +77,6 @@
   // Compiled date for the attribution line — always today in en-US.
   const compiledLabel = $derived(new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
 
-  // Atmosphere photos — Pexels now caches up to 3 results per query. Legacy
-  // entries with a single photo fall back to a one-element array so the
-  // brochure still works against the old cache shape.
-  const photos = $derived(trip?._image?.photos ?? (trip?._image ? [trip._image] : []));
-  // photos[0] is the cover. photos[1] and [2] (if present) get placed inline
-  // as atmosphere breaks between major sections.
-  const atmosphere1 = $derived(photos[1] ?? null);
-  const atmosphere2 = $derived(photos[2] ?? null);
-
   // Destination map: only meaningful when the structured render is active
   // and there are stops with geocoded coords. Pre-filtered here so the
   // section header can hide if there's nothing to draw.
@@ -113,7 +103,7 @@
       <span></span>
     {/if}
     <button class="toolbar-print" onclick={() => window.print()} type="button" aria-label="Print or save as PDF">
-      print <kbd class="toolbar-key">⌘P</kbd>
+      print
     </button>
   </nav>
 
@@ -174,46 +164,26 @@
   </section>
 
   {#if isStructured}
-    <!-- Structured render derived from plan + candidates -->
+    <!-- Structured render derived from plan + candidates.
 
-    {#if brochure.days?.length}
-      <section class="content-page" data-section="itinerary">
-        <div class="eyebrow">Itinerary</div>
-        <BrochureDayBlocks days={brochure.days} />
-      </section>
-    {/if}
-
-    {#if atmosphere1}
-      <figure class="atmosphere">
-        <img
-          src={atmosphere1.large2x || atmosphere1.large || atmosphere1.medium}
-          srcset={[
-            atmosphere1.medium && `${atmosphere1.medium} 350w`,
-            atmosphere1.large && `${atmosphere1.large} 940w`,
-            atmosphere1.large2x && `${atmosphere1.large2x} 1880w`,
-          ].filter(Boolean).join(', ') || undefined}
-          sizes="(max-width: 768px) 100vw, 760px"
-          alt=""
-          loading="lazy"
-        />
-        <figcaption>
-          Photo by
-          {#if atmosphere1.photographer_url}
-            <a href={atmosphere1.photographer_url} target="_blank" rel="noopener">{atmosphere1.photographer}</a>
-          {:else}
-            {atmosphere1.photographer}
-          {/if}
-          via Pexels
-        </figcaption>
-      </figure>
-    {/if}
+         Itinerary is the spine: destination map at the top, then stops
+         grouped by day with full descriptions. Earlier versions ran a
+         names-only Itinerary section (BrochureDayBlocks) followed by a
+         flat Stops list with descriptions — the reader had to cross-
+         reference. Folding the two together kept the spatial gesture
+         (numerals match pins) without telling the same story twice. -->
 
     {#if brochure.stops?.length}
-      <section class="content-page" data-section="stops">
+      {@const pinByName = new Map(brochure.stops.map((s, i) => [s.name, i + 1]))}
+      {@const daysWithStops = brochure.days?.filter((d) => d.stops?.length) ?? []}
+
+      <section class="content-page" data-section="itinerary">
         <div class="eyebrow">
-          Stops
+          Itinerary
           {#if hasDestinationMap}
             <span class="eyebrow-detail">· {stopsWithCoords.length} of {brochure.stops.length} pinned on map</span>
+          {:else}
+            <span class="eyebrow-detail">· all unmapped</span>
           {/if}
         </div>
 
@@ -246,26 +216,66 @@
               <span>unmapped (no pin geocoded)</span>
             </li>
           </ul>
+        {:else}
+          <!-- Dashed hairline reads as "expected content, not yet present"
+               without shouting. Mirrors the `plate ii` label so the reader
+               recognises this is where the map would live. -->
+          <aside class="map-missing" aria-label="Destination map unavailable">
+            <span class="map-missing-eyebrow">plate ii · unavailable</span>
+            <p class="map-missing-body">Pin geocoding pending. The stops below are listed without map cross-reference.</p>
+          </aside>
         {/if}
 
-        <ol class="stops-list">
-          {#each brochure.stops as stop, i}
-            {@const hasCoords = Array.isArray(stop.coords) && stop.coords.length === 2}
-            <li class="stop" class:stop--unpinned={!hasCoords}>
-              <span class="stop-n" class:stop-n--unpinned={!hasCoords} aria-hidden="true">{i + 1}</span>
-              <div class="stop-body">
-                <div class="stop-head">
-                  <span class="stop-name">{stop.name}</span>
-                  {#if stop.category}<span class="stop-cat">{stop.category}</span>{/if}
-                  {#if !hasCoords}<span class="stop-unpinned-tag">unmapped</span>{/if}
-                </div>
-                {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
-                {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
-                {#if stop.notes}<p class="stop-notes">{stop.notes}</p>{/if}
-              </div>
-            </li>
+        {#if daysWithStops.length > 0}
+          {#each daysWithStops as day}
+            <article class="day-group">
+              <header class="day-group-head">
+                <span class="day-group-n">Day {day.n}</span>
+                {#if day.date}<span class="day-group-date">{day.date}</span>{/if}
+              </header>
+              <ol class="stops-list">
+                {#each day.stops as stop}
+                  {@const hasCoords = Array.isArray(stop.coords) && stop.coords.length === 2}
+                  {@const n = pinByName.get(stop.name) ?? null}
+                  <li class="stop" class:stop--unpinned={!hasCoords}>
+                    <span class="stop-n" class:stop-n--unpinned={!hasCoords} aria-hidden="true">{n ?? ''}</span>
+                    <div class="stop-body">
+                      <div class="stop-head">
+                        <span class="stop-name">{stop.name}</span>
+                        {#if stop.category}<span class="stop-cat" data-cat={stop.category}>{stop.category}</span>{/if}
+                        {#if !hasCoords}<span class="stop-unpinned-tag">unmapped</span>{/if}
+                      </div>
+                      {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
+                      {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
+                      {#if stop.notes}<p class="stop-notes">{stop.notes}</p>{/if}
+                    </div>
+                  </li>
+                {/each}
+              </ol>
+            </article>
           {/each}
-        </ol>
+        {:else}
+          <!-- Stops exist in candidates but none are promoted to a day yet.
+               Fall back to the flat list so the brochure still renders. -->
+          <ol class="stops-list">
+            {#each brochure.stops as stop, i}
+              {@const hasCoords = Array.isArray(stop.coords) && stop.coords.length === 2}
+              <li class="stop" class:stop--unpinned={!hasCoords}>
+                <span class="stop-n" class:stop-n--unpinned={!hasCoords} aria-hidden="true">{i + 1}</span>
+                <div class="stop-body">
+                  <div class="stop-head">
+                    <span class="stop-name">{stop.name}</span>
+                    {#if stop.category}<span class="stop-cat" data-cat={stop.category}>{stop.category}</span>{/if}
+                    {#if !hasCoords}<span class="stop-unpinned-tag">unmapped</span>{/if}
+                  </div>
+                  {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
+                  {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
+                  {#if stop.notes}<p class="stop-notes">{stop.notes}</p>{/if}
+                </div>
+              </li>
+            {/each}
+          </ol>
+        {/if}
       </section>
     {/if}
 
@@ -285,31 +295,6 @@
           {/each}
         </ul>
       </section>
-    {/if}
-
-    {#if atmosphere2}
-      <figure class="atmosphere">
-        <img
-          src={atmosphere2.large2x || atmosphere2.large || atmosphere2.medium}
-          srcset={[
-            atmosphere2.medium && `${atmosphere2.medium} 350w`,
-            atmosphere2.large && `${atmosphere2.large} 940w`,
-            atmosphere2.large2x && `${atmosphere2.large2x} 1880w`,
-          ].filter(Boolean).join(', ') || undefined}
-          sizes="(max-width: 768px) 100vw, 760px"
-          alt=""
-          loading="lazy"
-        />
-        <figcaption>
-          Photo by
-          {#if atmosphere2.photographer_url}
-            <a href={atmosphere2.photographer_url} target="_blank" rel="noopener">{atmosphere2.photographer}</a>
-          {:else}
-            {atmosphere2.photographer}
-          {/if}
-          via Pexels
-        </figcaption>
-      </figure>
     {/if}
 
     {#if brochure.field_guide_notes?.length}
@@ -335,12 +320,12 @@
     {/if}
 
   {:else}
-    <!-- Fallback: raw planning markdown for unprepared trips -->
+    <!-- Fallback: raw planning markdown for unprepared trips. No "Section ·"
+         prefix — the markdown body already carries its own H2s, so a section
+         label alone is sufficient. -->
     {#each sections as section}
       <section class="content-page" data-section={section.key}>
-        <div class="eyebrow">
-          {#if section.key === 'itinerary'}Itinerary{:else}Section · {section.label}{/if}
-        </div>
+        <div class="eyebrow">{section.label}</div>
         <div class="markdown">{@html renderMd(section.body)}</div>
       </section>
     {/each}
@@ -384,7 +369,15 @@
 
 
 <style>
-  /* Strip the document body to bone — no background colors from the parent.
+  /* Token discipline: this component reaches past the semantic role tokens
+     (--text-primary, --accent, --border-subtle) into the raw brand ramps
+     (--forest-800, --bone-400, --sunset-600, --bark-600). That's
+     intentional — the brochure is mode-locked to light via
+     `data-theme="light"` on its wrapper, so semantic-token cascades that
+     would flip in dark mode are inappropriate here. The whole artifact
+     reads as a printed field guide, not a UI surface that adapts.
+
+     Strip the document body to bone — no background colors from the parent.
      Uses a literal paper color (not the theme token) so the brochure always
      renders on cream regardless of the user's color-scheme preference; the
      wrapping <div data-theme="light"> only affects descendants, and body
@@ -445,23 +438,6 @@
   .toolbar-print:hover,
   .toolbar-print:focus-visible {
     background: var(--bone-100);
-    color: var(--forest-800);
-    border-color: var(--forest-800);
-  }
-  .toolbar-key {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    line-height: 1;
-    letter-spacing: 0.02em;
-    color: var(--bone-600);
-    text-transform: none;
-    background: var(--bone-100);
-    padding: 2px 5px;
-    border-radius: 2px;
-    border: 0.5px solid var(--bone-400);
-  }
-  .toolbar-print:hover .toolbar-key,
-  .toolbar-print:focus-visible .toolbar-key {
     color: var(--forest-800);
     border-color: var(--forest-800);
   }
@@ -585,7 +561,6 @@
     .stop { grid-template-columns: 40px 1fr; column-gap: 16px; padding: 14px 0; }
     .stop-n { font-size: 28px; }
     .stop-name { font-size: 18px; }
-    .atmosphere { margin-left: 20px; margin-right: 20px; }
     /* Cover-belt collapses: pitch above, route inset below. */
     .belt-inner { grid-template-columns: 1fr; gap: 1.25rem; }
     .route-inset { max-width: 320px; }
@@ -655,6 +630,36 @@
     background: none;
   }
   .legend-swatch--edge svg { display: block; }
+
+  /* Destination map missing — quiet editorial empty state.
+     Dashed border reads as "expected content, not yet present" without
+     shouting. Sits in the slot where DestinationMap would render. */
+  .map-missing {
+    margin: 0;
+    padding: 32px 24px;
+    border: 0.5px dashed var(--bone-400);
+    border-radius: 4px;
+    text-align: center;
+  }
+  .map-missing-eyebrow {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--bone-600);
+    margin-bottom: 0.6rem;
+  }
+  .map-missing-body {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--bark-600);
+    margin: 0 auto;
+    max-width: 42ch;
+  }
 
   /* ── Page 3+ — itinerary / planning sections ──────────────────────── */
 
@@ -783,39 +788,41 @@
     margin: 1.5rem 0;
   }
 
-  /* ── Atmosphere photos (between sections) ─────────────────────────── */
-
-  .atmosphere {
-    margin: 2.25rem 24px 0;
-    padding: 0;
+  /* ── Itinerary (day-grouped stops) ──────────────────────────────────
+     Each day is a chapter under the destination map. Hairline rules
+     separate day groups; the day numeral is Fraunces and the date sits
+     beside it in mono, echoing the cover-meta treatment. */
+  .day-group {
+    margin-top: 1.75rem;
+    padding-top: 1.25rem;
+    border-top: 0.5px solid var(--bone-400);
   }
-  .atmosphere img {
-    width: 100%;
-    height: auto;
-    display: block;
-    border-radius: 4px;
-    aspect-ratio: 5 / 3;
-    object-fit: cover;
+  .day-group:first-of-type {
+    margin-top: 1.5rem;
+    padding-top: 0;
+    border-top: none;
   }
-  .atmosphere figcaption {
-    margin-top: 6px;
+  .day-group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 0.25rem;
+  }
+  .day-group-n {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 500;
+    color: var(--forest-800);
+    letter-spacing: 0.003em;
+  }
+  .day-group-date {
     font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--bone-600);
-    letter-spacing: 0.12em;
-    text-align: right;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--sunset-600);
+    letter-spacing: 0.08em;
   }
-  .atmosphere figcaption a {
-    color: var(--bark-600);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  /* ── Structured render (derived brochure) ─────────────────────────── */
-
-  /* Itinerary day blocks live in BrochureDayBlocks.svelte, shared with
-     the trip detail page so the same data renders identically across
-     both surfaces. */
 
   /* ── Stops ──────────────────────────────────────────────────────────
      Editorial feature treatment: each stop is a 2-column grid with the
@@ -877,14 +884,28 @@
     letter-spacing: 0.003em;
     text-wrap: balance;
   }
+  /* Category chip: tiny tinted pill matching the map-pin category system.
+     Falls back to bone (the misc treatment) when category is unknown so a
+     legacy or mistyped value still renders quietly. */
   .stop-cat {
     font-family: var(--font-mono);
     font-size: 10px;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.18em;
-    color: var(--bone-600);
+    letter-spacing: 0.16em;
+    padding: 2px 7px;
+    border-radius: 2px;
+    background: var(--cat-misc-tint);
+    color: var(--cat-misc-on);
   }
+  .stop-cat[data-cat="historic"]      { background: var(--cat-historic-tint);      color: var(--cat-historic-on); }
+  .stop-cat[data-cat="cultural"]      { background: var(--cat-cultural-tint);      color: var(--cat-cultural-on); }
+  .stop-cat[data-cat="food"]          { background: var(--cat-food-tint);          color: var(--cat-food-on); }
+  .stop-cat[data-cat="entertainment"] { background: var(--cat-entertainment-tint); color: var(--cat-entertainment-on); }
+  .stop-cat[data-cat="outdoors"]      { background: var(--cat-outdoors-tint);      color: var(--cat-outdoors-on); }
+  .stop-cat[data-cat="view"]          { background: var(--cat-view-tint);          color: var(--cat-view-on); }
+  .stop-cat[data-cat="quirky"]        { background: var(--cat-quirky-tint);        color: var(--cat-quirky-on); }
+  .stop-cat[data-cat="shopping"]      { background: var(--cat-shopping-tint);      color: var(--cat-shopping-on); }
   .stop-hours,
   .stop-addr {
     font-family: var(--font-mono);
