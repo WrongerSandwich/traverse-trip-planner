@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ERROR_REGISTRY, AFFORDANCES } from '../src/lib/server/errors.js';
+import { ERROR_REGISTRY, AFFORDANCES, failureSentence } from '../src/lib/server/errors.js';
 
 // Recursively collect all .js files under a directory
 async function collectJsFiles(dir) {
@@ -95,5 +95,21 @@ describe('candidate_duplicate', () => {
     expect(entry.sentence).toContain('{name}');
     expect(entry.affordances).toEqual(['dismiss']);
     expect(entry.affordances.every((a) => AFFORDANCES.includes(a))).toBe(true);
+  });
+});
+
+describe('interrupted', () => {
+  it('is registered with retry + dismiss affordances and a clear recovery sentence', () => {
+    const entry = ERROR_REGISTRY.interrupted;
+    expect(entry).toBeDefined();
+    expect(entry.affordances).toEqual(expect.arrayContaining(['retry', 'dismiss']));
+    expect(entry.affordances.every((a) => AFFORDANCES.includes(a))).toBe(true);
+    expect(entry.sentence).toContain('server restart');
+  });
+
+  it('failureSentence returns the expected sentence for the interrupted code', () => {
+    expect(failureSentence('interrupted')).toBe(
+      'A previous research job was interrupted by a server restart. Try re-running it.'
+    );
   });
 });
