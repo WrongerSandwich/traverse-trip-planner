@@ -81,7 +81,7 @@ export async function load({ params }) {
       route = await getTripRoute(slug);
       const wps = Array.isArray(trip.waypoints) ? trip.waypoints : [trip.waypoints];
       for (const wp of wps) {
-        const coord = await geocode(wp);
+        const { coords: coord } = await geocode(wp);
         if (coord) waypointCoords.push({ label: wp, coord });
       }
     } catch { /* missing route → skip the map page */ }

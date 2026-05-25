@@ -110,7 +110,7 @@ describe('extractCandidates', () => {
     // from previous tests (clearAllMocks doesn't clear implementations — only
     // resetAllMocks does, but that would also nuke the hoisted fn defaults).
     mockGeocode.mockReset();
-    mockGeocode.mockResolvedValue(null);
+    mockGeocode.mockResolvedValue({ coords: null, fromCache: false });
     // Default overview content includes `destination: Glacier MT` so
     // geocodeCandidates can recover it via findTripFile + readFileSync
     // (getTripFiles strips frontmatter, so the prose-only files.overview
@@ -522,13 +522,13 @@ lodging:
       usage: { input: 0, output: 0 },
     });
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: false };
       // Stop hits via scoped query (preferred); lodging only via bare fallback
       // (mock returns nothing for "Whitefish Inn, Glacier MT"). The bare result
       // is within MAX_CANDIDATE_DISTANCE_MI of refCoords so it's accepted.
-      if (q === 'Lake McDonald, Glacier MT') return [48.5, -113.9];
-      if (q === 'Whitefish Inn') return [48.41, -114.34];
-      return null;
+      if (q === 'Lake McDonald, Glacier MT') return { coords: [48.5, -113.9], fromCache: false };
+      if (q === 'Whitefish Inn') return { coords: [48.41, -114.34], fromCache: false };
+      return { coords: null, fromCache: false };
     });
 
     await extractCandidates('t');
@@ -550,7 +550,7 @@ lodging:
       text: '<extract><plan>\nfield_guide_notes: ""\ngotchas: ""\n</plan><candidates>\nstops: []\nlodging: []\n</candidates></extract>',
       usage: { input: 0, output: 0 },
     });
-    mockGeocode.mockResolvedValue(null);
+    mockGeocode.mockResolvedValue({ coords: null, fromCache: false });
 
     await extractCandidates('t');
 
@@ -589,10 +589,10 @@ lodging: []
     // matches a place in West Virginia (~1800mi from Glacier); scoped
     // query lands the actual Bear Lake in Montana.
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
-      if (q === 'Bear Lake, Glacier MT') return [48.6, -113.9];
-      if (q === 'Bear Lake') return [37.6, -80.5]; // West Virginia
-      return null;
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: false };
+      if (q === 'Bear Lake, Glacier MT') return { coords: [48.6, -113.9], fromCache: false };
+      if (q === 'Bear Lake') return { coords: [37.6, -80.5], fromCache: false }; // West Virginia
+      return { coords: null, fromCache: false };
     });
 
     await extractCandidates('t');
@@ -628,13 +628,13 @@ lodging: []
     });
     mockGeocode.mockImplementation(async (q) => {
       // Destination geocode fails (simulates rate limit or transient outage)
-      if (q === 'Glacier MT') return null;
-      if (q === 'Capitol Square, Glacier MT') return null;
+      if (q === 'Glacier MT') return { coords: null, fromCache: false };
+      if (q === 'Capitol Square, Glacier MT') return { coords: null, fromCache: false };
       // Bare lookup returns Rome's Piazza del Campidoglio — would have been
       // accepted under the old logic, which skipped the distance check when
       // refCoords was null.
-      if (q === 'Capitol Square') return [41.89, 12.48];
-      return null;
+      if (q === 'Capitol Square') return { coords: [41.89, 12.48], fromCache: false };
+      return { coords: null, fromCache: false };
     });
 
     await extractCandidates('t');
@@ -664,11 +664,11 @@ lodging: []
       usage: { input: 0, output: 0 },
     });
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: false };
       // Both attempts return Alaska — way beyond the 200mi sanity threshold
-      if (q === 'Mystery Place, Glacier MT') return [61.0, -149.0];
-      if (q === 'Mystery Place') return [61.0, -149.0];
-      return null;
+      if (q === 'Mystery Place, Glacier MT') return { coords: [61.0, -149.0], fromCache: false };
+      if (q === 'Mystery Place') return { coords: [61.0, -149.0], fromCache: false };
+      return { coords: null, fromCache: false };
     });
 
     await extractCandidates('t');
@@ -712,10 +712,10 @@ lodging: []
       usage: { input: 0, output: 0 },
     });
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
-      if (q === 'Bear Lake, Glacier MT') return [48.6, -113.9];
-      if (q === 'Bear Lake') return [37.6, -80.5];
-      return null;
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: false };
+      if (q === 'Bear Lake, Glacier MT') return { coords: [48.6, -113.9], fromCache: false };
+      if (q === 'Bear Lake') return { coords: [37.6, -80.5], fromCache: false };
+      return { coords: null, fromCache: false };
     });
 
     await extractCandidates('t');
@@ -744,9 +744,9 @@ lodging: []
       usage: { input: 0, output: 0 },
     });
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
-      if (q === 'Bear Lake, Glacier MT') return [48.6, -113.9];
-      return null;
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: false };
+      if (q === 'Bear Lake, Glacier MT') return { coords: [48.6, -113.9], fromCache: false };
+      return { coords: null, fromCache: false };
     });
 
     await extractCandidates('t');
@@ -773,7 +773,7 @@ lodging: []
       usage: { input: 0, output: 0 },
     });
     mockGeocode.mockImplementation(async (q) => {
-      if (q === 'Glacier MT') return [48.7, -114.0];
+      if (q === 'Glacier MT') return { coords: [48.7, -114.0], fromCache: false };
       throw new Error(`unexpected geocode call: ${q}`); // any extra query is a bug
     });
 

@@ -25,7 +25,7 @@ vi.mock('$lib/server/data.js', () => ({
   getTripFiles: vi.fn(() => null),
   isValidSlug: mockIsValidSlug,
   getTripRoute: vi.fn(() => null),
-  geocode: vi.fn(() => null),
+  geocode: vi.fn(async () => ({ coords: null, fromCache: false })),
   ROOT: '/test-root',
 }));
 

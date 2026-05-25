@@ -296,7 +296,7 @@ export function distanceMi(a, b) {
  */
 export async function getDestinationRefCoords(destinationContext) {
   if (!destinationContext) return null;
-  return await geocode(destinationContext);
+  return (await geocode(destinationContext)).coords;
 }
 
 /**
@@ -316,14 +316,17 @@ export async function getDestinationRefCoords(destinationContext) {
  */
 export async function geocodeCandidate(name, destinationContext, refCoords) {
   let coords = null;
+  let networkHit = false;
   if (destinationContext) {
-    const scoped = await geocode(`${name}, ${destinationContext}`);
+    const { coords: scoped, fromCache: scopedFromCache } = await geocode(`${name}, ${destinationContext}`);
+    if (!scopedFromCache) networkHit = true;
     if (scoped && (!refCoords || distanceMi(scoped, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {
       coords = scoped;
     }
   }
   if (!coords && refCoords) {
-    const bare = await geocode(name);
+    const { coords: bare, fromCache: bareFromCache } = await geocode(name);
+    if (!bareFromCache) networkHit = true;
     if (bare && distanceMi(bare, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) {
       coords = bare;
     } else if (bare) {
@@ -332,6 +335,8 @@ export async function geocodeCandidate(name, destinationContext, refCoords) {
       );
     }
   }
-  await sleep(NOMINATIM_THROTTLE_MS);
+  // Only throttle when at least one internal geocode() call made a real network
+  // request. Nominatim's 1 req/sec ToS does not require sleeping on cache hits.
+  if (networkHit) await sleep(NOMINATIM_THROTTLE_MS);
   return coords;
 }

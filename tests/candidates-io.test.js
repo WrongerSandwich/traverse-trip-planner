@@ -220,15 +220,15 @@ describe('candidates.js', () => {
 describe('geocodeCandidate', () => {
   beforeEach(() => {
     mockGeocode.mockReset();
-    mockGeocode.mockResolvedValue(null);
+    mockGeocode.mockResolvedValue({ coords: null, fromCache: true });
   });
 
   it('returns scoped result when within MAX_CANDIDATE_DISTANCE_MI of refCoords', async () => {
     const { geocodeCandidate } = await import('$lib/server/candidates.js');
     // Scoped query returns a result near the destination; bare query returns null.
     mockGeocode.mockImplementation(async (query) => {
-      if (query === 'Mound City Group, Chillicothe OH') return [39.37, -83.0];
-      return null;
+      if (query === 'Mound City Group, Chillicothe OH') return { coords: [39.37, -83.0], fromCache: true };
+      return { coords: null, fromCache: true };
     });
     const result = await geocodeCandidate('Mound City Group', 'Chillicothe OH', [39.33, -82.98]);
     expect(result).toEqual([39.37, -83.0]);
@@ -243,9 +243,9 @@ describe('geocodeCandidate', () => {
     const farCoords = [31.0, -100.0]; // central Texas
     const refCoords = [39.33, -82.98]; // Chillicothe OH
     mockGeocode.mockImplementation(async (query) => {
-      if (query === 'Mound City Group, Chillicothe OH') return farCoords;
-      if (query === 'Mound City Group') return farCoords;
-      return null;
+      if (query === 'Mound City Group, Chillicothe OH') return { coords: farCoords, fromCache: true };
+      if (query === 'Mound City Group') return { coords: farCoords, fromCache: true };
+      return { coords: null, fromCache: true };
     });
     const result = await geocodeCandidate('Mound City Group', 'Chillicothe OH', refCoords);
     // Both scoped and bare results are far away, so null is returned.

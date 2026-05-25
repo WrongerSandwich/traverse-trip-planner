@@ -84,7 +84,7 @@ describe('GET /api/geocode — rate limiting', () => {
   });
 
   it('passes the event and geocode endpoint to rateLimitResponse', async () => {
-    geocode.mockResolvedValue([39.0997, -94.5786]);
+    geocode.mockResolvedValue({ coords: [39.0997, -94.5786], fromCache: false });
     const event = makeEvent({ q: 'Kansas City, MO' });
 
     await GET(event);
@@ -126,7 +126,7 @@ describe('GET /api/geocode — validation', () => {
 
 describe('GET /api/geocode — happy path', () => {
   it('returns 200 with a single result when geocode() finds a match', async () => {
-    geocode.mockResolvedValue([41.4993, -81.6944]);
+    geocode.mockResolvedValue({ coords: [41.4993, -81.6944], fromCache: false });
 
     const res = await GET(makeEvent({ q: 'Cleveland, OH' }));
     expect(res._status).toBe(200);
@@ -138,14 +138,14 @@ describe('GET /api/geocode — happy path', () => {
   });
 
   it('calls geocode() with the trimmed query string', async () => {
-    geocode.mockResolvedValue([39.0997, -94.5786]);
+    geocode.mockResolvedValue({ coords: [39.0997, -94.5786], fromCache: false });
 
     await GET(makeEvent({ q: '  Kansas City  ' }));
     expect(geocode).toHaveBeenCalledWith('Kansas City');
   });
 
   it('returns an empty results array when geocode() returns null (no match)', async () => {
-    geocode.mockResolvedValue(null);
+    geocode.mockResolvedValue({ coords: null, fromCache: false });
 
     const res = await GET(makeEvent({ q: 'xyzzy-no-such-place' }));
     expect(res._status).toBe(200);
@@ -153,14 +153,14 @@ describe('GET /api/geocode — happy path', () => {
   });
 
   it('always calls flushCaches() after geocode()', async () => {
-    geocode.mockResolvedValue([38.9, -94.6]);
+    geocode.mockResolvedValue({ coords: [38.9, -94.6], fromCache: false });
 
     await GET(makeEvent({ q: 'Some City' }));
     expect(flushCaches).toHaveBeenCalledOnce();
   });
 
   it('calls flushCaches() even on a cache miss (null result)', async () => {
-    geocode.mockResolvedValue(null);
+    geocode.mockResolvedValue({ coords: null, fromCache: false });
 
     await GET(makeEvent({ q: 'Nowhere' }));
     expect(flushCaches).toHaveBeenCalledOnce();
@@ -171,7 +171,7 @@ describe('GET /api/geocode — happy path', () => {
 
 describe('GET /api/geocode — response shape', () => {
   it('always returns a "results" array at the top level', async () => {
-    geocode.mockResolvedValue([40.0, -90.0]);
+    geocode.mockResolvedValue({ coords: [40.0, -90.0], fromCache: false });
 
     const res = await GET(makeEvent({ q: 'Springfield, IL' }));
     expect(res._body).toHaveProperty('results');
@@ -179,7 +179,7 @@ describe('GET /api/geocode — response shape', () => {
   });
 
   it('result items have exactly label, lat, lon', async () => {
-    geocode.mockResolvedValue([39.7392, -104.9903]);
+    geocode.mockResolvedValue({ coords: [39.7392, -104.9903], fromCache: false });
 
     const res = await GET(makeEvent({ q: 'Denver, CO' }));
     const [r] = res._body.results;
@@ -187,7 +187,7 @@ describe('GET /api/geocode — response shape', () => {
   });
 
   it('lat and lon are numbers, not strings', async () => {
-    geocode.mockResolvedValue([36.1627, -86.7816]);
+    geocode.mockResolvedValue({ coords: [36.1627, -86.7816], fromCache: false });
 
     const res = await GET(makeEvent({ q: 'Nashville, TN' }));
     const [r] = res._body.results;
