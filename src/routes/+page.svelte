@@ -250,6 +250,24 @@
       }));
     } catch { /* private mode etc */ }
   });
+
+  // Show archived toggle — reflected in the URL (?show_archived=true) so
+  // the server loader knows to include archived trips in data.trips.
+  // Derived from data.showArchived (the server-authoritative value) so the
+  // chip and toggle stay in sync after the loader refreshes.
+  const activeArchived = $derived(data.showArchived ?? false);
+
+  async function toggleArchived() {
+    const next = !activeArchived;
+    const url = new URL(window.location.href);
+    if (next) {
+      url.searchParams.set('show_archived', 'true');
+    } else {
+      url.searchParams.delete('show_archived');
+    }
+    await goto(url.toString(), { keepFocus: true, replaceState: true, invalidateAll: true });
+  }
+
   // Optimistic bookmark overrides (slug → boolean) so toggles feel instant
   let bookmarkOverrides = $state({});
 
@@ -288,7 +306,8 @@
     (activeDist !== 'any' ? 1 : 0) +
     (activeCost !== 'any' ? 1 : 0) +
     (activeNPS ? 1 : 0) +
-    (activeStarred ? 1 : 0)
+    (activeStarred ? 1 : 0) +
+    (activeArchived ? 1 : 0)
   );
 
   // Active-filter pills: render only attribute filters that diverge from
@@ -306,6 +325,8 @@
       pills.push({ key: 'nps', label: 'NPS only', clear: () => activeNPS = false });
     if (activeStarred)
       pills.push({ key: 'starred', label: 'Bookmarked', clear: () => activeStarred = false });
+    if (activeArchived)
+      pills.push({ key: 'archived', label: 'Show archived', clear: () => toggleArchived() });
     return pills;
   });
 
@@ -571,6 +592,26 @@
     }
   }
 
+  // Restore an archived trip — no confirm dialog (unarchive is not destructive).
+  // Optimistic: remove card from local view immediately, then invalidateAll refreshes.
+  // On 409 (slug collision) or other failure: surfaces via actionError.
+  async function restoreTrip(trip, e) {
+    e?.stopPropagation?.();
+    if (!trip) return;
+    try {
+      const res = await fetch(`/api/unarchive/${encodeURIComponent(trip._slug)}`, { method: 'POST' });
+      if (res.status === 409) {
+        actionError = { code: 'unarchive_slug_collision' };
+        return;
+      }
+      if (!res.ok) throw new Error(`Unarchive failed: ${res.status}`);
+      await invalidateAll();
+    } catch (err) {
+      console.error(err);
+      actionError = { code: 'action_failed', ctx: { action: 'restore that trip' } };
+    }
+  }
+
   function openTrip(trip) {
     clearFresh(trip._slug);
     const stage = trip._stage || trip.status;
@@ -586,6 +627,8 @@
     activeCost    = 'any';
     activeNPS     = false;
     activeStarred = false;
+    // If archived toggle is on, turn it off (which navigates away from ?show_archived=true)
+    if (activeArchived) toggleArchived();
   }
 
   function costLow(str) {
@@ -596,6 +639,10 @@
   const filtered = $derived(
     data.trips.filter(t => {
       if (activeFilter !== 'all' && t.status !== activeFilter && t._stage !== activeFilter) return false;
+      // Archived trips are not enriched (no drive hours, cost, etc.) — skip
+      // attribute filters for them so they appear whenever the archived toggle
+      // is on and the stage tab matches. Only the stage-tab filter above applies.
+      if (t._archived) return true;
       if (activeDist !== 'any') {
         const h = t._drive_hours;
         if (activeDist === 'u3'    && !(h != null && h <= 3))          return false;
@@ -1089,6 +1136,18 @@
               </div>
             </div>
 
+            <div class="filter-group">
+              <div class="group-label">
+                Archived
+                {#if data.archivedCount > 0}
+                  <span class="group-count">({data.archivedCount})</span>
+                {/if}
+              </div>
+              <div class="chips">
+                <button class="chip" class:active={activeArchived} onclick={toggleArchived}>Show archived</button>
+              </div>
+            </div>
+
             {#if attrFilterCount > 0}
               <button class="clear-all" onclick={clearAttrs}>Clear all</button>
             {/if}
@@ -1105,21 +1164,25 @@
                 starred={isStarred(trip)}
                 jobs={jobsForTrip(trip._slug)}
                 fresh={highlightedSlugs.has(trip._slug)}
-                onclick={() => openTrip(trip)}
+                archived={trip._archived === true}
+                onclick={trip._archived ? null : () => openTrip(trip)}
                 onhover={() => clearFresh(trip._slug)}
-                onbookmark={(e) => toggleBookmark(trip, e)}
-                ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
+                onbookmark={trip._archived ? null : (e) => toggleBookmark(trip, e)}
+                ondeepen={(!trip._archived && data.features?.deepen) ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
+                onrestore={trip._archived ? (e) => restoreTrip(trip, e) : null}
               />
             {:else}
               <TripCard {trip}
                 starred={isStarred(trip)}
                 jobs={jobsForTrip(trip._slug)}
                 fresh={highlightedSlugs.has(trip._slug)}
-                onclick={() => openTrip(trip)}
+                archived={trip._archived === true}
+                onclick={trip._archived ? null : () => openTrip(trip)}
                 onhover={() => clearFresh(trip._slug)}
-                onbookmark={(e) => toggleBookmark(trip, e)}
-                ondeepen={data.features?.deepen ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
+                onbookmark={trip._archived ? null : (e) => toggleBookmark(trip, e)}
+                ondeepen={(!trip._archived && data.features?.deepen) ? (e) => { e?.stopPropagation(); runDeepen(trip); } : null}
                 oncancel={null}
+                onrestore={trip._archived ? (e) => restoreTrip(trip, e) : null}
               />
             {/if}
           {:else}
@@ -1817,6 +1880,18 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.09em;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+  }
+
+  /* Trailing count badge in filter group labels — e.g. "Archived (5)".
+     Same --text-tertiary color as the label itself. */
+  .group-count {
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--text-tertiary);
   }
 

@@ -140,6 +140,10 @@ export const ERROR_REGISTRY = {
     sentence: 'This feature is not configured. Check provider and model in settings.',
     affordances: ['edit', 'dismiss'],
   },
+  unarchive_slug_collision: {
+    sentence: 'A trip with that name already exists — rename or delete it first, then restore the archived copy.',
+    affordances: ['dismiss'],
+  },
 };
 
 /**

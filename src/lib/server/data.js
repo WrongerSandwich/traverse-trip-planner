@@ -1226,6 +1226,53 @@ export function findTripLocation(slug) {
   return null;
 }
 
+// ── Archived trip location ──
+// Returns { kind: 'file'|'dir', path, stage } for a trip under archived/<stage>/,
+// or null if not found. Only scans archived/ideas, archived/planning, and
+// archived/completed — never archived/exploring/ (legacy stage, seed-avoidance only).
+export function findArchivedTripLocation(slug) {
+  const ideaPath = join(ROOT, 'archived', 'ideas', `${slug}.md`);
+  if (existsSync(ideaPath)) return { kind: 'file', path: ideaPath, stage: 'ideas' };
+  for (const stage of ['planning', 'completed']) {
+    const dir = join(ROOT, 'archived', stage, slug);
+    if (existsSync(dir)) return { kind: 'dir', path: dir, stage };
+  }
+  return null;
+}
+
+// ── Collect archived trips ──
+// Returns a flat array of raw frontmatter objects from archived/<stage>/ —
+// same shape as collectTrips() entries but without enrichment (no coords,
+// images, etc.). Skips archived/exploring/ (legacy stage, not surfaced in UI).
+// Each entry includes _slug, _stage, _archived: true.
+export function collectArchivedTrips() {
+  const result = [];
+  for (const stage of ['ideas', 'planning', 'completed']) {
+    const dir = join(ROOT, 'archived', stage);
+    if (!existsSync(dir)) continue;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      let filePath;
+      if (stage === 'ideas' && entry.isFile() && entry.name.endsWith('.md')) {
+        filePath = join(dir, entry.name);
+      } else if (stage !== 'ideas' && entry.isDirectory()) {
+        const ov = join(dir, entry.name, 'overview.md');
+        if (existsSync(ov)) filePath = ov;
+      }
+      if (!filePath) continue;
+      const fm = parseFrontmatter(readFileSync(filePath, 'utf8'));
+      if (!fm) continue;
+      const _slug = entry.name.replace(/\.md$/, '');
+      result.push({
+        ...fm,
+        _stage: stage,
+        _slug,
+        _archived: true,
+      });
+    }
+  }
+  return result;
+}
+
 // ── Bookmark toggle ──
 // Returns the source-of-truth markdown path for a trip (idea .md or
 // overview.md inside the stage folder). Used by frontmatter-mutation

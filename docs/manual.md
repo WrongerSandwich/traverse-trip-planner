@@ -254,7 +254,9 @@ Sometimes a trip is wrong. The vibe doesn't match, the timing won't work, the pl
 
 The archived trip moves to `archived/<source-stage>/<slug>/` with its frontmatter intact. The UI never shows it again. But the Seed action still scans archived destinations, which means previously-rejected places do not get re-suggested in your next batch of ideas.
 
-If you genuinely want a trip back, you can move the folder by hand from `archived/` back to `ideas/`, `planning/`, or `completed/` — the app will pick it up on the next page load.
+**Restoring an archived trip:** open the filter panel (the `Filters` button in the controls bar) and toggle **Show archived**. Archived trips appear inline with the muted card treatment. Click **Restore** on any archived card to move it back to its original stage — no confirmation needed, since restoring is not destructive. If a trip with the same name already exists in that stage, you'll see a brief error; rename or delete the conflicting trip first, then try again.
+
+Note: trips archived before the "exploring" stage was retired (visible in `archived/exploring/` on disk) are not surfaced by the toggle. They still protect against re-suggestion by the Seed action. If you need to resurrect one of those, move the folder by hand.
 
 ---
 

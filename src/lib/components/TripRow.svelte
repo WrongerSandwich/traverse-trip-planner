@@ -10,11 +10,13 @@
     starred = false,
     jobs = [],
     fresh = false,
+    archived = false,
     onclick,
     onhover,
     onleave,
     onbookmark,
     ondeepen,
+    onrestore,
   } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
@@ -42,7 +44,7 @@
   }
 </script>
 
-<article class="row" class:fresh id="card-{trip._slug}"
+<article class="row" class:fresh class:archived id="card-{trip._slug}"
   onmouseenter={onhover}
   onmouseleave={onleave}
   aria-label={fresh ? `${trip.title || trip._slug} (newly active)` : undefined}>
@@ -78,7 +80,15 @@
     <div class="title-line">
       <h2>{trip.title || trip._slug}</h2>
       <div class="title-actions">
-        {#if isIdea && !deepenRunning}
+        {#if archived}
+          <button
+            class="row-cta"
+            onclick={onrestore}
+            title="Move this trip back to its original stage"
+          >
+            Restore
+          </button>
+        {:else if isIdea && !deepenRunning}
           <button
             class="row-cta"
             onclick={ondeepen}
@@ -111,12 +121,16 @@
     </div>
 
     <div class="meta-line">
-      <span
-        class="stage-dot"
-        style="--stage-color: {color}"
-        aria-label={`Stage: ${status}`}
-        title={status}
-      ></span>
+      {#if archived}
+        <span class="tag archived-tag" aria-label="Archived trip">Archived</span>
+      {:else}
+        <span
+          class="stage-dot"
+          style="--stage-color: {color}"
+          aria-label={`Stage: ${status}`}
+          title={status}
+        ></span>
+      {/if}
       {#if trip.destination}
         <span class="dest">{trip.destination}</span>
       {/if}
@@ -345,6 +359,20 @@
   .job-slot :global(.job-badge) {
     font-size: 9.5px;
     padding: 0.12rem 0.4rem;
+  }
+
+  /* ── Archived row treatment ── */
+  .row.archived {
+    opacity: 0.55;
+    transition: opacity 0.15s, background 0.15s, border-color 0.15s, transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .row.archived:hover { opacity: 0.75; }
+
+  /* Archived label tag — desaturated sibling of the NPS badge. */
+  .tag.archived-tag {
+    color: var(--text-tertiary);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-subtle);
   }
 
   @media (max-width: 768px) {
