@@ -1,10 +1,9 @@
 // Load .env for production (Vite handles this automatically in dev)
 import 'dotenv/config';
-import { readdirSync, readFileSync, existsSync, accessSync, constants as fsConstants } from 'node:fs';
+import { existsSync, accessSync, constants as fsConstants } from 'node:fs';
 import { join } from 'node:path';
 import { describeConfig } from '$lib/server/config.js';
-import { ROOT, parseFrontmatter, removeFrontmatterField } from '$lib/server/data.js';
-import { atomicWrite } from '$lib/server/atomic-write.js';
+import { ROOT } from '$lib/server/data.js';
 import { sweepStaleJobs } from '$lib/server/jobs.js';
 
 // ── Security headers + CSRF Origin check ─────────────────────────────────────
@@ -131,30 +130,6 @@ function printConfigBanner() {
 }
 
 printConfigBanner();
-
-// On startup, clear any `researching: true` flags left behind by a prior
-// crashed process. The associated idea stays in ideas/ — only the flag is
-// removed so the card's "Research →" button becomes clickable again.
-//
-// This is the legacy Deepen-only sweep. Once Deepen migrates to the unified
-// job registry (issue #84), this can be retired in favor of `sweepStaleJobs`
-// below — which scans for the new `running:` flag across all stages.
-(function clearStaleResearchingFlags() {
-  const ideasDir = join(ROOT, 'ideas');
-  if (!existsSync(ideasDir)) return;
-  let cleared = 0;
-  for (const entry of readdirSync(ideasDir)) {
-    if (!entry.endsWith('.md')) continue;
-    const fp = join(ideasDir, entry);
-    const content = readFileSync(fp, 'utf8');
-    const fm = parseFrontmatter(content);
-    if (fm?.researching === 'true' || fm?.researching === true) {
-      atomicWrite(fp, removeFrontmatterField(content, 'researching'));
-      cleared++;
-    }
-  }
-  if (cleared > 0) console.log(`[startup] Cleared ${cleared} stale researching flag(s).`);
-})();
 
 // Unified job-registry sweep. On boot, any `running:` flag still on disk
 // is orphaned by definition (the in-memory registry that holds the
