@@ -209,6 +209,19 @@ stops:
     expect(failedJobs).toHaveLength(1);
     expect(failedJobs[0].opts.code).toBe('model_returned_invalid_yaml');
   });
+
+  it('fails with empty_model_output when chat returns no <additions> block', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: 'Sorry, I could not find any additional stops for this trip.',
+      usage: { input_tokens: 200, output_tokens: 50 },
+    });
+    const res = await POST(buildEvent({ type: 'stop', count: 5 }));
+    expect(res.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(failedJobs).toHaveLength(1);
+    expect(failedJobs[0].opts.code).toBe('empty_model_output');
+    expect(mockAddCandidateStop).not.toHaveBeenCalled();
+  });
 });
 
 describe('DELETE /api/actions/find-more/[slug]', () => {
