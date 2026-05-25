@@ -740,17 +740,113 @@ describe('POST /api/actions/deepen/[slug]', () => {
     }));
   });
 
-  it('does not retry when the first response has content but is missing tags', async () => {
-    // Non-empty text with no <overview_prose> — model "tried" and emitted
-    // something; retry would likely yield the same garbage, so we fail fast.
+  it('retries when the first response has content but is missing <plan> / <candidates> tags', async () => {
+    // Post-#417: missing-tags is now treated the same as empty/invalid-YAML —
+    // opus emission has real per-attempt variance, and retrying once is cheap
+    // insurance against a transient truncation. The old contract (fail fast)
+    // was wrong about how the model behaves.
     mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
-    mockChat.mockResolvedValueOnce({ text: 'I cannot help with that.', usage: { input: 1000, output: 50 } });
+    mockChat
+      .mockResolvedValueOnce({ text: 'I cannot help with that.', usage: { input: 1000, output: 50 } })
+      .mockResolvedValueOnce({ text: VALID_ENVELOPE, usage: { input: 1200, output: 600 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockChat).toHaveBeenCalledTimes(2);
+    expect(mockFailJob).not.toHaveBeenCalled();
+    expect(mockCompleteJob).toHaveBeenCalled();
+  });
+
+  it('fails after one retry when both responses are missing tags', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    mockChat
+      .mockResolvedValueOnce({ text: 'I cannot help with that.', usage: { input: 1000, output: 50 } })
+      .mockResolvedValueOnce({ text: 'Still cannot help.', usage: { input: 1000, output: 50 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockChat).toHaveBeenCalledTimes(2);
+    expect(mockFailJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({
+      code: 'model_returned_invalid_yaml',
+    }));
+  });
+
+  // ── YAML-failure retry (issue #417) ────────────────────────────────────
+  //
+  // Opus reliably emits long description values wrapped onto column-1
+  // continuation lines, which strict YAML reads as a new implicit key.
+  // cleanupModelYaml() fixes the common shape pre-parse; this loop retries
+  // once if the cleaned output is still unparseable.
+
+  it('retries when the first response has unparseable YAML in <plan> / <candidates>', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    const brokenYaml = [
+      '<overview_prose>prose</overview_prose>',
+      '<plan>',
+      'cover_query: "test"',
+      'field_guide_notes: []',
+      'gotchas:',
+      '  -',
+      '"unclosed string at column 1',
+      '</plan>',
+      '<candidates>',
+      'stops: []',
+      'lodging: []',
+      '</candidates>',
+    ].join('\n');
+    mockChat
+      .mockResolvedValueOnce({ text: brokenYaml, usage: { input: 1000, output: 500 } })
+      .mockResolvedValueOnce({ text: VALID_ENVELOPE, usage: { input: 1200, output: 600 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockChat).toHaveBeenCalledTimes(2);
+    expect(mockFailJob).not.toHaveBeenCalled();
+    expect(mockCompleteJob).toHaveBeenCalled();
+  });
+
+  it('cleanupModelYaml fixes the column-1 wrapping shape inline (no retry needed)', async () => {
+    // The most common opus failure: `description:` followed by content on
+    // the next line at column 1. cleanupModelYaml folds it back inline and
+    // the parse succeeds on attempt 1.
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    const wrappedYaml = [
+      '<overview_prose>prose</overview_prose>',
+      '<plan>',
+      'cover_query: "test"',
+      'field_guide_notes: []',
+      'gotchas: []',
+      '</plan>',
+      '<candidates>',
+      'stops:',
+      '  - name: "Wrapped Place"',
+      '    category: historic',
+      '    description:',
+      'A description that opus wrapped to column 1, breaking strict YAML.',
+      'lodging: []',
+      '</candidates>',
+    ].join('\n');
+    mockChat.mockResolvedValueOnce({ text: wrappedYaml, usage: { input: 1000, output: 500 } });
 
     await POST(postEvent());
     await new Promise(r => setTimeout(r, 50));
 
     expect(mockChat).toHaveBeenCalledTimes(1);
-    expect(mockFailJob).toHaveBeenCalled();
+    expect(mockFailJob).not.toHaveBeenCalled();
+    expect(mockRealizePlan).toHaveBeenCalledWith(
+      'test-trip',
+      expect.objectContaining({
+        candidates: expect.objectContaining({
+          stops: [expect.objectContaining({
+            description: 'A description that opus wrapped to column 1, breaking strict YAML.',
+          })],
+        }),
+      }),
+      expect.anything(),
+    );
   });
 
 });
