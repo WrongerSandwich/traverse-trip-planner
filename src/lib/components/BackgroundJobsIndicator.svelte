@@ -47,15 +47,14 @@
   }
 
   // Hand-calibrated p50 estimates per workflow. Used purely to compute
-  // "estimated remaining" in the drawer row. Conservative — better to
-  // undershoot than to make the UI feel late.
+  // "estimated remaining" in the drawer row. Bias toward overshooting:
+  // a "wrapping up…" tail reads as the job finishing politely; a stale
+  // "~Ns left" that lingers past zero reads as the UI lying to you.
   const ESTIMATES_S = {
-    deepen: 90,
+    deepen: 120,
     'deepen-section': 35,
     'find-more': 30,
     'geocode-candidates': 15,
-    lock: 30,
-    research: 60,
   };
 
   function fmtRemaining(workflow, elapsedMs) {
