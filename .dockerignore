@@ -8,21 +8,8 @@ build
 .env.*
 
 # Everything user-managed (trip stages, home.md, settings.json, .cache/) lives
-# under data/ post-#411 and is provided at runtime via the bind mount.
+# under data/ and is provided at runtime via the bind mount.
 data
-
-# Legacy pre-#411 paths — guard against stragglers at the repo root.
-ideas
-planning
-completed
-archived
-home.md
-settings.json
-.cache
-.geocode-cache.json
-.image-cache.json
-.route-cache.json
-.workflow-stats.json
 
 # Tooling, tests, docs — not needed in the runtime image
 .claude

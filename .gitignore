@@ -8,26 +8,12 @@ build/
 
 # Personal trip data + runtime state — managed via the app, not committed.
 # Everything user-managed (trip stages, home.md, settings.json, .cache/) lives
-# under data/ post-#411. The tracked `data/.gitkeep` ensures `git clone`
-# materializes the directory as the cloning user — important for Docker,
-# where dockerd would otherwise auto-create the bind-mount target as root and
-# break writes from the container's non-root uid.
+# under data/. The tracked `data/.gitkeep` ensures `git clone` materializes
+# the directory as the cloning user — important for Docker, where dockerd
+# would otherwise auto-create the bind-mount target as root and break writes
+# from the container's non-root uid.
 /data/*
 !/data/.gitkeep
-
-# Legacy pre-#411 paths — keep ignoring in case anyone has stragglers at the
-# repo root before their first post-upgrade boot runs the migration shim.
-/ideas
-/planning
-/completed
-/archived
-/home.md
-/settings.json
-/.cache
-.geocode-cache.json
-.image-cache.json
-.route-cache.json
-.workflow-stats.json
 
 # Vite/dev logs
 *.log

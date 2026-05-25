@@ -1,9 +1,8 @@
-import { readFileSync, existsSync, readdirSync, statSync, mkdirSync, renameSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { resolveEnv } from './settings.js';
 import { TraverseError } from './errors.js';
-import { migrateRootDataToDataDir } from './migrate-to-data-dir.js';
 // Canonical atomic-write module. Both imported for internal use and re-exported
 // so callers that import atomicWrite from data.js continue to work without change.
 export { atomicWrite } from './atomic-write.js';
@@ -19,11 +18,6 @@ export const ROOT = process.cwd();
 // the single directory rather than one mount per top-level path).
 export const DATA_DIR = join(ROOT, 'data');
 
-// One-shot migration: if a pre-#411 install has its trip data at the repo
-// root (ideas/, home.md, .cache/, …), move it into data/ before anything
-// else reads it. Idempotent — no-op once data/ exists.
-migrateRootDataToDataDir(ROOT);
-
 // Cache files live in a `.cache/` subdir rather than next to trip data so
 // Docker can bind-mount the directory (renaming the atomic-write `.tmp` onto
 // an individually bind-mounted file fails with EBUSY — the kernel won't
@@ -31,20 +25,6 @@ migrateRootDataToDataDir(ROOT);
 // files appear without needing a docker-compose.yml change.
 const CACHE_DIR = join(DATA_DIR, '.cache');
 try { mkdirSync(CACHE_DIR, { recursive: true }); } catch {}
-
-// One-shot migration: move pre-`.cache/` files that may still be sitting next
-// to home.md inside data/ (legacy installs whose `.cache/` was already at the
-// repo root will have come through the data-dir migration above). Idempotent —
-// skip when the destination already exists.
-for (const name of ['.geocode-cache.json', '.image-cache.json', '.route-cache.json']) {
-  const oldPath = join(DATA_DIR, name);
-  const newPath = join(CACHE_DIR, name);
-  if (existsSync(oldPath) && !existsSync(newPath)) {
-    try { renameSync(oldPath, newPath); } catch (e) {
-      console.warn(`cache migration: ${name} —`, e.message);
-    }
-  }
-}
 
 const IMAGE_CACHE_PATH   = join(CACHE_DIR, '.image-cache.json');
 const ROUTE_CACHE_PATH   = join(CACHE_DIR, '.route-cache.json');

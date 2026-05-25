@@ -40,8 +40,7 @@ scans it so those destinations stay in the seed-avoidance list.)
 Everything user-managed lives under `data/`. Path constants in
 `src/lib/server/data.js` are anchored to `DATA_DIR = join(ROOT, 'data')`;
 new code that touches trip files should join from `DATA_DIR`, never from
-`ROOT` directly. The pre-`data/` layout is auto-migrated on first boot by
-`migrateRootDataToDataDir()` in `src/lib/server/migrate-to-data-dir.js`.
+`ROOT` directly.
 
 ## Lifecycle
 

@@ -42,20 +42,6 @@ git pull
 docker compose up -d --build
 ```
 
-### Upgrading from pre-#411 (one-time)
-
-If your current install has trip data at the repo root (`./ideas/`, `./planning/`, `./completed/`, `./archived/`, `./home.md`, `./settings.json`, `./.cache/`) — i.e. you set up Traverse before the May 2026 `data/` reorg — you need a one-time host-side migration before `docker compose up`:
-
-```bash
-git pull
-./scripts/migrate-host-data.sh        # moves legacy root paths into ./data/
-docker compose up -d --build
-```
-
-The script is idempotent and safe to re-run — it does nothing if there's no legacy state. Skip this step if you don't see those paths at the repo root.
-
-**Why a host-side step.** The new compose mounts a single `./data:/app/data` directory instead of six per-path bind mounts. The in-container migration shim can no longer reach the legacy host paths through the old mounts, so the move has to happen on the host before the new container starts. No data is at risk if you forget — the legacy files stay intact at the repo root — but the app will appear to have no trips until you run the script and restart.
-
 ### Stopping and uninstalling
 
 ```bash
@@ -83,7 +69,6 @@ The startup banner lists which providers are wired and which features are availa
 
 - **All user-managed state lives under `data/`** — trip stages, `home.md`, `settings.json`, and the runtime `.cache/`. The single bind mount `./data:/app/data` provides everything the container needs. The `data/` directory ships with a tracked `.gitkeep` so `git clone` materializes it as the cloning user — without it, dockerd would auto-create the missing bind-mount target as root and break writes from the container's non-root uid.
 - **Runtime caches** (geocode, image, route, workflow-stats) live under `data/.cache/` and persist across restarts. Atomic writes do a tmp-then-rename, which is why everything bind-mounts as a single directory rather than individual files — renaming onto a single bind-mounted file fails with `EBUSY` (the kernel won't replace a bind-mount target).
-- **Pre-#411 installs** (root-level `ideas/`, `home.md`, `.cache/`, etc.) are auto-migrated into `data/` on first boot by the shim in `src/lib/server/migrate-to-data-dir.js`. Idempotent — subsequent restarts are no-ops.
 - **`.env` is gitignored** — never committed. Use `.env.example` as your template.
 - **`data/` is gitignored** — your personal preferences and trip data stay local. The in-app onboarding flow creates `data/home.md` on first run; the Settings page maintains `data/settings.json` and `data/home.md` thereafter.
 - The `PEXELS_API_KEY` enables trip card photos. Without it, cards show a map thumbnail instead.
