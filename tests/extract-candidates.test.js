@@ -85,6 +85,7 @@ vi.mock('$lib/server/candidates.js', async () => {
     LODGING_PRICE_TIERS: ['budget', 'mid', 'splurge'],
     // Real geocoding helpers — delegate to actual implementations so that the
     // disambiguation tests exercise distanceMi + scoped-first logic for real.
+    distanceMi: actual.distanceMi,
     geocodeCandidate: actual.geocodeCandidate,
     getDestinationRefCoords: actual.getDestinationRefCoords,
     MAX_CANDIDATE_DISTANCE_MI: actual.MAX_CANDIDATE_DISTANCE_MI,

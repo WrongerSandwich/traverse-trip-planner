@@ -276,7 +276,7 @@ const NOMINATIM_THROTTLE_MS = 1100;
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
-function distanceMi(a, b) {
+export function distanceMi(a, b) {
   const lat1 = a[0], lng1 = a[1];
   const lat2 = b[0], lng2 = b[1];
   if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Infinity;

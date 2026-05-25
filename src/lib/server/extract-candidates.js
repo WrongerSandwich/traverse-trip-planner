@@ -24,7 +24,7 @@ import {
   setFrontmatterField,
 } from './data.js';
 import { readPlan, emptyPlan, planPath, serializePlanFile } from './plan.js';
-import { readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS, candidatesPath, serializeCandidatesFile, geocodeCandidate, getDestinationRefCoords, MAX_CANDIDATE_DISTANCE_MI } from './candidates.js';
+import { readCandidates, emptyCandidates, makeCandidateId, STOP_CATEGORIES, LODGING_PRICE_TIERS, candidatesPath, serializeCandidatesFile, geocodeCandidate, getDestinationRefCoords, MAX_CANDIDATE_DISTANCE_MI, distanceMi } from './candidates.js';
 import { getEffectiveConfig } from './config.js';
 import { TraverseError } from './errors.js';
 import { MAX_TOKENS } from './promises.js';
@@ -302,17 +302,5 @@ export async function extractCandidates(slug, { signal, onActivity } = {}) {
   return { usage, renames: renamesArray };
 }
 
-// Private duplicate of candidates.js's distanceMi — kept here to avoid
-// widening that module's public API. Must stay in sync with the other copy.
-function distanceMi(a, b) {
-  const lat1 = a[0], lng1 = a[1];
-  const lat2 = b[0], lng2 = b[1];
-  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Infinity;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const R = 3959;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
-}
+
 
