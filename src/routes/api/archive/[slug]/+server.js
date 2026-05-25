@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
-import { existsSync, mkdirSync, renameSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { ROOT, findTripLocation, invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
+import { ROOT, findTripLocation, invalidateEnrichCache, rejectInvalidSlug, crossMountRename } from '$lib/server/data.js';
 
 export function POST({ params }) {
   const invalid = rejectInvalidSlug(params.slug);
@@ -21,7 +21,7 @@ export function POST({ params }) {
   if (existsSync(dest)) return new Response('Already archived', { status: 409 });
 
   try {
-    renameSync(trip.path, dest);
+    crossMountRename(trip.path, dest);
   } catch (err) {
     return new Response(`Failed to archive trip: ${err.message}`, { status: 500 });
   }

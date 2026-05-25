@@ -5,17 +5,28 @@ vi.mock('@sveltejs/kit', () => ({
   error: (status, msg) => { throw Object.assign(new Error(msg), { status }); },
 }));
 
-const { mockExistsSync, mockMkdirSync, mockRenameSync } = vi.hoisted(() => ({
-  mockExistsSync: vi.fn(),
-  mockMkdirSync: vi.fn(),
-  mockRenameSync: vi.fn(),
-}));
+const { mockExistsSync, mockMkdirSync, mockRenameSync, fsMock } = vi.hoisted(() => {
+  const existsSync = vi.fn();
+  const mkdirSync = vi.fn();
+  const renameSync = vi.fn();
+  return {
+    mockExistsSync: existsSync,
+    mockMkdirSync: mkdirSync,
+    mockRenameSync: renameSync,
+    // Endpoint imports from 'fs'; crossMountRename helper imports from 'node:fs'.
+    // Both resolve to the same Node module but Vitest tracks them separately.
+    fsMock: {
+      existsSync,
+      mkdirSync,
+      renameSync,
+      cpSync: vi.fn(),
+      rmSync: vi.fn(),
+    },
+  };
+});
 
-vi.mock('fs', () => ({
-  existsSync: mockExistsSync,
-  mkdirSync: mockMkdirSync,
-  renameSync: mockRenameSync,
-}));
+vi.mock('fs', () => fsMock);
+vi.mock('node:fs', () => fsMock);
 
 const { mockFindArchivedTripLocation, mockInvalidateEnrichCache, mockRejectInvalidSlug } = vi.hoisted(() => ({
   mockFindArchivedTripLocation: vi.fn(),
@@ -28,6 +39,9 @@ vi.mock('$lib/server/data.js', () => ({
   findArchivedTripLocation: mockFindArchivedTripLocation,
   invalidateEnrichCache: mockInvalidateEnrichCache,
   rejectInvalidSlug: mockRejectInvalidSlug,
+  // Endpoint delegates the move to crossMountRename; route the call through
+  // mockRenameSync so existing assertions on rename args still apply.
+  crossMountRename: (from, to) => mockRenameSync(from, to),
 }));
 
 import { POST } from '../src/routes/api/unarchive/[slug]/+server.js';

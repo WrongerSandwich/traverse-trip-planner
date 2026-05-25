@@ -7,6 +7,8 @@ import { TraverseError } from './errors.js';
 // so callers that import atomicWrite from data.js continue to work without change.
 export { atomicWrite } from './atomic-write.js';
 import { atomicWrite } from './atomic-write.js';
+export { crossMountRename } from './cross-mount-rename.js';
+import { crossMountRename } from './cross-mount-rename.js';
 
 export const ROOT = process.cwd();
 
@@ -1406,7 +1408,7 @@ export function moveTrip(slug, fromStage, toStage, newStatus) {
 
   try {
     mkdirSync(join(ROOT, toStage), { recursive: true });
-    renameSync(fromDir, toDir);
+    crossMountRename(fromDir, toDir);
 
     const overviewPath = join(toDir, 'overview.md');
     if (existsSync(overviewPath)) {

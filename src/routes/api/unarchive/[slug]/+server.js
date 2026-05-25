@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
-import { existsSync, mkdirSync, renameSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { ROOT, findArchivedTripLocation, invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
+import { ROOT, findArchivedTripLocation, invalidateEnrichCache, rejectInvalidSlug, crossMountRename } from '$lib/server/data.js';
 
 export function POST({ params }) {
   const invalid = rejectInvalidSlug(params.slug);
@@ -20,7 +20,7 @@ export function POST({ params }) {
 
   try {
     mkdirSync(destDir, { recursive: true });
-    renameSync(trip.path, dest);
+    crossMountRename(trip.path, dest);
   } catch (err) {
     return new Response(`Failed to unarchive trip: ${err.message}`, { status: 500 });
   }
