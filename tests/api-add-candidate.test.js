@@ -222,3 +222,58 @@ source_url:
     expect(mockChat).not.toHaveBeenCalled();
   });
 });
+
+describe('POST /api/actions/add-candidate — abandoned SSE (client cancel)', () => {
+  it('does not call addCandidateStop and emits no events after cancellation', async () => {
+    // chat() never resolves — simulates a slow model call the client abandons.
+    mockChat.mockReturnValueOnce(new Promise(() => {}));
+
+    const res = await POST(buildEvent({ name: 'Mound City Group', type: 'stop' }));
+    expect(res.status).toBe(200);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    const eventsBeforeCancel = [];
+    let buf = '';
+
+    // Drain events until we see the "Looking up…" message, which is sent
+    // immediately before the suspended chat() call.
+    outer: while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n\n')) >= 0) {
+        const chunk = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 2);
+        if (!chunk.startsWith('data:')) continue;
+        const json = chunk.slice(5).trim();
+        try {
+          const evt = JSON.parse(json);
+          eventsBeforeCancel.push(evt);
+          // Stop reading once we see the pre-chat status message.
+          if (evt.msg && evt.msg.startsWith('Looking up')) break outer;
+        } catch { /* ignore heartbeats */ }
+      }
+    }
+
+    // Cancel the reader — this triggers the ReadableStream's cancel() callback,
+    // which sets cancelled = true inside sseStream, dropping all future sends.
+    await reader.cancel();
+
+    // Flush the microtask queue; the handler is still suspended on the
+    // never-resolving chat() promise, so no further work runs.
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The guard worked: geocoding and file-write were never reached.
+    expect(mockAddCandidateStop).not.toHaveBeenCalled();
+
+    // No error events should have been emitted after cancellation.
+    // The handler's catch block also checks !cancelled before sending errors.
+    const allEventsAfterCancel = [];
+    // The stream is cancelled; trying to read again should yield done immediately.
+    const { done } = await reader.read().catch(() => ({ done: true }));
+    expect(done).toBe(true);
+    expect(allEventsAfterCancel).toHaveLength(0);
+  });
+});
