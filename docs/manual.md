@@ -26,7 +26,7 @@ You may keep this booklet open as you go. Or you may close it and explore. Both 
 4. [Seeding Ideas](#4-seeding-ideas)
 5. [Adding a Specific Destination](#5-adding-a-specific-destination)
 6. [Researching an Idea](#6-researching-an-idea)
-7. [The Planning View](#7-the-planning-view)
+7. [The Planning View](#7-the-planning-view) — including [7a. The Field Guide](#7a-the-field-guide)
 8. [The Plan and the Candidates](#8-the-plan-and-the-candidates)
 9. [The Brochure](#9-the-brochure)
 10. [Marking a Trip Completed](#10-marking-a-trip-completed)
@@ -127,9 +127,60 @@ Each section has its own `Edit` button. There is no global edit mode. You click 
 
 A `⋯` menu in the header collects the lifecycle actions: Mark as completed, Add retro (later), Archive, View full brochure. These are grouped so the heavy actions sit apart from the light ones.
 
-There is also a chat assistant — the **Field Guide** — accessible via Cmd-K or a small `↳ Ask` button on each section. You can ask it to update a section ("rewrite Logistics to assume we're bringing the dog"), and it will propose a change that arrives in the page as an inline diff with a Revert affordance. Nothing is written to disk without your okay.
-
 The map is always present on the planning view. If `waypoints` is set on the trip, a solid road-following route line draws from your home base through the named cities to the destination. If it isn't, you'll see a straight line — and that's the cue to either fix the waypoints or let Research fill them in.
+
+### 7a. The Field Guide
+
+The **Field Guide** is a chat assistant built into the planning view. Open it with **Cmd-K** (or **Ctrl-K** on Windows/Linux), or press the small **`↳ Ask`** button that appears beneath each section heading. When you open it via the section button, a scope chip in the palette shows which section it is focused on; you can click that chip to widen the scope to the whole trip if your request spans more than one section.
+
+#### What the Field Guide is good at
+
+Think of it as a skilled editor who has read the entire trip file, knows where you live, and remembers your preferences from `home.md`. Good requests are ones where you are asking it to refine existing prose with some specific intent.
+
+A few concrete examples:
+
+- **Refine a section with a new constraint.** "Rewrite Logistics to assume we're bringing the dog — adjust the lodging notes and any attraction suggestions that don't allow pets." The Field Guide reads the current Logistics text, applies the constraint, and proposes a replacement.
+- **Expand a sparse section.** "The Route section only has one paragraph. Add detail about the stretch through the Smokies — road conditions, any scenic pull-offs worth noting." It draws on what research already wrote and your home context to fill it out.
+- **Add a new consideration.** "Add a note to Overview about the best shoulder-season windows and why August is probably too crowded." It appends the note in the right place rather than rewriting the whole section.
+- **Ask for alternatives.** "The Logistics section lists one lodging option. Give me two more that are closer to the trailhead." It proposes a revised section with the added options.
+- **Tighten the prose.** "The Route section is repetitive. Consolidate it without losing the key details." It edits for concision.
+
+The Field Guide also handles purely conversational questions — "what's the typical road condition on this stretch in March?" — and will answer in the palette itself without proposing any edits. Esc out when you have what you need.
+
+#### What the Field Guide cannot do
+
+- **Cross-trip queries.** It only has access to the trip you are currently viewing. It cannot compare this trip to another, or aggregate information across trips.
+- **Structured edits to Plan or Candidates.** The Plan and Candidates sections are driven by structured YAML in `plan.md` and `candidates.md`. The Field Guide edits prose sections (Overview, Route, Logistics); it does not add or reorder days, promote candidates, or restructure the YAML. Use the Plan and Candidates UI controls for that (see §8).
+- **Live web search.** The Field Guide works from what is already on disk — the research the Research action ran, plus your `home.md`. It cannot browse the web. If you need up-to-date hours, prices, or road conditions, use the `Research →` button on the relevant section, which does run a live web search.
+- **Structural changes to the trip folder.** It cannot rename files, delete sections, or move the trip to a different lifecycle stage. Those operations are in the `⋯` menu.
+
+#### The Field Guide and home.md
+
+The Field Guide always reads `home.md` alongside the trip. That means constraints you have written there — your vehicle, number of travelers, pet situation, weekly commitments, travel preferences — are automatically in scope. You do not need to repeat them in your prompt.
+
+The question of where a constraint belongs is answered by how long it will be true. If the answer is "for the foreseeable future," write it in `home.md` once and forget about it (see §16 on that norm). If it's specific to this trip — "on this trip we're adding my parents, who need accessible lodging" — say it inline in your Field Guide prompt. The Field Guide will use it for this response but not encode it anywhere permanent.
+
+If you notice yourself restating the same constraint in Field Guide prompts trip after trip, that's a signal it belongs in `home.md`.
+
+#### The diff and revert flow
+
+When the Field Guide proposes a change to a section, two things happen at once:
+
+1. The new content is **written to disk immediately** on the server.
+2. The section on the page switches from its normal rendered view to an **inline diff overlay** — a banner carrying the assistant's explanation, followed by the section body with added paragraphs lightly highlighted and removed paragraphs shown at reduced opacity with strikethrough.
+
+The diff is paragraph-level, not line-level. Unchanged paragraphs that fall between changed ones stay visible for context; long runs of unchanged content collapse into a "+N unchanged paragraphs" stub you can expand inline.
+
+The banner has two buttons:
+
+- **Keep changes** — dismisses the overlay. The disk already has the new content; this just clears the review UI.
+- **Revert** — sends a request to the server to restore the section to its pre-edit state, then clears the overlay. This is a real disk write, not just a UI reset.
+
+If you **navigate away** before resolving the diff, the overlay is gone. The disk already has the new content (from step 1 above), so the section will render the updated version when you return. If you wanted the old content back, you can edit the section by hand or open the file directly. There is no "undo" after navigating away.
+
+#### No log of past AI edits
+
+There is no edit log, no "last AI edit" affordance, and no history of what the Field Guide has changed. Once you accept or navigate away, the previous version is gone unless you have it in a git commit or a local backup. If you want to preserve a version before a major Field Guide edit, copy the section text somewhere or commit the file before you begin.
 
 ---
 
@@ -258,7 +309,7 @@ The Settings page — accessible from the header — lets you edit all of this w
 
 Two principles for editing `home.md`:
 
-1. **It is the source of truth.** When you find yourself wanting to give the AI a constraint in a prompt ("oh, and we have a dog"), consider whether the constraint belongs in `home.md` instead. If it's something true about you for the next year, write it down once.
+1. **It is the source of truth.** When you find yourself wanting to give the AI a constraint in a prompt ("oh, and we have a dog"), consider whether the constraint belongs in `home.md` instead. If it's something true about you for the next year, write it down once. This applies to Field Guide prompts too — see §7a for the full reasoning on when a constraint belongs in `home.md` versus inline in a prompt.
 2. **Omit rather than guess.** If you're not sure about a value, leave it out. The model handles missing fields well; it does not handle wrong fields well.
 
 ---
@@ -276,6 +327,12 @@ A short list of failure modes and what to do about them.
 **The retro modal won't open.** If `notes.md` already exists on the trip, the server returns 409 by design — to redo, delete `notes.md` from the trip's folder and reload.
 
 **Trips you don't want keep getting suggested.** Archive them. Archived trips stay in the seed-avoidance list, so the AI won't suggest them again.
+
+**The Field Guide proposed something wrong.** Press **Revert** in the section banner to restore the previous content, then edit the section by hand. If you navigated away before reverting and the disk now has the bad content, open the file directly — it is plain markdown, and the app picks up your edits on the next page load. There is no automatic undo after navigating away.
+
+**The Field Guide is making changes you didn't ask for.** Be more specific in your prompt about which section and what aspect you want changed. If the scope chip shows "Trip" and you only wanted to touch Logistics, close the palette, use the `↳ Ask` button on the Logistics section directly to scope the request.
+
+**The Field Guide keeps saying it can't search the web.** That's correct — it only knows what is already in the trip files and `home.md`. For up-to-date hours, prices, or road conditions, use the `Research →` button on the relevant section instead.
 
 **Something deeper is wrong with a file.** Edit it. The whole point of Traverse is that trips are plain markdown. Open the file in your editor of choice, fix what's wrong, save, reload. The app re-reads on every page load.
 
