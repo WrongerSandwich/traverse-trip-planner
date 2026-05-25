@@ -147,14 +147,24 @@ function readPlanningFm(slug) {
   return parseFrontmatter(fs.files[`${ROOT}/planning/${slug}/overview.md`].content);
 }
 
+// Read the central in-flight registry on disk. Returns `null` when the file
+// doesn't exist (which is the expected steady state when no jobs are running).
+function readJobsFile() {
+  const entry = fs.files[`${ROOT}/.cache/.jobs.json`];
+  if (!entry) return null;
+  return JSON.parse(entry.content);
+}
+
 beforeEach(() => {
   _resetForTests();
+  // The on-disk registry is volatile state; tests start with no in-flight jobs.
+  delete fs.files[`${ROOT}/.cache/.jobs.json`];
 });
 
 // ─── startJob / completeJob happy path ───────────────────────────────────────
 
 describe('startJob', () => {
-  it('adds an entry to the in-memory map and writes the running flag', () => {
+  it('adds an entry to the in-memory map and persists it to .cache/.jobs.json', () => {
     seedIdea('marfa-tx');
     const handle = startJob('deepen', 'marfa-tx');
 
@@ -167,14 +177,40 @@ describe('startJob', () => {
     expect(jobs[0].slug).toBe('marfa-tx');
     expect(typeof jobs[0].startedAt).toBe('number');
 
-    expect(readIdeaFm('marfa-tx').running).toBe('deepen');
+    // Disk-side: central volatile registry — see docs/jobs-source-of-truth.md.
+    const onDisk = readJobsFile();
+    expect(Array.isArray(onDisk)).toBe(true);
+    expect(onDisk).toHaveLength(1);
+    expect(onDisk[0].workflow).toBe('deepen');
+    expect(onDisk[0].slug).toBe('marfa-tx');
+    expect(typeof onDisk[0].startedAt).toBe('number');
+  });
+
+  it('does not write a `running:` flag into trip frontmatter', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+
+    // Frontmatter is no longer the source of truth for in-flight state.
+    expect(readIdeaFm('marfa-tx').running).toBeUndefined();
+  });
+
+  it('persists `est_seconds` from opts when provided', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx', { est_seconds: 90 });
+
+    const onDisk = readJobsFile();
+    expect(onDisk[0].est_seconds).toBe(90);
   });
 
   it('works for a planning trip stored as a folder with overview.md', () => {
     seedPlanning('ozarks-loop');
     startJob('brochure', 'ozarks-loop');
 
-    expect(readPlanningFm('ozarks-loop').running).toBe('brochure');
+    // No frontmatter mutation — registry lives in .cache/.jobs.json.
+    expect(readPlanningFm('ozarks-loop').running).toBeUndefined();
+    const onDisk = readJobsFile();
+    expect(onDisk).toHaveLength(1);
+    expect(onDisk[0].slug).toBe('ozarks-loop');
   });
 
   it('handles a missing trip file gracefully (in-memory entry still created)', () => {
@@ -183,19 +219,67 @@ describe('startJob', () => {
     const handle = startJob('deepen', 'no-such-trip');
     expect(handle).toBeDefined();
     expect(listJobs()).toHaveLength(1);
+    // The central registry write doesn't depend on the trip file existing.
+    expect(readJobsFile()).toHaveLength(1);
+  });
+
+  it('appends additional concurrent jobs as separate entries', () => {
+    seedIdea('a');
+    seedPlanning('b');
+    startJob('deepen', 'a');
+    startJob('brochure', 'b');
+
+    const onDisk = readJobsFile();
+    expect(onDisk).toHaveLength(2);
+    const slugs = onDisk.map((e) => e.slug).sort();
+    expect(slugs).toEqual(['a', 'b']);
   });
 });
 
 describe('completeJob', () => {
-  it('removes the entry from the map and clears the running flag', () => {
+  it('removes the entry from the in-memory map and the on-disk registry', () => {
     seedIdea('marfa-tx');
     startJob('deepen', 'marfa-tx');
     expect(listJobs()).toHaveLength(1);
+    expect(readJobsFile()).toHaveLength(1);
 
     completeJob('deepen', 'marfa-tx', { usage: { input_tokens: 100, output_tokens: 200 } });
 
     expect(listJobs()).toHaveLength(0);
-    expect(readIdeaFm('marfa-tx').running).toBeUndefined();
+    // Registry empties to [] (or the file may be removed). Either way: no entries.
+    const after = readJobsFile();
+    expect(after === null || after.length === 0).toBe(true);
+  });
+
+  it('still writes historical `last_run_success_at` and `last_run_tokens` to frontmatter', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+
+    completeJob('deepen', 'marfa-tx', { usage: { input_tokens: 100, output_tokens: 200 } });
+
+    const fm = readIdeaFm('marfa-tx');
+    expect(fm.last_run_success_at).toBeTruthy();
+    // last_run_tokens round-trips through YAML — written as a string, re-parsed
+    // back to a number. We only care that the digits are preserved.
+    expect(Number(fm.last_run_tokens)).toBe(300);
+    // The new-shape `running:` flag must never reappear.
+    expect(fm.running).toBeUndefined();
+  });
+
+  it('clears stale `last_run_error*` fields from a previous failure on success', () => {
+    seedIdea('marfa-tx', {
+      last_run_error: 'provider_error',
+      last_run_error_at: '2024-01-01T00:00:00Z',
+      last_run_message: 'old failure',
+    });
+    startJob('deepen', 'marfa-tx');
+
+    completeJob('deepen', 'marfa-tx', { tokens: 50 });
+
+    const fm = readIdeaFm('marfa-tx');
+    expect(fm.last_run_error).toBeUndefined();
+    expect(fm.last_run_error_at).toBeUndefined();
+    expect(fm.last_run_message).toBeUndefined();
   });
 
   it('is a no-op for an unknown job', () => {
@@ -221,14 +305,19 @@ describe('completeJob', () => {
 });
 
 describe('failJob', () => {
-  it('removes the entry, clears flag, records failure metadata', () => {
+  it('removes the entry from both registries and records failure metadata', () => {
     seedIdea('marfa-tx');
     startJob('deepen', 'marfa-tx');
 
     failJob('deepen', 'marfa-tx', { code: 'provider_error', message: 'oops' });
 
     expect(listJobs()).toHaveLength(0);
-    expect(readIdeaFm('marfa-tx').running).toBeUndefined();
+    const after = readJobsFile();
+    expect(after === null || after.length === 0).toBe(true);
+    const fm = readIdeaFm('marfa-tx');
+    expect(fm.running).toBeUndefined();
+    expect(fm.last_run_error).toBe('provider_error');
+    expect(fm.last_run_error_at).toBeTruthy();
   });
 
   it('persists last_run_message to frontmatter so failures are debuggable', () => {
@@ -288,16 +377,33 @@ describe('failJob', () => {
 });
 
 describe('cancelJob', () => {
-  it('triggers the AbortController and clears state', async () => {
+  it('triggers the AbortController and clears state from both registries', async () => {
     seedIdea('marfa-tx');
     const handle = startJob('deepen', 'marfa-tx');
     expect(handle.controller.signal.aborted).toBe(false);
+    expect(readJobsFile()).toHaveLength(1);
 
     cancelJob('deepen', 'marfa-tx');
 
     expect(handle.controller.signal.aborted).toBe(true);
     expect(listJobs()).toHaveLength(0);
+    const after = readJobsFile();
+    expect(after === null || after.length === 0).toBe(true);
     expect(readIdeaFm('marfa-tx').running).toBeUndefined();
+  });
+
+  it('removes only the cancelled entry from the on-disk registry, leaving others', () => {
+    seedIdea('a');
+    seedIdea('b');
+    startJob('deepen', 'a');
+    startJob('deepen', 'b');
+    expect(readJobsFile()).toHaveLength(2);
+
+    cancelJob('deepen', 'a');
+
+    const after = readJobsFile() ?? [];
+    expect(after).toHaveLength(1);
+    expect(after[0].slug).toBe('b');
   });
 
   it('is a no-op for an unknown job', () => {
@@ -376,6 +482,19 @@ describe('listJobs', () => {
       expect(() => JSON.stringify(row)).not.toThrow();
       expect(row.controller).toBeUndefined();
     }
+  });
+
+  it('reads from the in-memory map, not the on-disk registry (10s poll path)', () => {
+    seedIdea('a');
+    startJob('deepen', 'a');
+
+    // Delete the on-disk file out from under jobs.js. listJobs() must still
+    // return the in-memory entry — disk is a recovery hint, not the live read.
+    delete fs.files[`${ROOT}/.cache/.jobs.json`];
+
+    const snap = listJobs();
+    expect(snap).toHaveLength(1);
+    expect(snap[0].slug).toBe('a');
   });
 });
 
