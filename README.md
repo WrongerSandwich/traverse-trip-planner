@@ -4,8 +4,6 @@
 
 A self-hosted road-trip filing cabinet. Trips live as plain markdown files, progressing through a lifecycle: **idea → planning → completed**. An LLM helps generate, research, and reflect on them — but the data is yours, on your disk, in a format you can read and grep without the app running.
 
-> Built to be lived in, not to be sold. Stable enough for daily personal use, rough enough that you'll want to be the kind of person who's comfortable editing the markdown directly when something gets weird.
-
 ![Home page with trip cards and an interactive map](docs/screenshots/home.png)
 
 ## Why this exists
@@ -116,7 +114,7 @@ SvelteKit · Leaflet · OSRM (routing) · Nominatim (geocoding) · Pexels (photo
 
 ## Status
 
-Used daily by the original author; published as open source for anyone who wants the same approach for their own trips. The single-user, self-hosted shape is the design center — multi-user accounts, hosted plans, and integrations beyond the listed providers are explicit non-goals. Expect rough edges and `home.md`-heavy assumptions; PRs that respect the philosophy are welcome.
+Used by the original author; published as open source for anyone who wants the same approach for their own trips. The single-user, self-hosted shape is the design center — multi-user accounts, hosted plans, and integrations beyond the listed providers are explicit non-goals. Expect rough edges and `home.md`-heavy assumptions; PRs that respect the philosophy are welcome.
 
 ## Contributing
 
