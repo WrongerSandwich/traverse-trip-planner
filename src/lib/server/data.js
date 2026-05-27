@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync, statSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import { resolveEnv } from './settings.js';
@@ -26,6 +26,17 @@ export const DATA_DIR = join(ROOT, 'data');
 const CACHE_DIR = join(DATA_DIR, '.cache');
 try { mkdirSync(CACHE_DIR, { recursive: true }); } catch {}
 
+// Single combined cache file (issue #420). Geocode, image, and route caches
+// previously lived in three separate files; flushCaches() wrote them
+// sequentially, which gave only per-file atomicity. Under concurrent SSR
+// requests a flush could interleave with pruneCaches() and leave the three
+// files referentially out of sync (e.g. a route entry pointing at a geocode
+// key that another request just pruned). Collapsing to one file makes the
+// flush atomic across all three caches.
+const COMBINED_CACHE_PATH = join(CACHE_DIR, '.caches.json');
+
+// Legacy paths — kept only for one-shot migration on first read after the
+// upgrade. Reads after migration go through the combined file.
 const IMAGE_CACHE_PATH   = join(CACHE_DIR, '.image-cache.json');
 const ROUTE_CACHE_PATH   = join(CACHE_DIR, '.route-cache.json');
 const GEOCODE_CACHE_PATH = join(CACHE_DIR, '.geocode-cache.json');
@@ -34,29 +45,67 @@ const GEOCODE_CACHE_PATH = join(CACHE_DIR, '.geocode-cache.json');
 let geocodeCache = {};
 let imageCache   = {};
 let routeCache   = {};
-try { imageCache   = JSON.parse(readFileSync(IMAGE_CACHE_PATH,   'utf8')); } catch {}
-try { routeCache   = JSON.parse(readFileSync(ROUTE_CACHE_PATH,   'utf8')); } catch {}
-try { geocodeCache = JSON.parse(readFileSync(GEOCODE_CACHE_PATH, 'utf8')); } catch {}
+
+// Load from the combined file when present; otherwise merge any legacy files
+// into the new layout and delete them. After a successful upgrade run there
+// are no legacy files left — every subsequent boot reads the combined file
+// in a single fs call.
+(function _loadCachesFromDisk() {
+  try {
+    const combined = JSON.parse(readFileSync(COMBINED_CACHE_PATH, 'utf8'));
+    geocodeCache = combined.geo   ?? {};
+    imageCache   = combined.image ?? {};
+    routeCache   = combined.route ?? {};
+    return;
+  } catch {}
+
+  // No combined file. Try the three legacy files.
+  let migrated = false;
+  try { imageCache   = JSON.parse(readFileSync(IMAGE_CACHE_PATH,   'utf8')); migrated = true; } catch {}
+  try { routeCache   = JSON.parse(readFileSync(ROUTE_CACHE_PATH,   'utf8')); migrated = true; } catch {}
+  try { geocodeCache = JSON.parse(readFileSync(GEOCODE_CACHE_PATH, 'utf8')); migrated = true; } catch {}
+
+  if (!migrated) return;
+
+  try {
+    atomicWrite(
+      COMBINED_CACHE_PATH,
+      JSON.stringify({ geo: geocodeCache, image: imageCache, route: routeCache }, null, 2),
+    );
+    for (const p of [IMAGE_CACHE_PATH, ROUTE_CACHE_PATH, GEOCODE_CACHE_PATH]) {
+      try { unlinkSync(p); } catch {}
+    }
+  } catch (e) {
+    console.warn('[cache] migration to .caches.json failed:', e?.message ?? e);
+  }
+})();
 
 // Cache writes are batched: fetchers mark their cache dirty, and a single
-// flushCaches() at the end of a request writes only the dirty ones. This
-// turns ~35 writeFileSync calls during a cold enrichTrips into at most 3.
+// flushCaches() at the end of a request writes the combined file once.
 let geocodeDirty = false;
 let imageDirty   = false;
 let routeDirty   = false;
 
-function saveCache(path, data, label) {
+export function flushCaches() {
+  if (!geocodeDirty && !imageDirty && !routeDirty) return;
   try {
-    atomicWrite(path, JSON.stringify(data, null, 2));
+    atomicWrite(
+      COMBINED_CACHE_PATH,
+      JSON.stringify({ geo: geocodeCache, image: imageCache, route: routeCache }, null, 2),
+    );
+    geocodeDirty = imageDirty = routeDirty = false;
   } catch (e) {
-    console.warn(`failed to save ${label} cache to ${path} —`, e.message);
+    console.warn(`failed to save caches to ${COMBINED_CACHE_PATH} —`, e?.message ?? e);
   }
 }
 
-export function flushCaches() {
-  if (geocodeDirty) { saveCache(GEOCODE_CACHE_PATH, geocodeCache, 'geocode'); geocodeDirty = false; }
-  if (imageDirty)   { saveCache(IMAGE_CACHE_PATH,   imageCache,   'image');   imageDirty   = false; }
-  if (routeDirty)   { saveCache(ROUTE_CACHE_PATH,   routeCache,   'route');   routeDirty   = false; }
+// Test-only: mutate the geocode cache and mark it dirty without driving a
+// real Nominatim call. Used by tests/cache-flush.test.js to assert the
+// single-file flush layout. Not exported via the public API surface (note
+// the `_` prefix); production code uses geocode() instead.
+export function _markGeoDirtyForTest(destination, coords) {
+  geocodeCache[destination] = coords;
+  geocodeDirty = true;
 }
 
 function pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys) {

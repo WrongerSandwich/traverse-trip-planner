@@ -32,34 +32,49 @@ afterEach(() => {
   rmSync(workdir, { recursive: true, force: true });
 });
 
+// Seed the combined .caches.json with an image-cache fixture and (optionally)
+// a name to write the in-memory state out under. Issue #420 merged the three
+// separate cache files into one; this helper hides that layout from the
+// per-test fixture so the assertions below read like the original suite.
+function seedImageCache(image) {
+  writeFileSync(
+    join(workdir, 'data', '.cache', '.caches.json'),
+    JSON.stringify({ geo: {}, image, route: {} }),
+  );
+}
+function readImageCache() {
+  const combined = JSON.parse(
+    readFileSync(join(workdir, 'data', '.cache', '.caches.json'), 'utf8'),
+  );
+  return combined.image;
+}
+
 describe('purgeNullImageEntries', () => {
   it('drops entries with { value: null } and keeps real entries', async () => {
-    writeFileSync(join(workdir, 'data', '.cache', '.image-cache.json'), JSON.stringify({
+    seedImageCache({
       'good query': { value: { medium: 'm', large: 'l' }, fetchedAt: 1 },
       'bad query 1': { value: null, fetchedAt: 2 },
       'bad query 2': { value: null, fetchedAt: 3 },
-    }));
+    });
 
     const { purgeNullImageEntries } = await import('../src/lib/server/data.js');
     const dropped = purgeNullImageEntries();
 
     expect(dropped).toBe(2);
-    const onDisk = JSON.parse(readFileSync(join(workdir, 'data', '.cache', '.image-cache.json'), 'utf8'));
-    expect(Object.keys(onDisk)).toEqual(['good query']);
+    expect(Object.keys(readImageCache())).toEqual(['good query']);
   });
 
   it('drops legacy bare-null entries (pre-wrapped format)', async () => {
-    writeFileSync(join(workdir, 'data', '.cache', '.image-cache.json'), JSON.stringify({
+    seedImageCache({
       'legacy real': { medium: 'm' },
       'legacy null': null,
-    }));
+    });
 
     const { purgeNullImageEntries } = await import('../src/lib/server/data.js');
     const dropped = purgeNullImageEntries();
 
     expect(dropped).toBe(1);
-    const onDisk = JSON.parse(readFileSync(join(workdir, 'data', '.cache', '.image-cache.json'), 'utf8'));
-    expect(Object.keys(onDisk)).toEqual(['legacy real']);
+    expect(Object.keys(readImageCache())).toEqual(['legacy real']);
   });
 
   it('returns 0 and writes nothing when there are no null entries', async () => {
@@ -67,18 +82,17 @@ describe('purgeNullImageEntries', () => {
       'good 1': { value: { medium: 'm1' }, fetchedAt: 1 },
       'good 2': { value: { medium: 'm2' }, fetchedAt: 2 },
     };
-    writeFileSync(join(workdir, 'data', '.cache', '.image-cache.json'), JSON.stringify(initial));
+    seedImageCache(initial);
 
     const { purgeNullImageEntries } = await import('../src/lib/server/data.js');
     const dropped = purgeNullImageEntries();
 
     expect(dropped).toBe(0);
-    const onDisk = JSON.parse(readFileSync(join(workdir, 'data', '.cache', '.image-cache.json'), 'utf8'));
-    expect(onDisk).toEqual(initial);
+    expect(readImageCache()).toEqual(initial);
   });
 
   it('returns 0 on an empty cache file', async () => {
-    writeFileSync(join(workdir, 'data', '.cache', '.image-cache.json'), '{}');
+    seedImageCache({});
 
     const { purgeNullImageEntries } = await import('../src/lib/server/data.js');
     expect(purgeNullImageEntries()).toBe(0);

@@ -116,15 +116,17 @@ The SvelteKit app in `src/` is the primary interface. Two ways to run it:
 - **Dev:** `npm run dev -- --port 3456` (hot reload)
 - **Prod:** Docker (`docker compose up -d` / `docker compose logs -f traverse`) — the home server runs the `traverse` container, port 3456. PM2 / `node build/index.js` are legacy paths, no longer in use.
 
-The frontend reads trip data from the markdown files on each page load. All three external lookups are disk-backed under `data/.cache/` and persist across restarts:
+The frontend reads trip data from the markdown files on each page load. All three external lookups are memoized in a single disk-backed file under `data/.cache/.caches.json` (shape `{ geo, image, route }`) and persist across restarts:
 
-- `data/.cache/.geocode-cache.json` — Nominatim destination + waypoint coordinates
-- `data/.cache/.image-cache.json` — Pexels photo URLs
-- `data/.cache/.route-cache.json` — OSRM road route geometries
+- `geo`   — Nominatim destination + waypoint coordinates
+- `image` — Pexels photo URLs
+- `route` — OSRM road route geometries
 
-A fourth disk-backed file, `data/.cache/.workflow-stats.json`, holds rolling p50 telemetry for the `_promise` time/token estimates (see `src/lib/server/workflow-stats.js`). It's written from `chat()` on every AI call and read by `getResolvedPromises()` at load time; the layout server passes the resolved map to the client as `data.promises`.
+Collapsing the three former files (`.geocode-cache.json`, `.image-cache.json`, `.route-cache.json`) into one (#420) makes `flushCaches()` atomic across all three subsets so concurrent SSR requests can't leave the slices referentially out of sync. `data.js` carries a one-shot migration: on first read after upgrade, any legacy file is merged into the combined file and the legacy file is deleted.
 
-A fifth file, `data/.cache/.jobs.json`, is the volatile registry of in-flight Ambient Background jobs (written by `startJob` / `completeJob` / `failJob` in `src/lib/server/jobs.js`). On boot, `sweepStaleJobs()` reads it, marks each listed trip's frontmatter with `last_run_error: 'interrupted'`, then deletes the file. It lives under `.cache/` for the bind-mount reasons below but is registry state, not memoized lookups.
+A second disk-backed file, `data/.cache/.workflow-stats.json`, holds rolling p50 telemetry for the `_promise` time/token estimates (see `src/lib/server/workflow-stats.js`). It's written from `chat()` on every AI call and read by `getResolvedPromises()` at load time; the layout server passes the resolved map to the client as `data.promises`.
+
+A third file, `data/.cache/.jobs.json`, is the volatile registry of in-flight Ambient Background jobs (written by `startJob` / `completeJob` / `failJob` in `src/lib/server/jobs.js`). On boot, `sweepStaleJobs()` reads it, marks each listed trip's frontmatter with `last_run_error: 'interrupted'`, then deletes the file. It lives under `.cache/` for the bind-mount reasons below but is registry state, not memoized lookups.
 
 The `.cache/` directory rather than root-level files is so Docker can bind-mount a directory: per-file bind mounts break the atomic-write rename with `EBUSY` (kernel won't replace a bind-mount target). A one-shot migration in `data.js` / `workflow-stats.js` moves any pre-`.cache/` files into the new location on first read.
 
