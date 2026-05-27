@@ -18,12 +18,15 @@
 // buckets, which is fine for the threat model (sustained abuse triggers
 // limits within seconds anyway).
 //
-// Limitation: when running behind a reverse proxy (e.g. Caddy / nginx in front
-// of the Docker container), `getClientAddress()` returns the proxy IP unless
-// SvelteKit's address-handling config is updated. Document for users; the
-// per-IP keying still degrades gracefully to a single shared bucket.
+// When running behind a reverse proxy (e.g. Caddy / nginx in front of the
+// Docker container) with `TRUST_PROXY_FOR_AUTH=1`, the limiter keys by the
+// real client IP via `clientIpFor()` from `./client-ip.js` — so a single
+// chatty LAN client can't appear as the shared proxy IP and exhaust the
+// bucket for everyone else. Without the env var, the limiter sees the
+// proxy's socket address and degrades gracefully to a single shared bucket.
 
 import { json } from '@sveltejs/kit';
+import { clientIpFor } from './client-ip.js';
 
 // Per-endpoint defaults. Capacity = max immediate burst, refillPerMinute =
 // sustained rate (tokens per minute). With capacity=5, refill=0.5/min, a user
@@ -111,7 +114,15 @@ export function consume(endpoint, key, nowMs = Date.now()) {
  * endpoints so a chatty share recipient can't burn budget across all trips.
  */
 export function rateLimitResponse({ event, endpoint, slugKey }) {
-  const ip = event?.getClientAddress?.() ?? 'unknown';
+  // `clientIpFor` returns null when a multi-hop XFF means we can't safely
+  // identify the real client. Fall back to the socket address (the proxy)
+  // so spoofed-XFF requests share one bucket rather than each minting their
+  // own — no per-spoofed-IP bypass.
+  let ip = null;
+  if (event && typeof event.getClientAddress === 'function' && event.request?.headers) {
+    ip = clientIpFor(event);
+  }
+  if (ip === null) ip = event?.getClientAddress?.() ?? 'unknown';
   const key = slugKey ? `${ip}::${slugKey}` : ip;
   const result = consume(endpoint, key);
   if (result.ok) return null;

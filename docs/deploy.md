@@ -160,11 +160,41 @@ proxy's loopback. To gate by the real client IP, instead set:
 TRUST_PROXY_FOR_AUTH=1
 ```
 
-The gate then reads the first hop of `X-Forwarded-For`. **The proxy
-must unconditionally overwrite `X-Forwarded-For`** — otherwise an
-attacker can spoof it. With Caddy, `reverse_proxy` does this by
-default; with nginx, set `proxy_set_header X-Forwarded-For $remote_addr;`
-(not `$proxy_add_x_forwarded_for`).
+The gate then reads `X-Forwarded-For` as the client address.
+**The proxy must unconditionally overwrite `X-Forwarded-For`** so the
+header arrives with exactly one hop (the recorded client IP). The app
+rejects any multi-hop chain as untrusted: if the header is
+`X-Forwarded-For: 127.0.0.1, 10.0.0.5` (attacker prefix + proxy append),
+the gate denies — it cannot prove which hop is real.
+
+Working configurations:
+
+**Caddy** (default behavior is correct — no extra directives needed):
+
+```caddyfile
+example.lan {
+    reverse_proxy localhost:3456
+}
+```
+
+`reverse_proxy` strips the inbound `X-Forwarded-For` and writes the
+real client IP. Verify with `curl -H 'X-Forwarded-For: 1.2.3.4'` — the
+backend should still see your real IP, not `1.2.3.4`.
+
+**nginx** — the default `proxy_add_x_forwarded_for` *appends* to whatever
+the client sent and produces multi-hop chains. Use one of these:
+
+```nginx
+# Option A: overwrite outright with the connecting peer's IP.
+proxy_set_header X-Forwarded-For $remote_addr;
+
+# Option B: keep the append form, but tell nginx to trust only one hop
+# back. Requires the `ngx_http_realip_module` (bundled in nginx).
+set_real_ip_from 127.0.0.1;  # or the proxy's own subnet
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+```
 
 If both vars are set, `TRAVERSE_ALLOW_LAN_WRITES` wins (gate fully
 open). The threat model is documented in `src/lib/server/auth.js`.

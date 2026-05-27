@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { clientIpFor } from './client-ip.js';
 
 /**
  * Threat model for config-write authorization
@@ -25,11 +26,12 @@ import { json } from '@sveltejs/kit';
  *     not set it as a reflex.
  *
  *   TRUST_PROXY_FOR_AUTH=1
- *     Read the first hop of X-Forwarded-For as the client address instead of
- *     the socket address. Required when running behind a reverse proxy
- *     (Caddy, nginx) that terminates on loopback. The proxy must
- *     unconditionally overwrite X-Forwarded-For — otherwise an attacker can
- *     spoof it.
+ *     Read X-Forwarded-For as the client address instead of the socket
+ *     address. Required when running behind a reverse proxy (Caddy, nginx)
+ *     that terminates on loopback. The proxy must produce a single-hop XFF
+ *     by *overwriting* (not appending to) any inbound value — multi-hop
+ *     chains are rejected as untrusted (clientIpFor returns null, the gate
+ *     denies). See docs/deploy.md for the working nginx + Caddy snippets.
  *
  * If TRAVERSE_ALLOW_LAN_WRITES=1 is set, the source IP is not consulted
  * (the gate is fully open). TRUST_PROXY_FOR_AUTH only matters when the gate
@@ -46,17 +48,13 @@ import { json } from '@sveltejs/kit';
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
-function clientAddress(event) {
-  if (process.env.TRUST_PROXY_FOR_AUTH === '1') {
-    const fwd = event.request.headers.get('x-forwarded-for');
-    if (fwd) return fwd.split(',')[0].trim();
-  }
-  return event.getClientAddress();
-}
+export { clientIpFor };
 
 export function isAllowedConfigWrite(event) {
   if (process.env.TRAVERSE_ALLOW_LAN_WRITES === '1') return true;
-  return LOOPBACK.has(clientAddress(event));
+  const ip = clientIpFor(event);
+  if (ip === null) return false;
+  return LOOPBACK.has(ip);
 }
 
 export function denyIfNotConfigWriter(event) {

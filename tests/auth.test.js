@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { isAllowedConfigWrite, denyIfNotConfigWriter } from '../src/lib/server/auth.js';
+import { isAllowedConfigWrite, denyIfNotConfigWriter, clientIpFor } from '../src/lib/server/auth.js';
 
 function evt({ clientAddress = '127.0.0.1', xff = null } = {}) {
   const headers = new Headers();
@@ -69,13 +69,50 @@ describe('TRUST_PROXY_FOR_AUTH=1', () => {
     expect(isAllowedConfigWrite(evt({ clientAddress: '127.0.0.1' }))).toBe(true);
   });
 
-  it('handles a comma-separated chain (takes first hop)', () => {
+  it('rejects multi-hop X-Forwarded-For chains (untrusted)', () => {
     process.env.TRUST_PROXY_FOR_AUTH = '1';
+    // A single trusted proxy adds exactly one hop. Anything longer means
+    // the proxy appended to a client-supplied XFF (typical nginx
+    // proxy_add_x_forwarded_for misconfig) — refuse to trust the chain.
     expect(isAllowedConfigWrite(evt({ clientAddress: '127.0.0.1', xff: '192.168.1.42, 127.0.0.1' }))).toBe(false);
+  });
+
+  it('rejects spoofed loopback prefix in multi-hop chain', () => {
+    process.env.TRUST_PROXY_FOR_AUTH = '1';
+    // The headline attack: attacker sends `X-Forwarded-For: 127.0.0.1`,
+    // nginx appends the real client IP, our code used to read [0] and
+    // resolve to loopback. With chain validation, this must be denied.
+    expect(isAllowedConfigWrite(evt({ clientAddress: '127.0.0.1', xff: '127.0.0.1, 10.0.0.5' }))).toBe(false);
   });
 
   it('is ignored when TRUST_PROXY_FOR_AUTH is unset', () => {
     expect(isAllowedConfigWrite(evt({ clientAddress: '127.0.0.1', xff: '192.168.1.42' }))).toBe(true);
+  });
+
+  it('tolerates trailing comma / empty hop entries on a single-hop chain', () => {
+    process.env.TRUST_PROXY_FOR_AUTH = '1';
+    expect(isAllowedConfigWrite(evt({ clientAddress: '127.0.0.1', xff: '127.0.0.1,' }))).toBe(true);
+  });
+});
+
+describe('clientIpFor — shared trusted-IP resolver', () => {
+  it('returns the socket address when TRUST_PROXY_FOR_AUTH is unset', () => {
+    expect(clientIpFor(evt({ clientAddress: '10.0.0.5', xff: '192.168.1.42' }))).toBe('10.0.0.5');
+  });
+
+  it('returns the single XFF hop when TRUST_PROXY_FOR_AUTH=1', () => {
+    process.env.TRUST_PROXY_FOR_AUTH = '1';
+    expect(clientIpFor(evt({ clientAddress: '127.0.0.1', xff: '203.0.113.5' }))).toBe('203.0.113.5');
+  });
+
+  it('falls back to the socket address when XFF is missing under TRUST_PROXY_FOR_AUTH=1', () => {
+    process.env.TRUST_PROXY_FOR_AUTH = '1';
+    expect(clientIpFor(evt({ clientAddress: '127.0.0.1' }))).toBe('127.0.0.1');
+  });
+
+  it('returns null on multi-hop XFF under TRUST_PROXY_FOR_AUTH=1', () => {
+    process.env.TRUST_PROXY_FOR_AUTH = '1';
+    expect(clientIpFor(evt({ clientAddress: '127.0.0.1', xff: '127.0.0.1, 10.0.0.5' }))).toBeNull();
   });
 });
 
