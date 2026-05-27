@@ -38,11 +38,11 @@ A short list of patterns and constraints that aren't visible from grepping
 the source. Knowing these up front saves debugging time.
 
 - **Disk-backed caches under `data/.cache/`.**
-  `data/.cache/.geocode-cache.json`, `data/.cache/.image-cache.json`,
-  `data/.cache/.route-cache.json`, and `data/.cache/.workflow-stats.json`
-  persist across restarts and are **gitignored** under the broader `data/`
-  pattern — they're runtime state that grows with user activity and must
-  not be committed. The `data/` directory itself ships with a tracked
+  `data/.cache/.caches.json` (shape `{ geo, image, route }` — collapsed
+  from three files in #420 so flushCaches() is atomic across all three
+  subsets) and `data/.cache/.workflow-stats.json` persist across restarts
+  and are **gitignored** under the broader `data/` pattern — they're
+  runtime state that grows with user activity and must not be committed. The `data/` directory itself ships with a tracked
   `.gitkeep` so `git clone` materializes it (dockerd would otherwise
   auto-create the missing bind-mount target as root). Docker mounts the
   whole `data/` tree as a single directory because per-file bind mounts
@@ -116,9 +116,8 @@ These are load-bearing. Violations should fail review.
 - **Frontmatter:** stage transitions only add fields, never remove.
   Dates are ISO 8601. Distances are miles. Omit fields rather than
   guess.
-- **Caches:** `data/.cache/.geocode-cache.json`,
-  `data/.cache/.image-cache.json`, `data/.cache/.route-cache.json` live
-  under the gitignored `data/` tree and persist across restarts.
+- **Caches:** `data/.cache/.caches.json` (combined geo/image/route, #420)
+  lives under the gitignored `data/` tree and persists across restarts.
   `enrichTrips()` GCs orphaned entries on each request.
 
 ## Writing tests
