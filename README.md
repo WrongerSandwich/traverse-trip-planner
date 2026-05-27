@@ -106,7 +106,7 @@ data/
 
 The `data/` directory is **gitignored** — it holds your personal trips and runtime state, not project source. A bundled demo dataset under `sample-data/` is available via `npm run seed-sample`; see [sample-data/README.md](sample-data/README.md) for details.
 
-Your personal preferences live in `data/home.md`. The in-app onboarding flow creates it on first run; from there, the Settings page lets you edit home location, vehicles, taste profile, and seasonal constraints. This file drives all AI prompts.
+Your personal preferences live in `data/home.md`. The in-app onboarding flow creates it on first run; from there, `/home-base` lets you edit home location, vehicles, taste profile, and seasonal constraints. This file drives all AI prompts.
 
 ## Tech
 

@@ -4,6 +4,11 @@
     "openai": "",
     "openrouter": ""
   },
+  "services": {
+    "pexels": "",
+    "tavily": "",
+    "stadia": ""
+  },
   "slots": {
     "default": {
       "provider": "anthropic",
@@ -13,5 +18,9 @@
       "provider": "anthropic",
       "model": "claude-opus-4-7"
     }
-  }
+  },
+  "search": {
+    "provider": "anthropic-builtin"
+  },
+  "assistantName": "Field guide"
 }
