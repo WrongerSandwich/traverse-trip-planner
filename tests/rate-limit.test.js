@@ -156,6 +156,64 @@ describe('DEFAULT_LIMITS — new explicit entries', () => {
   });
 });
 
+describe('rateLimitResponse — TRUST_PROXY_FOR_AUTH', () => {
+  function makeProxyEvent({ clientAddress = '127.0.0.1', xff = null } = {}) {
+    const headers = new Headers();
+    if (xff) headers.set('x-forwarded-for', xff);
+    return {
+      request: { headers },
+      getClientAddress: () => clientAddress,
+    };
+  }
+
+  beforeEach(() => {
+    delete process.env.TRUST_PROXY_FOR_AUTH;
+  });
+
+  it('keys per real client IP when TRUST_PROXY_FOR_AUTH=1 (single-hop XFF)', () => {
+    process.env.TRUST_PROXY_FOR_AUTH = '1';
+    const cap = DEFAULT_LIMITS.deepen.capacity;
+    // Both requests arrive at the same socket addr (the proxy) but XFF
+    // identifies two distinct real clients — they must get separate buckets.
+    for (let i = 0; i < cap; i++) {
+      rateLimitResponse({ event: makeProxyEvent({ xff: '203.0.113.5' }), endpoint: 'deepen' });
+    }
+    expect(
+      rateLimitResponse({ event: makeProxyEvent({ xff: '203.0.113.5' }), endpoint: 'deepen' }),
+    ).toBeInstanceOf(Response);
+    expect(
+      rateLimitResponse({ event: makeProxyEvent({ xff: '203.0.113.6' }), endpoint: 'deepen' }),
+    ).toBeNull();
+  });
+
+  it('falls back to socket address on multi-hop XFF (cannot trust the chain)', () => {
+    process.env.TRUST_PROXY_FOR_AUTH = '1';
+    const cap = DEFAULT_LIMITS.deepen.capacity;
+    // Multi-hop XFF means clientIpFor returns null. Two requests with
+    // different (spoofed) XFFs that share a socket addr must share a
+    // bucket — no per-spoofed-IP bypass of the rate limit.
+    const ev = (xff) => makeProxyEvent({ clientAddress: '10.0.0.99', xff });
+    for (let i = 0; i < cap; i++) {
+      rateLimitResponse({ event: ev('1.1.1.1, 10.0.0.99'), endpoint: 'deepen' });
+    }
+    expect(
+      rateLimitResponse({ event: ev('2.2.2.2, 10.0.0.99'), endpoint: 'deepen' }),
+    ).toBeInstanceOf(Response);
+  });
+
+  it('ignores XFF when TRUST_PROXY_FOR_AUTH is unset', () => {
+    const cap = DEFAULT_LIMITS.deepen.capacity;
+    for (let i = 0; i < cap; i++) {
+      rateLimitResponse({ event: makeProxyEvent({ xff: '203.0.113.5' }), endpoint: 'deepen' });
+    }
+    // Without the env var, the rate limiter sees the same socket addr for
+    // both — second client (different XFF) gets the same bucket.
+    expect(
+      rateLimitResponse({ event: makeProxyEvent({ xff: '203.0.113.6' }), endpoint: 'deepen' }),
+    ).toBeInstanceOf(Response);
+  });
+});
+
 describe('rateLimitResponse — image-search endpoint (per-IP, no slugKey)', () => {
   function makeEvent(ip = '10.5.5.5') {
     return { getClientAddress: () => ip };
