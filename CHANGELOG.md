@@ -6,6 +6,40 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-27
+
+Stability & polish release. Eight tickets across security hardening,
+performance, a cache-coordination bug, and open-source documentation cleanup.
+
+### Security
+
+- **CSP without `'unsafe-inline'` on `script-src`** ([#426], #433). Content-Security-Policy is now owned by SvelteKit's `kit.csp` config (mode `hash`); inline scripts — both SvelteKit's own hydration script and the static theme bootstrap in `app.html` — are admitted by sha256 hash rather than the blanket `'unsafe-inline'` previously emitted from `hooks.server.js`. An XSS-injected inline script no longer executes.
+- **`X-Forwarded-For` chain validation** ([#419], #431). When `TRUST_PROXY_FOR_AUTH=1`, the loopback gate now rejects multi-hop XFF chains as untrusted. A LAN attacker behind an nginx proxy with the default `proxy_add_x_forwarded_for` could previously spoof a loopback prefix and bypass the config-writer gate on `/api/settings` and `/api/home`; that path is closed. New shared `clientIpFor()` helper in `src/lib/server/client-ip.js`; `docs/deploy.md` now carries working Caddy + nginx snippets.
+- **Deepen XML allowlist** ([#422], #432). The deepen pipeline rejects any LLM response containing XML tags outside the six expected envelope tags (`overview_prose`, `frontmatter`, `route_md`, `logistics_md`, `plan`, `candidates`). A prompt-injected trip note can no longer smuggle a `<file>` directive past the parser. New error code `model_returned_unexpected_xml`; not retried.
+
+### Performance
+
+- **Parallel cache-hit geocoding** ([#421], #430). Home-page SSR no longer pays the 1.1s-per-trip Nominatim throttle on warm cache hits. A two-tier resolution pass synchronously reads cached coordinates first and only serializes the cache-miss subset through the rate-limited path. Warm-cache geocode phase drops from ~11s for 10 trips to <200ms.
+
+### Fixes
+
+- **Atomic cache flush** ([#420], #434). The three disk-backed caches (geocode, image, route) are now stored in a single combined file under `data/.cache/.caches.json`. `flushCaches()` performs one `atomicWrite()` per flush, so concurrent SSR requests can't interleave with `pruneCaches()` and leave the three caches referentially out of sync. One-shot migration on first boot merges any legacy files into the combined layout and deletes them.
+- **`.env.example` placeholders no longer enable AI features** ([#425], #429). The bundled `ANTHROPIC_API_KEY=sk-ant-api03-...` placeholder was truthy under the old `Boolean(envObj[keyName])` check, so a fresh `cp .env.example .env` made AI features appear configured even without a real key. The placeholder is now commented out; provider-key validation goes through `isRealKey()` as defense-in-depth so the failure mode is impossible to re-introduce.
+
+### Docs & dependencies
+
+- **Open-source setup references** ([#424], #427). Stale `/settings` references replaced with `/home-base` / `/configuration` across `README.md`, `SUPPORT.md`, `docs/deploy.md`, and `.env.example`. `settings.example.json` now includes the `services`, `search.provider`, and `assistantName` keys that the documented overlay shape expects.
+- **Drop stale `package.json` overrides** ([#423], #428). The `@sveltejs/vite-plugin-svelte` pin was a no-op after the SvelteKit/Vite bumps and has been removed. The `cookie: ^0.7.2` override was *not* a no-op — `@sveltejs/kit` requires `cookie: ^0.6.0` directly, and removing the pin would float it to the vulnerable 0.6.0 (CVE GHSA-pxg6-pf52-xh8x). The retained override is now annotated as a security pin.
+
+[#419]: https://github.com/WrongerSandwich/traverse-trip-planner/issues/419
+[#420]: https://github.com/WrongerSandwich/traverse-trip-planner/issues/420
+[#421]: https://github.com/WrongerSandwich/traverse-trip-planner/issues/421
+[#422]: https://github.com/WrongerSandwich/traverse-trip-planner/issues/422
+[#423]: https://github.com/WrongerSandwich/traverse-trip-planner/issues/423
+[#424]: https://github.com/WrongerSandwich/traverse-trip-planner/issues/424
+[#425]: https://github.com/WrongerSandwich/traverse-trip-planner/issues/425
+[#426]: https://github.com/WrongerSandwich/traverse-trip-planner/issues/426
+
 ## [0.1.0] — 2026-05-25
 
 First public release. Stable enough for daily personal use, with a recommended
