@@ -849,6 +849,89 @@ describe('POST /api/actions/deepen/[slug]', () => {
     );
   });
 
+  // ── XML tag allowlist (issue #422) ─────────────────────────────────────
+  //
+  // The deepen envelope must contain ONLY the six allowed tags. Anything
+  // else — typically a smuggled `<file>` or unexpected `<notes>` from a
+  // prompt-injection-tainted re-research — is rejected with no file writes.
+  // This is *not* retried: an unexpected tag is either a model breach or a
+  // deliberate attempt to escape the contract, neither of which retry fixes.
+
+  it('rejects a response containing an unexpected <file> tag with no realizePlan call', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    const malicious = VALID_ENVELOPE + '\n<file name="../../.env">malicious</file>';
+    mockChat.mockResolvedValue({ text: malicious, usage: { input: 1000, output: 500 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockChat).toHaveBeenCalledTimes(1); // no retry on this code
+    expect(mockRealizePlan).not.toHaveBeenCalled();
+    expect(mockWriteFileSync).not.toHaveBeenCalled();
+    expect(mockFailJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({
+      code: 'model_returned_unexpected_xml',
+    }));
+  });
+
+  it('rejects an innocuous-looking unexpected <notes> tag', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    const malicious = VALID_ENVELOPE + '\n<notes>some smuggled prose</notes>';
+    mockChat.mockResolvedValue({ text: malicious, usage: { input: 1000, output: 500 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockRealizePlan).not.toHaveBeenCalled();
+    expect(mockFailJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({
+      code: 'model_returned_unexpected_xml',
+    }));
+  });
+
+  it('allows unexpected-looking text INSIDE allowed tags (markdown content is not scanned)', async () => {
+    // route_md/logistics_md can legitimately contain text the regex might
+    // recognize (e.g. ages-12 ranges). The scanner strips allowed blocks
+    // before scanning, so internal content can't trigger the check.
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    const envelopeWithProseTagInside = [
+      '<overview_prose>prose</overview_prose>',
+      '<route_md>Visit the <details> overlook</route_md>',
+      '<plan>',
+      'cover_query: test',
+      'field_guide_notes: []',
+      'gotchas: []',
+      '</plan>',
+      '<candidates>',
+      'stops: []',
+      'lodging: []',
+      '</candidates>',
+    ].join('\n');
+    mockChat.mockResolvedValue({ text: envelopeWithProseTagInside, usage: { input: 1000, output: 500 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockFailJob).not.toHaveBeenCalled();
+    expect(mockRealizePlan).toHaveBeenCalled();
+  });
+
+  it('does not retry on model_returned_unexpected_xml (immediate fail)', async () => {
+    mockExistsSync.mockImplementation(p => p.endsWith('ideas/test-trip.md'));
+    const malicious = VALID_ENVELOPE + '\n<extra>oops</extra>';
+    mockChat
+      .mockResolvedValueOnce({ text: malicious, usage: { input: 1000, output: 500 } })
+      .mockResolvedValueOnce({ text: VALID_ENVELOPE, usage: { input: 1200, output: 600 } });
+
+    await POST(postEvent());
+    await new Promise(r => setTimeout(r, 50));
+
+    // First call returned unexpected tags → fail immediately, second call
+    // must never happen. The YAML-failure retry path is unaffected.
+    expect(mockChat).toHaveBeenCalledTimes(1);
+    expect(mockFailJob).toHaveBeenCalledWith('deepen', 'test-trip', expect.objectContaining({
+      code: 'model_returned_unexpected_xml',
+    }));
+  });
+
 });
 
 // ── _collectDirtySections ──────────────────────────────────────────────────────

@@ -84,6 +84,10 @@ export const ERROR_REGISTRY = {
     sentence: 'The model returned output that failed to parse. Try again.',
     affordances: ['retry'],
   },
+  model_returned_unexpected_xml: {
+    sentence: 'The model returned an unexpected response shape. Try again, or switch providers if it keeps happening.',
+    affordances: ['retry', 'switch_provider'],
+  },
   already_running: {
     sentence: 'This action is already running for that trip. Wait for it to finish or cancel from the jobs drawer.',
     affordances: ['dismiss'],
