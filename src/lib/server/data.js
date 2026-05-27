@@ -918,38 +918,72 @@ async function enrichTripsImpl() {
   const { images: liveImageKeys, routes: liveRouteKeys, geocodes: liveGeocodeKeys, plans } =
     collectLiveCacheKeys(trips);
 
-  // Per-request geocode coalescing: if two trips share a destination that isn't
-  // in the disk cache yet, the second trip awaits the same in-flight promise
-  // rather than firing a duplicate Nominatim request.
-  const geocodeInflight = new Map();
+  // Two-tier geocode resolution (#421):
+  //
+  // 1. Hit pass (parallel): synchronously read all warm-cache destinations in
+  //    one Promise.all sweep. No network, no sleep. Returns null for both
+  //    "destination absent" and "was geocoded but Nominatim returned nothing".
+  //    The sentinel `GEOCODE_MISS` marks destinations that are genuinely absent
+  //    from the cache — they need a Nominatim call.
+  //
+  // 2. Miss pass (serialized, rate-limited): for each trip flagged as a miss,
+  //    run the rate-limited geocode path serially. `geocodeInflight` deduplicates
+  //    concurrent requests for the same uncached destination so we fire exactly
+  //    one Nominatim request per unique destination.
+  //
+  // This ensures that a cold-cache trip never blocks a warm-cache trip — hits
+  // are resolved instantly in the parallel pass while misses serialize separately.
+  const GEOCODE_MISS = Symbol('geocode-miss');
 
-  async function geocodeCached(destination) {
-    if (geocodeCache[destination] !== undefined) return geocodeCache[destination] ?? null;
-    if (geocodeInflight.has(destination)) return geocodeInflight.get(destination);
-    const promise = geocode(destination).then(async ({ coords, fromCache }) => {
-      if (!fromCache) await sleep(1100);
-      return coords;
-    });
-    geocodeInflight.set(destination, promise);
-    return promise;
+  // Hit pass: synchronous reads from in-memory geocodeCache.
+  const preResolvedCoords = trips.map(t => {
+    if (!t.destination) return null;
+    return geocodeCache[t.destination] !== undefined
+      ? (geocodeCache[t.destination] ?? null)
+      : GEOCODE_MISS;
+  });
+
+  // Miss pass: rate-limited serial resolution for destinations not yet in cache.
+  // geocodeInflight coalesces concurrent requests for the same uncached destination.
+  const geocodeInflight = new Map();
+  for (let i = 0; i < trips.length; i++) {
+    if (preResolvedCoords[i] !== GEOCODE_MISS) continue;
+    const dest = trips[i].destination;
+    try {
+      if (geocodeInflight.has(dest)) {
+        preResolvedCoords[i] = await geocodeInflight.get(dest);
+      } else {
+        const promise = geocode(dest).then(async ({ coords, fromCache }) => {
+          if (!fromCache) await sleep(1100);
+          return coords;
+        });
+        geocodeInflight.set(dest, promise);
+        preResolvedCoords[i] = await promise;
+      }
+    } catch (e) {
+      if (e instanceof TraverseError && e.code === 'geocode_quota') {
+        console.warn('geocode rate-limited during enrichment for', dest);
+        preResolvedCoords[i] = null;
+      } else {
+        // Non-quota errors propagate to the per-trip catch below so
+        // completedEnumeration is set correctly.
+        preResolvedCoords[i] = e;
+      }
+    }
   }
 
   let completedEnumeration = true;
-  for (const trip of trips) {
+  for (let tripIdx = 0; tripIdx < trips.length; tripIdx++) {
+    const trip = trips[tripIdx];
     try {
       // Geocode (key already seeded by collectLiveCacheKeys)
       const dest = trip.destination;
       if (dest) {
-        try {
-          trip._coords = await geocodeCached(dest);
-        } catch (e) {
-          if (e instanceof TraverseError && e.code === 'geocode_quota') {
-            console.warn('geocode rate-limited during enrichment for', dest);
-            trip._coords = null;
-          } else {
-            throw e;
-          }
-        }
+        const resolved = preResolvedCoords[tripIdx];
+        if (resolved instanceof Error) throw resolved;
+        // GEOCODE_MISS should never survive past the miss pass; treat as null
+        // for safety rather than leaking a Symbol into trip._coords.
+        trip._coords = (resolved === GEOCODE_MISS) ? null : resolved;
       } else {
         trip._coords = null;
       }
