@@ -69,6 +69,41 @@ function parseSection(text, tag) {
   return m?.[1]?.trim() ?? null;
 }
 
+// The six allowed top-level tags in a deepen response. The prompt asks for
+// exactly these; anything else — typically a smuggled <file> tag from a
+// prompt-injection-tainted re-research — fails the run before realizePlan().
+const ALLOWED_DEEPEN_TAGS = ['overview_prose', 'frontmatter', 'route_md', 'logistics_md', 'plan', 'candidates'];
+
+/**
+ * Defense-in-depth: reject any deepen response whose raw text contains an
+ * opening XML-like tag outside the allowlist. Markdown content inside an
+ * allowed tag (e.g. an `<details>` element in `route_md`) is not scanned —
+ * we strip allowed blocks first.
+ *
+ * Throws `TraverseError('model_returned_unexpected_xml')` on violation so
+ * the existing failJob path surfaces it via the standard UX. The deepen
+ * retry loop does NOT cover this code — an unexpected tag indicates either
+ * a model breach or a deliberate envelope-escape attempt, neither of which
+ * a second attempt fixes.
+ *
+ * Issue #422.
+ */
+export function _assertSafeDeepenResponse(raw) {
+  let stripped = raw;
+  for (const tag of ALLOWED_DEEPEN_TAGS) {
+    stripped = stripped.replace(new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, 'g'), '');
+  }
+  const unexpected = [...stripped.matchAll(/<([a-zA-Z_][a-zA-Z0-9_-]*)/g)]
+    .map((m) => m[1])
+    .filter((name) => !ALLOWED_DEEPEN_TAGS.includes(name));
+  if (unexpected.length === 0) return;
+  const names = [...new Set(unexpected)].slice(0, 5).join(', ');
+  throw new TraverseError(
+    'model_returned_unexpected_xml',
+    `deepen response contained unexpected tag(s): ${names}`,
+  );
+}
+
 /**
  * Validates that a `waypoints` value from trip frontmatter is a non-empty
  * array of at least 2 non-empty strings. YAML coercion can produce booleans,
@@ -296,6 +331,12 @@ Formatting rules for the markdown content inside route_md / logistics_md (these 
       }
       break;
     }
+
+    // Allowlist scan happens before any parseSection so file writes never
+    // start on a tainted response. Throws TraverseError on violation —
+    // propagates out of the retry loop without a second attempt (see
+    // _assertSafeDeepenResponse for why no retry).
+    _assertSafeDeepenResponse(text);
 
     planRaw = parseSection(text, 'plan');
     candidatesRaw = parseSection(text, 'candidates');
