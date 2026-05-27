@@ -109,6 +109,16 @@ describe('validateConfig', () => {
     expect(validateConfig()).toEqual([]);
   });
 
+  // Placeholder values (e.g. from a raw `cp .env.example .env` without editing)
+  // should be reported as missing — not silently accepted as a real key.
+  it('flags ANTHROPIC_API_KEY placeholder as missing', async () => {
+    const { validateConfig } = await loadConfig({
+      ANTHROPIC_API_KEY: 'sk-ant-api03-...',
+    });
+    const issues = validateConfig();
+    expect(issues.some(i => i.includes('ANTHROPIC_API_KEY'))).toBe(true);
+  });
+
   it('flags anthropic-builtin search with non-Anthropic research provider', async () => {
     const { validateConfig } = await loadConfig({
       TRAVERSE_MODEL_RESEARCH_PROVIDER: 'openai',
@@ -199,6 +209,32 @@ describe('getFeatureAvailability', () => {
       PEXELS_API_KEY: 'your_pexels_key_here',
     });
     expect(getFeatureAvailability().pexelsConfigured).toBe(false);
+  });
+
+  // Regression: .env.example shipped ANTHROPIC_API_KEY=sk-ant-api03-... as an
+  // uncommented placeholder. That string is truthy, so after `cp .env.example .env`
+  // AI features appeared configured when no real key was present — requests would
+  // fire with the fake key and fail at the API boundary. Placeholders ending with
+  // `...` (and `your_*_here` patterns) must not count as configured.
+  it('disables AI features when ANTHROPIC_API_KEY is the .env.example placeholder', async () => {
+    const { getFeatureAvailability } = await loadConfig({
+      ANTHROPIC_API_KEY: 'sk-ant-api03-...',
+    });
+    const f = getFeatureAvailability();
+    expect(f.seed).toBe(false);
+    expect(f.add).toBe(false);
+    expect(f.chat).toBe(false);
+    expect(f.deepen).toBe(false);
+  });
+
+  it('disables AI features when OPENAI_API_KEY is an obvious placeholder', async () => {
+    const { getFeatureAvailability } = await loadConfig({
+      TRAVERSE_MODEL_DEFAULT_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'sk-proj-...',
+    });
+    const f = getFeatureAvailability();
+    expect(f.seed).toBe(false);
+    expect(f.add).toBe(false);
   });
 });
 

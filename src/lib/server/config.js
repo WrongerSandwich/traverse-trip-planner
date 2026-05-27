@@ -83,7 +83,7 @@ function providerKeyOkIn(envObj, provider) {
   const keyName = PROVIDER_KEYS[provider];
   if (keyName === undefined) return false;
   if (keyName === null) return true;
-  return Boolean(envObj[keyName]);
+  return isRealKey(envObj[keyName]);
 }
 
 function searchOkIn(cfg, envObj) {
@@ -237,7 +237,7 @@ export function validateConfig() {
     const keyName = PROVIDER_KEYS[provider];
     if (keyName === undefined) {
       issues.push(`Unknown model provider for ${slot}: "${provider}". Supported: ${Object.keys(PROVIDER_KEYS).join(', ')}.`);
-    } else if (keyName && !effectiveEnv[keyName]) {
+    } else if (keyName && !isRealKey(effectiveEnv[keyName])) {
       issues.push(`${slot} provider "${provider}" requires ${keyName} in env.`);
     }
   }
@@ -248,7 +248,7 @@ export function validateConfig() {
     const keyName = PROVIDER_KEYS[info.provider];
     if (keyName === undefined) {
       issues.push(`Unknown model provider for feature ${feature}: "${info.provider}". Supported: ${Object.keys(PROVIDER_KEYS).join(', ')}.`);
-    } else if (keyName && !effectiveEnv[keyName]) {
+    } else if (keyName && !isRealKey(effectiveEnv[keyName])) {
       issues.push(`Feature ${feature} provider "${info.provider}" requires ${keyName} in env.`);
     }
   }
