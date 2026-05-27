@@ -70,7 +70,7 @@ The startup banner lists which providers are wired and which features are availa
 - **All user-managed state lives under `data/`** — trip stages, `home.md`, `settings.json`, and the runtime `.cache/`. The single bind mount `./data:/app/data` provides everything the container needs. The `data/` directory ships with a tracked `.gitkeep` so `git clone` materializes it as the cloning user — without it, dockerd would auto-create the missing bind-mount target as root and break writes from the container's non-root uid.
 - **Runtime caches** (geocode, image, route, workflow-stats) live under `data/.cache/` and persist across restarts. Atomic writes do a tmp-then-rename, which is why everything bind-mounts as a single directory rather than individual files — renaming onto a single bind-mounted file fails with `EBUSY` (the kernel won't replace a bind-mount target).
 - **`.env` is gitignored** — never committed. Use `.env.example` as your template.
-- **`data/` is gitignored** — your personal preferences and trip data stay local. The in-app onboarding flow creates `data/home.md` on first run; the Settings page maintains `data/settings.json` and `data/home.md` thereafter.
+- **`data/` is gitignored** — your personal preferences and trip data stay local. The in-app onboarding flow creates `data/home.md` on first run; `/home-base` and `/configuration` maintain `data/home.md` and `data/settings.json` thereafter.
 - The `PEXELS_API_KEY` enables trip card photos. Without it, cards show a map thumbnail instead.
 - The `STADIA_API_KEY` (optional) replaces the brochure's destination-area illustrative paper map with a real Stadia "Outdoors" tile render (streets, parks, terrain shading visible). Without it, the destination map falls back to the state-outlines + rivers + place-labels illustration. Free tier: 200K static-map requests/month for non-commercial use. Sign up at [stadiamaps.com](https://stadiamaps.com) → Property → API key.
 
@@ -85,7 +85,7 @@ The settings UI — split into `/home-base` (personal preferences, `home.md`) an
 
 `data/settings.json` is gitignored (along with the rest of `data/`); it never appears in version control. See `settings.example.json` at the repo root for the expected shape, and the [Configuration reference](#configuration-reference) below for the full list of what can live where.
 
-To revert to `.env`-only behavior, delete `data/settings.json` or use the **Remove** button next to a stored key on the Settings page. Removing a key deletes only that key's entry from `data/settings.json`; other stored settings are untouched. Once removed, the corresponding `.env` value resumes as the active key. If no `.env` fallback exists, the next AI call using that provider will fail with a missing-key error.
+To revert to `.env`-only behavior, delete `data/settings.json` or use the **Remove** button next to a stored key on the `/configuration` page. Removing a key deletes only that key's entry from `data/settings.json`; other stored settings are untouched. Once removed, the corresponding `.env` value resumes as the active key. If no `.env` fallback exists, the next AI call using that provider will fail with a missing-key error.
 
 **`TRAVERSE_DISABLE_SETTINGS_UI`** — set to any non-empty value to disable `/home-base`, `/configuration`, and `POST /api/settings` entirely (all return 403). Recommended for production deployments where the server is reachable over an untrusted network and you prefer `.env`-only key management.
 
@@ -214,7 +214,7 @@ Traverse talks to model and search providers through a thin adapter layer. The d
 | Add receipts (disabled pre-launch — see `getFeatureAvailability().receipts`) | `modelDefault` provider with valid key **+ vision-capable model** (e.g. `claude-sonnet-4-6`, `gpt-4o`) — UI is hidden until the receipts-as-ledger redesign lands |
 | Research → (deepen)        | `modelResearch` provider with key **+** search backend  |
 
-If a feature's backing provider isn't configured, its button is disabled in the UI with a tooltip pointing at either `.env` or the Settings page. The startup banner (printed to the server log) lists which features are wired and tags each effective value's source.
+If a feature's backing provider isn't configured, its button is disabled in the UI with a tooltip pointing at either `.env` or `/configuration`. The startup banner (printed to the server log) lists which features are wired and tags each effective value's source.
 
 ### Supported providers
 

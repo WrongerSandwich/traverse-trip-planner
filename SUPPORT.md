@@ -4,7 +4,7 @@ Traverse is maintained as a personal project that ships as open source. This pag
 
 ## Before opening an issue
 
-1. **Check the docs.** Most setup confusion is covered in the [README](README.md), [docs/deploy.md](docs/deploy.md), and [CONTRIBUTING.md](CONTRIBUTING.md). The startup banner reports which providers/features are wired; the `/settings` page shows live config.
+1. **Check the docs.** Most setup confusion is covered in the [README](README.md), [docs/deploy.md](docs/deploy.md), and [CONTRIBUTING.md](CONTRIBUTING.md). The startup banner reports which providers/features are wired; the `/configuration` page shows live config (API keys, model routing, feature flags).
 2. **Search existing issues.** The tracker is the source of truth for known limitations and in-flight work.
 3. **For security concerns**, follow [SECURITY.md](SECURITY.md) — use private advisories, not public issues.
 
