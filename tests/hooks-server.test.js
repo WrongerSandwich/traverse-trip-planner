@@ -94,41 +94,15 @@ describe('handle — security headers', () => {
     expect(pp).toContain('geolocation=()');
   });
 
-  it('sets Content-Security-Policy header', async () => {
+  // CSP is now owned by SvelteKit's `kit.csp` config in svelte.config.js so
+  // it can emit per-request nonces / hashes for inline scripts (the app.html
+  // theme bootstrap and SvelteKit's hydration scripts) without falling back
+  // to `'unsafe-inline'`. SvelteKit sets the header itself on HTML responses;
+  // hooks.server.js no longer touches CSP. See tests/svelte-config.test.js
+  // for directive-shape assertions and src/hooks.server.js for the rationale.
+  it('does NOT set Content-Security-Policy from hooks.server.js (SvelteKit owns it)', async () => {
     const res = await handle({ event: makeEvent(), resolve: resolveOk() });
-    const csp = res.headers.get('content-security-policy');
-    expect(csp).toBeTruthy();
-    expect(csp).toContain("default-src 'self'");
-  });
-
-  it('CSP allows images from images.pexels.com', async () => {
-    const res = await handle({ event: makeEvent(), resolve: resolveOk() });
-    const csp = res.headers.get('content-security-policy');
-    expect(csp).toContain('https://images.pexels.com');
-  });
-
-  it('CSP allows connect to nominatim.openstreetmap.org', async () => {
-    const res = await handle({ event: makeEvent(), resolve: resolveOk() });
-    const csp = res.headers.get('content-security-policy');
-    expect(csp).toContain('https://nominatim.openstreetmap.org');
-  });
-
-  it('CSP allows connect to router.project-osrm.org', async () => {
-    const res = await handle({ event: makeEvent(), resolve: resolveOk() });
-    const csp = res.headers.get('content-security-policy');
-    expect(csp).toContain('https://router.project-osrm.org');
-  });
-
-  it('CSP allows Leaflet tile images from *.tile.openstreetmap.org', async () => {
-    const res = await handle({ event: makeEvent(), resolve: resolveOk() });
-    const csp = res.headers.get('content-security-policy');
-    expect(csp).toContain('*.tile.openstreetmap.org');
-  });
-
-  it('CSP disallows frames (frame-src none)', async () => {
-    const res = await handle({ event: makeEvent(), resolve: resolveOk() });
-    const csp = res.headers.get('content-security-policy');
-    expect(csp).toContain("frame-src 'none'");
+    expect(res.headers.get('content-security-policy')).toBeNull();
   });
 });
 
