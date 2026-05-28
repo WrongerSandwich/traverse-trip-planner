@@ -88,10 +88,10 @@ describe('geocodeCandidatesJob', () => {
     expect(mockGeocodeCandidate).toHaveBeenCalledWith('Lodge', 'Glacier MT', [48.7, -114.0]);
   });
 
-  it('skips candidates that already have coords', async () => {
+  it('skips stops that already have both coords and address', async () => {
     mockReadCandidates.mockReturnValue({
       stops: [
-        { id: 'has-coords', name: 'Has Coords', coords: { lat: 1, lng: 2 } },
+        { id: 'has-both', name: 'Has Both', coords: { lat: 1, lng: 2 }, address: 'Existing St' },
         { id: 'no-coords', name: 'No Coords' },
       ],
       lodging: [],
@@ -100,7 +100,7 @@ describe('geocodeCandidatesJob', () => {
 
     await geocodeCandidatesJob('t');
 
-    // Only the missing-coords entry gets geocoded.
+    // Only the missing-coords entry gets geocoded; the stop with both fields is skipped.
     expect(mockGeocodeCandidate).toHaveBeenCalledTimes(1);
     expect(mockGeocodeCandidate).toHaveBeenCalledWith('No Coords', expect.any(String), expect.any(Array));
   });
@@ -128,7 +128,7 @@ describe('geocodeCandidatesJob', () => {
   it('does not write when no candidates need geocoding', async () => {
     mockReadCandidates.mockReturnValue({
       stops: [
-        { id: 'a', name: 'A', coords: { lat: 1, lng: 2 } },
+        { id: 'a', name: 'A', coords: { lat: 1, lng: 2 }, address: 'Fully resolved stop' },
       ],
       lodging: [
         { id: 'b', name: 'B', coords: { lat: 3, lng: 4 } },
@@ -217,7 +217,7 @@ describe('geocodeCandidatesJob', () => {
   it('writes once per resolved candidate, not per skipped one', async () => {
     mockReadCandidates.mockReturnValue({
       stops: [
-        { id: 'a', name: 'A', coords: { lat: 1, lng: 2 } },
+        { id: 'a', name: 'A', coords: { lat: 1, lng: 2 }, address: 'Already resolved' },
         { id: 'b', name: 'B' },
         { id: 'c', name: 'C', hidden: true },
       ],
@@ -323,13 +323,27 @@ describe('geocodeCandidatesJob', () => {
     expect(lastWrite[1].stops[0].address).toBeUndefined();
   });
 
-  it('writes address even when candidate already has coords from a prior run (fills missing address)', async () => {
-    // If coords exist but address is absent, the address path should still fire
-    // on the fresh re-read — but since the entry already has coords it won't
-    // appear in the initial ids list, so reverseGeocode is NOT called.
-    // This test confirms the initial-ids filter still applies.
+  it('backfills address for a stop that already has coords but no address', async () => {
+    // A stop with coords (from a prior run) but no address should be enrolled in
+    // the work list and get reverseGeocode called — forward geocode is skipped.
     mockReadCandidates.mockReturnValue({
       stops: [{ id: 'a', name: 'A', coords: { lat: 44.88, lng: -86.05 } }],
+      lodging: [],
+    });
+    mockReverseGeocode.mockResolvedValue('Front Street, Empire, Michigan 49630');
+
+    await geocodeCandidatesJob('t');
+
+    expect(mockGeocodeCandidate).not.toHaveBeenCalled(); // skipped — coords already present
+    expect(mockReverseGeocode).toHaveBeenCalledWith([44.88, -86.05]); // reverse lookup happened
+    const lastWrite = mockWriteCandidates.mock.calls.at(-1);
+    expect(lastWrite[1].stops[0].address).toBe('Front Street, Empire, Michigan 49630');
+  });
+
+  it('skips stops that already have both coords and address (no fetch)', async () => {
+    // A stop with both coords and address is fully resolved — nothing to do.
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'a', name: 'A', coords: { lat: 44.88, lng: -86.05 }, address: 'Existing address' }],
       lodging: [],
     });
 

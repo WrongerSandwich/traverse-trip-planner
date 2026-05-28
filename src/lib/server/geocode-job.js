@@ -61,47 +61,57 @@ export async function geocodeCandidatesJob(slug, opts = {}) {
   // concurrent UI edits (un-hide, add-candidate, etc.) survive — the
   // write-back uses the freshly-read state plus the just-resolved coords,
   // not a stale snapshot.
+  //
+  // Stop candidates enroll when EITHER coords OR address is missing so that
+  // trips geocoded before v0.1.2 (coords present, address absent) get their
+  // address backfilled on the next run. Lodging candidates still only enroll
+  // on missing coords (no brochure address slot yet).
   const ids = [];
   for (const s of initial.stops ?? []) {
     if (s.hidden) continue;
-    if (s.coords) continue;
+    if (s.coords && s.address) continue; // both present → nothing to do
     if (s.id && s.name) ids.push({ id: s.id, name: s.name, kind: 'stop' });
   }
   for (const l of initial.lodging ?? []) {
     if (l.hidden) continue;
-    if (l.coords) continue;
+    if (l.coords) continue; // lodging doesn't get address yet
     if (l.id && l.name) ids.push({ id: l.id, name: l.name, kind: 'lodging' });
   }
 
   for (const entry of ids) {
     if (signal?.aborted) return;
 
-    const coords = await geocodeCandidate(entry.name, destinationContext, refCoords);
-    if (!coords) continue;
-
-    // Re-read so any UI mutations since the prior iteration land in the
-    // file we're about to write. If the candidate was deleted or hidden
-    // mid-loop, skip the write — we don't want to resurrect a discard.
+    // Re-read fresh each iteration so concurrent UI edits are visible.
     const fresh = readCandidates(slug);
     if (!fresh) continue;
-
     const list = entry.kind === 'stop' ? fresh.stops : fresh.lodging;
     const target = list.find((c) => c.id === entry.id);
     if (!target) continue;
     if (target.hidden) continue;
 
     let needsWrite = false;
-    if (!target.coords) {
-      target.coords = { lat: coords[0], lng: coords[1] };
-      needsWrite = true;
+
+    // Resolve coords only if missing. If the target already has coords (e.g.
+    // a prior run filled them, or a user edit), skip the forward geocode
+    // entirely and use the existing coords for the reverse lookup below.
+    let coordsArr = null;
+    if (target.coords) {
+      coordsArr = [target.coords.lat, target.coords.lng];
+    } else {
+      coordsArr = await geocodeCandidate(entry.name, destinationContext, refCoords);
+      if (coordsArr) {
+        target.coords = { lat: coordsArr[0], lng: coordsArr[1] };
+        needsWrite = true;
+      }
     }
+    if (!coordsArr) continue;
 
     // Stop candidates: also resolve a human-readable address as a byproduct
     // of having coords (#403). Skip lodging — no brochure slot for it yet.
     // Skip when the candidate already has an address (preserve user edits
     // and prior-run results).
     if (entry.kind === 'stop' && !target.address) {
-      const addr = await reverseGeocode(coords);
+      const addr = await reverseGeocode(coordsArr);
       if (addr) {
         target.address = addr;
         needsWrite = true;
