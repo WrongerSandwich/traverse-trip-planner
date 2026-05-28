@@ -8,7 +8,7 @@
   import LodgingCard from './LodgingCard.svelte';
   import HideToast from './HideToast.svelte';
 
-  let { candidates, plan = null, slug, destination = null, home = null, readonly = false } = $props();
+  let { candidates, plan = null, slug, destination = null, home = null, readonly = false, jobs = [] } = $props();
 
   // ── UI state ────────────────────────────────────────────────────────────
   let tab = $state('stops');                       // 'stops' | 'lodging'
@@ -38,6 +38,12 @@
   let findSubmitting = $state(false);
   let findErrorCode = $state(/** @type {string|null} */ (null));
   let findErrorCtx = $state(/** @type {Record<string,string>} */ ({}));
+
+  // Refresh-metadata state. Triggers the enrich-candidates job server-side;
+  // the global background-jobs pill takes over for progress UI.
+  let refreshing = $state(false);
+  let kebabOpen = $state(false);
+  let refreshError = $state(/** @type {string|null} */ (null));
 
   // Focuses the panel input on mount. Used via `use:focusOnMount` instead of
   // the HTML autofocus attribute — autofocus's a11y warning applies to
@@ -382,7 +388,50 @@
   const destinationCoords = $derived(
     Array.isArray(destination) ? destination : null
   );
+
+  // True while any deepen, geocode-candidates, or enrich-candidates job is
+  // running on this trip — disables the Refresh metadata button so a second
+  // enrich doesn't stack on top of an in-flight one.
+  const anyBlockingJobRunning = $derived(
+    (jobs ?? []).some((j) => {
+      if (j.slug !== slug) return false;
+      const bare = (j.workflow || '').replace(/:.*$/, '');
+      return bare === 'deepen' || bare === 'geocode-candidates' || bare === 'enrich-candidates';
+    })
+  );
+
+  // POST /api/actions/enrich-candidates/[slug].
+  // Returns 202 on a successful job start; the global background-jobs pill
+  // surfaces progress. On 409 (already running) or other errors the inline
+  // refreshError message surfaces the problem.
+  async function refreshMetadata({ force = false } = {}) {
+    if (refreshing) return;
+    kebabOpen = false;
+    refreshing = true;
+    refreshError = null;
+    try {
+      const res = await fetch(`/api/actions/enrich-candidates/${encodeURIComponent(slug)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
+      });
+      if (!res.ok && res.status !== 202) {
+        const data = await res.json().catch(() => ({}));
+        refreshError = data.code || `http_${res.status}`;
+      }
+    } catch {
+      refreshError = 'network_error';
+    } finally {
+      refreshing = false;
+    }
+  }
 </script>
+
+<svelte:window onpointerdown={(e) => {
+  if (!kebabOpen) return;
+  // Close the kebab if the click was outside .refresh-controls
+  if (!e.target?.closest?.('.refresh-controls')) kebabOpen = false;
+}} />
 
 {#if errorCode}
   <div class="banner-error" role="alert">
@@ -484,6 +533,45 @@
       >
         Find more {currentTabType === 'stop' ? 'stops' : 'lodging'} ✨
       </button>
+
+      {#if tab === 'stops' && (allStops.length ?? 0) > 0}
+        <div class="refresh-controls">
+          <button
+            type="button"
+            class="btn-inline refresh-btn"
+            disabled={refreshing || anyBlockingJobRunning}
+            onclick={() => refreshMetadata({ force: false })}
+            title="Fetch hours/website/phone for stops that are missing them"
+          >
+            {#if refreshing}Refreshing…{:else}↻ Refresh metadata{/if}
+          </button>
+          <button
+            type="button"
+            class="btn-inline kebab-btn"
+            disabled={refreshing || anyBlockingJobRunning}
+            onclick={() => (kebabOpen = !kebabOpen)}
+            aria-label="More refresh options"
+            aria-expanded={kebabOpen}
+          >⌄</button>
+          {#if kebabOpen}
+            <div class="kebab-menu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                class="kebab-item"
+                onclick={() => refreshMetadata({ force: true })}
+              >Re-fetch all (force overwrite)</button>
+            </div>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  {#if refreshError}
+    <div class="banner-error" role="alert">
+      <span>{failureSentence(refreshError, {})}</span>
+      <button type="button" class="banner-dismiss" onclick={() => { refreshError = null; }}>Dismiss</button>
     </div>
   {/if}
 
@@ -1189,4 +1277,62 @@
     font-size: 0.78rem;
     font-style: italic;
   }
+
+  /* ── Refresh metadata controls ──────────────────────────────────────── */
+  .refresh-controls {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: auto;
+  }
+  .btn-inline {
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .btn-inline:hover:not(:disabled) {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    border-color: var(--text-tertiary);
+  }
+  .btn-inline:disabled { opacity: 0.5; cursor: not-allowed; }
+  .refresh-btn { white-space: nowrap; }
+  .kebab-btn {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.9rem;
+  }
+  .kebab-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.25rem;
+    background: var(--surface-raised);
+    border: 0.5px solid var(--border-default);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px var(--shadow-soft, rgba(0, 0, 0, 0.08));
+    z-index: 10;
+    min-width: 12rem;
+  }
+  .kebab-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.84rem;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    cursor: pointer;
+  }
+  .kebab-item:hover { background: var(--surface-sunken); }
 </style>
