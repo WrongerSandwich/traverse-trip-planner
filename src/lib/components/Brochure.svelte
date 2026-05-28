@@ -247,6 +247,8 @@
                       </div>
                       {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
                       {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
+                      {#if stop.website}<div class="stop-website">{stop.website}</div>{/if}
+                      {#if stop.phone}<div class="stop-phone">{stop.phone}</div>{/if}
                       {#if stop.notes}<p class="stop-notes">{stop.notes}</p>{/if}
                     </div>
                   </li>
@@ -270,6 +272,8 @@
                   </div>
                   {#if stop.hours}<div class="stop-hours">{stop.hours}</div>{/if}
                   {#if stop.address}<div class="stop-addr">{stop.address}</div>{/if}
+                  {#if stop.website}<div class="stop-website">{stop.website}</div>{/if}
+                  {#if stop.phone}<div class="stop-phone">{stop.phone}</div>{/if}
                   {#if stop.notes}<p class="stop-notes">{stop.notes}</p>{/if}
                 </div>
               </li>
@@ -907,7 +911,9 @@
   .stop-cat[data-cat="quirky"]        { background: var(--cat-quirky-tint);        color: var(--cat-quirky-on); }
   .stop-cat[data-cat="shopping"]      { background: var(--cat-shopping-tint);      color: var(--cat-shopping-on); }
   .stop-hours,
-  .stop-addr {
+  .stop-addr,
+  .stop-website,
+  .stop-phone {
     font-family: var(--font-mono);
     font-size: 11px;
     color: var(--bone-600);
