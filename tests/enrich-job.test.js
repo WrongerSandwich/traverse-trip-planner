@@ -247,4 +247,33 @@ describe('enrichCandidatesJob', () => {
     expect(result.failed).toBe(0);
     expect(result.skipped).toBe(0);
   });
+
+  test('deletion between chat() resolve and write-back is a silent skip — not a failure (Fix 3 — #403)', async () => {
+    const slug = 'enrich-deleted-mid-flight';
+    // Single stop; chat() resolves, but the stop is removed from candidates.yaml
+    // during the chat() call (before the second re-read + write-back).
+    seedTrip(slug,
+      '  - id: a\n    name: A\n    category: misc\n    user_added: false\n');
+
+    mockChat.mockImplementationOnce(async () => {
+      // Delete the stop from disk while chat() is "in flight" so the
+      // second re-read (fresh2) finds an empty stops array.
+      const path = join(ROOT, 'planning', slug, 'candidates.yaml');
+      writeFileSync(path, 'stops: []\nlodging: []\n');
+      return {
+        text: '<enrich>\nhours: "9am-5pm"\nwebsite: "https://a.example"\nphone: "(555) 100-2000"\n</enrich>',
+        usage: { input: 100, output: 50 },
+      };
+    });
+
+    const result = await enrichCandidatesJob(slug);
+
+    // attempted=1 (the stop was in the work list and chat() was called)
+    // enriched=0 (write-back couldn't find the target)
+    // failed=0 (deletion is not counted as failure — Fix 3)
+    // skipped=0
+    expect(result).toMatchObject({ attempted: 1, enriched: 0, failed: 0, skipped: 0 });
+    // The total-failure guard fires only when `failed > 0`, so with failed=0
+    // no enrich_all_failed is thrown. The test reaching here confirms that.
+  });
 });

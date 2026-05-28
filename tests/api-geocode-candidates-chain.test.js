@@ -140,4 +140,20 @@ describe('_startGeocodeCandidatesJob chain (Task 9: #403)', () => {
     // enrich-candidates should NOT have been called on abort
     expect(mockStartEnrichCandidatesJob).not.toHaveBeenCalled();
   });
+
+  it('still fires _startEnrichCandidatesJob even when completeJob throws (Fix 1 — #403)', async () => {
+    // completeJob throws a disk error; the chain should still proceed.
+    mockGeocodeCandidatesJob.mockResolvedValue(undefined);
+    mockCompleteJob.mockImplementationOnce(() => {
+      throw new Error('disk write failed');
+    });
+
+    _startGeocodeCandidatesJob('test-trip');
+    await new Promise(r => setTimeout(r, 50));
+
+    // completeJob was attempted
+    expect(mockCompleteJob).toHaveBeenCalledWith('geocode-candidates', 'test-trip');
+    // enrich-candidates SHOULD still have been kicked off despite completeJob throwing
+    expect(mockStartEnrichCandidatesJob).toHaveBeenCalledWith('test-trip');
+  });
 });

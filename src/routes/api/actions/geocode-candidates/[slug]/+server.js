@@ -52,12 +52,16 @@ export function _startGeocodeCandidatesJob(slug) {
       await geocodeCandidatesJob(slug, { signal: job.controller.signal });
       try {
         completeJob('geocode-candidates', slug);
-        // Chain: kick off the enrich-candidates follow-on now that coords +
-        // addresses are in place (#403). Fire-and-forget; failure surfaces
-        // through its own pill and frontmatter `last_run_error`.
-        _startEnrichCandidatesJob(slug);
       } catch (e) {
         console.error(`[geocode-candidates] ${slug}: completeJob threw after success:`, e?.message ?? e);
+      }
+      // Chain: kick off the enrich-candidates follow-on now that coords +
+      // addresses are in place (#403). Fire-and-forget; runs even if the
+      // completeJob bookkeeping above hit a disk error.
+      try {
+        _startEnrichCandidatesJob(slug);
+      } catch (e) {
+        console.error(`[geocode-candidates] ${slug}: _startEnrichCandidatesJob threw:`, e?.message ?? e);
       }
     } catch (err) {
       if (isAbort(err)) return; // cancelJob owns the failure event

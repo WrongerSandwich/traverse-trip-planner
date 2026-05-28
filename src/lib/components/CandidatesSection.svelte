@@ -8,7 +8,7 @@
   import LodgingCard from './LodgingCard.svelte';
   import HideToast from './HideToast.svelte';
 
-  let { candidates, plan = null, slug, destination = null, home = null, readonly = false, jobs = [] } = $props();
+  let { candidates, plan = null, slug, destination = null, home = null, readonly = false, jobs = [], features = null } = $props();
 
   // ── UI state ────────────────────────────────────────────────────────────
   let tab = $state('stops');                       // 'stops' | 'lodging'
@@ -534,7 +534,7 @@
         Find more {currentTabType === 'stop' ? 'stops' : 'lodging'} ✨
       </button>
 
-      {#if tab === 'stops' && (allStops.length ?? 0) > 0}
+      {#if tab === 'stops' && (allStops?.length ?? 0) > 0 && features?.['enrich-candidates']}
         <div class="refresh-controls">
           <button
             type="button"

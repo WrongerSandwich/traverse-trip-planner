@@ -200,7 +200,7 @@ export async function enrichCandidatesJob(slug, opts = {}) {
     const fresh2 = readCandidates(slug);
     if (!fresh2) { failed++; continue; }
     const target2 = fresh2.stops.find((c) => c.id === item.id);
-    if (!target2) { failed++; continue; }
+    if (!target2) { continue; }
     if (target2.hidden) {
       // Hidden during the in-flight chat() — silently skip; undo the attempted
       // count so telemetry reflects only genuinely attempted stops.
@@ -218,9 +218,10 @@ export async function enrichCandidatesJob(slug, opts = {}) {
     enriched++;
   }
 
-  // Total failure guard: if we attempted at least one stop and none succeeded,
-  // throw so the route handler can mark the job as failed rather than complete.
-  if (attempted > 0 && enriched === 0) {
+  // Total failure guard: if we attempted at least one stop, none succeeded,
+  // AND at least one genuinely failed (not just silently skipped due to
+  // mid-flight deletion), throw so the route handler can mark the job failed.
+  if (attempted > 0 && enriched === 0 && failed > 0) {
     throw new TraverseError(
       'enrich_all_failed',
       `enrich-candidates: every attempted stop failed (${failed} of ${attempted})`,
