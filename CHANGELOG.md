@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.2] — In-trip companion
+
+### Added
+- **Per-stop metadata** (#403). Every stop candidate can now carry `hours`,
+  `address`, `website`, and `phone`. Address is captured for free as a
+  byproduct of the existing geocode-candidates job (Nominatim reverse
+  lookup). Hours, website, and phone are filled by a new `enrich-candidates`
+  follow-on job that runs automatically after geocoding, or on demand via
+  the new **Refresh metadata** button in the Candidates section header.
+  Re-fetching all metadata triggers ~1 `chat()` call per stop with web
+  search — small but non-zero token cost.
+- Metadata renders as a chip row on candidate cards (Candidates section)
+  and as an expanded info stack on stops promoted into a day (Plan section,
+  the in-trip companion view). The print brochure now renders all four
+  fields when present.
+
 ## [0.1.1] — 2026-05-27
 
 Stability & polish release. Eight tickets across security hardening,

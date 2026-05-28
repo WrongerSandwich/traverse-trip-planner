@@ -6,6 +6,8 @@
   // distinct from LodgingCard — the brief calls for "stop cards look
   // like a place to do; lodging cards look like a place to sleep."
 
+  import { mapsHref, telHref, websiteHref, hostLabel } from '$lib/utils/links.js';
+
   let {
     stop,
     promoted = false,
@@ -46,6 +48,12 @@
   };
 
   const glyph = $derived(CATEGORY_GLYPH[stop.category] ?? CATEGORY_GLYPH.misc);
+
+  const hasMeta = $derived(!!(stop.address || stop.hours || stop.website || stop.phone));
+  const mapsUrl = $derived(mapsHref(stop.address));
+  const telUrl = $derived(telHref(stop.phone));
+  const webUrl = $derived(websiteHref(stop.website));
+  const webLabel = $derived(stop.website ? hostLabel(stop.website) : '');
 
   // The visible text below the title. Fold `why_recommended` into the
   // description if both exist and the description is short — keeps the
@@ -97,6 +105,58 @@
 
   {#if summary && !compact}
     <p class="summary">{summary}</p>
+  {/if}
+
+  {#if hasMeta && !compact}
+    <div class="meta-row" aria-label="Stop details">
+      {#if stop.address}
+        {#if mapsUrl}
+          <a class="meta-chip meta-chip--addr" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
+            <span class="meta-icon" aria-hidden="true">📍</span>{stop.address}
+          </a>
+        {:else}
+          <span class="meta-chip meta-chip--addr"><span class="meta-icon" aria-hidden="true">📍</span>{stop.address}</span>
+        {/if}
+      {/if}
+      {#if stop.hours}
+        <span class="meta-chip meta-chip--hours" title={stop.hours}>
+          <span class="meta-icon" aria-hidden="true">⏰</span>{stop.hours}
+        </span>
+      {/if}
+      {#if webUrl}
+        <a class="meta-chip meta-chip--web" href={webUrl} target="_blank" rel="noopener" aria-label="Website: {webLabel}" onclick={(e) => e.stopPropagation()}>
+          <span class="meta-icon" aria-hidden="true">🌐</span>{webLabel}
+        </a>
+      {/if}
+      {#if telUrl}
+        <a class="meta-chip meta-chip--phone" href={telUrl} aria-label="Call {stop.phone}" onclick={(e) => e.stopPropagation()}>
+          <span class="meta-icon" aria-hidden="true">☎</span>{stop.phone}
+        </a>
+      {/if}
+    </div>
+  {/if}
+
+  {#if hasMeta && compact}
+    <div class="meta-stack" aria-label="Stop details">
+      {#if stop.address}
+        <div class="meta-line meta-line--addr">
+          {#if mapsUrl}
+            <a class="meta-link meta-link--primary" href={mapsUrl} target="_blank" rel="noopener" onclick={(e) => e.stopPropagation()}>
+              {stop.address} <span class="meta-cta">→ Maps</span>
+            </a>
+          {:else}
+            <span>{stop.address}</span>
+          {/if}
+        </div>
+      {/if}
+      {#if stop.hours}<div class="meta-line meta-line--hours">{stop.hours}</div>{/if}
+      {#if webUrl || telUrl}
+        <div class="meta-line meta-line--contact">
+          {#if webUrl}<a class="meta-link" href={webUrl} target="_blank" rel="noopener" onclick={(e) => e.stopPropagation()}>{webLabel} ↗</a>{/if}
+          {#if telUrl}<a class="meta-link" href={telUrl} onclick={(e) => e.stopPropagation()}>{stop.phone} ↗</a>{/if}
+        </div>
+      {/if}
+    </div>
   {/if}
 
   <footer>
@@ -197,6 +257,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     padding: 4px 8px;
     gap: 0.5rem;
     border-color: transparent;
@@ -245,6 +306,10 @@
   }
   .stop-card.compact .drag-dots {
     font-size: 0.75rem;
+  }
+  .stop-card.compact .meta-stack {
+    flex-basis: 100%;
+    padding-left: calc(18px + 0.5rem); /* indent under the badge */
   }
 
   .head {
@@ -316,6 +381,76 @@
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+  }
+  .meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.74rem;
+    line-height: 1.2;
+    color: var(--text-secondary);
+    background: var(--surface-sunken);
+    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    max-width: 18rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+    border: 0.5px solid transparent;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  }
+  a.meta-chip { cursor: pointer; }
+  a.meta-chip:hover {
+    background: var(--surface-raised);
+    color: var(--accent-text);
+    border-color: var(--border-default);
+  }
+  .meta-icon {
+    font-size: 0.7rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  /* Compact mode (inside Plan day cards) — vertical stack, larger touch
+     targets, address gets primary visual weight. */
+  .meta-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-top: 0.25rem;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    width: 100%;
+  }
+  .meta-line { color: var(--text-secondary); }
+  .meta-line--addr { font-weight: 500; }
+  .meta-line--hours { color: var(--text-tertiary); font-style: italic; }
+  .meta-line--contact { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+  .meta-link {
+    color: var(--accent-text);
+    text-decoration: none;
+    border-bottom: 1px dotted color-mix(in oklab, var(--accent-text) 50%, transparent);
+  }
+  .meta-link:hover { border-bottom-style: solid; }
+  .meta-link--primary {
+    color: var(--text-primary);
+    border-bottom-color: color-mix(in oklab, var(--text-primary) 35%, transparent);
+  }
+  .meta-cta {
+    color: var(--accent-text);
+    margin-left: 0.25rem;
+  }
+  @media (pointer: coarse) {
+    .meta-line--addr a { min-height: var(--tap-min); display: inline-flex; align-items: center; }
+    .meta-link { min-height: var(--tap-min); display: inline-flex; align-items: center; padding: 0.2rem 0; }
   }
 
   footer {

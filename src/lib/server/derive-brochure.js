@@ -77,6 +77,10 @@ export function deriveBrochure(slug) {
         description: c.description,
         notes: c.description,           // legacy alias for the print view
         coords: normalizeCoords(c.coords),
+        address: c.address,
+        hours: c.hours,
+        website: c.website,
+        phone: c.phone,
       }));
     const dayLodging = d.lodging_id && lookup.get(d.lodging_id)?.kind === 'lodging'
       ? { name: lookup.get(d.lodging_id).name, coords: normalizeCoords(lookup.get(d.lodging_id).coords) }
@@ -120,6 +124,10 @@ export function deriveBrochure(slug) {
         category: c.category,
         notes: c.description,
         coords: normalizeCoords(c.coords),
+        address: c.address,
+        hours: c.hours,
+        website: c.website,
+        phone: c.phone,
       });
     }
     const lid = d.lodging_id;

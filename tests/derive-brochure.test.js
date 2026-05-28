@@ -72,4 +72,58 @@ describe('deriveBrochure', () => {
     expect(b.days[0].stops.map((s) => s.name)).toEqual(['A']);
     expect(b.danglings).toContain('ghost');
   });
+
+  it('projects address/hours/website/phone onto brochure day stops', () => {
+    writeCandidates('t', {
+      stops: [
+        {
+          id: 'a',
+          name: 'A',
+          category: 'outdoors',
+          description: 'Place A',
+          coords: { lat: 1, lng: 1 },
+          address: '1 Main St',
+          hours: '9-5',
+          website: 'https://a.example',
+          phone: '555-0001',
+          user_added: false,
+        },
+        { id: 'b', name: 'B', category: 'food', description: 'Place B', user_added: false },
+      ],
+      lodging: [{ id: 'inn', name: 'Inn', price_tier: 'mid', nights: 2, user_added: false }],
+    });
+    const b = deriveBrochure('t');
+    const stop = b.days[0].stops[0];
+    expect(stop.address).toBe('1 Main St');
+    expect(stop.hours).toBe('9-5');
+    expect(stop.website).toBe('https://a.example');
+    expect(stop.phone).toBe('555-0001');
+  });
+
+  it('projects address/hours/website/phone onto flat top-level stops', () => {
+    writeCandidates('t', {
+      stops: [
+        {
+          id: 'a',
+          name: 'A',
+          category: 'outdoors',
+          description: 'Place A',
+          coords: { lat: 1, lng: 1 },
+          address: '1 Main St',
+          hours: '9-5',
+          website: 'https://a.example',
+          phone: '555-0001',
+          user_added: false,
+        },
+        { id: 'b', name: 'B', category: 'food', description: 'Place B', user_added: false },
+      ],
+      lodging: [{ id: 'inn', name: 'Inn', price_tier: 'mid', nights: 2, user_added: false }],
+    });
+    const b = deriveBrochure('t');
+    const stop = b.stops[0];
+    expect(stop.address).toBe('1 Main St');
+    expect(stop.hours).toBe('9-5');
+    expect(stop.website).toBe('https://a.example');
+    expect(stop.phone).toBe('555-0001');
+  });
 });

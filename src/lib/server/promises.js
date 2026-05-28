@@ -35,6 +35,9 @@ export const MAX_TOKENS = {
   receipts: 800,
   'add-candidate': 1000,
   'find-more': 6000,
+  // enrich-candidates: one chat() per candidate; each call is tight (one place
+  // name, three fields back). Per-call cap fits the YAML response with margin.
+  'enrich-candidates': 1500,
 };
 
 /** @type {Record<string, Promise>} */
@@ -108,6 +111,17 @@ export const HAND_DEFAULTS = {
     produces: "Pins the trip's stop and lodging candidates on the map by looking up each by name. Runs in the background after research completes.",
     time_seconds: 15,
     tokens_range: [0, 0],
+  },
+  // Enrich-candidates is the second follow-on job after deepen. One chat()
+  // with web_search per candidate fills `hours`/`website`/`phone` (address
+  // comes from geocode-candidates' reverse lookup). Hand-default reflects a
+  // typical 10-candidate trip × ~9s per chat() with caching; telemetry
+  // recalibrates via workflow-stats rolling p50 once real runs land.
+  'enrich-candidates': {
+    verb: 'Enrich candidates',
+    produces: "Hours, official website, and phone for each stop candidate. Runs in the background after geocoding completes.",
+    time_seconds: 90,
+    tokens_range: [3000, 12000],
   },
 };
 

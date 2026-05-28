@@ -22,6 +22,7 @@ import { geocodeCandidatesJob } from '$lib/server/geocode-job.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 import { isAbort } from '$lib/utils/abort.js';
+import { _startEnrichCandidatesJob } from '../../enrich-candidates/[slug]/+server.js';
 
 export const _promise = HAND_DEFAULTS['geocode-candidates'];
 
@@ -53,6 +54,14 @@ export function _startGeocodeCandidatesJob(slug) {
         completeJob('geocode-candidates', slug);
       } catch (e) {
         console.error(`[geocode-candidates] ${slug}: completeJob threw after success:`, e?.message ?? e);
+      }
+      // Chain: kick off the enrich-candidates follow-on now that coords +
+      // addresses are in place (#403). Fire-and-forget; runs even if the
+      // completeJob bookkeeping above hit a disk error.
+      try {
+        _startEnrichCandidatesJob(slug);
+      } catch (e) {
+        console.error(`[geocode-candidates] ${slug}: _startEnrichCandidatesJob threw:`, e?.message ?? e);
       }
     } catch (err) {
       if (isAbort(err)) return; // cancelJob owns the failure event
