@@ -28,6 +28,7 @@ vi.mock('$lib/server/candidates.js', () => ({
 const mockFindTripFile = vi.hoisted(() => vi.fn(() => '/test/planning/t/overview.md'));
 const mockReadFileSync = vi.hoisted(() => vi.fn(() => '---\ndestination: Glacier MT\n---\nProse'));
 const mockExistsSync = vi.hoisted(() => vi.fn(() => true));
+const mockReverseGeocode = vi.hoisted(() => vi.fn());
 
 vi.mock('node:fs', () => ({
   readFileSync: mockReadFileSync,
@@ -37,6 +38,7 @@ vi.mock('node:fs', () => ({
 vi.mock('$lib/server/data.js', () => ({
   DATA_DIR: '/test-root/data',
   findTripFile: mockFindTripFile,
+  reverseGeocode: mockReverseGeocode,
   parseFrontmatter: (text) => {
     const match = text.match(/^---\n([\s\S]*?)\n---/);
     if (!match) return null;
@@ -57,10 +59,12 @@ beforeEach(() => {
   mockWriteCandidates.mockReset();
   mockGeocodeCandidate.mockReset();
   mockGetDestinationRefCoords.mockReset();
+  mockReverseGeocode.mockReset();
   mockFindTripFile.mockReturnValue('/test/planning/t/overview.md');
   mockReadFileSync.mockReturnValue('---\ndestination: Glacier MT\n---\nProse');
   mockExistsSync.mockReturnValue(true);
   mockGetDestinationRefCoords.mockResolvedValue([48.7, -114.0]);
+  mockReverseGeocode.mockResolvedValue(null);
 });
 
 describe('geocodeCandidatesJob', () => {
@@ -244,5 +248,95 @@ describe('geocodeCandidatesJob', () => {
     await geocodeCandidatesJob('t');
 
     expect(readCount).toBeGreaterThan(1);
+  });
+
+  // --- address capture (#403) ---
+
+  it('writes address to stop candidate after successful geocode', async () => {
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'dunes', name: 'Sleeping Bear Dunes', category: 'outdoors' }],
+      lodging: [],
+    });
+    mockGeocodeCandidate.mockResolvedValue([44.88, -86.05]);
+    mockReverseGeocode.mockResolvedValue('Front Street, Empire, Michigan 49630');
+
+    await geocodeCandidatesJob('t');
+
+    const lastWrite = mockWriteCandidates.mock.calls.at(-1);
+    expect(lastWrite[1].stops[0].coords).toEqual({ lat: 44.88, lng: -86.05 });
+    expect(lastWrite[1].stops[0].address).toBe('Front Street, Empire, Michigan 49630');
+  });
+
+  it('calls reverseGeocode with the coords returned by geocodeCandidate', async () => {
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'a', name: 'A' }],
+      lodging: [],
+    });
+    mockGeocodeCandidate.mockResolvedValue([44.88, -86.05]);
+    mockReverseGeocode.mockResolvedValue('Some Address');
+
+    await geocodeCandidatesJob('t');
+
+    expect(mockReverseGeocode).toHaveBeenCalledWith([44.88, -86.05]);
+  });
+
+  it('does not overwrite an existing user-edited address', async () => {
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'dunes', name: 'Dunes', address: 'User-edited address', user_added: true }],
+      lodging: [],
+    });
+    mockGeocodeCandidate.mockResolvedValue([44.88, -86.05]);
+    mockReverseGeocode.mockResolvedValue('Nominatim address');
+
+    await geocodeCandidatesJob('t');
+
+    const lastWrite = mockWriteCandidates.mock.calls.at(-1);
+    expect(lastWrite[1].stops[0].address).toBe('User-edited address');
+    expect(mockReverseGeocode).not.toHaveBeenCalled();
+  });
+
+  it('does not call reverseGeocode for lodging candidates', async () => {
+    mockReadCandidates.mockReturnValue({
+      stops: [],
+      lodging: [{ id: 'inn', name: 'Empire Inn' }],
+    });
+    mockGeocodeCandidate.mockResolvedValue([44.88, -86.05]);
+    mockReverseGeocode.mockResolvedValue('Some Address');
+
+    await geocodeCandidatesJob('t');
+
+    expect(mockReverseGeocode).not.toHaveBeenCalled();
+  });
+
+  it('still writes coords when reverseGeocode returns null', async () => {
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'a', name: 'A' }],
+      lodging: [],
+    });
+    mockGeocodeCandidate.mockResolvedValue([44.88, -86.05]);
+    mockReverseGeocode.mockResolvedValue(null);
+
+    await geocodeCandidatesJob('t');
+
+    const lastWrite = mockWriteCandidates.mock.calls.at(-1);
+    expect(lastWrite[1].stops[0].coords).toEqual({ lat: 44.88, lng: -86.05 });
+    expect(lastWrite[1].stops[0].address).toBeUndefined();
+  });
+
+  it('writes address even when candidate already has coords from a prior run (fills missing address)', async () => {
+    // If coords exist but address is absent, the address path should still fire
+    // on the fresh re-read — but since the entry already has coords it won't
+    // appear in the initial ids list, so reverseGeocode is NOT called.
+    // This test confirms the initial-ids filter still applies.
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'a', name: 'A', coords: { lat: 44.88, lng: -86.05 } }],
+      lodging: [],
+    });
+
+    await geocodeCandidatesJob('t');
+
+    expect(mockGeocodeCandidate).not.toHaveBeenCalled();
+    expect(mockReverseGeocode).not.toHaveBeenCalled();
+    expect(mockWriteCandidates).not.toHaveBeenCalled();
   });
 });

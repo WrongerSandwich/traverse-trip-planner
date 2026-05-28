@@ -22,7 +22,7 @@
 // directly off disk because getTripFiles strips frontmatter from `files.overview`.
 
 import { existsSync, readFileSync } from 'node:fs';
-import { findTripFile, parseFrontmatter } from './data.js';
+import { findTripFile, parseFrontmatter, reverseGeocode } from './data.js';
 import {
   geocodeCandidate,
   getDestinationRefCoords,
@@ -89,9 +89,25 @@ export async function geocodeCandidatesJob(slug, opts = {}) {
     const target = list.find((c) => c.id === entry.id);
     if (!target) continue;
     if (target.hidden) continue;
-    if (target.coords) continue; // someone else got here first; respect their write.
 
-    target.coords = { lat: coords[0], lng: coords[1] };
-    writeCandidates(slug, fresh);
+    let needsWrite = false;
+    if (!target.coords) {
+      target.coords = { lat: coords[0], lng: coords[1] };
+      needsWrite = true;
+    }
+
+    // Stop candidates: also resolve a human-readable address as a byproduct
+    // of having coords (#403). Skip lodging — no brochure slot for it yet.
+    // Skip when the candidate already has an address (preserve user edits
+    // and prior-run results).
+    if (entry.kind === 'stop' && !target.address) {
+      const addr = await reverseGeocode(coords);
+      if (addr) {
+        target.address = addr;
+        needsWrite = true;
+      }
+    }
+
+    if (needsWrite) writeCandidates(slug, fresh);
   }
 }
