@@ -211,4 +211,40 @@ describe('enrichCandidatesJob', () => {
     expect(result.attempted).toBe(1);
     expect(result.enriched).toBe(1);
   });
+
+  test('silently skips a candidate that was deleted mid-loop', async () => {
+    const slug = 'enrich-deleted';
+    // Seed two stops a and b; we'll capture a in the work list, then delete b before loop processes it.
+    seedTrip(slug,
+      '  - id: a\n    name: A\n    category: misc\n    user_added: false\n' +
+      '  - id: b\n    name: B\n    category: misc\n    user_added: false\n');
+
+    let callCount = 0;
+    mockChat.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        // First iteration (stop A): before returning, delete stop B from disk.
+        const path = join(ROOT, 'planning', slug, 'candidates.yaml');
+        const updated = `stops:\n  - id: a\n    name: A\n    category: misc\n    user_added: false\n    hours: "9am-5pm"\n    website: "https://a.example"\n    phone: "(555) 100-2000"\nlodging: []\n`;
+        writeFileSync(path, updated);
+        return {
+          text: '<enrich>\nhours: "9am-5pm"\nwebsite: "https://a.example"\nphone: "(555) 100-2000"\n</enrich>',
+          usage: { input: 100, output: 50 },
+        };
+      }
+      // This should never be called for stop B since it's been deleted.
+      return { text: 'UNEXPECTED', usage: { input: 10, output: 5 } };
+    });
+
+    const result = await enrichCandidatesJob(slug);
+
+    // chat() should have been called exactly once (for A only, B was deleted mid-loop).
+    expect(mockChat).toHaveBeenCalledOnce();
+
+    // Critically: stop B that was deleted should NOT be counted as attempted or failed.
+    expect(result.attempted).toBe(1);
+    expect(result.enriched).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(result.skipped).toBe(0);
+  });
 });

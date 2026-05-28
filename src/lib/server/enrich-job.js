@@ -143,7 +143,7 @@ export async function enrichCandidatesJob(slug, opts = {}) {
       const fresh = readCandidates(slug);
       if (!fresh) break;
       const target = fresh.stops.find((c) => c.id === item.id);
-      if (!target) { failed++; attempted++; continue; }
+      if (!target) { continue; }
       if (target.hidden) { skipped++; continue; }
 
       attempted++;
