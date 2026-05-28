@@ -215,6 +215,51 @@ describe('candidates.js', () => {
     const plan = readPlan('mytrip');
     expect(plan.days[0].stops).not.toContain('s1');
   });
+
+  it('round-trips address, hours, website, phone on stop candidates', () => {
+    writeCandidates('mytrip', {
+      stops: [{
+        id: 'sleeping-bear',
+        name: 'Sleeping Bear Dunes',
+        category: 'outdoors',
+        description: 'Sand dunes on Lake Michigan.',
+        why_recommended: 'Park-leaning vibe',
+        source_url: 'https://www.nps.gov/slbe/',
+        coords: { lat: 44.88, lng: -86.05 },
+        address: '9922 Front St, Empire, MI 49630',
+        hours: 'Visitor Center 9am-4pm daily; park 24/7',
+        website: 'https://www.nps.gov/slbe',
+        phone: '(231) 326-4700',
+        user_added: false,
+      }],
+      lodging: [],
+    });
+
+    const round = readCandidates('mytrip');
+    expect(round.stops[0].address).toBe('9922 Front St, Empire, MI 49630');
+    expect(round.stops[0].hours).toBe('Visitor Center 9am-4pm daily; park 24/7');
+    expect(round.stops[0].website).toBe('https://www.nps.gov/slbe');
+    expect(round.stops[0].phone).toBe('(231) 326-4700');
+  });
+
+  it('omitted metadata fields stay undefined after round-trip', () => {
+    writeCandidates('mytrip', {
+      stops: [{
+        id: 'x',
+        name: 'Plain Stop',
+        category: 'misc',
+        description: '',
+        user_added: false,
+      }],
+      lodging: [],
+    });
+
+    const round = readCandidates('mytrip');
+    expect(round.stops[0].address).toBeUndefined();
+    expect(round.stops[0].hours).toBeUndefined();
+    expect(round.stops[0].website).toBeUndefined();
+    expect(round.stops[0].phone).toBeUndefined();
+  });
 });
 
 describe('geocodeCandidate', () => {
