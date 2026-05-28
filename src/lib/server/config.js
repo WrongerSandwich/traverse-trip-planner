@@ -22,6 +22,10 @@ const FEATURE_SLOT = {
   // chat({ provider: undefined }) and the call throws.
   'add-candidate': 'modelDefault',
   'find-more': 'modelResearch',
+  // enrich-candidates: one chat() per stop to fill hours/website/phone via
+  // web_search. Uses the default model slot — calls are tight (one place per
+  // round-trip) and don't need the research model's larger context window.
+  'enrich-candidates': 'modelDefault',
 };
 
 const PROVIDER_KEYS = Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.envKey]));
