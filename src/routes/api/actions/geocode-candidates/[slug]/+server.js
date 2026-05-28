@@ -22,6 +22,7 @@ import { geocodeCandidatesJob } from '$lib/server/geocode-job.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { HAND_DEFAULTS } from '$lib/server/promises.js';
 import { isAbort } from '$lib/utils/abort.js';
+import { _startEnrichCandidatesJob } from '../../enrich-candidates/[slug]/+server.js';
 
 export const _promise = HAND_DEFAULTS['geocode-candidates'];
 
@@ -51,6 +52,10 @@ export function _startGeocodeCandidatesJob(slug) {
       await geocodeCandidatesJob(slug, { signal: job.controller.signal });
       try {
         completeJob('geocode-candidates', slug);
+        // Chain: kick off the enrich-candidates follow-on now that coords +
+        // addresses are in place (#403). Fire-and-forget; failure surfaces
+        // through its own pill and frontmatter `last_run_error`.
+        _startEnrichCandidatesJob(slug);
       } catch (e) {
         console.error(`[geocode-candidates] ${slug}: completeJob threw after success:`, e?.message ?? e);
       }
