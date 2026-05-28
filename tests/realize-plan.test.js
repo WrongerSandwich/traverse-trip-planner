@@ -578,5 +578,59 @@ describe('realizePlan', () => {
     expect(written.stops.some((s) => s.id === 'tecumseh' && s.user_added === true)).toBe(true);
     expect(written.stops.some((s) => s.name === 'Mound City Group')).toBe(true);
   });
+
+  it('realizePlan passes hours/address/website/phone from LLM YAML to stops', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+
+    await realizePlan('t', makeExtract({
+      plan: { field_guide_notes: [], gotchas: [] },
+      candidates: {
+        stops: [{
+          name: 'Lemon Bakery',
+          category: 'misc',
+          description: 'Local bakery downtown.',
+          why_recommended: 'Loved by passers-by.',
+          source_url: 'https://example.com',
+          hours: 'Mon-Sat 7am-3pm; closed Sundays',
+          address: '123 Main St, Empire, MI',
+          website: 'https://lemon.example.com',
+          phone: '(231) 555-0100',
+        }],
+        lodging: [],
+      },
+    }));
+
+    const stop = capturedCands.value.stops[0];
+    expect(stop.hours).toBe('Mon-Sat 7am-3pm; closed Sundays');
+    expect(stop.address).toBe('123 Main St, Empire, MI');
+    expect(stop.website).toBe('https://lemon.example.com');
+    expect(stop.phone).toBe('(231) 555-0100');
+  });
+
+  it('realizePlan does not add empty-string metadata fields when LLM omits them', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+
+    await realizePlan('t', makeExtract({
+      plan: { field_guide_notes: [], gotchas: [] },
+      candidates: {
+        stops: [{
+          name: 'Plain Stop',
+          category: 'outdoors',
+          description: 'A stop with no metadata.',
+          why_recommended: 'Just a stop.',
+          source_url: '',
+        }],
+        lodging: [],
+      },
+    }));
+
+    const stop = capturedCands.value.stops[0];
+    expect(stop.hours).toBeUndefined();
+    expect(stop.address).toBeUndefined();
+    expect(stop.website).toBeUndefined();
+    expect(stop.phone).toBeUndefined();
+  });
 });
 

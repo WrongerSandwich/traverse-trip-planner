@@ -92,6 +92,10 @@ export async function realizePlan(slug, parsedExtract, _opts = {}) {
       description: raw.description ?? '',
       why_recommended: raw.why_recommended ?? '',
       source_url: raw.source_url ?? '',
+      ...(typeof raw.address === 'string' && raw.address.trim() ? { address: raw.address.trim() } : {}),
+      ...(typeof raw.hours === 'string' && raw.hours.trim() ? { hours: raw.hours.trim() } : {}),
+      ...(typeof raw.website === 'string' && raw.website.trim() ? { website: raw.website.trim() } : {}),
+      ...(typeof raw.phone === 'string' && raw.phone.trim() ? { phone: raw.phone.trim() } : {}),
       user_added: false,
     });
   }
