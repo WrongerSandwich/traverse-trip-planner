@@ -1,5 +1,5 @@
 import { describe, it, expect, test } from 'vitest';
-import { tripToVEvent, tripsToIcs, tripToDailyVEvents } from '../src/lib/server/ics.js';
+import { tripToVEvent, tripsToIcs, tripToDailyVEvents, tripToIcs } from '../src/lib/server/ics.js';
 
 const FIXED_NOW = new Date('2026-01-15T10:30:00Z');
 
@@ -279,5 +279,62 @@ describe('tripToDailyVEvents', () => {
     const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
     // ICS escaping: ; → \;, , → \,, newline → \n
     expect(events[0]).toContain('Watch out\\; mind the gap\\, and the rain.');
+  });
+});
+
+// ── tripToIcs dispatcher (#405) ───────────────────────────────────────────
+
+describe('tripToIcs dispatcher', () => {
+  const FROZEN = new Date('2026-06-02T12:00:00Z');
+
+  test('returns null when neither per-day dates nor target_date are present', () => {
+    const trip = { _slug: 't', title: 'T' };
+    const plan = { days: [{ number: 1, stops: [] }] };
+    const candidates = { stops: [], lodging: [] };
+    expect(tripToIcs(trip, { plan, candidates }, FROZEN)).toBeNull();
+  });
+
+  test('emits per-day calendar when plan has any dated day', () => {
+    const trip = { _slug: 't', title: 'T' };
+    const plan = { days: [{ number: 1, date: '2026-07-04', stops: [] }] };
+    const ics = tripToIcs(trip, { plan, candidates: { stops: [], lodging: [] } }, FROZEN);
+    expect(ics).toContain('BEGIN:VCALENDAR');
+    expect(ics).toContain('UID:t-day1@traverse');
+    expect(ics).toContain('END:VCALENDAR');
+    // No trip-level UID (the bare slug@traverse) must appear.
+    expect(ics).not.toMatch(/UID:t@traverse/);
+  });
+
+  test('falls back to trip-level VEVENT when no per-day dates but target_date present', () => {
+    const trip = { _slug: 't', title: 'T', target_date: '2026-07-04', duration_days: 3 };
+    const plan = { days: [{ number: 1, stops: [] }] };  // no day.date
+    const ics = tripToIcs(trip, { plan, candidates: { stops: [], lodging: [] } }, FROZEN);
+    expect(ics).toContain('UID:t@traverse');
+    expect(ics).toContain('DTSTART;VALUE=DATE:20260704');
+    expect(ics).toContain('DTEND;VALUE=DATE:20260707');
+  });
+
+  test('per-day path wins over trip-level fallback when both are available', () => {
+    const trip = { _slug: 't', title: 'T', target_date: '2026-07-04', duration_days: 3 };
+    const plan = { days: [{ number: 1, date: '2026-07-04', stops: [] }] };
+    const ics = tripToIcs(trip, { plan, candidates: { stops: [], lodging: [] } }, FROZEN);
+    expect(ics).toContain('UID:t-day1@traverse');
+    expect(ics).not.toMatch(/UID:t@traverse[\r\n]/);
+  });
+
+  test('returns full ICS scaffold (BEGIN:VCALENDAR, METHOD, etc)', () => {
+    const trip = { _slug: 't', title: 'T', target_date: '2026-07-04', duration_days: 1 };
+    const ics = tripToIcs(trip, { plan: null, candidates: null }, FROZEN);
+    expect(ics).toContain('BEGIN:VCALENDAR');
+    expect(ics).toContain('VERSION:2.0');
+    expect(ics).toContain('PRODID:-//Traverse//Trip Planner//EN');
+    expect(ics).toContain('CALSCALE:GREGORIAN');
+    expect(ics).toContain('METHOD:PUBLISH');
+    expect(ics).toContain('END:VCALENDAR');
+  });
+
+  test('omits options gracefully (plan / candidates may be missing)', () => {
+    const trip = { _slug: 't', title: 'T', target_date: '2026-07-04', duration_days: 1 };
+    expect(tripToIcs(trip, {}, FROZEN)).toContain('UID:t@traverse');
   });
 });

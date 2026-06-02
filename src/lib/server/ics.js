@@ -163,3 +163,36 @@ export function tripsToIcs(trips, now = new Date()) {
     '', // trailing newline per RFC
   ].join(CRLF);
 }
+
+/**
+ * Dispatcher for the single-trip ICS endpoint (#405).
+ *
+ * Picks the per-day path when `plan` has at least one dated day; otherwise
+ * falls back to the trip-level `tripToVEvent`. Returns a complete ICS
+ * document string, or `null` when neither path yields any event.
+ *
+ * @param {object} trip
+ * @param {{ plan?: object, candidates?: object }} [opts]
+ * @param {Date} [now]
+ * @returns {string | null}
+ */
+export function tripToIcs(trip, opts = {}, now = new Date()) {
+  const { plan, candidates } = opts;
+  const daily = tripToDailyVEvents(trip, plan, candidates, now);
+  const events = daily ?? [];
+  if (events.length === 0) {
+    const fallback = tripToVEvent(trip, now);
+    if (fallback) events.push(fallback);
+  }
+  if (events.length === 0) return null;
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Traverse//Trip Planner//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    ...events,
+    'END:VCALENDAR',
+    '',
+  ].join(CRLF);
+}
