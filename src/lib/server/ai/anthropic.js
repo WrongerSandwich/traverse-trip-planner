@@ -78,6 +78,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     if (signal?.aborted) throw signal.reason ?? new Error('Aborted');
+    const turnStart = Date.now();
     let response;
     try {
       response = await client.messages.create({
@@ -100,18 +101,27 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
       logAdapterError(wrapped);
       throw wrapped;
     }
+    const turnInput = response.usage?.input_tokens ?? 0;
+    const turnOutput = response.usage?.output_tokens ?? 0;
     accumUsage(usage, response.usage);
     usage.total = usage.input + usage.output;
 
     if (response.stop_reason === 'end_turn' || response.stop_reason === 'max_tokens') {
+      onActivity?.({ type: 'turn', turn: turn + 1, elapsed_ms: Date.now() - turnStart, input: turnInput, output: turnOutput, tool_used: null });
       return { text: extractText(response.content), usage };
     }
 
     if (response.stop_reason !== 'tool_use') {
       const text = extractText(response.content);
-      if (text) return { text, usage };
+      if (text) {
+        onActivity?.({ type: 'turn', turn: turn + 1, elapsed_ms: Date.now() - turnStart, input: turnInput, output: turnOutput, tool_used: null });
+        return { text, usage };
+      }
       throw new Error(`Anthropic adapter: unexpected stop_reason "${response.stop_reason}".`);
     }
+
+    const firstToolBlock = response.content.find(b => b.type === 'tool_use');
+    onActivity?.({ type: 'turn', turn: turn + 1, elapsed_ms: Date.now() - turnStart, input: turnInput, output: turnOutput, tool_used: firstToolBlock?.name ?? null });
 
     convo = [...convo, { role: 'assistant', content: response.content }];
 

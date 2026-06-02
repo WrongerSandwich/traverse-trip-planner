@@ -230,7 +230,8 @@ describe('OpenAI adapter — tool loop', () => {
     expect(text).toBe('final answer');
     expect(onToolCall).toHaveBeenCalledOnce();
     expect(onToolCall.mock.calls[0][0]).toEqual({ name: 'web_search', input: { query: 'hello' } });
-    expect(activities).toEqual([{ type: 'tool_call', name: 'web_search', input: { query: 'hello' } }]);
+    const toolCallEvents = activities.filter(a => a.type === 'tool_call');
+    expect(toolCallEvents).toEqual([{ type: 'tool_call', name: 'web_search', input: { query: 'hello' } }]);
     expect(usage).toEqual({ input: 130, output: 17, total: 147, turns: 2 });
 
     // Second fetch call should include the tool result message
@@ -268,6 +269,72 @@ describe('OpenAI adapter — tool loop', () => {
     const secondCall = JSON.parse(fetch.mock.calls[1][1].body);
     const toolMsg = secondCall.messages.find(m => m.role === 'tool');
     expect(toolMsg.content).toContain('search down');
+  });
+});
+
+describe('OpenAI adapter — per-turn telemetry', () => {
+  it('emits a turn event with tool_used=null on a single no-tool stop', async () => {
+    fetch.mockResolvedValueOnce(jsonResponse({
+      choices: [{ message: { role: 'assistant', content: 'hi there' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 12, completion_tokens: 4 },
+    }));
+
+    const activities = [];
+    await chat({
+      model: 'gpt-4o-mini',
+      system: 's',
+      messages: [{ role: 'user', content: 'hi' }],
+      maxTokens: 100,
+      onActivity: (a) => activities.push(a),
+    });
+
+    const turnEvents = activities.filter(a => a.type === 'turn');
+    expect(turnEvents).toHaveLength(1);
+    const t = turnEvents[0];
+    expect(t.turn).toBe(1);
+    expect(t.input).toBe(12);
+    expect(t.output).toBe(4);
+    expect(t.tool_used).toBeNull();
+    expect(typeof t.elapsed_ms).toBe('number');
+  });
+
+  it('emits a turn event with tool_used set on a tool_calls finish', async () => {
+    fetch.mockResolvedValueOnce(jsonResponse({
+      choices: [{
+        message: {
+          role: 'assistant', content: null,
+          tool_calls: [{ id: 'c1', type: 'function', function: { name: 'web_search', arguments: '{"query":"x"}' } }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+      usage: { prompt_tokens: 50, completion_tokens: 5 },
+    }));
+    fetch.mockResolvedValueOnce(jsonResponse({
+      choices: [{ message: { role: 'assistant', content: 'done' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 80, completion_tokens: 10 },
+    }));
+
+    const activities = [];
+    await chat({
+      model: 'gpt-4o',
+      system: 's',
+      messages: [{ role: 'user', content: 'search' }],
+      maxTokens: 200,
+      tools: [{ kind: 'normalized', name: 'web_search', description: 's', inputSchema: { type: 'object' } }],
+      onToolCall: async () => 'results',
+      onActivity: (a) => activities.push(a),
+    });
+
+    const turnEvents = activities.filter(a => a.type === 'turn');
+    expect(turnEvents).toHaveLength(2);
+    expect(turnEvents[0].turn).toBe(1);
+    expect(turnEvents[0].input).toBe(50);
+    expect(turnEvents[0].output).toBe(5);
+    expect(turnEvents[0].tool_used).toBe('web_search');
+    expect(turnEvents[1].turn).toBe(2);
+    expect(turnEvents[1].input).toBe(80);
+    expect(turnEvents[1].output).toBe(10);
+    expect(turnEvents[1].tool_used).toBeNull();
   });
 });
 

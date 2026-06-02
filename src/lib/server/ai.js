@@ -44,10 +44,18 @@ export async function chat({ provider, model, system, messages, maxTokens, tools
     throw new Error(`Configured provider "${provider}" does not support image input.`);
   }
   const adapter = adapters[provider];
+  const wrappedActivity = (event) => {
+    if (event?.type === 'turn') {
+      const tag = label ? `${label} ` : '';
+      const tool = event.tool_used ? `tool=${event.tool_used}` : 'no-tool';
+      console.log(`[ai] ${tag}turn ${event.turn}: ${event.elapsed_ms}ms · ${event.input} in / ${event.output} out · ${tool}`);
+    }
+    onActivity?.(event);
+  };
   const start = Date.now();
   let u = {};
   try {
-    const result = await adapter.chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity, signal, onText });
+    const result = await adapter.chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity: wrappedActivity, signal, onText });
     u = result.usage || {};
     return result;
   } finally {
