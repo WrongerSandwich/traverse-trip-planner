@@ -4,7 +4,7 @@
   import Logo from '$lib/components/Logo.svelte';
   import SettingsSubnav from '$lib/components/SettingsSubnav.svelte';
   import { getStoredTheme, setTheme } from '$lib/theme.js';
-  import { failureSentence } from '$lib/errors-registry.js';
+  import { ERROR_REGISTRY, failureSentence } from '$lib/errors-registry.js';
 
   let { data } = $props();
 
@@ -162,6 +162,25 @@
     }
   });
 
+  // ── Error resolution ───────────────────────────────────────────────────────
+  /**
+   * Resolve a user-facing error sentence for a failed /api/settings response.
+   * Prefers a recognized ERROR_REGISTRY code, falls back to the server's
+   * `error` string (already a user-facing sentence), then to the generic
+   * `save_failed` sentence as a last resort.
+   */
+  async function readSaveError(res) {
+    let body = {};
+    try { body = await res.json(); } catch { /* not JSON */ }
+    if (body?.code && ERROR_REGISTRY[body.code]) {
+      return failureSentence(body.code, body.ctx ?? {});
+    }
+    if (typeof body?.error === 'string' && body.error.trim()) {
+      return body.error.trim();
+    }
+    return failureSentence('save_failed');
+  }
+
   // ── Provider/service remove ────────────────────────────────────────────────
   async function removeKey(provider) {
     if (busy) return;
@@ -175,7 +194,7 @@
         body: JSON.stringify({ keysToClear: [provider] }),
       });
       if (!res.ok) {
-        saveError = failureSentence('save_failed');
+        saveError = await readSaveError(res);
       } else {
         removingKey[provider] = false;
         const updated = await res.json();
@@ -203,7 +222,7 @@
         body: JSON.stringify({ servicesToClear: [service] }),
       });
       if (!res.ok) {
-        saveError = failureSentence('save_failed');
+        saveError = await readSaveError(res);
       } else {
         removingService[service] = false;
         const updated = await res.json();
@@ -261,7 +280,7 @@
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        saveError = failureSentence('save_failed');
+        saveError = await readSaveError(res);
       } else {
         savedOk = true;
         keys = { anthropic: '', openai: '', openrouter: '' };
