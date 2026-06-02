@@ -22,6 +22,10 @@ const FEATURE_SLOT = {
   // chat({ provider: undefined }) and the call throws.
   'add-candidate': 'modelDefault',
   'find-more': 'modelResearch',
+  // enrich-candidates: one chat() per stop to fill hours/website/phone via
+  // web_search. Uses the default model slot — calls are tight (one place per
+  // round-trip) and don't need the research model's larger context window.
+  'enrich-candidates': 'modelDefault',
 };
 
 const PROVIDER_KEYS = Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.envKey]));
@@ -141,7 +145,7 @@ export function getFeatureAvailability() {
   // deepen and find-more both invoke web_search and the prompts assume it's
   // available — gate both on search backend health. add-candidate uses search
   // softly ("if you don't recognize the place") so it stays independent.
-  const searchDependent = new Set(['deepen', 'find-more']);
+  const searchDependent = new Set(['deepen', 'find-more', 'enrich-candidates']);
   for (const feature of Object.keys(FEATURE_SLOT)) {
     const ok = providerKeyOkIn(effectiveEnv, cfg.features[feature].provider);
     result[feature] = searchDependent.has(feature) ? (ok && search) : ok;

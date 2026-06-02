@@ -105,6 +105,10 @@ lodging:
 
 Lodging is a separate list, not a category within stops.
 
+**Per-stop metadata fields** (added in v0.1.2, see [`2026-05-27-per-stop-metadata-design.md`](../2026-05-27-per-stop-metadata-design.md)) — four optional fields populated by the post-deepen follow-on jobs:
+- `address` — written by `geocode-candidates` from Nominatim's reverse lookup (free byproduct of the existing coords query)
+- `hours`, `website`, `phone` — written by `enrich-candidates`, a new follow-on job that runs `chat()` + `web_search` once per candidate
+
 ### Widened stop category enum
 
 Starting point — refine against real extractor output during implementation:

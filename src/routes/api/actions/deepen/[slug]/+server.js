@@ -248,6 +248,13 @@ stops:
     description: "One sentence describing the place"
     why_recommended: "One sentence linking to trip vibe / home preferences"
     source_url: "best source url if any"
+    # Optional — include only when you have high-confidence values from web_search.
+    # The follow-on enrich-candidates job will fill these for any stop where
+    # they are omitted, so don't guess.
+    address: "street, city, state postcode (if known with high confidence)"
+    hours: "Mon-Sat 9am-5pm (if known)"
+    website: "https://example.com (if known)"
+    phone: "(555) 123-4567 (if known)"
 lodging:
   - name: "Lodging name"
     description: "One sentence describing the lodging"

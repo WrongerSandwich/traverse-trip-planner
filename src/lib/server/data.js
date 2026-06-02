@@ -45,6 +45,7 @@ const GEOCODE_CACHE_PATH = join(CACHE_DIR, '.geocode-cache.json');
 let geocodeCache = {};
 let imageCache   = {};
 let routeCache   = {};
+let addressCache = {};
 
 // Load from the combined file when present; otherwise merge any legacy files
 // into the new layout and delete them. After a successful upgrade run there
@@ -56,6 +57,7 @@ let routeCache   = {};
     geocodeCache = combined.geo   ?? {};
     imageCache   = combined.image ?? {};
     routeCache   = combined.route ?? {};
+    addressCache = combined.addr  ?? {};
     return;
   } catch {}
 
@@ -70,7 +72,7 @@ let routeCache   = {};
   try {
     atomicWrite(
       COMBINED_CACHE_PATH,
-      JSON.stringify({ geo: geocodeCache, image: imageCache, route: routeCache }, null, 2),
+      JSON.stringify({ geo: geocodeCache, image: imageCache, route: routeCache, addr: addressCache }, null, 2),
     );
     for (const p of [IMAGE_CACHE_PATH, ROUTE_CACHE_PATH, GEOCODE_CACHE_PATH]) {
       try { unlinkSync(p); } catch {}
@@ -85,15 +87,16 @@ let routeCache   = {};
 let geocodeDirty = false;
 let imageDirty   = false;
 let routeDirty   = false;
+let addressDirty = false;
 
 export function flushCaches() {
-  if (!geocodeDirty && !imageDirty && !routeDirty) return;
+  if (!geocodeDirty && !imageDirty && !routeDirty && !addressDirty) return;
   try {
     atomicWrite(
       COMBINED_CACHE_PATH,
-      JSON.stringify({ geo: geocodeCache, image: imageCache, route: routeCache }, null, 2),
+      JSON.stringify({ geo: geocodeCache, image: imageCache, route: routeCache, addr: addressCache }, null, 2),
     );
-    geocodeDirty = imageDirty = routeDirty = false;
+    geocodeDirty = imageDirty = routeDirty = addressDirty = false;
   } catch (e) {
     console.warn(`failed to save caches to ${COMBINED_CACHE_PATH} —`, e?.message ?? e);
   }
@@ -294,6 +297,72 @@ export async function geocode(destination, opts = {}) {
     }
   }
   return { coords: null, fromCache: false };
+}
+
+// ── Reverse geocode (address from coords) ──────────────────────────────────
+//
+// Hits Nominatim's reverse endpoint with `addressdetails=1` to retrieve the
+// structured address block for a known lat/lng. Cached separately from the
+// forward `geocodeCache` slice (`addr`), keyed by "lat,lng" rounded to 5
+// decimal places so co-located lookups share the cache entry.
+//
+// Used by the geocode-candidates background job to fill `address` on each
+// stop candidate as a follow-on to coord capture (#403).
+
+const REVERSE_GEOCODE_THROTTLE_MS = 1100;
+
+/** Build the cleaned address string used by the brochure / cards. */
+export function formatStructuredAddress(addr, fallbackDisplayName) {
+  if (!addr || typeof addr !== 'object') return fallbackDisplayName || null;
+  const street = [addr.house_number, addr.road].filter(Boolean).join(' ');
+  const city = addr.city || addr.town || addr.village || addr.hamlet || '';
+  const state = addr.state || addr.region || '';
+  const postcode = addr.postcode || '';
+  if (!street || !(city || state)) return fallbackDisplayName || null;
+  const parts = [street];
+  if (city) parts.push(city);
+  const stateLine = [state, postcode].filter(Boolean).join(' ').trim();
+  if (stateLine) parts.push(stateLine);
+  return parts.join(', ');
+}
+
+function reverseGeocodeKey(coords) {
+  if (!Array.isArray(coords) || coords.length !== 2) return null;
+  const [lat, lng] = coords;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return `${lat.toFixed(5)},${lng.toFixed(5)}`;
+}
+
+/**
+ * Look up a human-readable address for a known coord pair.
+ *
+ * Returns the cleaned single-line address string, or `null` when the lookup
+ * fails (HTTP error, rate-limit, empty response). Cache hits are free; cache
+ * misses incur one Nominatim reverse-geocode HTTP and a 1.1s throttle sleep.
+ */
+export async function reverseGeocode(coords) {
+  const key = reverseGeocodeKey(coords);
+  if (!key) return null;
+  if (addressCache[key] !== undefined) return addressCache[key];
+
+  const [lat, lng] = coords;
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+  let result = null;
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'traverse/1.0 (personal)' } });
+    if (res.ok) {
+      const data = await res.json();
+      result = formatStructuredAddress(data?.address, data?.display_name);
+    } else {
+      console.warn('reverseGeocode HTTP', res.status, 'for', key);
+    }
+  } catch (e) {
+    console.warn('reverseGeocode error for', key, '—', e.message);
+  }
+  addressCache[key] = result;
+  addressDirty = true;
+  await sleep(REVERSE_GEOCODE_THROTTLE_MS);
+  return result;
 }
 
 // ── Pexels images ──

@@ -1333,6 +1333,8 @@
               destination={trip?._coords}
               home={data.home?.coords}
               readonly={isCompleted}
+              jobs={allJobs}
+              features={data.features}
             />
           {:else if sections[section] === undefined}
             <div class="section-empty-block">

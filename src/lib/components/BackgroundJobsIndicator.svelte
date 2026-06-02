@@ -24,6 +24,7 @@
     'deepen-section': 'Deepen section',
     'find-more': 'Find more',
     'geocode-candidates': 'Geocode',
+    'enrich-candidates': 'Enrich',
     lock: 'Lock',
     research: 'Research',
   };
@@ -55,6 +56,7 @@
     'deepen-section': 35,
     'find-more': 30,
     'geocode-candidates': 15,
+    'enrich-candidates': 90,
   };
 
   function fmtRemaining(workflow, elapsedMs) {
