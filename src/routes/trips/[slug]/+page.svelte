@@ -995,6 +995,22 @@
       },
     ];
 
+    // ICS download — only available when the trip has any date info, either
+    // per-day or trip-level. Hidden upfront when neither applies so a stale
+    // tab doesn't trigger the endpoint's 204 path (#405).
+    const planDays = data.plan?.days ?? [];
+    const hasAnyDate = !!(
+      trip.target_date ||
+      planDays.some((d) => typeof d?.date === 'string' && d.date.trim())
+    );
+    if (hasAnyDate) {
+      outputItems.push({
+        type: 'link',
+        label: '📅 Download .ics',
+        href: `/api/cal/${encodeURIComponent(slug)}.ics`,
+      });
+    }
+
     outputItems.push({
       type: 'button',
       label: '🖼 Change cover photo…',
