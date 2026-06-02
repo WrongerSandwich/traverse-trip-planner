@@ -16,6 +16,7 @@
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { isSectionsDirty } from '$lib/utils/sectionDirty.js';
   import { hasWaypoints } from '$lib/utils/waypoints.js';
+  import { mapsDeepLinkSummary } from '$lib/utils/maps-links.js';
   import { browser } from '$app/environment';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
   import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
@@ -1018,6 +1019,33 @@
     });
 
     const groups = [{ label: 'Output', items: outputItems }];
+
+    // "On the road" group — one Maps deep link per day with usable stops.
+    // Hidden as a whole when no day has any waypoint we can encode (#405).
+    const stopsById = new Map(
+      (data.candidates?.stops ?? []).map((s) => [s.id, s]),
+    );
+    const onTheRoadItems = [];
+    for (const day of planDays) {
+      const dayStops = (day.stops ?? [])
+        .map((id) => stopsById.get(id))
+        .filter(Boolean);
+      const summary = mapsDeepLinkSummary(dayStops);
+      if (!summary?.url) continue;
+      const truncationHint = summary.truncated
+        ? ` (first ${summary.waypointCount} stops)`
+        : '';
+      onTheRoadItems.push({
+        type: 'link',
+        label: `🗺 Day ${day.number} in Maps ↗${truncationHint}`,
+        href: summary.url,
+        target: '_blank',
+        rel: 'noopener',
+      });
+    }
+    if (onTheRoadItems.length > 0) {
+      groups.push({ label: 'On the road', items: onTheRoadItems });
+    }
 
     // Mobile-only trip-wide entry for the Field guide palette. On desktop
     // the page-header Ask button + Cmd-K cover this; mobile has neither,
