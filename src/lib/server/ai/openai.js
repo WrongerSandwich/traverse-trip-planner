@@ -49,7 +49,10 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     if (signal?.aborted) throw signal.reason ?? new Error('Aborted');
+    const turnStart = Date.now();
     const data = await callApi({ apiKey, model, maxTokens, tools: apiTools, messages: convo, signal });
+    const turnInput = data.usage?.prompt_tokens ?? 0;
+    const turnOutput = data.usage?.completion_tokens ?? 0;
     accumUsage(usage, data.usage);
     usage.total = usage.input + usage.output;
 
@@ -60,10 +63,14 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
     const finish = choice.finish_reason;
 
     if (finish === 'stop' || finish === 'length') {
+      onActivity?.({ type: 'turn', turn: turn + 1, elapsed_ms: Date.now() - turnStart, input: turnInput, output: turnOutput, tool_used: null });
       return { text: message.content ?? '', usage };
     }
 
     if (finish === 'tool_calls') {
+      const firstToolName = message.tool_calls?.[0]?.function?.name ?? null;
+      onActivity?.({ type: 'turn', turn: turn + 1, elapsed_ms: Date.now() - turnStart, input: turnInput, output: turnOutput, tool_used: firstToolName });
+
       convo = [...convo, message];
 
       const toolMessages = [];
@@ -103,6 +110,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
       continue;
     }
 
+    onActivity?.({ type: 'turn', turn: turn + 1, elapsed_ms: Date.now() - turnStart, input: turnInput, output: turnOutput, tool_used: null });
     return { text: message.content ?? '', usage };
   }
 

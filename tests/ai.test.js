@@ -242,6 +242,81 @@ describe('chat() dispatch — logging', () => {
     // Falls through to the default turn count when usage is missing.
     expect(line).toMatch(/\d+ms\)$/);
   });
+
+  it('logs a [ai] turn N: line when the adapter emits a type:turn event', async () => {
+    // Simulate an adapter that emits a turn event via the onActivity callback.
+    mockAnthropicChat.mockImplementationOnce(async ({ onActivity }) => {
+      onActivity?.({ type: 'turn', turn: 3, elapsed_ms: 14823, input: 12450, output: 187, tool_used: 'web_search' });
+      return { text: 'done', usage: { input: 12450, output: 187, total: 12637, turns: 3 } };
+    });
+    await chat({
+      provider: 'anthropic',
+      model: 'claude-test',
+      system: 's',
+      messages: [{ role: 'user', content: 'hi' }],
+      maxTokens: 10,
+      label: 'deepen',
+    });
+    // First console.log call is the turn line; second is the summary line.
+    const turnLine = logSpy.mock.calls[0][0];
+    expect(turnLine).toMatch(/^\[ai\] deepen turn 3:/);
+    expect(turnLine).toMatch(/14823ms/);
+    expect(turnLine).toMatch(/12450 in/);
+    expect(turnLine).toMatch(/187 out/);
+    expect(turnLine).toMatch(/tool=web_search/);
+  });
+
+  it('logs no-tool when tool_used is null on a turn event', async () => {
+    mockAnthropicChat.mockImplementationOnce(async ({ onActivity }) => {
+      onActivity?.({ type: 'turn', turn: 7, elapsed_ms: 5102, input: 14102, output: 1178, tool_used: null });
+      return { text: 'done', usage: { input: 14102, output: 1178, total: 15280, turns: 7 } };
+    });
+    await chat({
+      provider: 'anthropic',
+      model: 'claude-test',
+      system: 's',
+      messages: [{ role: 'user', content: 'hi' }],
+      maxTokens: 10,
+      label: 'deepen',
+    });
+    const turnLine = logSpy.mock.calls[0][0];
+    expect(turnLine).toMatch(/^\[ai\] deepen turn 7:/);
+    expect(turnLine).toMatch(/no-tool/);
+  });
+
+  it('passes turn events through to the caller onActivity after logging', async () => {
+    const callerActivity = vi.fn();
+    const turnEvent = { type: 'turn', turn: 1, elapsed_ms: 100, input: 50, output: 10, tool_used: null };
+    mockAnthropicChat.mockImplementationOnce(async ({ onActivity }) => {
+      onActivity?.(turnEvent);
+      return { text: 'x', usage: { input: 50, output: 10, total: 60, turns: 1 } };
+    });
+    await chat({
+      provider: 'anthropic',
+      model: 'm',
+      system: 's',
+      messages: [{ role: 'user', content: 'hi' }],
+      maxTokens: 10,
+      onActivity: callerActivity,
+    });
+    expect(callerActivity).toHaveBeenCalledWith(turnEvent);
+  });
+
+  it('omits label prefix in turn log line when no label is provided', async () => {
+    mockAnthropicChat.mockImplementationOnce(async ({ onActivity }) => {
+      onActivity?.({ type: 'turn', turn: 1, elapsed_ms: 200, input: 10, output: 5, tool_used: null });
+      return { text: 'x', usage: { input: 10, output: 5, total: 15, turns: 1 } };
+    });
+    await chat({
+      provider: 'anthropic',
+      model: 'm',
+      system: 's',
+      messages: [{ role: 'user', content: 'hi' }],
+      maxTokens: 10,
+    });
+    const turnLine = logSpy.mock.calls[0][0];
+    expect(turnLine).toMatch(/^\[ai\] turn 1:/);
+  });
 });
 
 describe('chat() dispatch — pass-through', () => {
@@ -294,7 +369,13 @@ describe('chat() dispatch — pass-through', () => {
     expect(args.maxTokens).toBe(250);
     expect(args.tools).toBe(tools);
     expect(args.onToolCall).toBe(onToolCall);
-    expect(args.onActivity).toBe(onActivity);
+    // onActivity is wrapped by the dispatcher to intercept 'turn' events for
+    // logging; verify it passes non-turn events through to the caller.
+    expect(args.onActivity).toBeTypeOf('function');
+    expect(args.onActivity).not.toBe(onActivity); // wrapped, not the raw ref
+    const otherEvent = { type: 'tool_call', name: 'x', input: {} };
+    args.onActivity(otherEvent);
+    expect(onActivity).toHaveBeenCalledWith(otherEvent);
     expect(args.signal).toBe(signal);
     expect(args.onText).toBe(onText);
     // provider and label are dispatch-layer concerns and are not forwarded.

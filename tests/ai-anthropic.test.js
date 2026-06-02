@@ -93,7 +93,8 @@ describe('Anthropic adapter — native (server-side) tool loop', () => {
     expect(text).toBe('final');
     expect(usage).toEqual({ input: 130, output: 15, total: 145, turns: 2 });
     expect(onToolCall).not.toHaveBeenCalled(); // native tool runs server-side
-    expect(activities).toEqual([{ type: 'tool_call', name: 'web_search', input: { query: 'x' } }]);
+    const toolCallEvents = activities.filter(a => a.type === 'tool_call');
+    expect(toolCallEvents).toEqual([{ type: 'tool_call', name: 'web_search', input: { query: 'x' } }]);
 
     // Verify the tool_result sent on the second turn was empty content.
     const secondCallMessages = mockCreate.mock.calls[1][0].messages;
@@ -351,6 +352,96 @@ describe('Anthropic adapter — usage accumulation', () => {
     });
 
     expect(usage).toEqual({ input: 600, output: 100, total: 700, turns: 3 });
+  });
+});
+
+describe('Anthropic adapter — per-turn telemetry', () => {
+  it('emits a turn event with tool_used=null on a single no-tool end_turn', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'hello' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 10, output_tokens: 3 },
+    });
+
+    const activities = [];
+    await chat({
+      model: 'claude-test',
+      system: 'sys',
+      messages: [{ role: 'user', content: 'hi' }],
+      maxTokens: 100,
+      onActivity: (a) => activities.push(a),
+    });
+
+    const turnEvents = activities.filter(a => a.type === 'turn');
+    expect(turnEvents).toHaveLength(1);
+    const t = turnEvents[0];
+    expect(t.turn).toBe(1);
+    expect(t.input).toBe(10);
+    expect(t.output).toBe(3);
+    expect(t.tool_used).toBeNull();
+    expect(typeof t.elapsed_ms).toBe('number');
+  });
+
+  it('emits a turn event with tool_used set on a tool_use stop_reason', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'tool_use', id: 'tu_1', name: 'web_search', input: { query: 'x' } }],
+      stop_reason: 'tool_use',
+      usage: { input_tokens: 50, output_tokens: 5 },
+    });
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'final' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 80, output_tokens: 10 },
+    });
+
+    const activities = [];
+    await chat({
+      model: 'claude-test',
+      system: 's',
+      messages: [{ role: 'user', content: 'search' }],
+      maxTokens: 200,
+      tools: [{ kind: 'normalized', name: 'web_search', description: 's', inputSchema: { type: 'object' } }],
+      onToolCall: async () => ({ ok: true }),
+      onActivity: (a) => activities.push(a),
+    });
+
+    const turnEvents = activities.filter(a => a.type === 'turn');
+    expect(turnEvents).toHaveLength(2);
+    expect(turnEvents[0].turn).toBe(1);
+    expect(turnEvents[0].input).toBe(50);
+    expect(turnEvents[0].output).toBe(5);
+    expect(turnEvents[0].tool_used).toBe('web_search');
+    expect(turnEvents[1].turn).toBe(2);
+    expect(turnEvents[1].input).toBe(80);
+    expect(turnEvents[1].output).toBe(10);
+    expect(turnEvents[1].tool_used).toBeNull();
+  });
+
+  it('emits turn events with per-turn (not cumulative) token counts', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'tool_use', id: 't1', name: 'web_search', input: {} }],
+      stop_reason: 'tool_use',
+      usage: { input_tokens: 100, output_tokens: 20 },
+    });
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'done' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 200, output_tokens: 30 },
+    });
+
+    const turnEvents = [];
+    await chat({
+      model: 'm', system: 's', messages: [{ role: 'user', content: 'x' }], maxTokens: 100,
+      tools: [{ kind: 'normalized', name: 'web_search', description: 'd', inputSchema: { type: 'object' } }],
+      onToolCall: async () => ({ ok: true }),
+      onActivity: (a) => { if (a.type === 'turn') turnEvents.push(a); },
+    });
+
+    // Per-turn deltas, not the cumulative usage.input / usage.output totals.
+    expect(turnEvents[0].input).toBe(100);
+    expect(turnEvents[0].output).toBe(20);
+    expect(turnEvents[1].input).toBe(200);
+    expect(turnEvents[1].output).toBe(30);
   });
 });
 
