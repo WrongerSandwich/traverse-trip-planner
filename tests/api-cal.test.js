@@ -22,9 +22,21 @@ vi.mock('$lib/server/data.js', () => ({
 }));
 
 const mockTripsToIcs = vi.hoisted(() => vi.fn(() => 'BEGIN:VCALENDAR\nEND:VCALENDAR\n'));
+const mockTripToIcs = vi.hoisted(() => vi.fn(() => 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n'));
+const mockReadPlan = vi.hoisted(() => vi.fn());
+const mockReadCandidates = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/ics.js', () => ({
   tripsToIcs: mockTripsToIcs,
+  tripToIcs: mockTripToIcs,
+}));
+
+vi.mock('$lib/server/plan.js', () => ({
+  readPlan: mockReadPlan,
+}));
+
+vi.mock('$lib/server/candidates.js', () => ({
+  readCandidates: mockReadCandidates,
 }));
 
 import { GET as listGET } from '../src/routes/api/cal.ics/+server.js';
@@ -106,27 +118,34 @@ describe('GET /api/cal/[slug].ics — single trip', () => {
     expect(res.status).toBe(404);
   });
 
-  it('serves ics for a planning-stage trip', async () => {
+  it('serves ics for a planning-stage trip with plan and candidates', async () => {
     mockExistsSync.mockImplementation((p) => p.includes('planning/found-trip/overview.md'));
     mockReadFileSync.mockReturnValue('---\ntitle: Found Trip\n---\nbody');
     mockParseFrontmatter.mockReturnValue({ title: 'Found Trip' });
+    mockReadPlan.mockReturnValue({ days: [] });
+    mockReadCandidates.mockReturnValue({ stops: [], lodging: [] });
 
     const res = singleGET({ params: { slug: 'found-trip' } });
     expect(res.headers.get('Content-Type')).toBe('text/calendar; charset=utf-8');
-    expect(mockTripsToIcs).toHaveBeenCalledWith([
+    expect(res.headers.get('Content-Disposition')).toBe('attachment; filename="found-trip.ics"');
+    expect(mockTripToIcs).toHaveBeenCalledWith(
       expect.objectContaining({ _slug: 'found-trip', title: 'Found Trip' }),
-    ]);
+      { plan: { days: [] }, candidates: { stops: [], lodging: [] } }
+    );
   });
 
   it('falls back to completed/ when planning/ has no overview', () => {
     mockExistsSync.mockImplementation((p) => p.includes('completed/done-trip/overview.md'));
     mockReadFileSync.mockReturnValue('---\ntitle: Done Trip\n---\nbody');
     mockParseFrontmatter.mockReturnValue({ title: 'Done Trip' });
+    mockReadPlan.mockReturnValue({ days: [] });
+    mockReadCandidates.mockReturnValue({ stops: [], lodging: [] });
 
     singleGET({ params: { slug: 'done-trip' } });
-    expect(mockTripsToIcs).toHaveBeenCalledWith([
+    expect(mockTripToIcs).toHaveBeenCalledWith(
       expect.objectContaining({ _slug: 'done-trip' }),
-    ]);
+      { plan: { days: [] }, candidates: { stops: [], lodging: [] } }
+    );
   });
 
   it('returns 404 when frontmatter does not parse', () => {
@@ -136,5 +155,17 @@ describe('GET /api/cal/[slug].ics — single trip', () => {
 
     const res = singleGET({ params: { slug: 'found' } });
     expect(res.status).toBe(404);
+  });
+
+  it('returns 204 when tripToIcs returns falsy', () => {
+    mockExistsSync.mockImplementation((p) => p.includes('planning/no-plan/overview.md'));
+    mockReadFileSync.mockReturnValue('---\ntitle: No Plan\n---\nbody');
+    mockParseFrontmatter.mockReturnValue({ title: 'No Plan' });
+    mockReadPlan.mockReturnValue(null);
+    mockReadCandidates.mockReturnValue(null);
+    mockTripToIcs.mockReturnValue(null);
+
+    const res = singleGET({ params: { slug: 'no-plan' } });
+    expect(res.status).toBe(204);
   });
 });

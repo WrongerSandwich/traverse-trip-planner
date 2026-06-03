@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { tripToVEvent, tripsToIcs } from '../src/lib/server/ics.js';
+import { describe, it, expect, test } from 'vitest';
+import { tripToVEvent, tripsToIcs, tripToDailyVEvents, tripToIcs } from '../src/lib/server/ics.js';
 
 const FIXED_NOW = new Date('2026-01-15T10:30:00Z');
 
@@ -104,5 +104,237 @@ describe('tripsToIcs', () => {
     expect(ics).toContain('BEGIN:VCALENDAR');
     expect(ics).toContain('END:VCALENDAR');
     expect(ics).not.toContain('BEGIN:VEVENT');
+  });
+});
+
+// ── tripToDailyVEvents — per-day expansion (#405) ──────────────────────────
+
+describe('tripToDailyVEvents', () => {
+  const FROZEN = new Date('2026-06-02T12:00:00Z');
+
+  const baseTrip = {
+    _slug: 'lakeshore-loop',
+    title: 'Lakeshore Loop',
+  };
+
+  test('returns null when no day has a date', () => {
+    const plan = { days: [{ number: 1, stops: ['a'] }, { number: 2, stops: ['b'] }] };
+    const candidates = { stops: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], lodging: [] };
+    expect(tripToDailyVEvents(baseTrip, plan, candidates, FROZEN)).toBeNull();
+  });
+
+  test('returns null when plan is null or undefined', () => {
+    expect(tripToDailyVEvents(baseTrip, null, null, FROZEN)).toBeNull();
+    expect(tripToDailyVEvents(baseTrip, undefined, undefined, FROZEN)).toBeNull();
+  });
+
+  test('emits one VEVENT per dated day, skipping undated days', () => {
+    const plan = {
+      days: [
+        { number: 1, date: '2026-07-04', stops: ['a'] },
+        { number: 2, stops: ['b'] },
+        { number: 3, date: '2026-07-06', stops: ['c'] },
+      ],
+    };
+    const candidates = {
+      stops: [
+        { id: 'a', name: 'A' },
+        { id: 'b', name: 'B' },
+        { id: 'c', name: 'C' },
+      ],
+      lodging: [],
+    };
+
+    const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
+    expect(events).toHaveLength(2);
+    expect(events[0]).toContain('UID:lakeshore-loop-day1@traverse');
+    expect(events[0]).toContain('DTSTART;VALUE=DATE:20260704');
+    expect(events[0]).toContain('DTEND;VALUE=DATE:20260705');
+    expect(events[1]).toContain('UID:lakeshore-loop-day3@traverse');
+    expect(events[1]).toContain('DTSTART;VALUE=DATE:20260706');
+    expect(events[1]).toContain('DTEND;VALUE=DATE:20260707');
+  });
+
+  test('SUMMARY uses "<title> · Day N" format', () => {
+    const plan = { days: [{ number: 2, date: '2026-07-04', stops: [] }] };
+    const events = tripToDailyVEvents(baseTrip, plan, { stops: [], lodging: [] }, FROZEN);
+    expect(events[0]).toContain('SUMMARY:Lakeshore Loop · Day 2');
+  });
+
+  test('falls back to slug when title is absent', () => {
+    const plan = { days: [{ number: 1, date: '2026-07-04', stops: [] }] };
+    const trip = { _slug: 'no-title' };
+    const events = tripToDailyVEvents(trip, plan, { stops: [], lodging: [] }, FROZEN);
+    expect(events[0]).toContain('SUMMARY:no-title · Day 1');
+  });
+
+  test('DESCRIPTION lists stops with categories', () => {
+    const plan = {
+      days: [
+        { number: 1, date: '2026-07-04', stops: ['a', 'b'] },
+      ],
+    };
+    const candidates = {
+      stops: [
+        { id: 'a', name: 'Sleeping Bear Dunes', category: 'outdoors' },
+        { id: 'b', name: 'Dune Climb', category: 'view' },
+      ],
+      lodging: [],
+    };
+    const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
+    expect(events[0]).toMatch(/DESCRIPTION:[^\r\n]*Stops:\\n• Sleeping Bear Dunes \(outdoors\)\\n• Dune Climb \(view\)/);
+  });
+
+  test('DESCRIPTION includes lodging and notes when present', () => {
+    const plan = {
+      days: [
+        {
+          number: 1,
+          date: '2026-07-04',
+          stops: ['a'],
+          lodging_id: 'inn',
+          notes: 'Sunset is the move tonight.',
+        },
+      ],
+    };
+    const candidates = {
+      stops: [{ id: 'a', name: 'A', category: 'misc' }],
+      lodging: [{ id: 'inn', name: 'Riverbend Inn', address: '9922 Front St, Empire MI' }],
+    };
+    const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
+    expect(events[0]).toContain('Lodging: Riverbend Inn — 9922 Front St\\, Empire MI');
+    expect(events[0]).toContain('Sunset is the move tonight.');
+  });
+
+  test('DESCRIPTION omits empty sections rather than rendering empty headings', () => {
+    const plan = {
+      days: [{ number: 1, date: '2026-07-04', stops: [] }],
+    };
+    const events = tripToDailyVEvents(baseTrip, plan, { stops: [], lodging: [] }, FROZEN);
+    expect(events[0]).not.toMatch(/DESCRIPTION:/);
+  });
+
+  test('LOCATION resolves from lodging when present', () => {
+    const plan = {
+      days: [{ number: 1, date: '2026-07-04', stops: ['a'], lodging_id: 'inn' }],
+    };
+    const candidates = {
+      stops: [{ id: 'a', name: 'A', address: '1 First St' }],
+      lodging: [{ id: 'inn', name: 'Inn', address: '99 Inn Rd' }],
+    };
+    const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
+    expect(events[0]).toContain('LOCATION:Inn — 99 Inn Rd');
+  });
+
+  test('LOCATION falls back to first stop address when no lodging', () => {
+    const plan = { days: [{ number: 1, date: '2026-07-04', stops: ['a'] }] };
+    const candidates = {
+      stops: [{ id: 'a', name: 'A', address: '1 First St' }],
+      lodging: [],
+    };
+    const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
+    expect(events[0]).toContain('LOCATION:1 First St');
+  });
+
+  test('LOCATION is omitted when neither lodging nor first stop has address', () => {
+    const plan = { days: [{ number: 1, date: '2026-07-04', stops: ['a'] }] };
+    const candidates = {
+      stops: [{ id: 'a', name: 'A' }],
+      lodging: [],
+    };
+    const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
+    expect(events[0]).not.toMatch(/LOCATION:/);
+  });
+
+  test('UID stability: same input produces same UIDs', () => {
+    const plan = { days: [{ number: 1, date: '2026-07-04', stops: [] }, { number: 2, date: '2026-07-05', stops: [] }] };
+    const cands = { stops: [], lodging: [] };
+    const a = tripToDailyVEvents(baseTrip, plan, cands, FROZEN);
+    const b = tripToDailyVEvents(baseTrip, plan, cands, FROZEN);
+    expect(a[0]).toContain('UID:lakeshore-loop-day1@traverse');
+    expect(b[0]).toContain('UID:lakeshore-loop-day1@traverse');
+    expect(a[1]).toContain('UID:lakeshore-loop-day2@traverse');
+  });
+
+  test('skips promoted stop IDs that have no matching candidate', () => {
+    const plan = { days: [{ number: 1, date: '2026-07-04', stops: ['a', 'ghost', 'b'] }] };
+    const candidates = {
+      stops: [{ id: 'a', name: 'A', category: 'misc' }, { id: 'b', name: 'B', category: 'misc' }],
+      lodging: [],
+    };
+    const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
+    expect(events[0]).toContain('• A (misc)');
+    expect(events[0]).toContain('• B (misc)');
+    expect(events[0]).not.toContain('ghost');
+  });
+
+  test('escapes special chars in description', () => {
+    const plan = {
+      days: [{ number: 1, date: '2026-07-04', stops: ['a'], notes: 'Watch out; mind the gap, and the rain.' }],
+    };
+    const candidates = {
+      stops: [{ id: 'a', name: 'A', category: 'misc' }],
+      lodging: [],
+    };
+    const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
+    // ICS escaping: ; → \;, , → \,, newline → \n
+    expect(events[0]).toContain('Watch out\\; mind the gap\\, and the rain.');
+  });
+});
+
+// ── tripToIcs dispatcher (#405) ───────────────────────────────────────────
+
+describe('tripToIcs dispatcher', () => {
+  const FROZEN = new Date('2026-06-02T12:00:00Z');
+
+  test('returns null when neither per-day dates nor target_date are present', () => {
+    const trip = { _slug: 't', title: 'T' };
+    const plan = { days: [{ number: 1, stops: [] }] };
+    const candidates = { stops: [], lodging: [] };
+    expect(tripToIcs(trip, { plan, candidates }, FROZEN)).toBeNull();
+  });
+
+  test('emits per-day calendar when plan has any dated day', () => {
+    const trip = { _slug: 't', title: 'T' };
+    const plan = { days: [{ number: 1, date: '2026-07-04', stops: [] }] };
+    const ics = tripToIcs(trip, { plan, candidates: { stops: [], lodging: [] } }, FROZEN);
+    expect(ics).toContain('BEGIN:VCALENDAR');
+    expect(ics).toContain('UID:t-day1@traverse');
+    expect(ics).toContain('END:VCALENDAR');
+    // No trip-level UID (the bare slug@traverse) must appear.
+    expect(ics).not.toMatch(/UID:t@traverse/);
+  });
+
+  test('falls back to trip-level VEVENT when no per-day dates but target_date present', () => {
+    const trip = { _slug: 't', title: 'T', target_date: '2026-07-04', duration_days: 3 };
+    const plan = { days: [{ number: 1, stops: [] }] };  // no day.date
+    const ics = tripToIcs(trip, { plan, candidates: { stops: [], lodging: [] } }, FROZEN);
+    expect(ics).toContain('UID:t@traverse');
+    expect(ics).toContain('DTSTART;VALUE=DATE:20260704');
+    expect(ics).toContain('DTEND;VALUE=DATE:20260707');
+  });
+
+  test('per-day path wins over trip-level fallback when both are available', () => {
+    const trip = { _slug: 't', title: 'T', target_date: '2026-07-04', duration_days: 3 };
+    const plan = { days: [{ number: 1, date: '2026-07-04', stops: [] }] };
+    const ics = tripToIcs(trip, { plan, candidates: { stops: [], lodging: [] } }, FROZEN);
+    expect(ics).toContain('UID:t-day1@traverse');
+    expect(ics).not.toMatch(/UID:t@traverse[\r\n]/);
+  });
+
+  test('returns full ICS scaffold (BEGIN:VCALENDAR, METHOD, etc)', () => {
+    const trip = { _slug: 't', title: 'T', target_date: '2026-07-04', duration_days: 1 };
+    const ics = tripToIcs(trip, { plan: null, candidates: null }, FROZEN);
+    expect(ics).toContain('BEGIN:VCALENDAR');
+    expect(ics).toContain('VERSION:2.0');
+    expect(ics).toContain('PRODID:-//Traverse//Trip Planner//EN');
+    expect(ics).toContain('CALSCALE:GREGORIAN');
+    expect(ics).toContain('METHOD:PUBLISH');
+    expect(ics).toContain('END:VCALENDAR');
+  });
+
+  test('omits options gracefully (plan / candidates may be missing)', () => {
+    const trip = { _slug: 't', title: 'T', target_date: '2026-07-04', duration_days: 1 };
+    expect(tripToIcs(trip, {}, FROZEN)).toContain('UID:t@traverse');
   });
 });

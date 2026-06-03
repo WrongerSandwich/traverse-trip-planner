@@ -21,6 +21,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and as an expanded info stack on stops promoted into a day (Plan section,
   the in-trip companion view). The print brochure now renders all four
   fields when present.
+- **Trip export formats** (#405). Two new outputs surface in the trip detail
+  page's `⋯` menu beyond the print brochure:
+  - **📅 Download .ics** — one calendar event per day when the plan has
+    dated days, anchored to each day's date. Falls back to a single
+    trip-level event when only `target_date` is set. Hidden when neither
+    applies.
+  - **🗺 Day N in Maps ↗** — one Google Maps deep link per day with
+    promoted stops, routing through the day's stops in order. Opens in a
+    new tab (or the Maps app on iOS/Android). Disposable, in-trip useful.
 
 ## [0.1.1] — 2026-05-27
 
