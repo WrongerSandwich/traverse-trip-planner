@@ -154,6 +154,20 @@ export async function realizePlan(slug, parsedExtract, _opts = {}) {
     for (const c of cands.lodging) {
       if (!c.coords && priorCoordsById.has(c.id)) c.coords = priorCoordsById.get(c.id);
     }
+
+    const priorPrepById = new Map();
+    for (const s of existingCands.stops ?? []) {
+      if (s.id && (s.tips || s.todos)) {
+        priorPrepById.set(s.id, { tips: s.tips, todos: s.todos });
+      }
+    }
+    for (const c of cands.stops) {
+      const prior = priorPrepById.get(c.id);
+      if (prior) {
+        if (prior.tips) c.tips = prior.tips;
+        if (prior.todos) c.todos = prior.todos;
+      }
+    }
   }
 
   if (existingCands) {

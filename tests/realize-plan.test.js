@@ -632,5 +632,70 @@ describe('realizePlan', () => {
     expect(stop.website).toBeUndefined();
     expect(stop.phone).toBeUndefined();
   });
+
+  it('carries tips/todos forward by id when re-researching', async () => {
+    // 'place-a' is the makeCandidateId-derived id for name 'Place A'
+    readCandidates.mockReturnValueOnce({
+      stops: [
+        {
+          id: 'place-a',
+          name: 'Place A',
+          category: 'misc',
+          tips: ['Old tip'],
+          todos: [{ id: 't1', text: 'Book ticket', done: true }],
+        },
+      ],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+
+    await realizePlan('t', makeExtract({
+      candidates: {
+        stops: [{ name: 'Place A', category: 'misc', description: '', why_recommended: '' }],
+        lodging: [],
+      },
+    }));
+
+    const stop = capturedCands.value.stops.find((s) => s.id === 'place-a');
+    expect(stop.tips).toEqual(['Old tip']);
+    expect(stop.todos).toEqual([{ id: 't1', text: 'Book ticket', done: true }]);
+  });
+
+  it('drops tips/todos when the stop id disappears', async () => {
+    // 'old' is the makeCandidateId-derived id for name 'Old'; 'new' for 'New'
+    readCandidates.mockReturnValueOnce({
+      stops: [{ id: 'old', name: 'Old', category: 'misc', tips: ['x'] }],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce(null);
+
+    await realizePlan('t', makeExtract({
+      candidates: {
+        stops: [{ name: 'New', category: 'misc', description: '', why_recommended: '' }],
+        lodging: [],
+      },
+    }));
+
+    const fresh = capturedCands.value.stops.find((s) => s.id === 'new');
+    expect(fresh.tips).toBeUndefined();
+    expect(fresh.todos).toBeUndefined();
+  });
+
+  it('does not fabricate tips/todos for a deepen-only run', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+
+    await realizePlan('t', makeExtract({
+      candidates: {
+        stops: [{ name: 'Place A', category: 'misc', description: '', why_recommended: '' }],
+        lodging: [],
+      },
+    }));
+
+    // 'place-a' is the makeCandidateId-derived id for name 'Place A'
+    const stop = capturedCands.value.stops.find((s) => s.id === 'place-a');
+    expect(stop.tips).toBeUndefined();
+    expect(stop.todos).toBeUndefined();
+  });
 });
 
