@@ -109,6 +109,10 @@ Lodging is a separate list, not a category within stops.
 - `address` — written by `geocode-candidates` from Nominatim's reverse lookup (free byproduct of the existing coords query)
 - `hours`, `website`, `phone` — written by `enrich-candidates`, a new follow-on job that runs `chat()` + `web_search` once per candidate
 
+**Per-stop prep fields** (added in v0.1.2, see [`2026-06-02-per-stop-todos-design.md`](../2026-06-02-per-stop-todos-design.md)) — two optional fields written by the `stop-prep` follow-on job (the terminal leg of the post-deepen chain):
+- `tips` *(optional, string[])* — short read-only in-trip pointers (best entrance, where to park, what to bring, light timing). Capped at 5.
+- `todos` *(optional, object[])* — pre-trip to-dos. Each is `{ id, text, done }`; `id` is a `makeCandidateId`-derived slug, `done` defaults `false` and is toggled by the user. Capped at 4.
+
 ### Widened stop category enum
 
 Starting point — refine against real extractor output during implementation:
