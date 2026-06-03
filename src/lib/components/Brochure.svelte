@@ -250,6 +250,20 @@
                       {#if stop.website}<div class="stop-website">{stop.website}</div>{/if}
                       {#if stop.phone}<div class="stop-phone">{stop.phone}</div>{/if}
                       {#if stop.notes}<p class="stop-notes">{stop.notes}</p>{/if}
+                      {#if stop.tips?.length}
+                        <ul class="brochure-tips">
+                          {#each stop.tips as tip}
+                            <li>{tip}</li>
+                          {/each}
+                        </ul>
+                      {/if}
+                      {#if stop.todos?.length}
+                        <ul class="brochure-todos">
+                          {#each stop.todos as todo (todo.id)}
+                            <li>{todo.done ? '☑' : '☐'} {todo.text}</li>
+                          {/each}
+                        </ul>
+                      {/if}
                     </div>
                   </li>
                 {/each}
@@ -275,6 +289,20 @@
                   {#if stop.website}<div class="stop-website">{stop.website}</div>{/if}
                   {#if stop.phone}<div class="stop-phone">{stop.phone}</div>{/if}
                   {#if stop.notes}<p class="stop-notes">{stop.notes}</p>{/if}
+                  {#if stop.tips?.length}
+                    <ul class="brochure-tips">
+                      {#each stop.tips as tip}
+                        <li>{tip}</li>
+                      {/each}
+                    </ul>
+                  {/if}
+                  {#if stop.todos?.length}
+                    <ul class="brochure-todos">
+                      {#each stop.todos as todo (todo.id)}
+                        <li>{todo.done ? '☑' : '☐'} {todo.text}</li>
+                      {/each}
+                    </ul>
+                  {/if}
                 </div>
               </li>
             {/each}
@@ -927,6 +955,31 @@
     line-height: 1.6;
     color: var(--bark-800);
     margin: 8px 0 0;
+  }
+  .brochure-tips {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    list-style: disc;
+  }
+  .brochure-tips li {
+    font-family: var(--font-sans);
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--bark-600);
+    margin: 1px 0;
+  }
+  .brochure-tips li::marker { color: var(--bone-400); }
+  .brochure-todos {
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .brochure-todos li {
+    font-family: var(--font-sans);
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--bark-800);
+    margin: 1px 0;
   }
 
   /* ── Lodging ────────────────────────────────────────────────────── */
