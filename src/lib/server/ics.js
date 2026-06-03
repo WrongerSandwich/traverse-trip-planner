@@ -14,6 +14,38 @@ function escapeText(s) {
     .replace(/\r?\n/g, '\\n');
 }
 
+/**
+ * Fold a single content line per RFC 5545 §3.1.
+ *
+ * Lines longer than 75 octets are split with `\r\n` followed by a single
+ * space; each continuation line takes one byte of the budget for the space,
+ * so the maximum first-line budget is 75 octets and each continuation is
+ * 74. Byte counting uses UTF-8: multi-byte characters (—, •, ·) fold at
+ * byte boundaries, never mid-character.
+ *
+ * Strict ICS validators (and at least one parsing library in lenient mode)
+ * flag unfolded long lines. Most consumer calendar apps tolerate them.
+ *
+ * @param {string} line
+ * @returns {string}
+ */
+export function foldLine(line) {
+  if (Buffer.byteLength(line, 'utf8') <= 75) return line;
+  const chunks = [];
+  let remaining = line;
+  let limit = 75;
+  while (Buffer.byteLength(remaining, 'utf8') > limit) {
+    // Walk back from `limit` chars until the byte count fits.
+    let cut = Math.min(limit, remaining.length);
+    while (cut > 0 && Buffer.byteLength(remaining.slice(0, cut), 'utf8') > limit) cut--;
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut);
+    limit = 74; // continuation lines lose one byte to the leading space
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks.join(CRLF + ' ');
+}
+
 function dateToICalDate(d) {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -62,7 +94,7 @@ export function tripToVEvent(trip, now = new Date()) {
   if (trip.destination) lines.push(`LOCATION:${escapeText(trip.destination)}`);
   if (trip.pitch) lines.push(`DESCRIPTION:${escapeText(trip.pitch)}`);
   lines.push('END:VEVENT');
-  return lines.join(CRLF);
+  return lines.map(foldLine).join(CRLF);
 }
 
 /**
@@ -144,7 +176,7 @@ export function tripToDailyVEvents(trip, plan, candidates, now = new Date()) {
     if (location) lines.push(`LOCATION:${escapeText(location)}`);
     if (descParts.length > 0) lines.push(`DESCRIPTION:${escapeText(descParts.join('\n\n'))}`);
     lines.push('END:VEVENT');
-    events.push(lines.join(CRLF));
+    events.push(lines.map(foldLine).join(CRLF));
   }
 
   return events.length > 0 ? events : null;

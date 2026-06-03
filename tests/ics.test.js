@@ -1,5 +1,5 @@
 import { describe, it, expect, test } from 'vitest';
-import { tripToVEvent, tripsToIcs, tripToDailyVEvents, tripToIcs } from '../src/lib/server/ics.js';
+import { tripToVEvent, tripsToIcs, tripToDailyVEvents, tripToIcs, foldLine } from '../src/lib/server/ics.js';
 
 const FIXED_NOW = new Date('2026-01-15T10:30:00Z');
 
@@ -182,7 +182,10 @@ describe('tripToDailyVEvents', () => {
       lodging: [],
     };
     const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
-    expect(events[0]).toMatch(/DESCRIPTION:[^\r\n]*Stops:\\n• Sleeping Bear Dunes \(outdoors\)\\n• Dune Climb \(view\)/);
+    // Unfold (strip CRLF + leading-space sequences) before matching — the DESCRIPTION line
+    // exceeds 75 octets and is folded per RFC 5545 §3.1.
+    const unfolded = events[0].replace(/\r\n /g, '');
+    expect(unfolded).toMatch(/DESCRIPTION:[^\r\n]*Stops:\\n• Sleeping Bear Dunes \(outdoors\)\\n• Dune Climb \(view\)/);
   });
 
   test('DESCRIPTION includes lodging and notes when present', () => {
@@ -202,8 +205,10 @@ describe('tripToDailyVEvents', () => {
       lodging: [{ id: 'inn', name: 'Riverbend Inn', address: '9922 Front St, Empire MI' }],
     };
     const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
-    expect(events[0]).toContain('Lodging: Riverbend Inn — 9922 Front St\\, Empire MI');
-    expect(events[0]).toContain('Sunset is the move tonight.');
+    // Unfold before asserting — the DESCRIPTION line exceeds 75 octets and is folded per RFC 5545 §3.1.
+    const unfolded = events[0].replace(/\r\n /g, '');
+    expect(unfolded).toContain('Lodging: Riverbend Inn — 9922 Front St\\, Empire MI');
+    expect(unfolded).toContain('Sunset is the move tonight.');
   });
 
   test('DESCRIPTION omits empty sections rather than rendering empty headings', () => {
@@ -278,7 +283,9 @@ describe('tripToDailyVEvents', () => {
     };
     const events = tripToDailyVEvents(baseTrip, plan, candidates, FROZEN);
     // ICS escaping: ; → \;, , → \,, newline → \n
-    expect(events[0]).toContain('Watch out\\; mind the gap\\, and the rain.');
+    // Unfold before asserting — the DESCRIPTION line exceeds 75 octets and is folded per RFC 5545 §3.1.
+    const unfolded = events[0].replace(/\r\n /g, '');
+    expect(unfolded).toContain('Watch out\\; mind the gap\\, and the rain.');
   });
 });
 
@@ -336,5 +343,104 @@ describe('tripToIcs dispatcher', () => {
   test('omits options gracefully (plan / candidates may be missing)', () => {
     const trip = { _slug: 't', title: 'T', target_date: '2026-07-04', duration_days: 1 };
     expect(tripToIcs(trip, {}, FROZEN)).toContain('UID:t@traverse');
+  });
+});
+
+// ── RFC 5545 §3.1 line folding (#441) ─────────────────────────────────────
+
+describe('foldLine', () => {
+  test('returns input unchanged when ≤ 75 octets', () => {
+    const short = 'SUMMARY:Hello';
+    expect(foldLine(short)).toBe(short);
+  });
+
+  test('returns input unchanged at exactly 75 octets', () => {
+    const exact = 'X'.repeat(75);
+    expect(foldLine(exact)).toBe(exact);
+  });
+
+  test('folds ASCII line longer than 75 octets at the 75-byte boundary', () => {
+    const line = 'X'.repeat(200);
+    const folded = foldLine(line);
+    // First segment: 75 chars, then "\r\n " + 74 chars, then "\r\n " + 74 chars, then "\r\n " + remainder
+    const segments = folded.split('\r\n');
+    // First segment 75, continuations each start with a space and are at most 75 octets total (74 chars + leading space)
+    expect(segments[0]).toHaveLength(75);
+    for (let i = 1; i < segments.length; i++) {
+      expect(segments[i].startsWith(' ')).toBe(true);
+      expect(segments[i].length).toBeLessThanOrEqual(75);
+    }
+    // Unfolding (strip CRLF + leading-space sequences) recovers the original line
+    const unfolded = folded.replace(/\r\n /g, '');
+    expect(unfolded).toBe(line);
+  });
+
+  test('folds at byte boundary for multi-byte UTF-8 characters', () => {
+    // Each "•" is 3 UTF-8 bytes; pack 30 of them (90 bytes) so we exceed 75.
+    const line = '•'.repeat(30);
+    const folded = foldLine(line);
+    const segments = folded.split('\r\n');
+    // No segment should exceed 75 octets
+    for (const seg of segments) {
+      expect(Buffer.byteLength(seg, 'utf8')).toBeLessThanOrEqual(75);
+    }
+    // Unfolding recovers the original line
+    const unfolded = folded.replace(/\r\n /g, '');
+    expect(unfolded).toBe(line);
+  });
+
+  test('produces valid continuation lines (each non-first segment starts with single space)', () => {
+    const line = 'DESCRIPTION:' + 'A'.repeat(300);
+    const folded = foldLine(line);
+    const segments = folded.split('\r\n');
+    expect(segments.length).toBeGreaterThan(1);
+    for (let i = 1; i < segments.length; i++) {
+      expect(segments[i][0]).toBe(' ');
+    }
+  });
+});
+
+describe('VEVENT folding integration (#441)', () => {
+  const FROZEN = new Date('2026-06-02T12:00:00Z');
+
+  test('tripToVEvent folds long DESCRIPTION', () => {
+    const trip = {
+      _slug: 'long-desc',
+      title: 'Long',
+      target_date: '2026-07-04',
+      duration_days: 1,
+      pitch: 'A '.repeat(100), // ~200 octets
+    };
+    const ev = tripToVEvent(trip, FROZEN);
+    // Every line should be ≤ 75 octets
+    for (const seg of ev.split('\r\n')) {
+      expect(Buffer.byteLength(seg, 'utf8')).toBeLessThanOrEqual(75);
+    }
+  });
+
+  test('tripToDailyVEvents folds long per-day DESCRIPTION (multi-byte chars)', () => {
+    const trip = { _slug: 't', title: 'Trip' };
+    const plan = {
+      days: [{
+        number: 1,
+        date: '2026-07-04',
+        stops: ['a', 'b', 'c', 'd'],
+        notes: 'A long note — describing the day with em-dashes and bullets, several sentences in.',
+      }],
+    };
+    const candidates = {
+      stops: [
+        { id: 'a', name: 'Some Very Long Stop Name in Michigan', category: 'outdoors' },
+        { id: 'b', name: 'Another Place — With An Em-Dash', category: 'view' },
+        { id: 'c', name: 'Yet Another Spot', category: 'food' },
+        { id: 'd', name: 'Closing Place', category: 'misc' },
+      ],
+      lodging: [],
+    };
+    const events = tripToDailyVEvents(trip, plan, candidates, FROZEN);
+    expect(events).toHaveLength(1);
+    for (const seg of events[0].split('\r\n')) {
+      expect(Buffer.byteLength(seg, 'utf8')).toBeLessThanOrEqual(75);
+    }
   });
 });
