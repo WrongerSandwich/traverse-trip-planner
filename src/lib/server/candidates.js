@@ -262,6 +262,21 @@ export function setCandidateHidden(slug, id, hidden) {
   return updated;
 }
 
+/**
+ * Toggle the `done` flag on one todo of one candidate stop.
+ * Returns the mutated stop, or null if the stop or todo can't be found.
+ */
+export function setTodoDone(slug, stopId, todoId, done) {
+  const cands = loadOrInit(slug);
+  const stop = cands.stops.find((s) => s.id === stopId);
+  if (!stop || !Array.isArray(stop.todos)) return null;
+  const todo = stop.todos.find((t) => t.id === todoId);
+  if (!todo) return null;
+  todo.done = done === true;
+  writeCandidates(slug, cands);
+  return stop;
+}
+
 // ── Geocoding helpers ─────────────────────────────────────────────────────────
 //
 // Shared by realize-plan.js and any new endpoint that needs to geocode

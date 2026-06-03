@@ -19,7 +19,7 @@ vi.mock('$lib/server/data.js', async () => {
   };
 });
 
-import { readCandidates, writeCandidates, emptyCandidates, makeCandidateId, addCandidateStop, addCandidateLodging, deleteCandidate, deleteCandidateStop, deleteCandidateLodging, setCandidateHidden } from '../src/lib/server/candidates.js';
+import { readCandidates, writeCandidates, emptyCandidates, makeCandidateId, addCandidateStop, addCandidateLodging, deleteCandidate, deleteCandidateStop, deleteCandidateLodging, setCandidateHidden, setTodoDone } from '../src/lib/server/candidates.js';
 import { writePlan, emptyPlan } from '../src/lib/server/plan.js';
 import { TraverseError } from '../src/lib/server/errors.js';
 
@@ -259,6 +259,74 @@ describe('candidates.js', () => {
     expect(round.stops[0].hours).toBeUndefined();
     expect(round.stops[0].website).toBeUndefined();
     expect(round.stops[0].phone).toBeUndefined();
+  });
+});
+
+describe('tips/todos round-trip + setTodoDone', () => {
+  beforeEach(() => {
+    ROOT = mkdtempSync(join(tmpdir(), 'cand-test-'));
+    mkdirSync(join(ROOT, 'planning', 'prep-roundtrip'), { recursive: true });
+    mkdirSync(join(ROOT, 'planning', 'prep-toggle'), { recursive: true });
+    mkdirSync(join(ROOT, 'planning', 'prep-missing'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(ROOT, { recursive: true, force: true });
+  });
+
+  it('preserves tips and todos (with done flags) through write/read', () => {
+    const slug = 'prep-roundtrip';
+    writeCandidates(slug, {
+      stops: [
+        {
+          id: 'a',
+          name: 'Place A',
+          category: 'misc',
+          tips: ['Arrive before 9am', 'Bring cash'],
+          todos: [
+            { id: 't1', text: 'Book timed-entry ticket', done: false },
+            { id: 't2', text: 'Download offline map', done: true },
+          ],
+        },
+      ],
+      lodging: [],
+    });
+
+    const back = readCandidates(slug);
+    expect(back.stops[0].tips).toEqual(['Arrive before 9am', 'Bring cash']);
+    expect(back.stops[0].todos).toEqual([
+      { id: 't1', text: 'Book timed-entry ticket', done: false },
+      { id: 't2', text: 'Download offline map', done: true },
+    ]);
+  });
+
+  it('setTodoDone flips a todo and returns the stop', () => {
+    const slug = 'prep-toggle';
+    writeCandidates(slug, {
+      stops: [
+        { id: 'a', name: 'A', category: 'misc', todos: [{ id: 't1', text: 'x', done: false }] },
+      ],
+      lodging: [],
+    });
+
+    const updated = setTodoDone(slug, 'a', 't1', true);
+    expect(updated).toBeTruthy();
+    expect(updated.todos[0].done).toBe(true);
+    expect(readCandidates(slug).stops[0].todos[0].done).toBe(true);
+
+    setTodoDone(slug, 'a', 't1', false);
+    expect(readCandidates(slug).stops[0].todos[0].done).toBe(false);
+  });
+
+  it('setTodoDone returns null for unknown stop or todo', () => {
+    const slug = 'prep-missing';
+    writeCandidates(slug, {
+      stops: [{ id: 'a', name: 'A', category: 'misc', todos: [{ id: 't1', text: 'x', done: false }] }],
+      lodging: [],
+    });
+
+    expect(setTodoDone(slug, 'nope', 't1', true)).toBeNull();
+    expect(setTodoDone(slug, 'a', 'nope', true)).toBeNull();
   });
 });
 
