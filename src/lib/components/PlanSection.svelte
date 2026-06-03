@@ -30,6 +30,30 @@
     );
   }
 
+  const promotedStopIds = $derived.by(() => {
+    const ids = new Set();
+    for (const day of plan?.days ?? []) {
+      for (const s of day.stops ?? []) {
+        const id = typeof s === 'string' ? s : s.id;
+        if (id) ids.add(id);
+      }
+    }
+    return ids;
+  });
+
+  const prepStops = $derived.by(() =>
+    (candidates?.stops ?? []).filter(
+      (s) => promotedStopIds.has(s.id) && (s.tips?.length || s.todos?.length),
+    ),
+  );
+
+  const prepTotal = $derived(
+    prepStops.reduce((n, s) => n + (s.todos?.length ?? 0), 0),
+  );
+  const prepDone = $derived(
+    prepStops.reduce((n, s) => n + (s.todos?.filter((t) => t.done).length ?? 0), 0),
+  );
+
   // ── UI state ──
   let pickerOpen = $state(null); // day number or `lodging:${n}` (legacy click-fallback)
   // Cross-day move picker for touch / keyboard users (the drag-handle
@@ -294,6 +318,31 @@
     }
   }
 
+  async function toggleTodo(stopId, todoId, done) {
+    await api(`/api/candidates/${slug}/stops/${stopId}/todos/${todoId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ done }),
+    });
+  }
+
+  async function startStopPrep(force = false) {
+    await api(`/api/actions/stop-prep/${slug}`, {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    });
+  }
+
+  async function confirmRegenerate() {
+    const ok = await showConfirm({
+      title: 'Re-generate all prep?',
+      body: 'This clears every check-off and regenerates tips and to-dos for all stops.',
+      confirmLabel: 'Re-generate',
+      danger: true,
+    });
+    if (!ok) return;
+    await startStopPrep(true);
+  }
+
   async function addDay() {
     await api(`/api/plan/${slug}`, { method: 'POST' });
   }
@@ -457,6 +506,24 @@
     <button class="btn-inline add-day-empty" onclick={addDay} disabled={working || readonly}>+ Add Day 1</button>
   </div>
 {:else}
+  {#if prepStops.length > 0}
+    <div class="trip-prep">
+      <div class="trip-prep-head">
+        <h3>Trip prep</h3>
+        <span class="count">{prepDone} of {prepTotal} done</span>
+        {#if !readonly}
+          <div class="trip-prep-actions">
+            <button type="button" class="btn-inline" disabled={working} onclick={() => startStopPrep(false)}>
+              Refresh prep
+            </button>
+            <button type="button" class="btn-inline" disabled={working} onclick={confirmRegenerate}>
+              Re-generate all
+            </button>
+          </div>
+        {/if}
+      </div>
+    </div>
+  {/if}
   {#each plan.days as day (day.number)}
     {@const header = formatDayHeader(day)}
     <article
@@ -594,6 +661,7 @@
                       ondragstart={() => onStopDragStart(day.number, id, i, event)}
                       ondragend={onStopDragEnd}
                       onHide={() => removeStopWithUndo(day.number, id)}
+                      onToggleTodo={(todoId, done) => toggleTodo(cand.id, todoId, done)}
                     />
                     {#if !readonly && day.stops.length > 1}
                       <div class="nudge-stack" role="group" aria-label="Reorder {cand.name}">
@@ -1495,5 +1563,35 @@
       font-size: 0.95rem;
       padding: 0 12px;
     }
+  }
+
+  /* ── Trip-prep roll-up ──────────────────────────────────────────────── */
+  .trip-prep {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    background: var(--surface-raised);
+  }
+  .trip-prep-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .trip-prep-head h3 {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    color: var(--text-primary);
+  }
+  .trip-prep-head .count {
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
+  }
+  .trip-prep-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 0.5rem;
   }
 </style>
