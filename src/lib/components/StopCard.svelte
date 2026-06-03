@@ -28,6 +28,7 @@
     onPromote = () => {},
     onUnpromote = () => {},
     onHide = () => {},
+    onToggleTodo = () => {},
     ondragstart = () => {},
     ondragend = () => {},
   } = $props();
@@ -155,6 +156,38 @@
           {#if webUrl}<a class="meta-link" href={webUrl} target="_blank" rel="noopener" onclick={(e) => e.stopPropagation()}>{webLabel} ↗</a>{/if}
           {#if telUrl}<a class="meta-link" href={telUrl} onclick={(e) => e.stopPropagation()}>{stop.phone} ↗</a>{/if}
         </div>
+      {/if}
+    </div>
+  {/if}
+
+  {#if compact && (stop.tips?.length || stop.todos?.length)}
+    <div class="prep">
+      {#if stop.tips?.length}
+        <ul class="tips">
+          {#each stop.tips as tip}
+            <li>{tip}</li>
+          {/each}
+        </ul>
+      {/if}
+      {#if stop.todos?.length}
+        <ul class="todos">
+          {#each stop.todos as todo (todo.id)}
+            <li>
+              <label
+                role="presentation"
+                onclick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  checked={todo.done}
+                  disabled={readonly || working}
+                  onchange={(e) => onToggleTodo(todo.id, e.currentTarget.checked)}
+                />
+                <span class:done={todo.done}>{todo.text}</span>
+              </label>
+            </li>
+          {/each}
+        </ul>
       {/if}
     </div>
   {/if}
@@ -575,5 +608,34 @@
       padding: 0.6rem 0.85rem;
       font-size: 13px;
     }
+  }
+
+  .stop-card.compact .prep {
+    flex-basis: 100%;
+    margin-top: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .prep ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    list-style: disc;
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+  }
+  .prep ul.todos {
+    list-style: none;
+    padding-left: 0;
+  }
+  .prep ul.todos li label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    cursor: pointer;
+  }
+  .prep ul.todos span.done {
+    text-decoration: line-through;
+    opacity: 0.6;
   }
 </style>
