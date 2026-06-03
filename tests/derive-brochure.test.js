@@ -126,4 +126,30 @@ describe('deriveBrochure', () => {
     expect(stop.website).toBe('https://a.example');
     expect(stop.phone).toBe('555-0001');
   });
+
+  it('projects tips and todos onto brochure day stops and flat top-level stops', () => {
+    writeCandidates('t', {
+      stops: [
+        {
+          id: 'a',
+          name: 'A',
+          category: 'outdoors',
+          description: 'Place A',
+          coords: { lat: 1, lng: 1 },
+          tips: ['Arrive early', 'Park in lot B'],
+          todos: [{ id: 't1', text: 'Book ticket', done: true }],
+          user_added: false,
+        },
+        { id: 'b', name: 'B', category: 'food', description: 'Place B', user_added: false },
+      ],
+      lodging: [{ id: 'inn', name: 'Inn', price_tier: 'mid', nights: 2, user_added: false }],
+    });
+    const b = deriveBrochure('t');
+    const dayStop = b.days[0].stops[0];
+    expect(dayStop.tips).toEqual(['Arrive early', 'Park in lot B']);
+    expect(dayStop.todos).toEqual([{ id: 't1', text: 'Book ticket', done: true }]);
+    const topStop = b.stops[0];
+    expect(topStop.tips).toEqual(['Arrive early', 'Park in lot B']);
+    expect(topStop.todos).toEqual([{ id: 't1', text: 'Book ticket', done: true }]);
+  });
 });

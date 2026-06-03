@@ -26,6 +26,7 @@ const FEATURE_SLOT = {
   // web_search. Uses the default model slot — calls are tight (one place per
   // round-trip) and don't need the research model's larger context window.
   'enrich-candidates': 'modelDefault',
+  'stop-prep': 'modelDefault',
 };
 
 const PROVIDER_KEYS = Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.envKey]));

@@ -152,7 +152,7 @@ describe('getFeatureAvailability', () => {
     const { getFeatureAvailability } = await loadConfig();
     expect(getFeatureAvailability()).toEqual({
       seed: false, add: false, chat: false, retro: false, receipts: false, deepen: false,
-      'add-candidate': false, 'find-more': false, 'enrich-candidates': false,
+      'add-candidate': false, 'find-more': false, 'enrich-candidates': false, 'stop-prep': false,
       homeMdReady: false,
       pexelsConfigured: false,
     });
@@ -162,7 +162,7 @@ describe('getFeatureAvailability', () => {
     const { getFeatureAvailability } = await loadConfig({ ANTHROPIC_API_KEY: 'sk-ant-test' });
     expect(getFeatureAvailability()).toEqual({
       seed: true, add: true, chat: true, retro: true, receipts: false, deepen: true,
-      'add-candidate': true, 'find-more': true, 'enrich-candidates': true,
+      'add-candidate': true, 'find-more': true, 'enrich-candidates': true, 'stop-prep': true,
       homeMdReady: false,
       pexelsConfigured: false,
     });

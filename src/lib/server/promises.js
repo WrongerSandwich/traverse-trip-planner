@@ -38,6 +38,7 @@ export const MAX_TOKENS = {
   // enrich-candidates: one chat() per candidate; each call is tight (one place
   // name, three fields back). Per-call cap fits the YAML response with margin.
   'enrich-candidates': 1500,
+  'stop-prep': 1500,
 };
 
 /** @type {Record<string, Promise>} */
@@ -122,6 +123,12 @@ export const HAND_DEFAULTS = {
     produces: "Hours, official website, and phone for each stop candidate. Runs in the background after geocoding completes.",
     time_seconds: 90,
     tokens_range: [3000, 12000],
+  },
+  'stop-prep': {
+    verb: 'Prep stops',
+    produces: 'Pre-trip to-dos and in-trip tips for each promoted stop. Runs in the background after enrichment completes.',
+    time_seconds: 60,
+    tokens_range: [2000, 9000],
   },
 };
 

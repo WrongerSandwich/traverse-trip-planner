@@ -130,6 +130,10 @@ export const ERROR_REGISTRY = {
     sentence: 'Couldn\'t enrich any of the candidates — try again, or check the server log if it keeps happening.',
     affordances: ['retry', 'dismiss'],
   },
+  stop_prep_all_failed: {
+    sentence: "Couldn't prep any of the stops — try again, or check the server log if it keeps happening.",
+    affordances: ['retry', 'dismiss'],
+  },
   rate_limited: {
     sentence: 'Too many requests. Try again in {retryAfterSec} seconds.',
     affordances: ['retry', 'dismiss'],
