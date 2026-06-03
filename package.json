@@ -1,6 +1,6 @@
 {
   "name": "traverse",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "A self-hosted road-trip filing cabinet: trips as markdown, LLM as assistant.",
   "author": "Evan Trout",
   "license": "MIT",

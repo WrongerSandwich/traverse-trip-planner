@@ -633,6 +633,62 @@ describe('realizePlan', () => {
     expect(stop.phone).toBeUndefined();
   });
 
+  it('drops a website without an http(s) scheme and a digit-less phone (matches enrich-job validation)', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+
+    await realizePlan('t', makeExtract({
+      plan: { field_guide_notes: [], gotchas: [] },
+      candidates: {
+        stops: [{
+          name: 'Sketchy Stop',
+          category: 'misc',
+          description: 'Has malformed contact fields.',
+          why_recommended: 'Testing validation parity.',
+          source_url: '',
+          hours: 'Daily 9-5',
+          address: '500 Elm St',
+          website: 'example.com',        // no scheme → drop
+          phone: 'call the front desk',  // no digit → drop
+        }],
+        lodging: [],
+      },
+    }));
+
+    const stop = capturedCands.value.stops[0];
+    // hours/address have no format rule and survive.
+    expect(stop.hours).toBe('Daily 9-5');
+    expect(stop.address).toBe('500 Elm St');
+    // website/phone fail the format rule and are dropped, not persisted raw.
+    expect(stop.website).toBeUndefined();
+    expect(stop.phone).toBeUndefined();
+  });
+
+  it('keeps a valid http website and a phone containing digits', async () => {
+    readCandidates.mockReturnValueOnce(null);
+    readPlan.mockReturnValueOnce(null);
+
+    await realizePlan('t', makeExtract({
+      plan: { field_guide_notes: [], gotchas: [] },
+      candidates: {
+        stops: [{
+          name: 'Clean Stop',
+          category: 'misc',
+          description: 'Well-formed contact fields.',
+          why_recommended: 'Testing validation parity.',
+          source_url: '',
+          website: 'http://clean.example.com',
+          phone: 'tel: 555-0100',
+        }],
+        lodging: [],
+      },
+    }));
+
+    const stop = capturedCands.value.stops[0];
+    expect(stop.website).toBe('http://clean.example.com');
+    expect(stop.phone).toBe('tel: 555-0100');
+  });
+
   it('carries tips/todos forward by id when re-researching', async () => {
     // 'place-a' is the makeCandidateId-derived id for name 'Place A'
     readCandidates.mockReturnValueOnce({

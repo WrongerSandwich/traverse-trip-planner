@@ -10,6 +10,7 @@ const WORKFLOW_LABELS = {
   'find-more':   'Finding more candidates…',
   'geocode-candidates': 'Geocoding candidates…',
   'enrich-candidates': 'Enriching candidates…',
+  'stop-prep':   'Preparing stops…',
 };
 
 /**

@@ -94,8 +94,11 @@ export async function realizePlan(slug, parsedExtract, _opts = {}) {
       source_url: raw.source_url ?? '',
       ...(typeof raw.address === 'string' && raw.address.trim() ? { address: raw.address.trim() } : {}),
       ...(typeof raw.hours === 'string' && raw.hours.trim() ? { hours: raw.hours.trim() } : {}),
-      ...(typeof raw.website === 'string' && raw.website.trim() ? { website: raw.website.trim() } : {}),
-      ...(typeof raw.phone === 'string' && raw.phone.trim() ? { phone: raw.phone.trim() } : {}),
+      // website/phone get the same format rules the enrich-candidates job applies
+      // (enrich-job.js validateField): drop a website without an http(s) scheme and
+      // a digit-less phone, rather than persisting the raw string to candidates.yaml.
+      ...(typeof raw.website === 'string' && /^https?:\/\//i.test(raw.website.trim()) ? { website: raw.website.trim() } : {}),
+      ...(typeof raw.phone === 'string' && raw.phone.trim() && /\d/.test(raw.phone) ? { phone: raw.phone.trim() } : {}),
       user_added: false,
     });
   }
