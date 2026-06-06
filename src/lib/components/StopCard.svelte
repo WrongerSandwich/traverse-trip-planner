@@ -113,25 +113,25 @@
       {#if stop.address}
         {#if mapsUrl}
           <a class="meta-chip meta-chip--addr" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
-            <span class="meta-icon" aria-hidden="true">📍</span>{stop.address}
+            <span class="meta-icon" aria-hidden="true">📍</span><span class="meta-chip-text">{stop.address}</span>
           </a>
         {:else}
-          <span class="meta-chip meta-chip--addr"><span class="meta-icon" aria-hidden="true">📍</span>{stop.address}</span>
+          <span class="meta-chip meta-chip--addr"><span class="meta-icon" aria-hidden="true">📍</span><span class="meta-chip-text">{stop.address}</span></span>
         {/if}
       {/if}
       {#if stop.hours}
         <span class="meta-chip meta-chip--hours" title={stop.hours}>
-          <span class="meta-icon" aria-hidden="true">⏰</span>{stop.hours}
+          <span class="meta-icon" aria-hidden="true">⏰</span><span class="meta-chip-text">{stop.hours}</span>
         </span>
       {/if}
       {#if webUrl}
         <a class="meta-chip meta-chip--web" href={webUrl} target="_blank" rel="noopener" aria-label="Website: {webLabel}" onclick={(e) => e.stopPropagation()}>
-          <span class="meta-icon" aria-hidden="true">🌐</span>{webLabel}
+          <span class="meta-icon" aria-hidden="true">🌐</span><span class="meta-chip-text">{webLabel}</span>
         </a>
       {/if}
       {#if telUrl}
         <a class="meta-chip meta-chip--phone" href={telUrl} aria-label="Call {stop.phone}" onclick={(e) => e.stopPropagation()}>
-          <span class="meta-icon" aria-hidden="true">☎</span>{stop.phone}
+          <span class="meta-icon" aria-hidden="true">☎</span><span class="meta-chip-text">{stop.phone}</span>
         </a>
       {/if}
     </div>
@@ -433,9 +433,6 @@
     padding: 0.18rem 0.45rem;
     border-radius: 999px;
     max-width: 18rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     text-decoration: none;
     border: 0.5px solid transparent;
     transition: background-color 0.12s, color 0.12s, border-color 0.12s;
@@ -450,6 +447,12 @@
     font-size: 0.7rem;
     line-height: 1;
     flex-shrink: 0;
+  }
+  .meta-chip-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Compact mode (inside Plan day cards) — vertical stack, larger touch

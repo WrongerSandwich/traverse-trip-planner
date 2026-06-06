@@ -7,7 +7,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 //   - iterates non-hidden candidates missing `coords`
 //   - resolves the destination ref coords once (for disambiguation) by
 //     reading the overview frontmatter from disk
-//   - calls geocodeCandidate(name, destinationContext, refCoords) per entry
+//   - calls geocodeCandidate(name, destinationContext, refCoords, address)
+//     per entry — the candidate's address (when the deepen LLM volunteered
+//     one) is forwarded as the most-precise geocode attempt (#403/Bug 4)
 //   - writes the updated candidates back to disk INCREMENTALLY, so pins
 //     appear on the map as they resolve
 //   - skips candidates that already have coords (idempotent)
@@ -84,8 +86,8 @@ describe('geocodeCandidatesJob', () => {
 
     // Visible entries get geocoded; hidden one does not.
     expect(mockGeocodeCandidate).toHaveBeenCalledTimes(2);
-    expect(mockGeocodeCandidate).toHaveBeenCalledWith('Lake McDonald', 'Glacier MT', [48.7, -114.0]);
-    expect(mockGeocodeCandidate).toHaveBeenCalledWith('Lodge', 'Glacier MT', [48.7, -114.0]);
+    expect(mockGeocodeCandidate).toHaveBeenCalledWith('Lake McDonald', 'Glacier MT', [48.7, -114.0], undefined);
+    expect(mockGeocodeCandidate).toHaveBeenCalledWith('Lodge', 'Glacier MT', [48.7, -114.0], undefined);
   });
 
   it('skips stops that already have both coords and address', async () => {
@@ -102,7 +104,7 @@ describe('geocodeCandidatesJob', () => {
 
     // Only the missing-coords entry gets geocoded; the stop with both fields is skipped.
     expect(mockGeocodeCandidate).toHaveBeenCalledTimes(1);
-    expect(mockGeocodeCandidate).toHaveBeenCalledWith('No Coords', expect.any(String), expect.any(Array));
+    expect(mockGeocodeCandidate).toHaveBeenCalledWith('No Coords', expect.any(String), expect.any(Array), undefined);
   });
 
   it('writes back to disk incrementally so pins appear as they resolve', async () => {
@@ -211,7 +213,7 @@ describe('geocodeCandidatesJob', () => {
     await geocodeCandidatesJob('t');
 
     expect(mockGetDestinationRefCoords).toHaveBeenCalledWith('Bend OR');
-    expect(mockGeocodeCandidate).toHaveBeenCalledWith('A', 'Bend OR', [48.7, -114.0]);
+    expect(mockGeocodeCandidate).toHaveBeenCalledWith('A', 'Bend OR', [48.7, -114.0], undefined);
   });
 
   it('writes once per resolved candidate, not per skipped one', async () => {
@@ -265,6 +267,27 @@ describe('geocodeCandidatesJob', () => {
     const lastWrite = mockWriteCandidates.mock.calls.at(-1);
     expect(lastWrite[1].stops[0].coords).toEqual({ lat: 44.88, lng: -86.05 });
     expect(lastWrite[1].stops[0].address).toBe('Front Street, Empire, Michigan 49630');
+  });
+
+  it('forwards a deepen-volunteered address to geocodeCandidate as the precise attempt (Bug 4)', async () => {
+    // A stop can arrive from deepen with an address but no coords. The job must
+    // pass that address through so geocodeCandidate can pin off the street
+    // address rather than failing on a bare-name lookup.
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'cafe', name: 'Corner Cafe', address: '123 Main St, Empire MI 49630' }],
+      lodging: [],
+    });
+    mockGeocodeCandidate.mockResolvedValue([44.88, -86.05]);
+    mockReverseGeocode.mockResolvedValue(null);
+
+    await geocodeCandidatesJob('t');
+
+    expect(mockGeocodeCandidate).toHaveBeenCalledWith(
+      'Corner Cafe',
+      'Glacier MT',
+      [48.7, -114.0],
+      '123 Main St, Empire MI 49630',
+    );
   });
 
   it('calls reverseGeocode with the coords returned by geocodeCandidate', async () => {

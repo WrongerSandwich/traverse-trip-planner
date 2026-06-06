@@ -319,8 +319,12 @@ export async function getDestinationRefCoords(destinationContext) {
  * Returns `[lat, lng]` or `null` if no plausible match.
  *
  * Order of attempts:
- *   1. "<name>, <destination>" — scoped query first
- *   2. "<name>" alone — bare fallback, only accepted if within
+ *   1. "<address>" — when the deepen LLM volunteered a full address, the most
+ *      precise signal. A complete street address rarely collides, so it is
+ *      attempted even without refCoords; still distance-gated when refCoords
+ *      is available.
+ *   2. "<name>, <destination>" — scoped query
+ *   3. "<name>" alone — bare fallback, only accepted if within
  *      MAX_CANDIDATE_DISTANCE_MI of refCoords
  *
  * Bare fallback is skipped entirely when refCoords is null — without a
@@ -329,10 +333,21 @@ export async function getDestinationRefCoords(destinationContext) {
  * Throttles between calls so callers can run this in a loop without
  * hitting Nominatim's 1 req/sec ToS limit.
  */
-export async function geocodeCandidate(name, destinationContext, refCoords) {
+export async function geocodeCandidate(name, destinationContext, refCoords, address = null) {
   let coords = null;
   let networkHit = false;
-  if (destinationContext) {
+  if (typeof address === 'string' && address.trim()) {
+    const { coords: byAddr, fromCache: addrFromCache } = await geocode(address.trim());
+    if (!addrFromCache) networkHit = true;
+    if (byAddr && (!refCoords || distanceMi(byAddr, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {
+      coords = byAddr;
+    } else if (byAddr && refCoords) {
+      console.warn(
+        `geocodeCandidate: dropped "${name}" address geocode — result was ${Math.round(distanceMi(byAddr, refCoords))}mi from destination "${destinationContext}" (likely a bad address)`
+      );
+    }
+  }
+  if (!coords && destinationContext) {
     const { coords: scoped, fromCache: scopedFromCache } = await geocode(`${name}, ${destinationContext}`);
     if (!scopedFromCache) networkHit = true;
     if (scoped && (!refCoords || distanceMi(scoped, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {

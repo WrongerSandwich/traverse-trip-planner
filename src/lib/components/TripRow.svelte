@@ -20,9 +20,12 @@
   } = $props();
 
   const isIdea = $derived((trip.status || trip._stage) === 'idea');
-  const deepenRunning = $derived(
-    jobs.some(j => (typeof j.workflow === 'string' ? j.workflow.split(':')[0] : j.workflow) === 'deepen')
-  );
+  // Suppress the Research CTA while ANY job runs for this trip, not just deepen.
+  // After deepen promotes idea→planning it hands off to geocode → enrich →
+  // stop-prep; the registry flips to the next leg before `data.trips` re-fetches,
+  // so gating on deepen alone briefly re-shows "Research →" beside a
+  // "Geocoding…" badge (Bug 1). `jobs` is pre-filtered to this trip's slug.
+  const anyJobRunning = $derived(jobs.length > 0);
   const status = $derived(trip.status || trip._stage || 'idea');
   const color  = $derived(tripColor(trip));
   const driveLabel = $derived(formatDriveLabel(trip._drive_hours));
@@ -88,7 +91,7 @@
           >
             Restore
           </button>
-        {:else if isIdea && !deepenRunning}
+        {:else if isIdea && !anyJobRunning}
           <button
             class="row-cta"
             onclick={ondeepen}

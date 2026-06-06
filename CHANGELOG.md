@@ -6,7 +6,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.1.2] — In-trip companion
+## [0.1.2] — 2026-06-03 · In-trip companion
 
 ### Added
 - **Per-stop metadata** (#403). Every stop candidate can now carry `hours`,
@@ -39,6 +39,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stop. The two new optional stop fields (`tips`, `todos`) round-trip
   through `candidates.yaml` and are preserved forward by id across
   re-research.
+- **Per-turn AI telemetry** (#436). Each tool-loop iteration in all three
+  `chat()` adapters (Anthropic, OpenAI, OpenRouter) now emits a `turn`
+  activity event and logs a grep-friendly line
+  (`[ai] deepen turn 3: 14823ms · 12450 in / 187 out · tool=web_search`),
+  making it possible to see where a long deepen run spends its time. Pure
+  observability — no change to tool-loop behavior. (The broader wall-clock
+  budget for empty-response retries tracked in #436 is deferred.)
+
+### Fixed
+- **Configuration save errors surface server detail** (#437). The
+  configuration page's save, key-removal, and service-removal paths now prefer
+  a recognized `ERROR_REGISTRY` code, then the server's error string, before
+  falling back to the generic "save failed" sentence — so a loopback-gate 403
+  (new `forbidden_remote_write` code) or a provider-key validation failure is
+  no longer masked behind a generic message.
+- **ICS exports fold long lines** (#441). Calendar (`.ics`) content lines
+  longer than 75 octets are now folded per RFC 5545 §3.1 (CRLF + leading
+  space), so days with long titles, notes, or locations import correctly into
+  strict calendar parsers instead of being rejected or truncated.
 
 ## [0.1.1] — 2026-05-27
 

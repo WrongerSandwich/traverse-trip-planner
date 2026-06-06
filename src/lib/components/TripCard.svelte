@@ -32,6 +32,14 @@
     jobs.some(j => (typeof j.workflow === 'string' ? j.workflow.split(':')[0] : j.workflow) === 'deepen')
   );
 
+  // Suppress the Research CTA while ANY job is in flight for this trip, not just
+  // deepen. After deepen finishes it promotes the trip to planning and hands off
+  // to geocode → enrich → stop-prep; the jobs registry flips to the next leg
+  // before `data.trips` re-fetches, so gating on `deepenRunning` alone briefly
+  // re-shows "Research →" on a card that already has a "Geocoding…" badge (Bug
+  // 1). `jobs` is pre-filtered to this trip's slug by the parent.
+  const anyJobRunning = $derived(jobs.length > 0);
+
   // Show the waypoints-missing hint on the MiniMap thumbnail for planning trips
   // without usable waypoints. Idea-stage cards are excluded — absence is expected
   // pre-research and adding the hint would be noise. Also hidden while a research
@@ -161,7 +169,7 @@
       >
         Restore
       </button>
-    {:else if isIdea && !deepenRunning}
+    {:else if isIdea && !anyJobRunning}
       <button
         class="btn btn-secondary btn-compact card-cta"
         onclick={ondeepen}

@@ -12,6 +12,10 @@ describe('jobLabel', () => {
     expect(jobLabel('deepen-section')).toBe('Deepening stops…');
   });
 
+  it('maps stop-prep to "Preparing stops…"', () => {
+    expect(jobLabel('stop-prep')).toBe('Preparing stops…');
+  });
+
   it('falls back to "{workflow}…" for unknown workflows', () => {
     expect(jobLabel('some-future-workflow')).toBe('some-future-workflow…');
   });
