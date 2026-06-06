@@ -6,6 +6,7 @@
   import HideToast from '$lib/components/HideToast.svelte';
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatDayHeader } from '$lib/format-date.js';
+  import { nudgeJobsPoll } from '$lib/utils/jobs-store.js';
 
   let { plan, candidates, slug, destination = null, readonly = false } = $props();
 
@@ -326,10 +327,14 @@
   }
 
   async function startStopPrep(force = false) {
-    await api(`/api/actions/stop-prep/${slug}`, {
+    const ok = await api(`/api/actions/stop-prep/${slug}`, {
       method: 'POST',
       body: JSON.stringify({ force }),
     });
+    // stop-prep is an Ambient Background job (202). Nudge the jobs poll so the
+    // global pill / per-trip badge pick it up immediately instead of waiting
+    // out the 10s poll interval.
+    if (ok) nudgeJobsPoll();
   }
 
   async function confirmRegenerate() {

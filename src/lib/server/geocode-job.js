@@ -98,7 +98,10 @@ export async function geocodeCandidatesJob(slug, opts = {}) {
     if (target.coords) {
       coordsArr = [target.coords.lat, target.coords.lng];
     } else {
-      coordsArr = await geocodeCandidate(entry.name, destinationContext, refCoords);
+      // Pass any deepen-volunteered address as the most-precise geocode
+      // attempt (#403/Bug 4): a stop can arrive with an address but no coords,
+      // and a full address pins far more reliably than a bare name.
+      coordsArr = await geocodeCandidate(entry.name, destinationContext, refCoords, target.address);
       if (coordsArr) {
         target.coords = { lat: coordsArr[0], lng: coordsArr[1] };
         needsWrite = true;

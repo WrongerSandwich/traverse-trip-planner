@@ -365,4 +365,42 @@ describe('geocodeCandidate', () => {
     expect(result).toBeNull();
     expect(MAX_CANDIDATE_DISTANCE_MI).toBeGreaterThan(0);
   });
+
+  it('geocodes a provided address first and skips name lookups when it pins (Bug 4)', async () => {
+    const { geocodeCandidate } = await import('$lib/server/candidates.js');
+    const refCoords = [39.33, -82.98]; // Chillicothe OH
+    mockGeocode.mockImplementation(async (query) => {
+      if (query === '16062 OH-104, Chillicothe, OH 45601') return { coords: [39.37, -83.0], fromCache: true };
+      // Name-based queries would resolve elsewhere, but must not be consulted.
+      return { coords: [10, 10], fromCache: true };
+    });
+    const result = await geocodeCandidate(
+      'Mound City Group',
+      'Chillicothe OH',
+      refCoords,
+      '16062 OH-104, Chillicothe, OH 45601',
+    );
+    expect(result).toEqual([39.37, -83.0]);
+    // Address pinned, so neither the scoped nor bare name query ran.
+    expect(mockGeocode).toHaveBeenCalledTimes(1);
+    expect(mockGeocode).toHaveBeenCalledWith('16062 OH-104, Chillicothe, OH 45601');
+  });
+
+  it('rejects a provided address more than MAX_CANDIDATE_DISTANCE_MI away and falls back to name (Bug 4)', async () => {
+    const { geocodeCandidate } = await import('$lib/server/candidates.js');
+    const refCoords = [39.33, -82.98]; // Chillicothe OH
+    mockGeocode.mockImplementation(async (query) => {
+      if (query === 'Bad Address, Texas') return { coords: [31.0, -100.0], fromCache: true }; // ~1200 mi away
+      if (query === 'Mound City Group, Chillicothe OH') return { coords: [39.37, -83.0], fromCache: true };
+      return { coords: null, fromCache: true };
+    });
+    const result = await geocodeCandidate(
+      'Mound City Group',
+      'Chillicothe OH',
+      refCoords,
+      'Bad Address, Texas',
+    );
+    // Address result was rejected on distance; scoped name query won.
+    expect(result).toEqual([39.37, -83.0]);
+  });
 });

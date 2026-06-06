@@ -165,18 +165,33 @@
   // ── Error resolution ───────────────────────────────────────────────────────
   /**
    * Resolve a user-facing error sentence for a failed /api/settings response.
-   * Prefers a recognized ERROR_REGISTRY code, falls back to the server's
-   * `error` string (already a user-facing sentence), then to the generic
-   * `save_failed` sentence as a last resort.
+   *
+   * Prefers a recognized ERROR_REGISTRY code — but only when its sentence
+   * doesn't depend on interpolation fields the server omitted. The settings
+   * endpoint returns `{ code: 'invalid_input', error: '<specific reason>' }`
+   * with no `ctx`, so rendering the registry template `'{reason}. Edit the
+   * trip and try again.'` would surface a leading-period fragment and lose the
+   * server's actual reason (Bug 6). When the template has unfilled
+   * placeholders, the server's `error` string is the complete sentence, so
+   * fall through to it. Self-contained codes (e.g. forbidden_remote_write,
+   * which has no `interpolate`) still render their polished registry sentence.
    */
   async function readSaveError(res) {
     let body = {};
     try { body = await res.json(); } catch { /* not JSON */ }
-    if (body?.code && ERROR_REGISTRY[body.code]) {
-      return failureSentence(body.code, body.ctx ?? {});
+    const entry = body?.code ? ERROR_REGISTRY[body.code] : null;
+    const ctx = body?.ctx ?? {};
+    const missingInterpolation = (entry?.interpolate ?? []).some(
+      (field) => ctx[field] === undefined || ctx[field] === null || ctx[field] === '',
+    );
+    if (entry && !missingInterpolation) {
+      return failureSentence(body.code, ctx);
     }
     if (typeof body?.error === 'string' && body.error.trim()) {
       return body.error.trim();
+    }
+    if (entry) {
+      return failureSentence(body.code, ctx);
     }
     return failureSentence('save_failed');
   }

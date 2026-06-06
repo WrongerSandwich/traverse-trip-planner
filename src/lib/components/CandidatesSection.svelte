@@ -3,6 +3,7 @@
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatDayHeader } from '$lib/format-date.js';
   import { streamAction } from '$lib/utils/action.js';
+  import { nudgeJobsPoll } from '$lib/utils/jobs-store.js';
   import TripMap from './TripMap.svelte';
   import StopCard from './StopCard.svelte';
   import LodgingCard from './LodgingCard.svelte';
@@ -402,8 +403,13 @@
 
   // POST /api/actions/enrich-candidates/[slug].
   // Returns 202 on a successful job start; the global background-jobs pill
-  // surfaces progress. On 409 (already running) or other errors the inline
-  // refreshError message surfaces the problem.
+  // surfaces progress. A 409 (already running) is benign here — the client
+  // `jobs` prop only refreshes every ~10s, so during the post-deepen chain the
+  // enrich leg can already be in flight while `anyBlockingJobRunning` is still
+  // stale-false and the button stays enabled (Bug 3). Rather than surface a
+  // scary "already running" banner for a job that's doing exactly what the user
+  // asked, nudge the jobs poll so the UI catches up (button disables, pill
+  // shows progress). Only genuine failures set `refreshError`.
   async function refreshMetadata({ force = false } = {}) {
     if (refreshing) return;
     kebabOpen = false;
@@ -415,9 +421,18 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ force }),
       });
-      if (!res.ok && res.status !== 202) {
+      if (res.status === 202) {
+        // Job started — surface it immediately instead of waiting out the poll.
+        nudgeJobsPoll();
+      } else if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        refreshError = data.code || `http_${res.status}`;
+        if (res.status === 409 && data.code === 'already_running') {
+          // Enrich is already running (likely the deepen chain's own leg).
+          // Re-sync so the controls reflect it; not an error.
+          nudgeJobsPoll();
+        } else {
+          refreshError = data.code || `http_${res.status}`;
+        }
       }
     } catch {
       refreshError = 'network_error';
