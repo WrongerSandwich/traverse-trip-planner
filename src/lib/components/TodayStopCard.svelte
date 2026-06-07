@@ -26,20 +26,9 @@
     KNOWN_CATEGORIES.has(stop.category) ? stop.category : 'misc'
   );
 
-  // Each category maps to a single glyph to reinforce identity alongside color.
-  const CATEGORY_GLYPH = {
-    historic:      '◉',
-    cultural:      '◐',
-    food:          '◊',
-    entertainment: '✺',
-    outdoors:      '▲',
-    view:          '◇',
-    quirky:        '✦',
-    shopping:      '○',
-    misc:          '·',
-  };
-
-  const glyph = $derived(CATEGORY_GLYPH[cat] ?? CATEGORY_GLYPH.misc);
+  // Chip text: prefer the stop's own category label, falling back to the
+  // sanitized token so a missing category never renders as "undefined".
+  const catLabel = $derived(stop.category || cat);
 
   // Derived action hrefs — compute only once per render.
   const navigateHref = $derived(navUrl(stop, destination));
@@ -78,7 +67,7 @@
     </div>
     <div class="stop-title">
       <h3 class="stop-name">{stop.name}</h3>
-      <span class="cat-chip" aria-label="Category: {stop.category}">{stop.category}</span>
+      <span class="cat-chip" aria-label="Category: {catLabel}">{catLabel}</span>
     </div>
   </div>
 
@@ -117,13 +106,13 @@
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Navigate to {stop.name}"
-    >↗ Navigate</a>
+    ><span aria-hidden="true">↗</span> Navigate</a>
     {#if callHref}
       <a
         class="action-btn"
         href={callHref}
         aria-label="Call {stop.name}: {stop.phone}"
-      >☎ Call</a>
+      ><span aria-hidden="true">☎</span> Call</a>
     {/if}
     {#if stop.website}
       <a
@@ -132,7 +121,7 @@
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Website for {stop.name}"
-      >⤴ Site</a>
+      ><span aria-hidden="true">⤴</span> Site</a>
     {/if}
   </div>
 
@@ -157,7 +146,7 @@
           {#each stop.todos as todo (todo.id)}
             <li class:done={todo.done}>
               <!-- Read-only done indicator — not interactive -->
-              <span class="todo-box" aria-label={todo.done ? 'Done' : 'Not done'}>
+              <span class="todo-box" role="img" aria-label={todo.done ? 'Done' : 'Not done'}>
                 {#if todo.done}<span class="todo-check" aria-hidden="true">✓</span>{/if}
               </span>
               <span class="todo-text">{todo.text}</span>
