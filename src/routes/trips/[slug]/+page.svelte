@@ -1000,7 +1000,7 @@
     if (data.plan?.days?.length) {
       outputItems.push({
         type: 'link',
-        label: 'Today view',
+        label: '📍 Today view',
         href: `/trips/${encodeURIComponent(slug)}/today`,
       });
     }
@@ -1333,7 +1333,7 @@
           <a
             class="btn btn-secondary btn-compact"
             href="/trips/{encodeURIComponent(trip._slug)}/today"
-          >Today / in-trip view</a>
+          >📍 Today / in-trip view</a>
         </div>
       {/if}
 
