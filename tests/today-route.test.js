@@ -18,15 +18,13 @@ vi.mock('node:fs', () => ({
 }));
 
 // ── $lib/server/data.js mock ──────────────────────────────────────────────────
-const { mockEnrichTrips, mockGetHome, mockIsValidSlug } = vi.hoisted(() => ({
+const { mockEnrichTrips, mockIsValidSlug } = vi.hoisted(() => ({
   mockEnrichTrips: vi.fn(),
-  mockGetHome: vi.fn(),
   mockIsValidSlug: vi.fn(),
 }));
 
 vi.mock('$lib/server/data.js', () => ({
   enrichTrips: mockEnrichTrips,
-  getHome: mockGetHome,
   isValidSlug: mockIsValidSlug,
 }));
 
@@ -79,7 +77,6 @@ function makeUrl(query = '') {
 beforeEach(() => {
   vi.clearAllMocks();
   mockIsValidSlug.mockReturnValue(true);
-  mockGetHome.mockReturnValue({ home: 'data' });
   mockEnrichTrips.mockResolvedValue([FAKE_TRIP]);
   mockDeriveBrochure.mockReturnValue(makeBrochure(makeDays(['2026-07-10', '2026-07-11', '2026-07-12'])));
 });
@@ -163,27 +160,25 @@ describe('load — resolveCurrentDay fallback', () => {
   });
 
   it('falls back to resolveCurrentDay when ?day is non-numeric', async () => {
-    const result = await load({ params: { slug: 'st-louis' }, url: makeUrl('?day=abc') });
-    // abc is NaN, not an integer, so we fall back — dates are in future → day 1
+    // Future-dated trip → resolveCurrentDay returns day 1.
     const futureDays = makeDays(['2030-07-10', '2030-07-11', '2030-07-12']);
     mockDeriveBrochure.mockReturnValue(makeBrochure(futureDays));
-    const result2 = await load({ params: { slug: 'st-louis' }, url: makeUrl('?day=abc') });
-    expect(result2.selectedDay).toBe(1);
+    const result = await load({ params: { slug: 'st-louis' }, url: makeUrl('?day=abc') });
+    expect(result.selectedDay).toBe(1);
   });
 
   it('falls back when ?day is out of range (0)', async () => {
+    // Past-dated trip → resolveCurrentDay returns days.length (3).
+    mockDeriveBrochure.mockReturnValue(makeBrochure(makeDays(['2020-01-01', '2020-01-02', '2020-01-03'])));
     const result = await load({ params: { slug: 'st-louis' }, url: makeUrl('?day=0') });
-    // 0 is < 1, so out of range → use resolveCurrentDay
-    expect(typeof result.selectedDay).toBe('number');
-    expect(result.selectedDay).toBeGreaterThanOrEqual(1);
-    expect(result.selectedDay).toBeLessThanOrEqual(3);
+    expect(result.selectedDay).toBe(3);
   });
 
   it('falls back when ?day is out of range (exceeds dayCount)', async () => {
+    // Past-dated trip → resolveCurrentDay returns days.length (3).
+    mockDeriveBrochure.mockReturnValue(makeBrochure(makeDays(['2020-01-01', '2020-01-02', '2020-01-03'])));
     const result = await load({ params: { slug: 'st-louis' }, url: makeUrl('?day=99') });
-    expect(typeof result.selectedDay).toBe('number');
-    expect(result.selectedDay).toBeGreaterThanOrEqual(1);
-    expect(result.selectedDay).toBeLessThanOrEqual(3);
+    expect(result.selectedDay).toBe(3);
   });
 });
 

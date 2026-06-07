@@ -174,7 +174,7 @@
           </summary>
 
           {#if data.fieldGuideNotes?.length}
-            <h4 class="fg-section-label">Notes</h4>
+            <p class="fg-section-label">Notes</p>
             <ul class="fg-list">
               {#each data.fieldGuideNotes as note}
                 <li>{note}</li>
@@ -183,7 +183,7 @@
           {/if}
 
           {#if data.gotchas?.length}
-            <h4 class="fg-section-label fg-section-label--gotcha">Gotchas</h4>
+            <p class="fg-section-label fg-section-label--gotcha">Gotchas</p>
             <ul class="fg-list fg-list--gotcha">
               {#each data.gotchas as gotcha}
                 <li>{gotcha}</li>
