@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { enrichTrips, getHome, isValidSlug } from '$lib/server/data.js';
+import { enrichTrips, isValidSlug } from '$lib/server/data.js';
 import { deriveBrochure } from '$lib/server/derive-brochure.js';
 import { resolveCurrentDay } from '$lib/today.js';
 
@@ -61,7 +61,7 @@ export async function load({ params, url }) {
   const { slug } = params;
   if (!isValidSlug(slug)) throw error(404);
 
-  const [trips] = await Promise.all([enrichTrips(), Promise.resolve(getHome())]);
+  const trips = await enrichTrips();
   const trip = trips.find(t => t._slug === slug);
   if (!trip) throw error(404, `Trip "${slug}" not found`);
 
@@ -97,6 +97,9 @@ export async function load({ params, url }) {
   // "Trip starts in N days" hint — only when the trip hasn't started yet.
   const startsInDays = computeStartsInDays(days[0]?.date ?? null);
 
+  // Slim per-day metadata for the day-picker pills ("Day N · <short date>").
+  const dayPills = days.map((d, i) => ({ n: d.n ?? i + 1, date: d.date ?? null }));
+
   return {
     hasPlan: true,
     trip,
@@ -104,6 +107,7 @@ export async function load({ params, url }) {
     destination: trip.destination ?? '',
     selectedDay: selected,
     dayCount: days.length,
+    dayPills,
     day,
     fieldGuideNotes: field_guide_notes ?? [],
     gotchas: gotchas ?? [],

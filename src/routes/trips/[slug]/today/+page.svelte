@@ -25,6 +25,15 @@
     });
   }
 
+  // Format a YYYY-MM-DD date as a short "Mon D" label (e.g. "Jun 20") for day pills.
+  // Returns an empty string for missing/unparseable dates.
+  function formatShortDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(`${dateStr}T00:00:00`);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
   // Build a navigate URL for lodging (name + coords only — no address field).
   function lodgingNavUrl(lodging) {
     return navUrl(
@@ -74,17 +83,18 @@
 
       <!-- Day picker — horizontally scrollable pills, plain links for no-JS switching -->
       <nav class="day-picker" aria-label="Day picker">
-        {#each { length: data.dayCount } as _, i}
-          {@const dayNum = i + 1}
-          {@const isActive = dayNum === data.selectedDay}
+        {#each data.dayPills as pill (pill.n)}
+          {@const isActive = pill.n === data.selectedDay}
+          {@const shortDate = formatShortDate(pill.date)}
           <a
             class="day-pill"
             class:day-pill--active={isActive}
-            href="?day={dayNum}"
+            href="?day={pill.n}"
             aria-current={isActive ? 'page' : undefined}
-            aria-label="Day {dayNum}"
+            aria-label={shortDate ? `Day ${pill.n}, ${shortDate}` : `Day ${pill.n}`}
           >
-            <span class="pill-day">Day {dayNum}</span>
+            <span class="pill-day">Day {pill.n}</span>
+            {#if shortDate}<span class="pill-date">{shortDate}</span>{/if}
           </a>
         {/each}
       </nav>
@@ -333,6 +343,12 @@
     font-weight: 600;
     letter-spacing: 0.10em;
     text-transform: uppercase;
+  }
+
+  .pill-date {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
   }
 
   /* ── Content area ── */

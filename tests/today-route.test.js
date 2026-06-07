@@ -203,6 +203,15 @@ describe('load — return shape', () => {
     expect(result.gotchas).toEqual(['Parking is expensive downtown']);
   });
 
+  it('returns dayPills carrying each day number and date for the picker', async () => {
+    const result = await load({ params: { slug: 'st-louis' }, url: makeUrl('?day=1') });
+    expect(result.dayPills).toEqual([
+      { n: 1, date: '2026-07-10' },
+      { n: 2, date: '2026-07-11' },
+      { n: 3, date: '2026-07-12' },
+    ]);
+  });
+
   it('includes startsInDays when first day is in the future', async () => {
     // Use a far-future trip so it definitely starts in the future
     const futureDays = makeDays(['2099-01-10', '2099-01-11']);
