@@ -71,6 +71,12 @@ describe('resolveCurrentDay', () => {
     const today = new Date(2026, 6, 11); // July 11 — matches day 2
     expect(resolveCurrentDay(days, today)).toBe(2);
   });
+
+  it('zero-pads single-digit months and days when matching today', () => {
+    const days = [day('2026-01-05'), day('2026-01-06')];
+    const today = new Date(2026, 0, 5); // Jan 5 — exercises the 01/05 pad path
+    expect(resolveCurrentDay(days, today)).toBe(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -126,5 +132,10 @@ describe('telHref', () => {
 
   it('strips plus sign from international format, keeping digits', () => {
     expect(telHref('+1 (314) 555-0182')).toBe('tel:13145550182');
+  });
+
+  it('returns a bare tel: for an empty or whitespace-only phone', () => {
+    expect(telHref('')).toBe('tel:');
+    expect(telHref('   ')).toBe('tel:');
   });
 });

@@ -38,19 +38,17 @@ export function resolveCurrentDay(days, today) {
   }
 
   // Collect dated days to decide before/after.
-  const dated = days
-    .map((d, i) => ({ date: d.date, index: i }))
-    .filter((d) => d.date);
+  const dated = days.map((d) => d.date).filter(Boolean);
 
   if (dated.length === 0) return 1;
 
   // Sort by date string (ISO lexicographic order is chronological).
-  dated.sort((a, b) => (a.date < b.date ? -1 : 1));
+  dated.sort((a, b) => (a < b ? -1 : 1));
 
-  if (todayStr < dated[0].date) return 1;
-  if (todayStr > dated[dated.length - 1].date) return days.length;
+  if (todayStr < dated[0]) return 1;
+  if (todayStr > dated[dated.length - 1]) return days.length;
 
-  // Shouldn't reach here in normal use, but clamp to 1 as a safe fallback.
+  // today falls in a gap between non-consecutive dated days → default to day 1.
   return 1;
 }
 
