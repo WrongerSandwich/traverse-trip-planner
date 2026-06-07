@@ -85,7 +85,11 @@ export function deriveBrochure(slug) {
         todos: c.todos,
       }));
     const dayLodging = d.lodging_id && lookup.get(d.lodging_id)?.kind === 'lodging'
-      ? { name: lookup.get(d.lodging_id).name, coords: normalizeCoords(lookup.get(d.lodging_id).coords) }
+      ? {
+          name: lookup.get(d.lodging_id).name,
+          coords: normalizeCoords(lookup.get(d.lodging_id).coords),
+          booking_url: lookup.get(d.lodging_id).booking_url ?? null,
+        }
       : null;
     return {
       n: d.number,
