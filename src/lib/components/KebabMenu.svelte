@@ -202,6 +202,7 @@
                 href={item.href}
                 target={item.target}
                 rel={item.rel}
+                download={item.download}
                 role="menuitem"
                 tabindex="-1"
                 onclick={closeMenu}
