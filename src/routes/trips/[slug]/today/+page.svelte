@@ -79,6 +79,12 @@
           <span class="eyebrow">Today</span>
           <span class="trip-title">{data.title || data.trip._slug}</span>
         </div>
+        <a
+          class="offline-btn"
+          href="/trips/{data.trip._slug}/today/offline"
+          download
+          aria-label="Save this trip's Today view for offline use"
+        >⤓ Save offline</a>
       </div>
 
       <!-- Day picker — horizontally scrollable pills, plain links for no-JS switching -->
@@ -279,6 +285,35 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .offline-btn {
+    margin-left: auto;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--border-default);
+    border-radius: 999px;
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .offline-btn:hover,
+  .offline-btn:focus-visible {
+    background: var(--surface-sunken);
+    border-color: var(--border-strong);
+  }
+
+  .offline-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
   }
 
   /* ── Day picker ── */
