@@ -996,6 +996,15 @@
       },
     ];
 
+    // Today view — gated on same condition as the brochure affordance above
+    if (data.plan?.days?.length) {
+      outputItems.push({
+        type: 'link',
+        label: '📍 Today view',
+        href: `/trips/${encodeURIComponent(slug)}/today`,
+      });
+    }
+
     // ICS download — only available when the trip has any date info, either
     // per-day or trip-level. Hidden upfront when neither applies so a stale
     // tab doesn't trigger the endpoint's 204 path (#405).
@@ -1321,6 +1330,10 @@
             target="_blank"
             rel="noopener"
           >↗ View brochure (for print)</a>
+          <a
+            class="btn btn-secondary btn-compact"
+            href="/trips/{encodeURIComponent(trip._slug)}/today"
+          >📍 Today / in-trip view</a>
         </div>
       {/if}
 

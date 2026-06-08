@@ -127,6 +127,18 @@ describe('deriveBrochure', () => {
     expect(stop.phone).toBe('555-0001');
   });
 
+  it('projects booking_url onto day lodging', () => {
+    writeCandidates('t', {
+      stops: [
+        { id: 'a', name: 'A', category: 'outdoors', description: 'Place A', coords: { lat: 1, lng: 1 }, user_added: false },
+        { id: 'b', name: 'B', category: 'food', description: 'Place B', user_added: false },
+      ],
+      lodging: [{ id: 'inn', name: 'Inn', price_tier: 'mid', nights: 2, booking_url: 'https://book.example', user_added: false }],
+    });
+    const b = deriveBrochure('t');
+    expect(b.days[0].lodging.booking_url).toBe('https://book.example');
+  });
+
   it('projects tips and todos onto brochure day stops and flat top-level stops', () => {
     writeCandidates('t', {
       stops: [
