@@ -16,8 +16,12 @@
     slug = '',
   } = $props();
 
-  // Optimistic local capture state, seeded from the stop.
+  // Optimistic local capture state, seeded once from the stop. Day switches are
+  // full-page navigations, so each card is freshly created per load — capturing
+  // only the initial value is intentional here.
+  // svelte-ignore state_referenced_locally
   let status = $state(stop.status ?? null);
+  // svelte-ignore state_referenced_locally
   let note = $state(stop.note ?? '');
   let noteOpen = $state(false);
   let saving = $state(false);

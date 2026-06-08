@@ -46,6 +46,9 @@
     !!(data.fieldGuideNotes?.length || data.gotchas?.length),
   );
 
+  // Seeded once from the loaded day; day switches are full-page navigations, so
+  // capturing only the initial value is intentional.
+  // svelte-ignore state_referenced_locally
   let dayLog = $state(data.day?.log ?? '');
   let savingLog = $state(false);
 
