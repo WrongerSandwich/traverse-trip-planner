@@ -101,6 +101,18 @@ vi.mock('$lib/server/errors.js', () => ({
   },
 }));
 
+vi.mock('$lib/server/plan.js', () => ({
+  readPlan: vi.fn().mockReturnValue(null),
+}));
+
+vi.mock('$lib/server/candidates.js', () => ({
+  readCandidates: vi.fn().mockReturnValue(null),
+}));
+
+vi.mock('$lib/server/retro-capture.js', () => ({
+  buildCaptureContext: vi.fn().mockReturnValue({ promptBlock: '', verbatimSection: '' }),
+}));
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 /** Build a fake 429 Response (mirrors what rateLimitResponse() returns). */

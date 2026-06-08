@@ -7,6 +7,9 @@ import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig, getFeatureAvailability } from '$lib/server/config.js';
 import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
+import { readPlan } from '$lib/server/plan.js';
+import { readCandidates } from '$lib/server/candidates.js';
+import { buildCaptureContext } from '$lib/server/retro-capture.js';
 
 export const _promise = HAND_DEFAULTS['retro-questions'];
 
@@ -47,6 +50,7 @@ export async function POST(event) {
 
   const homeMd = readHomeMd();
   const context = tripContextDump(trip.files);
+  const capture = buildCaptureContext({ plan: readPlan(slug), candidates: readCandidates(slug) });
 
   const system = `You are Traverse, helping a traveler reflect on a trip they just finished. Your task: produce exactly 5 retrospective questions tailored to this specific trip.
 
@@ -60,7 +64,9 @@ Traveler context (for tone, taste, voice):
 ${homeMd}
 
 Trip the user just finished:
-${context || '(no planning sections available)'}`;
+${context || '(no planning sections available)'}
+
+${capture.promptBlock ? `What the traveler recorded DURING the trip (ground the first question in this when present):\n${capture.promptBlock}` : ''}`;
 
   const { text, usage } = await chat({
     ...getEffectiveConfig().features.retro,
@@ -139,6 +145,7 @@ export async function PUT(event) {
     .join('\n\n');
 
   const context = tripContextDump(trip.files);
+  const capture = buildCaptureContext({ plan: readPlan(slug), candidates: readCandidates(slug) });
 
   const system = `You are Traverse, writing up a trip retrospective from the traveler's answers. Output ONLY the prose body of notes.md — no frontmatter, no JSON, no preamble, no "Here's your retro:" lead-in.
 
@@ -153,7 +160,7 @@ Length target: 200-400 words of prose plus the highlights bullets.`;
 
   const userMsg = `Trip context (planning sections + itinerary):
 ${context || '(no planning sections available)'}
-
+${capture.promptBlock ? `\nWhat the traveler recorded during the trip:\n${capture.promptBlock}\n` : ''}
 User's retrospective answers:
 ${qaDump}
 
@@ -185,6 +192,11 @@ Write the notes.md body now.`;
     while ((m = bulletRe.exec(hlMatch[1])) !== null) {
       highlights.push(m[1].replace(/^[*_]+|[*_]+$/g, '').trim());
     }
+  }
+
+  // Preserve the traveler's raw jottings verbatim, after the AI prose.
+  if (capture.verbatimSection) {
+    prose = `${prose}\n\n${capture.verbatimSection}`;
   }
 
   const noteContent = buildNotesMd({
