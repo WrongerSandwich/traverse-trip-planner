@@ -1,35 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { enrichTrips, isValidSlug } from '$lib/server/data.js';
 import { deriveBrochure } from '$lib/server/derive-brochure.js';
-import { resolveCurrentDay } from '$lib/today.js';
-
-// deriveBrochure normalizes coords to [lat, lng] arrays; today.js / TodayStopCard
-// expect {lat, lng} objects so navUrl() can use stop.coords.lat / .lng. Convert
-// here so all downstream consumers get consistent object-shaped coords.
-function arrayToObjCoords(coords) {
-  if (!coords) return null;
-  if (Array.isArray(coords) && coords.length === 2) {
-    const [lat, lng] = coords;
-    return { lat, lng };
-  }
-  // Already an object (e.g. if the shape ever changes upstream) — pass through.
-  return coords;
-}
-
-function normalizeStopCoords(stop) {
-  return { ...stop, coords: arrayToObjCoords(stop.coords) };
-}
-
-function normalizeDayCoords(day) {
-  if (!day) return day;
-  return {
-    ...day,
-    stops: (day.stops ?? []).map(normalizeStopCoords),
-    lodging: day.lodging
-      ? { ...day.lodging, coords: arrayToObjCoords(day.lodging.coords) }
-      : null,
-  };
-}
+import { resolveCurrentDay, normalizeDayCoords } from '$lib/today.js';
 
 // Compute how many whole calendar days from today until the first day of the trip.
 // Returns null when:
