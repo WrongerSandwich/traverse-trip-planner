@@ -39,75 +39,59 @@
 
 **Files:**
 - Modify: `src/lib/server/candidates.js`
-- Test: `tests/capture-io.test.js`
+- Test: `tests/candidates-io.test.js` (extend — use its existing harness)
+
+**Harness note:** `tests/candidates-io.test.js` already sets up a real temp-dir fixture (`ROOT = mkdtempSync(...)`, `mkdirSync(ROOT/planning/mytrip)`) and mocks `findTripLocation` to point at it. Use that — seed with the real `writeCandidates`, read back with the real `readCandidates`. Do NOT `vi.spyOn` candidates.js's own exports: `setStopCapture` calls `loadOrInit → readCandidates` via a module-local binding that a namespace spy will not intercept (ESM live bindings).
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `tests/capture-io.test.js`:
+In `tests/candidates-io.test.js`, add `setStopCapture` to the existing `import { … } from '../src/lib/server/candidates.js';` line. Then, inside the `describe('candidates.js', …)` block (which provides the `ROOT` fixture via `beforeEach`), add:
 
 ```js
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+  describe('setStopCapture', () => {
+    const seed = (stops) => writeCandidates('mytrip', { stops, lodging: [] });
 
-// Mock the disk layer: candidatesPath/readCandidates/writeCandidates back onto an
-// in-memory object so we test the mutation logic without a filesystem.
-let store;
-vi.mock('../src/lib/server/data.js', () => ({
-  findTripLocation: () => ({ kind: 'dir', path: '/x', stage: 'planning' }),
-  geocode: vi.fn(),
-}));
+    it('sets status and note on a stop', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      const out = setStopCapture('mytrip', 'main-st', { status: 'visited', note: 'Loved it' });
+      expect(out.status).toBe('visited');
+      expect(out.note).toBe('Loved it');
+      expect(readCandidates('mytrip').stops[0]).toMatchObject({ status: 'visited', note: 'Loved it' });
+    });
 
-import * as cand from '../src/lib/server/candidates.js';
+    it('clears status when status is null, leaving note untouched', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      setStopCapture('mytrip', 'main-st', { status: 'visited', note: 'hi' });
+      const out = setStopCapture('mytrip', 'main-st', { status: null });
+      expect('status' in out).toBe(false);
+      expect(out.note).toBe('hi');
+    });
 
-beforeEach(() => {
-  store = {
-    stops: [
-      { id: 'main-st', name: 'Main St', todos: [{ id: 't1', text: 'x', done: false }] },
-      { id: 'museum', name: 'Museum' },
-    ],
-    lodging: [],
-  };
-  vi.spyOn(cand, 'readCandidates').mockImplementation(() => JSON.parse(JSON.stringify(store)));
-  vi.spyOn(cand, 'writeCandidates').mockImplementation((_slug, c) => { store = c; return '/x'; });
-});
+    it('clears note when note is empty string', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      setStopCapture('mytrip', 'main-st', { note: 'hi' });
+      const out = setStopCapture('mytrip', 'main-st', { note: '' });
+      expect('note' in out).toBe(false);
+    });
 
-describe('setStopCapture', () => {
-  it('sets status and note on a stop', () => {
-    const out = cand.setStopCapture('t', 'main-st', { status: 'visited', note: 'Loved it' });
-    expect(out.status).toBe('visited');
-    expect(out.note).toBe('Loved it');
-    expect(store.stops[0].status).toBe('visited');
-    expect(store.stops[0].note).toBe('Loved it');
+    it('only touches the field that is provided', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      setStopCapture('mytrip', 'main-st', { status: 'skipped' });
+      const out = setStopCapture('mytrip', 'main-st', { note: 'later' });
+      expect(out.status).toBe('skipped'); // status preserved when only note given
+      expect(out.note).toBe('later');
+    });
+
+    it('returns null for an unknown stop', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      expect(setStopCapture('mytrip', 'nope', { status: 'visited' })).toBe(null);
+    });
   });
-
-  it('clears status when status is null, leaving note untouched', () => {
-    cand.setStopCapture('t', 'main-st', { status: 'visited', note: 'hi' });
-    const out = cand.setStopCapture('t', 'main-st', { status: null });
-    expect('status' in out).toBe(false);
-    expect(out.note).toBe('hi');
-  });
-
-  it('clears note when note is empty string', () => {
-    cand.setStopCapture('t', 'main-st', { note: 'hi' });
-    const out = cand.setStopCapture('t', 'main-st', { note: '' });
-    expect('note' in out).toBe(false);
-  });
-
-  it('only touches the field that is provided', () => {
-    cand.setStopCapture('t', 'main-st', { status: 'skipped' });
-    const out = cand.setStopCapture('t', 'main-st', { note: 'later' });
-    expect(out.status).toBe('skipped'); // status preserved when only note given
-    expect(out.note).toBe('later');
-  });
-
-  it('returns null for an unknown stop', () => {
-    expect(cand.setStopCapture('t', 'nope', { status: 'visited' })).toBe(null);
-  });
-});
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `npm test -- capture-io`
+Run: `npm test -- candidates-io`
 Expected: FAIL — `setStopCapture` is not exported.
 
 - [ ] **Step 3: Implement `setStopCapture`**
@@ -145,13 +129,13 @@ export function setStopCapture(slug, stopId, patch) {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `npm test -- capture-io`
+Run: `npm test -- candidates-io`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/server/candidates.js tests/capture-io.test.js
+git add src/lib/server/candidates.js tests/candidates-io.test.js
 git commit -m "feat(capture): add setStopCapture for per-stop visited/skipped + note"
 ```
 
@@ -161,49 +145,43 @@ git commit -m "feat(capture): add setStopCapture for per-stop visited/skipped + 
 
 **Files:**
 - Modify: `src/lib/server/plan.js`
-- Test: `tests/capture-io.test.js` (extend)
+- Test: `tests/plan-io.test.js` (extend — use its existing harness)
+
+**Harness note:** `tests/plan-io.test.js` already provides the same real temp-dir fixture (`ROOT`, mocked `findTripLocation`). Seed with the real `writePlan`, read back with `readPlan`. Same ESM caveat as Task 1 — no `vi.spyOn` on plan.js's own exports.
 
 - [ ] **Step 1: Add failing tests**
 
-Append a new block to `tests/capture-io.test.js`. Add this mock + import near the top (after the existing imports), and the describe at the end:
+In `tests/plan-io.test.js`, add `setDayLog` to the existing `import { … } from '../src/lib/server/plan.js';` line. Inside the `describe('plan.js', …)` block, add:
 
 ```js
-// --- plan.js setDayLog ---
-let planStore;
-vi.mock('../src/lib/server/plan.js', async (importOriginal) => await importOriginal());
-import * as plan from '../src/lib/server/plan.js';
+  describe('setDayLog', () => {
+    const seed = () => writePlan('mytrip', { cover_query: null, field_guide_notes: [], gotchas: [],
+      days: [{ number: 1, stops: ['main-st'] }, { number: 2, stops: [] }] });
 
-describe('setDayLog', () => {
-  beforeEach(() => {
-    planStore = { cover_query: null, field_guide_notes: [], gotchas: [], days: [
-      { number: 1, stops: ['main-st'] },
-      { number: 2, stops: [] },
-    ] };
-    vi.spyOn(plan, 'readPlan').mockImplementation(() => JSON.parse(JSON.stringify(planStore)));
-    vi.spyOn(plan, 'writePlan').mockImplementation((_s, p) => { planStore = p; return '/x'; });
-  });
+    it('sets a day log', () => {
+      seed();
+      const day = setDayLog('mytrip', 1, 'Rained all afternoon');
+      expect(day.log).toBe('Rained all afternoon');
+      expect(readPlan('mytrip').days[0].log).toBe('Rained all afternoon');
+    });
 
-  it('sets a day log', () => {
-    const day = plan.setDayLog('t', 1, 'Rained all afternoon');
-    expect(day.log).toBe('Rained all afternoon');
-    expect(planStore.days[0].log).toBe('Rained all afternoon');
-  });
+    it('clears the log when empty', () => {
+      seed();
+      setDayLog('mytrip', 1, 'x');
+      const day = setDayLog('mytrip', 1, '');
+      expect('log' in day).toBe(false);
+    });
 
-  it('clears the log when empty', () => {
-    plan.setDayLog('t', 1, 'x');
-    const day = plan.setDayLog('t', 1, '');
-    expect('log' in day).toBe(false);
+    it('returns null for an unknown day', () => {
+      seed();
+      expect(setDayLog('mytrip', 99, 'x')).toBe(null);
+    });
   });
-
-  it('returns null for an unknown day', () => {
-    expect(plan.setDayLog('t', 99, 'x')).toBe(null);
-  });
-});
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `npm test -- capture-io`
+Run: `npm test -- plan-io`
 Expected: FAIL — `setDayLog` not exported.
 
 - [ ] **Step 3: Implement `setDayLog`**
@@ -233,13 +211,13 @@ export function setDayLog(slug, dayNumber, log) {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `npm test -- capture-io`
+Run: `npm test -- plan-io`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/server/plan.js tests/capture-io.test.js
+git add src/lib/server/plan.js tests/plan-io.test.js
 git commit -m "feat(capture): add setDayLog for per-day in-trip note"
 ```
 
@@ -253,39 +231,24 @@ git commit -m "feat(capture): add setDayLog for per-day in-trip note"
 
 Context: `realizePlan` rebuilds researcher candidates from scratch, but a `priorPrepById` block (realize-plan.js:161-173) re-applies `tips`/`todos` from the prior candidates by id. Extend it to carry `status`/`note` too. Day `log` already survives because `plan.days = existingPlan.days` (line 136) preserves days untouched — add a test asserting that, but no code change for days.
 
+**Harness note:** `tests/realize-plan.test.js` mocks `node:fs` and `$lib/server/data.js` wholesale. It does NOT read back via `readCandidates`; it provides prior state by making the mocked `readFileSync` return prior `candidates.yaml` / `plan.yaml` content for those paths, and asserts on what `mockWriteFileSync` serialized. Mirror the existing preservation tests — **"preserves user_added candidates on re-realize"** (~line 237) and **"preserves pre-existing coords…"** (~line 332) — for how prior candidates are supplied and how the written candidates are parsed back out (the `capturedCands` pattern, ~line 327).
+
+The behavior under test: `priorPrepById` (realize-plan.js:161-173) re-applies prior fields onto a **researcher** candidate (`user_added: false`) that gets re-extracted under the same id. So the prior candidate must be a researcher stop with `status`/`note`, and the new extract must re-supply the same-named stop.
+
 - [ ] **Step 1: Add a failing test**
 
-Add to `tests/realize-plan.test.js` (match the file's existing setup style for invoking `realizePlan`; the assertion is what matters):
+Add a test to `tests/realize-plan.test.js` that, following the harness of the two preservation tests cited above:
+1. Supplies a **prior** `candidates.yaml` containing a researcher stop (e.g. `{ id: 'old-mill', name: 'Old Mill', category: 'historic', user_added: false, status: 'visited', note: 'Closed early' }`) and a **prior** `plan.yaml` with `days: [{ number: 1, stops: ['old-mill'], log: 'Great day' }]` (via the mocked `readFileSync` path-matching the existing tests use).
+2. Calls `realizePlan` with a fresh extract that re-supplies `{ name: 'Old Mill' }` (→ same id `old-mill`).
+3. Parses the written `candidates.yaml` out of `mockWriteFileSync` (the `capturedCands` pattern) and asserts the `old-mill` stop has `status: 'visited'` and `note: 'Closed early'`.
+4. Parses the written `plan.yaml` and asserts `days[0].log === 'Great day'` (preserved via `plan.days = existingPlan.days`).
 
-```js
-it('preserves a stop’s in-trip status/note across re-research, and day log', async () => {
-  // 1. Initial realize creates researcher stop "old-mill".
-  await realizePlan(SLUG, { plan: {}, candidates: { stops: [{ name: 'Old Mill' }], lodging: [] } });
-  // 2. User captures status/note on it and a day log (simulate by writing them in).
-  const cands = readCandidates(SLUG);
-  cands.stops.find((s) => s.id === 'old-mill').status = 'visited';
-  cands.stops.find((s) => s.id === 'old-mill').note = 'Closed early';
-  writeCandidates(SLUG, cands);
-  const plan = readPlan(SLUG) || { days: [{ number: 1, stops: ['old-mill'] }] };
-  plan.days = [{ number: 1, stops: ['old-mill'], log: 'Great day' }];
-  writePlan(SLUG, plan);
-  // 3. Re-research re-extracts the same researcher stop.
-  await realizePlan(SLUG, { plan: {}, candidates: { stops: [{ name: 'Old Mill' }], lodging: [] } });
-  // 4. Capture survived.
-  const after = readCandidates(SLUG);
-  const stop = after.stops.find((s) => s.id === 'old-mill');
-  expect(stop.status).toBe('visited');
-  expect(stop.note).toBe('Closed early');
-  expect(readPlan(SLUG).days[0].log).toBe('Great day');
-});
-```
-
-(Use the imports the existing test file already establishes for `realizePlan`, `readCandidates`, `writeCandidates`, `readPlan`, `writePlan`, and `SLUG`. If the file uses a temp data dir fixture, follow that pattern.)
+Use whatever exact assertion mechanics the neighboring tests use; the four behaviors above are the contract.
 
 - [ ] **Step 2: Run to verify it fails**
 
 Run: `npm test -- realize-plan`
-Expected: FAIL — status/note are wiped by the fresh researcher rebuild.
+Expected: FAIL — `status`/`note` are wiped by the fresh researcher rebuild (the `priorPrepById` block doesn't yet carry them).
 
 - [ ] **Step 3: Extend the preservation block**
 
