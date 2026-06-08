@@ -1,0 +1,33 @@
+cover_query: Galena Illinois Main Street
+field_guide_notes:
+  - Most Main Street shops open by 10am; mornings are quietest for photos.
+  - Parking fills by midday on summer weekends — the Bench Street lot above downtown usually has room.
+  - The river walk and trail are flat and stroller-friendly; the overlook involves a short uphill.
+gotchas:
+  - The Grant Home is closed Mondays and Tuesdays — keep history stops on the weekend.
+  - Main Street can flood after heavy spring rain; check the river gauge before an early-season trip.
+days:
+  - number: 1
+    date: '2026-08-14'
+    drive_distance_mi: 215
+    notes: Arrive mid-afternoon, check in, and ease into the historic district before dinner.
+    stops:
+      - galena-main-street
+      - galena-history-museum
+    lodging_id: desoto-house-hotel
+  - number: 2
+    date: '2026-08-15'
+    drive_distance_mi: 14
+    notes: A full day downtown with an overlook saved for sunset.
+    stops:
+      - grant-home
+      - galena-cellars-vineyard
+      - horseshoe-mound-preserve
+      - fritz-and-frites
+    lodging_id: desoto-house-hotel
+  - number: 3
+    date: '2026-08-16'
+    drive_distance_mi: 215
+    notes: One last flat walk along the river before the drive home.
+    stops:
+      - galena-river-trail

@@ -6,7 +6,7 @@ A small representative dataset for exploring Traverse without filling in your ow
 
 - `home.md` — sample personal-preferences file
 - `ideas/` — three idea-stage trips of varying drive distance
-- `planning/` — one researched planning trip (Starved Rock State Park)
+- `planning/` — two researched planning trips: Starved Rock State Park (prose sections only) and Galena, IL (a full day-by-day plan you can open in the brochure and Today views)
 - `completed/` — one completed trip with a retrospective (Madison, WI)
 
 ## Loading it

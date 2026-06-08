@@ -1,0 +1,118 @@
+stops:
+  - id: galena-main-street
+    name: Main Street Historic District
+    category: historic
+    description: A six-block stretch of preserved 19th-century storefronts climbing up from the Galena River — independent shops, galleries, and brick sidewalks.
+    why_recommended: The walkable core of the trip; everything else is a short stroll from here.
+    source_url: ""
+    coords: { lat: 42.4168, lng: -90.4287 }
+    user_added: false
+    address: Main St, Galena, IL 61036
+    tips:
+      - Shops open by 10am; come early for quiet sidewalks and good light.
+  - id: galena-history-museum
+    name: Galena History Museum
+    category: cultural
+    description: Local history in an 1858 Italianate mansion, including the famous "Peace in Union" painting of Lee's surrender.
+    why_recommended: A quick, well-curated intro to why this little town mattered so much in the 1800s.
+    source_url: ""
+    coords: { lat: 42.4153, lng: -90.4270 }
+    user_added: false
+    address: 211 S Bench St, Galena, IL 61036
+    hours: Daily 9am–4:30pm
+    phone: 815-555-0142
+  - id: grant-home
+    name: Ulysses S. Grant Home
+    category: historic
+    description: The 1860 brick home presented to Grant by the citizens of Galena after the Civil War, preserved with original family furnishings.
+    why_recommended: An exceptionally intact historic house, and the centerpiece of the town's Grant story.
+    source_url: ""
+    coords: { lat: 42.4138, lng: -90.4221 }
+    user_added: false
+    address: 500 Bouthillier St, Galena, IL 61036
+    hours: Wed–Sun 9am–4:45pm (closed Mon–Tue)
+    phone: 815-555-0177
+    tips:
+      - Free admission; a suggested donation supports the site.
+      - Guided tours leave on the hour — the last one is mid-afternoon.
+    todos:
+      - id: grant-hours
+        text: Confirm seasonal tour hours the week before
+        done: false
+      - id: grant-parking
+        text: The small lot fills early on weekends — have a backup
+        done: false
+  - id: horseshoe-mound-preserve
+    name: Horseshoe Mound Preserve
+    category: outdoors
+    description: A short ridgetop trail to a tri-state overlook above the Galena River valley, with interpretive signs and a stone gathering circle.
+    why_recommended: The best big view near town, and an easy walk rather than a real hike.
+    source_url: ""
+    coords: { lat: 42.4123, lng: -90.3840 }
+    user_added: false
+    address: 8123 US-20, Galena, IL 61036
+    hours: Open dawn–dusk
+    tips:
+      - Time it for late afternoon — the overlook faces west for sunset.
+  - id: galena-cellars-vineyard
+    name: Galena Cellars Tasting Room
+    category: food
+    description: Downtown tasting room for a family winery, pouring regional fruit wines and dry reds in a restored Main Street building.
+    why_recommended: An unhurried mid-afternoon stop that fits the "small interesting town" mood.
+    source_url: ""
+    coords: { lat: 42.4150, lng: -90.4280 }
+    user_added: false
+    address: 515 S Main St, Galena, IL 61036
+    hours: Sun–Thu 11am–6pm, Fri–Sat 11am–8pm
+    phone: 815-555-0119
+    website: https://galenacellars.com
+  - id: fritz-and-frites
+    name: Fritz and Frites
+    category: food
+    description: A tiny European bistro mixing German and French plates — schnitzel, mussels, and house frites.
+    why_recommended: The kind of independent, character-y dinner spot the trip is built around.
+    source_url: ""
+    coords: { lat: 42.4162, lng: -90.4288 }
+    user_added: false
+    address: 317 N Main St, Galena, IL 61036
+    hours: Wed–Sun 4:30pm–9pm
+    phone: 815-555-0163
+    tips:
+      - Small dining room — reserve ahead on summer weekends.
+  - id: galena-river-trail
+    name: Galena River Trail
+    category: outdoors
+    description: A flat crushed-limestone rail-trail running south along the river from the old depot — good for a slow morning walk or ride.
+    why_recommended: A gentle way to stretch before the drive home, right from the edge of downtown.
+    source_url: ""
+    coords: { lat: 42.4185, lng: -90.4255 }
+    user_added: false
+    address: Depot Park, Galena, IL 61036
+    hours: Open dawn–dusk
+  - id: vinny-vanuccis
+    name: Vinny Vanucci's
+    category: food
+    description: Old-school red-sauce Italian in a creaky historic building just off Main.
+    why_recommended: A reliable backup dinner if Fritz and Frites is booked.
+    source_url: ""
+    coords: { lat: 42.4160, lng: -90.4289 }
+    user_added: false
+    address: 201 S Main St, Galena, IL 61036
+    hours: Daily 11am–9pm
+lodging:
+  - id: desoto-house-hotel
+    name: DeSoto House Hotel
+    description: An 1855 Main Street landmark billed as Illinois' oldest operating hotel — Lincoln and Grant both spoke from its balcony.
+    price_tier: mid
+    nights: 2
+    booking_url: https://desotohouse.com
+    coords: { lat: 42.4166, lng: -90.4286 }
+    user_added: false
+  - id: irish-cottage-hotel
+    name: The Irish Cottage Boutique Hotel
+    description: A quirky Irish-themed inn just east of town with a pub on site — a backup if downtown is booked.
+    price_tier: mid
+    nights: 2
+    booking_url: ""
+    coords: { lat: 42.4090, lng: -90.4010 }
+    user_added: false
