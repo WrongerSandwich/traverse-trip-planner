@@ -114,6 +114,32 @@ describe('renderOfflineToday', () => {
     expect(html).toContain('data-default-day="2"');
   });
 
+  it('escapes quotes in a user-authored website URL (no attribute breakout)', () => {
+    const vm = sampleVM();
+    vm.days[0].stops[1].website = '" onmouseover="alert(1)';
+    const html = renderOfflineToday(vm);
+    expect(html).not.toContain('onmouseover="alert(1)"');
+    expect(html).toContain('&quot;'); // the injected quote was escaped
+  });
+
+  it('drops a javascript: website URL entirely (no link rendered)', () => {
+    const vm = sampleVM();
+    vm.days[0].stops[1].website = 'javascript:alert(1)';
+    const html = renderOfflineToday(vm);
+    expect(html).not.toContain('javascript:');
+    expect(html).not.toContain('⤴ Site'); // the Site action is omitted
+  });
+
+  it('drops a javascript: booking URL but still renders lodging Navigate', () => {
+    const vm = sampleVM();
+    vm.days[0].lodging.booking_url = 'javascript:alert(1)';
+    const html = renderOfflineToday(vm);
+    expect(html).not.toContain('javascript:');
+    expect(html).not.toContain('⤴ Booking');
+    expect(html).toContain('class="lodging-card"'); // lodging still rendered
+    expect(html).toContain('↗ Navigate'); // its Navigate link remains
+  });
+
   it('contains no external subresource references', () => {
     const html = renderOfflineToday(sampleVM());
     expect(html).not.toContain('<img');

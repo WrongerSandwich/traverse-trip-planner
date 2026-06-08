@@ -18,6 +18,25 @@ function esc(value) {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Make a URL safe for an href attribute: drop disallowed protocols (returns
+ * null so the caller can omit the link), then escape attribute-breaking
+ * characters. Deliberately does NOT escape `&` so query strings (e.g. the
+ * Google Maps `?api=1&destination=...` URL) render literally.
+ *
+ * @param {string|null|undefined} url
+ * @returns {string|null}
+ */
+function safeHref(url) {
+  const s = String(url ?? '');
+  if (/^(javascript:|data:)/i.test(s)) return null;
+  return s
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 /** Format a YYYY-MM-DD string as "Weekday, Month D"; '' when missing/invalid. */
 function formatDayHeading(dateStr) {
   if (!dateStr) return '';
@@ -37,9 +56,10 @@ function formatShortDate(dateStr) {
 function renderStop(stop, destination, index) {
   const number = index + 1;
   const isFirst = index === 0;
-  const navHref = navUrl(stop, destination);
-  const geo = geoHref(stop.coords, stop.name);
-  const callHref = stop.phone ? telHref(stop.phone) : null;
+  const navHref = safeHref(navUrl(stop, destination));
+  const geo = safeHref(geoHref(stop.coords, stop.name));
+  const callHref = stop.phone ? safeHref(telHref(stop.phone)) : null;
+  const siteHref = stop.website ? safeHref(stop.website) : null;
 
   const meta = [];
   if (stop.hours) {
@@ -49,12 +69,11 @@ function renderStop(stop, destination, index) {
     meta.push(`<div class="meta-row"><span class="meta-icon">◎</span><span class="meta-value">${esc(stop.address)}</span></div>`);
   }
 
-  const actions = [
-    `<a class="action-btn primary" href="${navHref}">↗ Navigate</a>`,
-  ];
+  const actions = [];
+  if (navHref) actions.push(`<a class="action-btn primary" href="${navHref}">↗ Navigate</a>`);
   if (geo) actions.push(`<a class="action-btn" href="${geo}">⊚ Maps app</a>`);
   if (callHref) actions.push(`<a class="action-btn" href="${callHref}">☎ Call</a>`);
-  if (stop.website) actions.push(`<a class="action-btn" href="${stop.website}">⤴ Site</a>`);
+  if (siteHref) actions.push(`<a class="action-btn" href="${siteHref}">⤴ Site</a>`);
 
   const tips = (stop.tips ?? []).map((t) => `<li>${esc(t)}</li>`).join('');
   const todos = (stop.todos ?? [])
@@ -84,15 +103,15 @@ function renderStop(stop, destination, index) {
 }
 
 function renderLodging(lodging, destination) {
-  const navHref = navUrl({ name: lodging.name, coords: lodging.coords ?? null }, destination);
-  const booking = lodging.booking_url
-    ? `<a class="action-btn" href="${lodging.booking_url}">⤴ Booking</a>`
-    : '';
+  const navHref = safeHref(navUrl({ name: lodging.name, coords: lodging.coords ?? null }, destination));
+  const bookingHref = lodging.booking_url ? safeHref(lodging.booking_url) : null;
+  const navBtn = navHref ? `<a class="action-btn primary" href="${navHref}">↗ Navigate</a>` : '';
+  const booking = bookingHref ? `<a class="action-btn" href="${bookingHref}">⤴ Booking</a>` : '';
   return (
     `<div class="section-label">Tonight</div>` +
     `<section class="lodging-card"><span class="moon">☾</span>` +
     `<div class="lodging-body"><p class="lodging-name">${esc(lodging.name)}</p>` +
-    `<div class="actions"><a class="action-btn primary" href="${navHref}">↗ Navigate</a>${booking}</div>` +
+    `<div class="actions">${navBtn}${booking}</div>` +
     `</div></section>`
   );
 }
