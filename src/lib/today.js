@@ -85,3 +85,53 @@ export function navUrl(stop, destination) {
 export function telHref(phone) {
   return `tel:${String(phone).replace(/\D/g, '')}`;
 }
+
+/**
+ * Build a `geo:` URI for a coordinate, with an optional pin label.
+ * `geo:` opens the device's default maps app and works offline when that
+ * app has offline maps; degrades harmlessly otherwise.
+ *
+ * @param {{lat: number, lng: number}|null|undefined} coords
+ * @param {string} [label]
+ * @returns {string|null}
+ */
+export function geoHref(coords, label) {
+  if (!coords) return null;
+  const { lat, lng } = coords;
+  const q = label ? `?q=${lat},${lng}(${encodeURIComponent(label)})` : '';
+  return `geo:${lat},${lng}${q}`;
+}
+
+/**
+ * Normalize a coordinate to {lat, lng} object form.
+ * deriveBrochure emits [lat, lng] arrays; the Today view + offline renderer
+ * expect {lat, lng} so navUrl()/geoHref() can read .lat/.lng.
+ *
+ * @param {[number, number]|{lat:number,lng:number}|null} coords
+ * @returns {{lat:number,lng:number}|null}
+ */
+export function arrayToObjCoords(coords) {
+  if (!coords) return null;
+  if (Array.isArray(coords) && coords.length === 2) {
+    const [lat, lng] = coords;
+    return { lat, lng };
+  }
+  return coords;
+}
+
+/** @param {object} stop */
+export function normalizeStopCoords(stop) {
+  return { ...stop, coords: arrayToObjCoords(stop.coords) };
+}
+
+/** @param {object} day */
+export function normalizeDayCoords(day) {
+  if (!day) return day;
+  return {
+    ...day,
+    stops: (day.stops ?? []).map(normalizeStopCoords),
+    lodging: day.lodging
+      ? { ...day.lodging, coords: arrayToObjCoords(day.lodging.coords) }
+      : null,
+  };
+}
