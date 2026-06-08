@@ -25,5 +25,9 @@ build/
 # Generated design-critique artifacts from the impeccable agent
 .impeccable/
 
+# Playwright MCP manual-QA artifacts (screenshots, snapshots). The MCP is also
+# configured with --output-dir /tmp/playwright-mcp; this is belt-and-suspenders.
+.playwright-mcp/
+
 # Claude Code per-machine state: local permissions + agent worktrees
 .claude/
