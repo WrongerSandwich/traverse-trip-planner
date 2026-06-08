@@ -70,6 +70,29 @@ and remove temp files. MCP artifacts go to `/tmp/playwright-mcp` (and
 `.playwright-mcp/` is gitignored as a backstop), so they won't pollute the tree.
 Leave the developer's `:3456` server untouched.
 
+## Gotcha: `svelte-check` reports "0 files" in a git worktree
+
+When verifying changes from a `.claude/worktrees/*` worktree, the default
+`npm run check` (and therefore `npm run verify`) can report
+`COMPLETED 0 FILES 0 ERRORS 0 WARNINGS` and pass **vacuously** — svelte-check's
+project-root discovery breaks in a linked worktree (where `.git` is a file), so
+it checks nothing. This masks real Svelte warnings that CI (`--fail-on-warnings`)
+will catch. (This bit PR #474: three `state_referenced_locally` warnings passed
+locally but failed CI.)
+
+To actually check files from a worktree:
+
+```bash
+npx svelte-kit sync
+npx svelte-check --fail-on-warnings --tsconfig ./.svelte-kit/tsconfig.json
+```
+
+Confirm the run reports a real file count (e.g. `257 FILES`), not `0 FILES`. That
+explicit invocation also prints spurious `@types/node` errors ("Cannot find name
+'Buffer'/'http'") — an artifact of bypassing svelte-check's default node-types
+setup, **not** real failures; focus on warnings/errors under `src/**`. The
+authoritative result is CI's plain `npm run check` from a normal checkout.
+
 ## Spec convention: a "Manual QA pass" checklist
 
 Every UX-bearing spec ends with a **Manual QA pass** section: the concrete
