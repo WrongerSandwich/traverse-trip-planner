@@ -37,6 +37,8 @@ export async function load({ params, url }) {
   const trip = trips.find(t => t._slug === slug);
   if (!trip) throw error(404, `Trip "${slug}" not found`);
 
+  const editable = trip._stage === 'planning';
+
   // Derive the brochure shape on every request — no AI, no file cache.
   // Returns null when plan/candidates are missing; failures degrade to
   // the empty state rather than crashing (mirrors the brochure route).
@@ -51,6 +53,7 @@ export async function load({ params, url }) {
     return {
       hasPlan: false,
       trip,
+      editable,
     };
   }
 
@@ -75,6 +78,7 @@ export async function load({ params, url }) {
   return {
     hasPlan: true,
     trip,
+    editable,
     title: title ?? trip.title ?? slug,
     destination: trip.destination ?? '',
     selectedDay: selected,
