@@ -19,7 +19,7 @@ vi.mock('$lib/server/data.js', async () => {
   };
 });
 
-import { readCandidates, writeCandidates, emptyCandidates, makeCandidateId, addCandidateStop, addCandidateLodging, deleteCandidate, deleteCandidateStop, deleteCandidateLodging, setCandidateHidden, setTodoDone } from '../src/lib/server/candidates.js';
+import { readCandidates, writeCandidates, emptyCandidates, makeCandidateId, addCandidateStop, addCandidateLodging, deleteCandidate, deleteCandidateStop, deleteCandidateLodging, setCandidateHidden, setTodoDone, setStopCapture } from '../src/lib/server/candidates.js';
 import { writePlan, emptyPlan } from '../src/lib/server/plan.js';
 import { TraverseError } from '../src/lib/server/errors.js';
 
@@ -259,6 +259,46 @@ describe('candidates.js', () => {
     expect(round.stops[0].hours).toBeUndefined();
     expect(round.stops[0].website).toBeUndefined();
     expect(round.stops[0].phone).toBeUndefined();
+  });
+
+  describe('setStopCapture', () => {
+    const seed = (stops) => writeCandidates('mytrip', { stops, lodging: [] });
+
+    it('sets status and note on a stop', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      const out = setStopCapture('mytrip', 'main-st', { status: 'visited', note: 'Loved it' });
+      expect(out.status).toBe('visited');
+      expect(out.note).toBe('Loved it');
+      expect(readCandidates('mytrip').stops[0]).toMatchObject({ status: 'visited', note: 'Loved it' });
+    });
+
+    it('clears status when status is null, leaving note untouched', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      setStopCapture('mytrip', 'main-st', { status: 'visited', note: 'hi' });
+      const out = setStopCapture('mytrip', 'main-st', { status: null });
+      expect('status' in out).toBe(false);
+      expect(out.note).toBe('hi');
+    });
+
+    it('clears note when note is empty string', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      setStopCapture('mytrip', 'main-st', { note: 'hi' });
+      const out = setStopCapture('mytrip', 'main-st', { note: '' });
+      expect('note' in out).toBe(false);
+    });
+
+    it('only touches the field that is provided', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      setStopCapture('mytrip', 'main-st', { status: 'skipped' });
+      const out = setStopCapture('mytrip', 'main-st', { note: 'later' });
+      expect(out.status).toBe('skipped');
+      expect(out.note).toBe('later');
+    });
+
+    it('returns null for an unknown stop', () => {
+      seed([{ id: 'main-st', name: 'Main St' }]);
+      expect(setStopCapture('mytrip', 'nope', { status: 'visited' })).toBe(null);
+    });
   });
 });
 

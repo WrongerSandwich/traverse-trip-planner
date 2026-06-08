@@ -277,6 +277,33 @@ export function setTodoDone(slug, stopId, todoId, done) {
   return stop;
 }
 
+/**
+ * Set in-trip capture fields on a candidate stop.
+ *   - status: 'visited' | 'skipped' to set; null to clear the field.
+ *   - note: a string to set; '' to clear the field.
+ * Only the keys present in `patch` are touched. Returns the mutated stop, or
+ * null if the stop id matches nothing.
+ *
+ * @param {string} slug
+ * @param {string} stopId
+ * @param {{ status?: 'visited'|'skipped'|null, note?: string }} patch
+ */
+export function setStopCapture(slug, stopId, patch) {
+  const cands = loadOrInit(slug);
+  const stop = cands.stops.find((s) => s.id === stopId);
+  if (!stop) return null;
+  if ('status' in patch) {
+    if (patch.status == null) delete stop.status;
+    else stop.status = patch.status;
+  }
+  if ('note' in patch) {
+    if (!patch.note) delete stop.note;
+    else stop.note = patch.note;
+  }
+  writeCandidates(slug, cands);
+  return stop;
+}
+
 // ── Geocoding helpers ─────────────────────────────────────────────────────────
 //
 // Shared by realize-plan.js and any new endpoint that needs to geocode
