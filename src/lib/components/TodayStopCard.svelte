@@ -31,8 +31,11 @@
         body: JSON.stringify(patch),
       });
       if (!res.ok) throw new Error('capture failed');
+      // Commit to the prop only on success, so stop.* stays the last-confirmed
+      // server state and a failed PATCH can roll local state back accurately.
+      if ('status' in patch) stop.status = patch.status ?? undefined;
+      if ('note' in patch) stop.note = patch.note || undefined;
     } catch {
-      // Roll back to the server-known values on failure.
       status = stop.status ?? null;
       note = stop.note ?? '';
     } finally {
@@ -42,15 +45,13 @@
 
   function toggleStatus(next) {
     const value = status === next ? null : next; // tapping the active one clears it
-    status = value;                              // optimistic
-    stop.status = value ?? undefined;
+    status = value;                              // optimistic local only
     patchCapture({ status: value });
   }
 
   function saveNote() {
     if (note === (stop.note ?? '')) return;      // no change
-    stop.note = note || undefined;
-    patchCapture({ note });
+    patchCapture({ note });                       // optimistic; commit on success
   }
 
   // Build CSS variable references for the category chip from the stop's
@@ -621,6 +622,10 @@
     border-radius: 6px;
     background: var(--surface-sunken);
     color: var(--text-tertiary);
+  }
+  .status-badge--visited {
+    background: color-mix(in oklab, var(--state-success) 16%, var(--surface-raised));
+    color: var(--state-success);
   }
   .note-readonly { margin: 8px 0 0; font-size: 13.5px; color: var(--text-secondary); }
   .stop-card[data-status="skipped"] .stop-name { text-decoration: line-through; color: var(--text-tertiary); }
