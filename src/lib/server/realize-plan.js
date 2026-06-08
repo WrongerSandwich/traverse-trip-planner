@@ -160,8 +160,8 @@ export async function realizePlan(slug, parsedExtract, _opts = {}) {
 
     const priorPrepById = new Map();
     for (const s of existingCands.stops ?? []) {
-      if (s.id && (s.tips || s.todos)) {
-        priorPrepById.set(s.id, { tips: s.tips, todos: s.todos });
+      if (s.id && (s.tips || s.todos || s.status || s.note)) {
+        priorPrepById.set(s.id, { tips: s.tips, todos: s.todos, status: s.status, note: s.note });
       }
     }
     for (const c of cands.stops) {
@@ -169,6 +169,8 @@ export async function realizePlan(slug, parsedExtract, _opts = {}) {
       if (prior) {
         if (prior.tips) c.tips = prior.tips;
         if (prior.todos) c.todos = prior.todos;
+        if (prior.status) c.status = prior.status;
+        if (prior.note) c.note = prior.note;
       }
     }
   }
