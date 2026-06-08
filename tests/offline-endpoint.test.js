@@ -4,6 +4,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../src/lib/server/data.js', () => ({
   rejectInvalidSlug: (slug) =>
     /^[a-z0-9-]+$/.test(slug) ? null : new Response('bad', { status: 400 }),
+  enrichTrips: () =>
+    Promise.resolve([
+      { _slug: 'galena-illinois', title: 'Galena Driftless Weekend', destination: 'Galena, IL' },
+    ]),
 }));
 
 const deriveBrochure = vi.fn();
@@ -16,7 +20,6 @@ import { GET } from '../src/routes/trips/[slug]/today/offline/+server.js';
 function brochure() {
   return {
     title: 'Galena Driftless Weekend',
-    destination: 'Galena, IL',
     field_guide_notes: ['note'],
     gotchas: ['gotcha'],
     days: [
@@ -42,6 +45,7 @@ describe('GET /trips/[slug]/today/offline', () => {
     const body = await res.text();
     expect(body).toMatch(/^<!doctype html>/i);
     expect(body).toContain('Main Street');
+    expect(body).toContain('Galena, IL');
   });
 
   it('404s when the trip has no plan', async () => {
