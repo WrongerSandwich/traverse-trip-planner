@@ -16,7 +16,7 @@ vi.mock('$lib/server/data.js', async () => {
   };
 });
 
-import { readPlan, writePlan, emptyPlan, parsePlanFile } from '../src/lib/server/plan.js';
+import { readPlan, writePlan, emptyPlan, parsePlanFile, setDayLog } from '../src/lib/server/plan.js';
 import { TraverseError } from '../src/lib/server/errors.js';
 
 describe('plan.js', () => {
@@ -117,6 +117,30 @@ describe('plan.js', () => {
     // plan.yaml written, plan.md deleted
     expect(existsSync(join(ROOT, 'planning', 'mytrip', 'plan.yaml'))).toBe(true);
     expect(existsSync(join(ROOT, 'planning', 'mytrip', 'plan.md'))).toBe(false);
+  });
+
+  describe('setDayLog', () => {
+    const seed = () => writePlan('mytrip', { cover_query: null, field_guide_notes: [], gotchas: [],
+      days: [{ number: 1, stops: ['main-st'] }, { number: 2, stops: [] }] });
+
+    it('sets a day log', () => {
+      seed();
+      const day = setDayLog('mytrip', 1, 'Rained all afternoon');
+      expect(day.log).toBe('Rained all afternoon');
+      expect(readPlan('mytrip').days[0].log).toBe('Rained all afternoon');
+    });
+
+    it('clears the log when empty', () => {
+      seed();
+      setDayLog('mytrip', 1, 'x');
+      const day = setDayLog('mytrip', 1, '');
+      expect('log' in day).toBe(false);
+    });
+
+    it('returns null for an unknown day', () => {
+      seed();
+      expect(setDayLog('mytrip', 99, 'x')).toBe(null);
+    });
   });
 
   it('migration is idempotent — does not re-run when plan.yaml already exists', () => {
