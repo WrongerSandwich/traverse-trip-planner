@@ -162,6 +162,26 @@ Recorded as the future upgrade path, **not built in v0.1.3**:
   to a safe `[a-z0-9-]` set.
 - **HTML injection:** all trip-derived content is HTML-escaped in the renderer.
 
+## Manual QA pass
+
+Exploratory Playwright-MCP checklist (see `docs/manual-qa.md` for the mechanics).
+Run against a seeded trip (`npm run seed-sample` → Galena) on a phone viewport.
+
+**In-app affordances** (served Today page):
+- [ ] Today header shows a **"⤓ Save offline"** link → `…/today/offline`.
+- [ ] Detail `⋯` menu (Output group) shows **"📥 Save offline copy"** when the trip has a plan.
+
+**The downloaded bundle** (serve the saved `.html` over a throwaway http server — `file://` is blocked in the MCP browser):
+- [ ] Renders standalone with no bundle-originated console errors (a static server's `/favicon.ico` 404 is noise).
+- [ ] Opens to the correct default day (today's day, or Day 1 for a future trip).
+- [ ] Day pills switch days (content + active pill update; other days hidden).
+- [ ] A day with no lodging omits the Tonight section.
+- [ ] Per-stop links present and correct: Navigate (Maps), `geo:` Maps-app, `tel:` (when phone), Site (when website); lodging Navigate + Booking.
+- [ ] Tips & to-dos disclosure expands.
+- [ ] Synced-as-of banner shows the generation date.
+
+This is exploratory coverage of the runtime switcher (which unit/endpoint tests can't reach); it is not a regression net.
+
 ## Decisions (locked)
 
 - One file per trip with an in-file day switcher (not one file per day).
