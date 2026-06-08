@@ -139,6 +139,22 @@ describe('deriveBrochure', () => {
     expect(b.days[0].lodging.booking_url).toBe('https://book.example');
   });
 
+  it('projects stop id/status/note and day log', () => {
+    writeCandidates('t', {
+      stops: [
+        { id: 'mill', name: 'Mill', category: 'historic', description: 'Old mill', status: 'visited', note: 'Closed early', user_added: false },
+      ],
+      lodging: [],
+    });
+    writePlan('t', { cover_query: null, field_guide_notes: [], gotchas: [],
+      days: [{ number: 1, stops: ['mill'], log: 'Rainy' }] });
+    const b = deriveBrochure('t');
+    expect(b.days[0].log).toBe('Rainy');
+    expect(b.days[0].stops[0].id).toBe('mill');
+    expect(b.days[0].stops[0].status).toBe('visited');
+    expect(b.days[0].stops[0].note).toBe('Closed early');
+  });
+
   it('projects tips and todos onto brochure day stops and flat top-level stops', () => {
     writeCandidates('t', {
       stops: [
