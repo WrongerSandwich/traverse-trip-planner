@@ -225,6 +225,25 @@ export function setDayMetadata(slug, dayNumber, patch) {
   writePlan(slug, plan);
 }
 
+/**
+ * Set the in-trip `log` on a day (distinct from the planning `notes` field).
+ * Empty/blank clears the field. Returns the mutated day, or null if the day
+ * number matches nothing (so callers can 404 rather than 500).
+ *
+ * @param {string} slug
+ * @param {number} dayNumber
+ * @param {string} log
+ */
+export function setDayLog(slug, dayNumber, log) {
+  const plan = loadOrInit(slug);
+  const day = plan.days.find((d) => d.number === dayNumber);
+  if (!day) return null;
+  if (log == null || String(log).trim() === '') delete day.log;
+  else day.log = log;
+  writePlan(slug, plan);
+  return day;
+}
+
 export function setLodgingForDay(slug, dayNumber, candidateId) {
   if (candidateId != null) requireCandidate(slug, candidateId, 'lodging');
   const plan = loadOrInit(slug);

@@ -12,7 +12,51 @@
     destination,
     number,
     isFirst = false,
+    editable = false,
+    slug = '',
   } = $props();
+
+  // Optimistic local capture state, seeded once from the stop. Day switches are
+  // full-page navigations, so each card is freshly created per load — capturing
+  // only the initial value is intentional here.
+  // svelte-ignore state_referenced_locally
+  let status = $state(stop.status ?? null);
+  // svelte-ignore state_referenced_locally
+  let note = $state(stop.note ?? '');
+  let noteOpen = $state(false);
+  let saving = $state(false);
+
+  async function patchCapture(patch) {
+    saving = true;
+    try {
+      const res = await fetch(`/api/capture/${encodeURIComponent(slug)}/stops/${encodeURIComponent(stop.id)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error('capture failed');
+      // Commit to the prop only on success, so stop.* stays the last-confirmed
+      // server state and a failed PATCH can roll local state back accurately.
+      if ('status' in patch) stop.status = patch.status ?? undefined;
+      if ('note' in patch) stop.note = patch.note || undefined;
+    } catch {
+      status = stop.status ?? null;
+      note = stop.note ?? '';
+    } finally {
+      saving = false;
+    }
+  }
+
+  function toggleStatus(next) {
+    const value = status === next ? null : next; // tapping the active one clears it
+    status = value;                              // optimistic local only
+    patchCapture({ status: value });
+  }
+
+  function saveNote() {
+    if (note === (stop.note ?? '')) return;      // no change
+    patchCapture({ note });                       // optimistic; commit on success
+  }
 
   // Build CSS variable references for the category chip from the stop's
   // category, mirroring the pattern in StopCard.svelte. Unknown categories
@@ -58,6 +102,7 @@
   class="stop-card"
   class:first={isFirst}
   data-category={cat}
+  data-status={editable ? status : (stop.status ?? null)}
   aria-label="Stop {number}: {stop.name}"
 >
   <!-- ── Header: number marker + name + category chip ── -->
@@ -124,6 +169,47 @@
       ><span aria-hidden="true">⤴</span> Site</a>
     {/if}
   </div>
+
+  <!-- ── Capture row: visited/skip toggles + note (editable) or read-only badge ── -->
+  {#if editable}
+    <div class="capture-row">
+      <div class="status-toggles" role="group" aria-label="Mark this stop">
+        <button
+          type="button"
+          class="status-btn"
+          class:active={status === 'visited'}
+          aria-pressed={status === 'visited'}
+          disabled={saving}
+          onclick={() => toggleStatus('visited')}
+        >✓ Visited</button>
+        <button
+          type="button"
+          class="status-btn"
+          class:active={status === 'skipped'}
+          aria-pressed={status === 'skipped'}
+          disabled={saving}
+          onclick={() => toggleStatus('skipped')}
+        >⤫ Skip</button>
+      </div>
+      {#if noteOpen || note}
+        <textarea
+          class="note-input"
+          bind:value={note}
+          maxlength="2000"
+          placeholder="Jot a note…"
+          aria-label="Note for {stop.name}"
+          onblur={saveNote}
+        ></textarea>
+      {:else}
+        <button type="button" class="note-add" onclick={() => (noteOpen = true)}>✎ Add a note</button>
+      {/if}
+    </div>
+  {:else if stop.status || stop.note}
+    <div class="capture-readonly">
+      {#if stop.status}<span class="status-badge status-badge--{stop.status}">{stop.status === 'visited' ? '✓ Visited' : '⤫ Skipped'}</span>{/if}
+      {#if stop.note}<p class="note-readonly">{stop.note}</p>{/if}
+    </div>
+  {/if}
 
   <!-- ── Collapsible tips & to-dos — omitted when both arrays are empty ── -->
   {#if hasDisclosure}
@@ -477,6 +563,77 @@
     flex: 1;
     min-width: 0;
   }
+
+  /* ── Capture row ── */
+  .capture-row {
+    margin-top: 12px;
+    border-top: 1px dashed var(--border-subtle);
+    padding-top: 10px;
+    display: grid;
+    gap: 8px;
+  }
+  .status-toggles { display: flex; gap: 8px; }
+  .status-btn {
+    flex: 1;
+    min-height: 44px;
+    border-radius: 11px;
+    border: 1px solid var(--border-default);
+    background: var(--surface-raised);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .status-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-inverse);
+  }
+  .status-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .note-add {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    color: var(--accent-text);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .note-input {
+    width: 100%;
+    min-height: 60px;
+    border-radius: 11px;
+    border: 1px solid var(--border-default);
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    padding: 8px 10px;
+    resize: vertical;
+  }
+  .capture-readonly { margin-top: 12px; border-top: 1px dashed var(--border-subtle); padding-top: 10px; }
+  .status-badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--surface-sunken);
+    color: var(--text-tertiary);
+  }
+  .status-badge--visited {
+    background: color-mix(in oklab, var(--state-success) 16%, var(--surface-raised));
+    color: var(--state-success);
+  }
+  .note-readonly { margin: 8px 0 0; font-size: 13.5px; color: var(--text-secondary); }
+  .stop-card[data-status="skipped"] .stop-name { text-decoration: line-through; color: var(--text-tertiary); }
+  .stop-card[data-status="visited"] .num-marker { box-shadow: inset 0 0 0 2px var(--state-success); }
 
   /* ── Coarse-pointer overrides (phone) ── */
   @media (pointer: coarse) {

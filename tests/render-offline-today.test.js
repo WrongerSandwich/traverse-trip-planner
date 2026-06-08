@@ -147,6 +147,16 @@ describe('renderOfflineToday', () => {
     expect(html).toContain('↗ Navigate'); // its Navigate link remains
   });
 
+  it('renders captured status + note read-only', () => {
+    const vm = sampleVM();
+    vm.days[0].stops[0].status = 'visited';
+    vm.days[0].stops[0].note = 'Closed early';
+    const html = renderOfflineToday(vm);
+    expect(html).toContain('Visited');
+    expect(html).toContain('Closed early');
+    expect(html).not.toContain('Add a note'); // no controls in the bundle
+  });
+
   it('contains no external subresource references', () => {
     const html = renderOfflineToday(sampleVM());
     expect(html).not.toContain('<img');

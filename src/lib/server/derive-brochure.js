@@ -83,6 +83,9 @@ export function deriveBrochure(slug) {
         phone: c.phone,
         tips: c.tips,
         todos: c.todos,
+        id: c.id,
+        status: c.status ?? null,
+        note: c.note ?? null,
       }));
     const dayLodging = d.lodging_id && lookup.get(d.lodging_id)?.kind === 'lodging'
       ? {
@@ -97,6 +100,7 @@ export function deriveBrochure(slug) {
       theme: null,
       drive_distance_mi: d.drive_distance_mi ?? null,
       notes: d.notes ?? '',
+      log: d.log ?? null,
       stops: dayStops,
       lodging: dayLodging,
       // Synthetic single-block projection for BrochureDayBlocks. Each stop

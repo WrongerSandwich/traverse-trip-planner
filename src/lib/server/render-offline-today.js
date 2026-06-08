@@ -89,6 +89,15 @@ function renderStop(stop, destination, index) {
       `</details>`;
   }
 
+  let captured = '';
+  if (stop.status || stop.note) {
+    const badge = stop.status
+      ? `<span class="status-badge">${stop.status === 'visited' ? '✓ Visited' : '⤫ Skipped'}</span>`
+      : '';
+    const noteHtml = stop.note ? `<p class="note-readonly">${esc(stop.note)}</p>` : '';
+    captured = `<div class="capture-readonly">${badge}${noteHtml}</div>`;
+  }
+
   return (
     `<article class="stop-card${isFirst ? ' first' : ''}">` +
     `<div class="stop-head"><div class="num${isFirst ? ' num-first' : ''}">${number}</div>` +
@@ -99,6 +108,7 @@ function renderStop(stop, destination, index) {
     (meta.length ? `<div class="meta">${meta.join('')}</div>` : '') +
     `<div class="actions">${actions.join('')}</div>` +
     disclosure +
+    captured +
     `</article>`
   );
 }
@@ -196,6 +206,9 @@ summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:
 .fg-label{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#5F5341;margin:16px 0 8px}
 .fg-label.gotcha,.fg-list.gotcha li{color:#8D4C24}
 footer{text-align:center;font-size:12px;color:#5F5341;margin-top:24px}
+.capture-readonly{margin-top:12px;border-top:1px dashed #DCD2BC;padding-top:10px}
+.status-badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:6px;background:#EBE0C9;color:#5F5341}
+.note-readonly{margin:8px 0 0;font-size:13.5px;color:#2D5840}
 `;
 
 // Inline switcher: pills toggle .day visibility; on load, resolve the current

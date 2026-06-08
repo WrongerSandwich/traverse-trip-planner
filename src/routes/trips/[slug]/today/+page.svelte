@@ -45,6 +45,33 @@
   const hasFieldGuide = $derived(
     !!(data.fieldGuideNotes?.length || data.gotchas?.length),
   );
+
+  // Seeded once from the loaded day; day switches are full-page navigations, so
+  // capturing only the initial value is intentional.
+  // svelte-ignore state_referenced_locally
+  let dayLog = $state(data.day?.log ?? '');
+  let savingLog = $state(false);
+
+  async function saveDayLog() {
+    if (dayLog === (data.day?.log ?? '')) return;
+    savingLog = true;
+    try {
+      const res = await fetch(`/api/capture/${encodeURIComponent(data.trip._slug)}/days/${data.selectedDay}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ note: dayLog }),
+      });
+      if (!res.ok) throw new Error('failed');
+      data.day.log = dayLog || null;
+    } catch {
+      dayLog = data.day?.log ?? '';
+    } finally {
+      savingLog = false;
+    }
+  }
+
+  // Re-seed when the rendered day changes (defensive; day switch is normally a full navigation).
+  $effect(() => { dayLog = data.day?.log ?? ''; });
 </script>
 
 <svelte:head>
@@ -135,6 +162,8 @@
               destination={data.destination}
               number={i + 1}
               isFirst={i === 0}
+              editable={data.editable}
+              slug={data.trip._slug}
             />
           {/each}
         </section>
@@ -169,6 +198,22 @@
             </div>
           </div>
         </section>
+      {/if}
+
+      <!-- ── Day notes ── -->
+      {#if data.editable}
+        <div class="section-label" aria-hidden="true">Day notes</div>
+        <textarea
+          class="day-log"
+          bind:value={dayLog}
+          maxlength="2000"
+          placeholder="Anything about today…"
+          aria-label="Notes for this day"
+          onblur={saveDayLog}
+        ></textarea>
+      {:else if data.day.log}
+        <div class="section-label" aria-hidden="true">Day notes</div>
+        <p class="day-log-readonly">{data.day.log}</p>
       {/if}
 
       <!-- ── Field guide & gotchas (trip-wide, collapsed) ── -->
@@ -674,5 +719,29 @@
       min-height: var(--tap-min);
       font-size: 15px;
     }
+  }
+
+  /* ── Day notes ── */
+  .day-log {
+    width: 100%;
+    min-height: 72px;
+    border-radius: 14px;
+    border: 1px solid var(--border-default);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    padding: 12px;
+    resize: vertical;
+  }
+  .day-log:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .day-log-readonly {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 12px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
   }
 </style>

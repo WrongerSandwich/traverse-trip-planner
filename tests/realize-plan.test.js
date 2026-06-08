@@ -753,5 +753,43 @@ describe('realizePlan', () => {
     expect(stop.tips).toBeUndefined();
     expect(stop.todos).toBeUndefined();
   });
+
+  it('preserves stop status/note across re-research', async () => {
+    // Prior researcher candidate (user_added: false) carrying in-trip capture fields.
+    readCandidates.mockReturnValueOnce({
+      stops: [
+        {
+          id: 'old-mill',
+          name: 'Old Mill',
+          category: 'historic',
+          user_added: false,
+          status: 'visited',
+          note: 'Closed early',
+        },
+      ],
+      lodging: [],
+    });
+    readPlan.mockReturnValueOnce({
+      field_guide_notes: [],
+      gotchas: [],
+      days: [{ number: 1, stops: ['old-mill'], log: 'Great day' }],
+    });
+
+    await realizePlan('t', makeExtract({
+      plan: { field_guide_notes: [], gotchas: [] },
+      candidates: {
+        stops: [{ name: 'Old Mill', category: 'historic', description: '', why_recommended: '' }],
+        lodging: [],
+      },
+    }));
+
+    // status/note must survive onto the freshly-extracted researcher candidate
+    const stop = capturedCands.value.stops.find((s) => s.id === 'old-mill');
+    expect(stop.status).toBe('visited');
+    expect(stop.note).toBe('Closed early');
+
+    // day log must survive because plan.days is preserved wholesale
+    expect(capturedPlan.value.days[0].log).toBe('Great day');
+  });
 });
 
