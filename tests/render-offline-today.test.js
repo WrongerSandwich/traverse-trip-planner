@@ -114,12 +114,19 @@ describe('renderOfflineToday', () => {
     expect(html).toContain('data-default-day="2"');
   });
 
-  it('escapes quotes in a user-authored website URL (no attribute breakout)', () => {
+  it('escapes quotes in a valid-protocol website URL (no attribute breakout)', () => {
     const vm = sampleVM();
-    vm.days[0].stops[1].website = '" onmouseover="alert(1)';
+    vm.days[0].stops[1].website = 'https://evil.example/" onmouseover="alert(1)';
     const html = renderOfflineToday(vm);
     expect(html).not.toContain('onmouseover="alert(1)"');
-    expect(html).toContain('&quot;'); // the injected quote was escaped
+    expect(html).toContain('&quot;'); // the embedded quote was escaped
+  });
+
+  it('drops a website value with no recognized protocol', () => {
+    const vm = sampleVM();
+    vm.days[0].stops[1].website = 'not a url';
+    const html = renderOfflineToday(vm);
+    expect(html).not.toContain('⤴ Site');
   });
 
   it('drops a javascript: website URL entirely (no link rendered)', () => {

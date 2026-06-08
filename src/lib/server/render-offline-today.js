@@ -19,8 +19,9 @@ function esc(value) {
 }
 
 /**
- * Make a URL safe for an href attribute: drop disallowed protocols (returns
- * null so the caller can omit the link), then escape attribute-breaking
+ * Make a URL safe for an href attribute. Deny-by-default: only allow known-safe
+ * protocols (anything else — javascript:, data:, protocol-relative, or junk —
+ * returns null so the caller omits the link). Then escape attribute-breaking
  * characters. Deliberately does NOT escape `&` so query strings (e.g. the
  * Google Maps `?api=1&destination=...` URL) render literally.
  *
@@ -29,7 +30,7 @@ function esc(value) {
  */
 function safeHref(url) {
   const s = String(url ?? '');
-  if (/^(javascript:|data:)/i.test(s)) return null;
+  if (!/^(https?:|mailto:|tel:|geo:)/i.test(s)) return null;
   return s
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
