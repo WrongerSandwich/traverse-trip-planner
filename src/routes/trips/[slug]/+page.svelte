@@ -1003,6 +1003,12 @@
         label: '📍 Today view',
         href: `/trips/${encodeURIComponent(slug)}/today`,
       });
+      outputItems.push({
+        type: 'link',
+        label: '📥 Save offline copy',
+        href: `/trips/${encodeURIComponent(slug)}/today/offline`,
+        download: true,
+      });
     }
 
     // ICS download — only available when the trip has any date info, either
