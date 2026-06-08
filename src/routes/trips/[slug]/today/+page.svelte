@@ -103,7 +103,7 @@
     <div class="content">
 
       <!-- ── Smart-default hint ── -->
-      {#if data.startsInDays != null}
+      {#if data.startsInDays != null && data.selectedDay === 1}
         <p class="starts-hint">
           Trip starts in {data.startsInDays} {data.startsInDays === 1 ? 'day' : 'days'} — showing Day 1
         </p>
