@@ -134,11 +134,14 @@ function renderDay(day, destination) {
       day.stops.map((s, i) => renderStop(s, destination, i)).join('')
     : `<p class="empty-day">No stops planned for this day.</p>`;
   const lodging = day.lodging ? renderLodging(day.lodging, destination) : '';
+  const dayLog = day.log
+    ? `<div class="section-label">Day notes</div><p class="day-log-readonly">${esc(day.log)}</p>`
+    : '';
   return (
     `<section class="day" data-day="${day.n}" data-date="${esc(day.date ?? '')}">` +
     `<div class="day-heading"><h1>${esc(heading)}</h1>` +
     `<p class="day-sub">Day ${day.n} · ${esc(destination)}</p></div>` +
-    stops + lodging +
+    stops + lodging + dayLog +
     `</section>`
   );
 }
@@ -209,6 +212,7 @@ footer{text-align:center;font-size:12px;color:#5F5341;margin-top:24px}
 .capture-readonly{margin-top:12px;border-top:1px dashed #DCD2BC;padding-top:10px}
 .status-badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:6px;background:#EBE0C9;color:#5F5341}
 .note-readonly{margin:8px 0 0;font-size:13.5px;color:#2D5840}
+.day-log-readonly{background:#F6F1E5;border:1px solid #DCD2BC;border-radius:14px;padding:12px;font-size:14px;color:#2D5840;margin:0}
 `;
 
 // Inline switcher: pills toggle .day visibility; on load, resolve the current

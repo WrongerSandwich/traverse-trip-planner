@@ -157,6 +157,15 @@ describe('renderOfflineToday', () => {
     expect(html).not.toContain('Add a note'); // no controls in the bundle
   });
 
+  it('renders the per-day note (log) read-only', () => {
+    const vm = sampleVM();
+    vm.days[0].log = 'Rained all afternoon; pivoted indoors.';
+    const html = renderOfflineToday(vm);
+    expect(html).toContain('Day notes');
+    expect(html).toContain('Rained all afternoon; pivoted indoors.');
+    expect(html).not.toContain('<textarea'); // read-only, no input
+  });
+
   it('contains no external subresource references', () => {
     const html = renderOfflineToday(sampleVM());
     expect(html).not.toContain('<img');
