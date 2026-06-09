@@ -6,6 +6,46 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-06-08 · Offline support
+
+### Added
+- **Mobile "Today" view** (#442). A phone-first, single-day in-trip surface at
+  `/trips/<slug>/today`, derived at request time from `plan.yaml` +
+  `candidates.yaml` (no AI, no cache). Shows the day's stops with hours/address
+  and Navigate/Call/Site actions, a tips & to-dos disclosure, tonight's lodging,
+  and a collapsed field guide & gotchas panel. Day selection via `?day=N` or
+  auto-resolved to today's date (`resolveCurrentDay()`). Reached from a
+  "Today / in-trip view" toolbar link and a `⋯`-menu entry; shows an empty state
+  (never a 404) when a trip has no plan yet.
+- **Offline Today-view bundle** (#443). A **Save for offline** action (Today
+  header + `⋯` menu) downloads a single self-contained HTML file of the trip's
+  Today view — all days, an in-file day switcher, `geo:`/`tel:`/Maps/Booking
+  links, and a "synced as of" banner — that works with zero connectivity to the
+  home server. Because the deploy serves plain HTTP on a LAN address (no secure
+  context for a service worker), a downloadable bundle is the offline path; the
+  PWA route is deferred and TLS-gated (#475). The bundle inlines all CSS and has
+  **zero external subresources** (CI-enforced).
+- **In-trip capture** (#444). On a planning trip's Today view, mark each stop
+  **visited/skipped** (one-tap toggles) and jot a per-stop **note** plus a
+  per-day **note**, written live to the home server (online-only). Stored on
+  `candidates.yaml` / `plan.yaml` alongside the existing per-stop fields and
+  preserved across re-research. At Mark-as-completed it both **grounds the retro
+  prompt** and is preserved **verbatim** under a new `## In-trip notes` section in
+  `notes.md`, so the retro starts from what you actually recorded rather than a
+  blank page. The offline write-queue is deferred (#476).
+
+### Internal
+- Bundled a **Galena, IL** sample planning trip with a full day-by-day plan so
+  `npm run seed-sample` yields a Today/brochure-viewable trip (#471).
+- Documented a **manual Playwright-MCP QA flow** + a "Manual QA pass" spec
+  convention in `docs/manual-qa.md` (#473), and added the first committed jsdom
+  regression test, for the offline day-switcher (#481).
+
+### Deferred
+- The broader offline/PWA arc is captured for later: a TLS-gated PWA /
+  service-worker (#475), an offline write-queue for capture (#476), and
+  offline-completing the bundle with brochure + map-tile/photo caching (#477).
+
 ## [0.1.2] — 2026-06-03 · In-trip companion
 
 ### Added
@@ -210,5 +250,8 @@ self-host path that doesn't require a Node toolchain on the host.
 - Single-user assumption: no auth model, no per-user data isolation. Sit
   behind a reverse proxy with basic auth if exposing beyond `localhost`.
 
-[Unreleased]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/WrongerSandwich/traverse-trip-planner/releases/tag/v0.1.0
