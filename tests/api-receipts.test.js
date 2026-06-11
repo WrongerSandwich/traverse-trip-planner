@@ -37,7 +37,7 @@ vi.mock('@sveltejs/kit', () => ({
 }));
 
 import { POST } from '../src/routes/api/actions/receipts/[slug]/+server.js';
-import { sniffImageType } from '../src/lib/utils/sniffImageType.js';
+import { sniffImageType, imageDimensions } from '../src/lib/utils/sniffImageType.js';
 
 const MAX_IMAGES = 10;
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -56,13 +56,53 @@ const MAGIC = {
   ],
 };
 
-/** Build an ArrayBuffer whose first bytes are the correct magic for `type`. */
-function magicBuf(type, size = 100) {
-  const buf = new ArrayBuffer(Math.max(size, 12));
+/**
+ * Build an ArrayBuffer whose first bytes are the correct magic for `type` AND
+ * carry a parseable, small (`w`×`h`) dimension header so it passes both the
+ * magic-byte sniff and the pixel-dimension cap (#496). Defaults to 64×48.
+ */
+function magicBuf(type, size = 100, w = 64, h = 48) {
+  const buf = new ArrayBuffer(Math.max(size, 64));
   const view = new Uint8Array(buf);
   const header = MAGIC[type] ?? [];
   for (let i = 0; i < header.length; i++) view[i] = header[i];
+
+  const w16be = (o, v) => { view[o] = (v >> 8) & 0xff; view[o + 1] = v & 0xff; };
+  const w32be = (o, v) => { view[o] = (v >>> 24) & 0xff; view[o + 1] = (v >> 16) & 0xff; view[o + 2] = (v >> 8) & 0xff; view[o + 3] = v & 0xff; };
+  const w16le = (o, v) => { view[o] = v & 0xff; view[o + 1] = (v >> 8) & 0xff; };
+
+  if (type === 'image/png') {
+    // IHDR: width @16, height @20 (big-endian u32).
+    w32be(16, w); w32be(20, h);
+  } else if (type === 'image/gif') {
+    // Logical screen width @6, height @8 (little-endian u16).
+    w16le(6, w); w16le(8, h);
+  } else if (type === 'image/webp') {
+    // VP8X extended header: fourcc @12, 24-bit (w-1) @24, (h-1) @27 (LE).
+    view[12] = 0x56; view[13] = 0x50; view[14] = 0x38; view[15] = 0x58; // "VP8X"
+    const wm1 = w - 1, hm1 = h - 1;
+    view[24] = wm1 & 0xff; view[25] = (wm1 >> 8) & 0xff; view[26] = (wm1 >> 16) & 0xff;
+    view[27] = hm1 & 0xff; view[28] = (hm1 >> 8) & 0xff; view[29] = (hm1 >> 16) & 0xff;
+  } else {
+    // JPEG: the magic is ff d8 ff e0 (SOI + APP0 marker). Give APP0 a valid
+    // length payload so the segment-walker skips it, then write SOF0 with the
+    // real height/width. APP0 marker byte is at offset 3; its length starts @4.
+    let o = 4;
+    w16be(o, 4); o += 2;   // APP0 length = 4 (length field + 2 padding bytes)
+    view[o++] = 0x00; view[o++] = 0x00; // 2 bytes of APP0 payload
+    view[o++] = 0xff; view[o++] = 0xc0; // SOF0 marker
+    w16be(o, 11); o += 2;  // segment length (8 + 3*1)
+    view[o++] = 8;          // precision
+    w16be(o, h); o += 2;    // height
+    w16be(o, w); o += 2;    // width
+    view[o++] = 1;          // component count
+  }
   return buf;
+}
+
+/** Like magicBuf but with oversized dimensions to trip the pixel cap. */
+function oversizeBuf(type, dim = 5000) {
+  return magicBuf(type, 100, dim, dim);
 }
 
 /** ArrayBuffer filled with HTML bytes — wrong magic for any image type. */
@@ -145,6 +185,37 @@ describe('sniffImageType', () => {
 
   it('returns null for an all-zero buffer', () => {
     expect(sniffImageType(new ArrayBuffer(12))).toBeNull();
+  });
+});
+
+// ── imageDimensions (pure utility — pixel-dimension cap, #496) ────────────────
+
+describe('imageDimensions', () => {
+  it('reads PNG dimensions from the IHDR header', () => {
+    expect(imageDimensions(magicBuf('image/png', 100, 800, 600))).toEqual({ width: 800, height: 600 });
+  });
+
+  it('reads GIF dimensions from the logical screen descriptor', () => {
+    expect(imageDimensions(magicBuf('image/gif', 100, 320, 240))).toEqual({ width: 320, height: 240 });
+  });
+
+  it('reads WebP (VP8X) canvas dimensions', () => {
+    expect(imageDimensions(magicBuf('image/webp', 100, 1024, 768))).toEqual({ width: 1024, height: 768 });
+  });
+
+  it('reads JPEG dimensions from the SOF0 frame header', () => {
+    expect(imageDimensions(magicBuf('image/jpeg', 100, 1200, 900))).toEqual({ width: 1200, height: 900 });
+  });
+
+  it('returns null for non-image / truncated bytes', () => {
+    expect(imageDimensions(htmlBuf())).toBeNull();
+    expect(imageDimensions(new ArrayBuffer(8))).toBeNull();
+  });
+
+  it('surfaces oversized declared dimensions (decompression-bomb signal)', () => {
+    const dims = imageDimensions(oversizeBuf('image/png', 50000));
+    expect(dims.width).toBe(50000);
+    expect(dims.height).toBe(50000);
   });
 });
 
@@ -287,6 +358,48 @@ describe('POST /api/actions/receipts/[slug] — magic-byte sniff', () => {
       files: [makeFile({ type: 'image/webp', buf: magicBuf('image/webp') })],
     }));
     expect(res.status).not.toBe(415);
+  });
+});
+
+// ── 413 / 422 — pixel-dimension cap (#496) ────────────────────────────────────
+
+describe('POST /api/actions/receipts/[slug] — pixel-dimension cap', () => {
+  it('returns 413 for a PNG declaring dimensions over MAX_DIMENSION (decompression bomb)', async () => {
+    // 50000×50000 px in a tiny file — the byte cap (5 MB) wouldn't catch this.
+    const res = await POST(makeRequest({
+      files: [makeFile({ type: 'image/png', buf: oversizeBuf('image/png', 50000) })],
+    }));
+    expect(res.status).toBe(413);
+    expect(await res.text()).toMatch(/too large \(max 4096/i);
+    expect(mockChat).not.toHaveBeenCalled();
+  });
+
+  it('returns 413 for an oversized JPEG over the cap on one axis', async () => {
+    const res = await POST(makeRequest({
+      files: [makeFile({ type: 'image/jpeg', buf: magicBuf('image/jpeg', 100, 100, 9000) })],
+    }));
+    expect(res.status).toBe(413);
+    expect(mockChat).not.toHaveBeenCalled();
+  });
+
+  it('returns 422 when dimensions cannot be read from a valid-magic but headerless image', async () => {
+    // Correct JPEG magic but no SOF segment → dimensions unknown → rejected.
+    const jpegMagicOnly = new ArrayBuffer(64);
+    new Uint8Array(jpegMagicOnly).set([0xff, 0xd8, 0xff, 0xe0]);
+    const res = await POST(makeRequest({
+      files: [makeFile({ type: 'image/jpeg', buf: jpegMagicOnly })],
+    }));
+    expect(res.status).toBe(422);
+    expect(await res.text()).toMatch(/dimensions/i);
+    expect(mockChat).not.toHaveBeenCalled();
+  });
+
+  it('accepts an image within the dimension cap', async () => {
+    const res = await POST(makeRequest({
+      files: [makeFile({ type: 'image/png', buf: magicBuf('image/png', 100, 4096, 4096) })],
+    }));
+    expect(res.status).not.toBe(413);
+    expect(res.status).not.toBe(422);
   });
 });
 
