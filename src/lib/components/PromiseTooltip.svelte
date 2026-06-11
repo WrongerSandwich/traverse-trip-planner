@@ -62,8 +62,8 @@
     position: absolute;
     left: 50%;
     transform: translateX(-50%) translateY(4px);
-    background: var(--surface-raised, #1f1f23);
-    color: var(--text-primary, #fafafa);
+    background: var(--surface-raised);
+    color: var(--text-primary);
     font-size: 0.75rem;
     line-height: 1.2;
     padding: 6px 10px;

@@ -86,7 +86,7 @@ Optional flags: `national_park: true` (for NPS units), `starred: true` (bookmark
 
 Omit fields rather than guess at creation. Dates are ISO 8601. Distances default to miles.
 
-`plan.md` and `candidates.md` are structured-YAML files with their own schemas (see `docs/superpowers/specs/2026-05-22-planning-plan-and-candidates-design.md`). They are written by `realizePlan()` (`src/lib/server/realize-plan.js`) as the post-LLM half of the deepen pipeline, and edited by the Plan + Candidates UI; do not hand-edit their internal structure outside of the spec's defined fields.
+`plan.md` and `candidates.md` are structured-YAML files with their own schemas (see `docs/superpowers/specs/archive/2026-05-22-planning-plan-and-candidates-design.md`). They are written by `realizePlan()` (`src/lib/server/realize-plan.js`) as the post-LLM half of the deepen pipeline, and edited by the Plan + Candidates UI; do not hand-edit their internal structure outside of the spec's defined fields.
 
 ## In-browser actions
 

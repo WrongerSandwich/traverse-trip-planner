@@ -180,6 +180,10 @@
   /* Map tile placeholder bg — used by MiniMap before tiles load */
   --map-tile-bg: #E8E4DE;
 
+  /* Map pin outline — kept light against the always-light map tiles, so
+     (like --map-tile-bg) it is intentionally NOT overridden in dark mode. */
+  --map-pin-stroke: #FCFAF5;
+
   /* RGB triples for use in rgba() gradients that fade to a surface color */
   --surface-raised-rgb: 246, 241, 229;
 }

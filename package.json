@@ -5,6 +5,9 @@
   "author": "Evan Trout",
   "license": "MIT",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "homepage": "https://github.com/WrongerSandwich/traverse-trip-planner#readme",
   "repository": {
     "type": "git",
