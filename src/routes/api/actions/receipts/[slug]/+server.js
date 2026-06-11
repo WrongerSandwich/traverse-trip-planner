@@ -6,7 +6,7 @@ import { chat } from '$lib/server/ai.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
 import { getEffectiveConfig } from '$lib/server/config.js';
 import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
-import { sniffImageType } from '$lib/utils/sniffImageType.js';
+import { sniffImageType, imageDimensions } from '$lib/utils/sniffImageType.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
 
 export const _promise = HAND_DEFAULTS.receipts;
@@ -14,6 +14,11 @@ export const _promise = HAND_DEFAULTS.receipts;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGES = 10;
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB per image
+// Pixel-dimension cap (#496). The 5 MB byte cap doesn't stop a decompression
+// bomb — a tiny highly-compressed file can declare an enormous raster that
+// balloons in memory downstream. Reject images larger than this on either axis
+// before sending to chat(). Receipts max out well under this; 4096 is generous.
+const MAX_DIMENSION = 4096;
 // Hard cap on the entire request body: 10 files × 5 MB + 64 KB overhead for
 // multipart boundaries and form fields. Checked via Content-Length before
 // formData() materialises the full body into memory.
@@ -74,6 +79,22 @@ export async function POST(event) {
       return new Response(
         `File content does not match declared type ${mediaType}: ${file.name}`,
         { status: 415 }
+      );
+    }
+    // Pixel-dimension cap: reject decompression bombs whose declared raster is
+    // huge despite a small byte size. Unknown dimensions (truncated or exotic
+    // sub-format) are rejected too — a header we can't read isn't trusted.
+    const dims = imageDimensions(buf);
+    if (!dims) {
+      return new Response(
+        `Could not read image dimensions: ${file.name}`,
+        { status: 422 }
+      );
+    }
+    if (dims.width > MAX_DIMENSION || dims.height > MAX_DIMENSION) {
+      return new Response(
+        `Image too large (max ${MAX_DIMENSION}×${MAX_DIMENSION}px): ${file.name} is ${dims.width}×${dims.height}`,
+        { status: 413 }
       );
     }
     const data = Buffer.from(buf).toString('base64');

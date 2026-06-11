@@ -31,6 +31,11 @@ const dataMocks = vi.hoisted(() => ({
       ? null
       : new Response('Invalid slug', { status: 400 }),
   ),
+  rejectInvalidId: vi.fn((id) =>
+    typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,199}$/.test(id)
+      ? null
+      : new Response('Invalid id', { status: 400 }),
+  ),
 }));
 vi.mock('$lib/server/data.js', () => dataMocks);
 

@@ -7,6 +7,7 @@ let stage = 'planning';
 
 vi.mock('$lib/server/data.js', () => ({
   rejectInvalidSlug: (s) => (/^[a-z0-9-]+$/.test(s) ? null : new Response('bad', { status: 400 })),
+  rejectInvalidId: (id) => (/^[a-z0-9][a-z0-9-]{0,199}$/.test(id) ? null : new Response('bad id', { status: 400 })),
   invalidateEnrichCache: () => invalidateEnrichCache(),
   findTripLocation: () => ({ kind: 'dir', path: '/x', stage }),
 }));

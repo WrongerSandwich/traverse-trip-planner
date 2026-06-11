@@ -18,7 +18,6 @@
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import {
-  atomicWrite,
   findTripFile,
   getTripFiles,
   removeFrontmatterField,
@@ -236,32 +235,47 @@ export async function realizePlan(slug, parsedExtract, _opts = {}) {
     ? readFileSync(overviewFilePath, 'utf8')
     : '';
 
-  // Write both files atomically: stage each to a .tmp first, then rename both
-  // so a mid-write crash cannot leave plan.yaml updated while candidates.yaml is stale.
+  // Write all three files atomically: stage each to its own .tmp first, then
+  // rename them all so a mid-write crash cannot desync plan.yaml, candidates.yaml,
+  // and the overview rename-notice frontmatter. The rename-notice write used to
+  // be a third, separate atomicWrite() that ran *after* the plan/candidates
+  // renames — a crash between the two left the "N candidates renamed" banner
+  // missing. Folding it into the same stage-then-rename pass shrinks the window
+  // to the (tiny) gap between consecutive renameSync calls (#496).
   const pPath = planPath(slug);
   const cPath = candidatesPath(slug);
   if (!pPath || !cPath) throw new Error(`Cannot write plan/candidates for trip "${slug}" — no folder stage found.`);
-  const pTmp = `${pPath}.tmp`;
-  const cTmp = `${cPath}.tmp`;
-  writeFileSync(pTmp, serializePlanFile(plan));
-  writeFileSync(cTmp, serializeCandidatesFile(cands));
-  renameSync(pTmp, pPath);
-  renameSync(cTmp, cPath);
 
-  // Persist renames into overview frontmatter so the detail page can surface
-  // a one-time dismissible banner ("Re-research renamed N of your custom
-  // candidates…"). The field is removed once the user dismisses the banner.
-  // When no renames occurred this run, clear any stale notice from a prior run.
+  // Compute the rename-notice overview content up front so it can be staged
+  // alongside plan/candidates. Persist renames into overview frontmatter so the
+  // detail page can surface a one-time dismissible banner ("Re-research renamed
+  // N of your custom candidates…"); the field is removed once the user dismisses
+  // it. When no renames occurred this run, clear any stale notice from a prior run.
+  let overviewContent = null;
   if (overviewFilePath && overviewRaw) {
-    let overviewContent = overviewRaw;
     if (renames.size > 0) {
       const renamesYaml = JSON.stringify([...renames.entries()].map(([from, to]) => ({ from, to })));
-      overviewContent = setFrontmatterField(overviewContent, 'last_extract_renames', renamesYaml);
+      overviewContent = setFrontmatterField(overviewRaw, 'last_extract_renames', renamesYaml);
     } else {
-      overviewContent = removeFrontmatterField(overviewContent, 'last_extract_renames');
+      overviewContent = removeFrontmatterField(overviewRaw, 'last_extract_renames');
     }
-    atomicWrite(overviewFilePath, overviewContent);
   }
+
+  // Phase 1: stage every file to a .tmp sibling. No canonical file is touched yet.
+  const pTmp = `${pPath}.tmp`;
+  const cTmp = `${cPath}.tmp`;
+  const oTmp = overviewContent !== null ? `${overviewFilePath}.tmp` : null;
+  writeFileSync(pTmp, serializePlanFile(plan));
+  writeFileSync(cTmp, serializeCandidatesFile(cands));
+  if (oTmp) writeFileSync(oTmp, overviewContent);
+
+  // Phase 2: rename each staged file into place. All staging is done, so this
+  // sequence only leaves a desync if the process dies between two renameSync
+  // calls — a far narrower window than the prior staged-write → rename →
+  // separate-atomic-write layout.
+  renameSync(pTmp, pPath);
+  renameSync(cTmp, cPath);
+  if (oTmp) renameSync(oTmp, overviewFilePath);
 
   // Build the renames array for callers that want to inspect or log them.
   const renamesArray = [...renames.entries()].map(([from, to]) => ({ from, to }));
