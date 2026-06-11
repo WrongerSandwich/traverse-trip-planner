@@ -173,13 +173,35 @@ function snapshotForDisk() {
   return out;
 }
 
+// Persist the in-memory registry to `.cache/.jobs.json`.
+//
+// A failed write here is NOT swallowed (#492). Swallowing it desyncs the
+// in-memory map from disk and — worse — leaves the boot sweep with a stale or
+// missing file, so an interrupted trip never gets marked
+// `last_run_error: 'interrupted'` after a restart. A persistent failure here
+// (read-only `.cache/`, full disk) also breaks the geo/image/route caches and
+// workflow-stats, so it's a real fault the operator needs to see.
+//
+// We escalate the log to error level, emit a one-shot in-app warning event for
+// the indicator UI, then re-throw so the writer's caller can react. The
+// in-memory map mutation has already happened by the time this runs, so live
+// reads (listJobs / the 10s poll) stay consistent — only the persistence step
+// is signalled as failed.
 function persistRegistry() {
-  // .cache/.jobs.json is the volatile in-flight registry (NOT a cache) —
-  // see docs/jobs-source-of-truth.md.
   try {
     atomicWrite(JOBS_REGISTRY_PATH, JSON.stringify(snapshotForDisk(), null, 2));
   } catch (e) {
-    console.warn(`[jobs] failed to persist registry to ${JOBS_REGISTRY_PATH}:`, e.message);
+    console.error(`[jobs] failed to persist registry to ${JOBS_REGISTRY_PATH}:`, e?.message ?? e);
+    // One-shot in-app warning: the indicator polls listRecentEvents() and can
+    // surface this as a failure toast. Code is registry-specific so the UI can
+    // distinguish it from a workflow failure.
+    pushEvent({
+      workflow: 'jobs-registry',
+      slug: '',
+      outcome: 'failure',
+      code: 'registry_persist_failed',
+    });
+    throw e;
   }
 }
 
@@ -308,6 +330,13 @@ function sanitizeFrontmatterMessage(raw) {
  * The action route's own `.catch()` will still run after the abort fires;
  * it should also call `failJob` defensively — which is a no-op once the
  * entry is gone.
+ *
+ * The abort (the user-facing cancel) has already taken effect before the
+ * `failJob` cleanup runs, and `/api/jobs/cancel` is contractually idempotent
+ * (always 200). A registry-persist failure inside `failJob` is therefore
+ * tolerated here — it has already been escalated to error level and pushed as
+ * a one-shot warning event by persistRegistry() (#492), so it is surfaced, not
+ * silent — but it must not turn a successful cancel into a 500.
  */
 export function cancelJob(workflow, slug) {
   const key = keyFor(workflow, slug);
@@ -318,7 +347,13 @@ export function cancelJob(workflow, slug) {
   } catch {
     /* ignore */
   }
-  failJob(workflow, slug, { code: 'cancelled' });
+  try {
+    failJob(workflow, slug, { code: 'cancelled' });
+  } catch (e) {
+    // persistRegistry() already logged + emitted a one-shot warning; swallow
+    // here only so the idempotent cancel response stays 200.
+    console.error(`[jobs] cancelJob: cleanup failed for ${workflow}:${slug}:`, e?.message ?? e);
+  }
 }
 
 /**
