@@ -172,12 +172,17 @@ describe('realizePlan', () => {
     expect(capturedPlan.value.cover_query).toBeNull();
   });
 
-  it('stages both files to .tmp then renames both (atomic two-file write)', async () => {
+  it('stages all three files to .tmp before any rename (atomic three-file write)', async () => {
     await realizePlan('t', makeExtract({
       plan: { field_guide_notes: '', gotchas: '' },
       candidates: { stops: [], lodging: [] },
     }));
 
+    // The rename-notice overview write is now folded into the same
+    // stage-then-rename pass as plan.yaml + candidates.yaml (#496), so EVERY
+    // writeFileSync must precede EVERY renameSync — including the overview's.
+    // Before the fix the overview was a separate atomicWrite() that ran after
+    // the plan/candidates renames, so this ordering invariant would not hold.
     const writeOrder = mockWriteFileSync.mock.invocationCallOrder;
     const renameOrder = mockRenameSync.mock.invocationCallOrder;
     expect(Math.max(...writeOrder)).toBeLessThan(Math.min(...renameOrder));
@@ -189,6 +194,18 @@ describe('realizePlan', () => {
       '/test/planning/t/candidates.md.tmp',
       '/test/planning/t/candidates.md',
     );
+    // Overview rename-notice participates in the same pass.
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      '/test/planning/t/overview.md.tmp',
+      expect.any(String),
+    );
+    expect(mockRenameSync).toHaveBeenCalledWith(
+      '/test/planning/t/overview.md.tmp',
+      '/test/planning/t/overview.md',
+    );
+    // The overview tmp must be written before plan/candidates are renamed —
+    // i.e. all three are staged, then all three are renamed.
+    expect(mockAtomicWrite).not.toHaveBeenCalled();
   });
 
   it('defaults invalid category to "misc"', async () => {
@@ -481,9 +498,14 @@ describe('realizePlan', () => {
       'last_extract_renames',
       expect.stringContaining('"lake"'),
     );
-    expect(mockAtomicWrite).toHaveBeenCalledWith(
-      '/test/planning/t/overview.md',
+    // Overview is now staged + renamed in the three-file pass, not atomicWrite'd (#496).
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      '/test/planning/t/overview.md.tmp',
       expect.any(String),
+    );
+    expect(mockRenameSync).toHaveBeenCalledWith(
+      '/test/planning/t/overview.md.tmp',
+      '/test/planning/t/overview.md',
     );
   });
 
@@ -500,9 +522,14 @@ describe('realizePlan', () => {
       expect.any(String),
       'last_extract_renames',
     );
-    expect(mockAtomicWrite).toHaveBeenCalledWith(
-      '/test/planning/t/overview.md',
+    // Overview is now staged + renamed in the three-file pass, not atomicWrite'd (#496).
+    expect(mockWriteFileSync).toHaveBeenCalledWith(
+      '/test/planning/t/overview.md.tmp',
       expect.any(String),
+    );
+    expect(mockRenameSync).toHaveBeenCalledWith(
+      '/test/planning/t/overview.md.tmp',
+      '/test/planning/t/overview.md',
     );
   });
 
