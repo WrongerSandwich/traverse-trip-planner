@@ -1222,16 +1222,30 @@ export async function getTripRoute(slug) {
     if (!existsSync(fp)) continue;
     const fm = parseFrontmatter(readFileSync(fp, 'utf8'));
     if (!fm?.waypoints) return null;
-    // Pre-geocode home + destination so geocodeWaypoints can build a viewbox
-    // and evict off-axis cached coords. Both calls hit the geocode cache for
-    // any trip enrichTrips has already touched, so this is free in practice.
-    const homeCoords = getHome()?.coords ?? null;
-    const destCoords = fm.destination ? (await geocode(fm.destination)).coords : null;
-    const { coords: geocoded } = await geocodeWaypoints(fm.waypoints, { homeCoords, destCoords });
-    if (geocoded.length < 2) { flushCaches(); return null; }
-    const route = await fetchRoute(geocoded);
-    flushCaches();
-    return route;
+    // The route line is a progressive enhancement (cards fetch it lazily on
+    // hover/scroll), so a Nominatim/OSRM outage should degrade to `null` →
+    // 404 at the endpoint, NOT a 500 in the client console (#491). Wrap the
+    // whole lookup chain: geocode() now re-throws geocode_quota (#488) and
+    // geocodeWaypoints()/fetchRoute() can throw on other external-service
+    // errors that aren't swallowed lower down.
+    try {
+      // Pre-geocode home + destination so geocodeWaypoints can build a viewbox
+      // and evict off-axis cached coords. Both calls hit the geocode cache for
+      // any trip enrichTrips has already touched, so this is free in practice.
+      const homeCoords = getHome()?.coords ?? null;
+      const destCoords = fm.destination ? (await geocode(fm.destination)).coords : null;
+      const { coords: geocoded } = await geocodeWaypoints(fm.waypoints, { homeCoords, destCoords });
+      if (geocoded.length < 2) { flushCaches(); return null; }
+      const route = await fetchRoute(geocoded);
+      flushCaches();
+      return route;
+    } catch (e) {
+      // geocode_quota (Nominatim 429) or any other external-service failure —
+      // log and fall through to null so the map just renders without the line.
+      console.warn('getTripRoute: route lookup failed for', slug, '—', e?.message ?? e);
+      try { flushCaches(); } catch { /* cache flush is best-effort on the failure path */ }
+      return null;
+    }
   }
   return null;
 }

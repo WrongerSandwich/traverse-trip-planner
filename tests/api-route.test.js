@@ -37,9 +37,14 @@ describe('GET /api/route/[slug]', () => {
     expect(res.status).toBe(404);
   });
 
-  it('propagates rejection when getTripRoute throws', async () => {
-    mockGetTripRoute.mockRejectedValue(new Error('network'));
+  it('returns 404 when an external-service outage makes getTripRoute resolve null (#491)', async () => {
+    // getTripRoute() now owns graceful degradation: on a Nominatim/OSRM outage
+    // it catches and resolves null rather than throwing, so the endpoint emits
+    // a 404 ("No route") and the map just renders without the line — never a
+    // 500 in the client console.
+    mockGetTripRoute.mockResolvedValue(null);
 
-    await expect(GET({ params: { slug: 'crash' } })).rejects.toThrow('network');
+    const res = await GET({ params: { slug: 'osrm-down' } });
+    expect(res.status).toBe(404);
   });
 });
