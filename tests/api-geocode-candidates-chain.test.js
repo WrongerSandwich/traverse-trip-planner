@@ -106,10 +106,22 @@ describe('_startGeocodeCandidatesJob chain (Task 9: #403)', () => {
     // Give the async IIFE time to run
     await new Promise(r => setTimeout(r, 50));
 
-    // completeJob should have been called
-    expect(mockCompleteJob).toHaveBeenCalledWith('geocode-candidates', 'test-trip');
+    // completeJob should have been called (no partial failures → empty result)
+    expect(mockCompleteJob).toHaveBeenCalledWith('geocode-candidates', 'test-trip', {});
     // enrich-candidates kickoff should have been called
     expect(mockStartEnrichCandidatesJob).toHaveBeenCalledWith('test-trip');
+  });
+
+  it('threads partial-failure counts from the job summary into completeJob (#488)', async () => {
+    // The job can complete with swallowed partial failures (some stops couldn't
+    // be pinned / addressed). The endpoint must forward that count so the
+    // detail banner can note it rather than the data silently looking complete.
+    mockGeocodeCandidatesJob.mockResolvedValue({ geocodeFailures: 2, reverseFailures: 1 });
+
+    _startGeocodeCandidatesJob('test-trip');
+    await new Promise(r => setTimeout(r, 50));
+
+    expect(mockCompleteJob).toHaveBeenCalledWith('geocode-candidates', 'test-trip', { partial_failures: 3 });
   });
 
   it('does NOT fire _startEnrichCandidatesJob when geocodeCandidatesJob throws', async () => {
@@ -152,7 +164,7 @@ describe('_startGeocodeCandidatesJob chain (Task 9: #403)', () => {
     await new Promise(r => setTimeout(r, 50));
 
     // completeJob was attempted
-    expect(mockCompleteJob).toHaveBeenCalledWith('geocode-candidates', 'test-trip');
+    expect(mockCompleteJob).toHaveBeenCalledWith('geocode-candidates', 'test-trip', {});
     // enrich-candidates SHOULD still have been kicked off despite completeJob throwing
     expect(mockStartEnrichCandidatesJob).toHaveBeenCalledWith('test-trip');
   });

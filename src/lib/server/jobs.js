@@ -265,15 +265,28 @@ export function completeJob(workflow, slug, result = {}) {
            + (result.usage.output_tokens ?? result.usage.output ?? 0);
   }
   if (tokens > 0) extras.last_run_tokens = String(tokens);
+  // A job can complete successfully but with swallowed partial failures (e.g.
+  // geocode-candidates pins most stops but a handful miss / can't be addressed
+  // due to a Nominatim hiccup — #488). Record the count on the frontmatter so
+  // the detail banner can note it; clear it on a clean run.
+  const partialFailures =
+    typeof result?.partial_failures === 'number' && result.partial_failures > 0
+      ? result.partial_failures
+      : 0;
+  if (partialFailures > 0) extras.last_run_partial_failures = String(partialFailures);
   // A successful run supersedes any earlier failure; clear the stale error
-  // fields so the planning page banner reflects current state, not history.
-  writeHistoricalFields(slug, extras, ['last_run_error', 'last_run_error_at', 'last_run_message']);
+  // fields (and any prior partial-failure count on a now-clean run) so the
+  // planning page banner reflects current state, not history.
+  const clearFields = ['last_run_error', 'last_run_error_at', 'last_run_message'];
+  if (partialFailures === 0) clearFields.push('last_run_partial_failures');
+  writeHistoricalFields(slug, extras, clearFields);
 
   pushEvent({
     workflow,
     slug,
     outcome: 'success',
     ...(tokens > 0 ? { tokens } : {}),
+    ...(partialFailures > 0 ? { partial_failures: partialFailures } : {}),
   });
 }
 

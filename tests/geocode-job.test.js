@@ -376,4 +376,68 @@ describe('geocodeCandidatesJob', () => {
     expect(mockReverseGeocode).not.toHaveBeenCalled();
     expect(mockWriteCandidates).not.toHaveBeenCalled();
   });
+
+  // --- swallowed-failure surfacing (#488) ---
+
+  it('does not crash when getDestinationRefCoords throws — degrades to null refCoords', async () => {
+    // Point 3: a Nominatim outage on the ref-coords lookup must not crash the
+    // whole job. It should be caught and geocodeCandidate called with null.
+    mockGetDestinationRefCoords.mockRejectedValue(new Error('Nominatim down'));
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'a', name: 'A' }],
+      lodging: [],
+    });
+    mockGeocodeCandidate.mockResolvedValue([1, 2]);
+
+    await expect(geocodeCandidatesJob('t')).resolves.toBeDefined();
+    expect(mockGeocodeCandidate).toHaveBeenCalledWith('A', 'Glacier MT', null, undefined);
+  });
+
+  it('returns a summary counting forward-geocode failures', async () => {
+    // Point 2: a forward-geocode miss leaves a candidate with no pin. The job
+    // must count it and report it in the returned summary, not silently drop it.
+    mockReadCandidates.mockReturnValue({
+      stops: [
+        { id: 'a', name: 'A' },
+        { id: 'b', name: 'B' },
+      ],
+      lodging: [],
+    });
+    mockGeocodeCandidate
+      .mockResolvedValueOnce(null) // A: miss
+      .mockResolvedValueOnce([1, 2]); // B: hit
+    mockReverseGeocode.mockResolvedValue('Some Address');
+
+    const summary = await geocodeCandidatesJob('t');
+
+    expect(summary).toEqual({ geocodeFailures: 1, reverseFailures: 0 });
+  });
+
+  it('returns a summary counting reverse-geocode (address) failures', async () => {
+    // Point 2: a reverse-geocode miss leaves a stop with coords but blank
+    // address. The job must count it in the returned summary.
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'a', name: 'A' }],
+      lodging: [],
+    });
+    mockGeocodeCandidate.mockResolvedValue([44.88, -86.05]);
+    mockReverseGeocode.mockResolvedValue(null); // address lookup fails
+
+    const summary = await geocodeCandidatesJob('t');
+
+    expect(summary).toEqual({ geocodeFailures: 0, reverseFailures: 1 });
+  });
+
+  it('returns a clean (all-zero) summary when everything resolves', async () => {
+    mockReadCandidates.mockReturnValue({
+      stops: [{ id: 'a', name: 'A' }],
+      lodging: [],
+    });
+    mockGeocodeCandidate.mockResolvedValue([44.88, -86.05]);
+    mockReverseGeocode.mockResolvedValue('Resolved Address');
+
+    const summary = await geocodeCandidatesJob('t');
+
+    expect(summary).toEqual({ geocodeFailures: 0, reverseFailures: 0 });
+  });
 });

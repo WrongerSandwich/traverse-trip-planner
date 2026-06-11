@@ -21,6 +21,7 @@ vi.mock('../src/lib/server/rate-limit.js', () => ({
 
 import { geocode, flushCaches } from '../src/lib/server/data.js';
 import { rateLimitResponse } from '../src/lib/server/rate-limit.js';
+import { TraverseError } from '../src/lib/server/errors.js';
 import { GET } from '../src/routes/api/geocode/+server.js';
 
 /**
@@ -164,6 +165,27 @@ describe('GET /api/geocode — happy path', () => {
 
     await GET(makeEvent({ q: 'Nowhere' }));
     expect(flushCaches).toHaveBeenCalledOnce();
+  });
+});
+
+// ── #488: rate-limit no longer 500s ───────────────────────────────────────────
+
+describe('GET /api/geocode — geocode_quota handling', () => {
+  it('returns 429 with code=geocode_quota when geocode() throws a quota error', async () => {
+    // geocode() now re-throws geocode_quota (Nominatim 429) instead of
+    // swallowing it; the endpoint must degrade to a typed 429, not a 500.
+    geocode.mockRejectedValue(new TraverseError('geocode_quota', 'rate limited'));
+
+    const res = await GET(makeEvent({ q: 'Busy Place' }));
+    expect(res._status).toBe(429);
+    expect(res._body.code).toBe('geocode_quota');
+    // Cache is still flushed on the quota path.
+    expect(flushCaches).toHaveBeenCalledOnce();
+  });
+
+  it('re-throws a non-quota error rather than masking it', async () => {
+    geocode.mockRejectedValue(new Error('unexpected boom'));
+    await expect(GET(makeEvent({ q: 'Somewhere' }))).rejects.toThrow('unexpected boom');
   });
 });
 

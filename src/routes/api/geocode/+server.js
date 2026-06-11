@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { geocode, flushCaches } from '$lib/server/data.js';
 import { rateLimitResponse } from '$lib/server/rate-limit.js';
+import { TraverseError } from '$lib/server/errors.js';
 
 /**
  * GET /api/geocode?q=<query>
@@ -23,7 +24,19 @@ export async function GET(event) {
     return json({ error: 'Query parameter "q" is required.', code: 'invalid_input' }, { status: 400 });
   }
 
-  const { coords } = await geocode(q);
+  let coords = null;
+  try {
+    ({ coords } = await geocode(q));
+  } catch (e) {
+    // geocode() now re-throws geocode_quota (Nominatim 429) instead of
+    // swallowing it (#488). Surface it as a 429 with the registry code so the
+    // search box can show "rate-limited, try again" rather than 500-ing.
+    if (e instanceof TraverseError && e.code === 'geocode_quota') {
+      flushCaches();
+      return json({ error: e.message, code: 'geocode_quota' }, { status: 429 });
+    }
+    throw e;
+  }
   flushCaches();
 
   if (!coords) {

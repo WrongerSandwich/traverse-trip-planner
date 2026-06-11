@@ -323,6 +323,41 @@ describe('completeJob', () => {
     const events = listRecentEvents();
     expect(events[0].tokens).toBe(400);
   });
+
+  // --- partial-failure surfacing (#488) ---
+
+  it('records last_run_partial_failures on frontmatter when the job reports swallowed failures', () => {
+    seedIdea('marfa-tx');
+    startJob('geocode-candidates', 'marfa-tx');
+    completeJob('geocode-candidates', 'marfa-tx', { partial_failures: 3 });
+    const fm = readIdeaFm('marfa-tx');
+    expect(Number(fm.last_run_partial_failures)).toBe(3);
+  });
+
+  it('emits partial_failures on the success event when present', () => {
+    seedIdea('marfa-tx');
+    startJob('geocode-candidates', 'marfa-tx');
+    completeJob('geocode-candidates', 'marfa-tx', { partial_failures: 2 });
+    const events = listRecentEvents();
+    expect(events[0].outcome).toBe('success');
+    expect(events[0].partial_failures).toBe(2);
+  });
+
+  it('clears a stale last_run_partial_failures on a subsequent clean run', () => {
+    seedIdea('marfa-tx', { last_run_partial_failures: '5' });
+    startJob('geocode-candidates', 'marfa-tx');
+    completeJob('geocode-candidates', 'marfa-tx', {}); // clean run
+    const fm = readIdeaFm('marfa-tx');
+    expect(fm.last_run_partial_failures).toBeUndefined();
+  });
+
+  it('does not emit partial_failures when zero', () => {
+    seedIdea('marfa-tx');
+    startJob('geocode-candidates', 'marfa-tx');
+    completeJob('geocode-candidates', 'marfa-tx', { partial_failures: 0 });
+    const events = listRecentEvents();
+    expect(events[0].partial_failures).toBeUndefined();
+  });
 });
 
 describe('failJob', () => {

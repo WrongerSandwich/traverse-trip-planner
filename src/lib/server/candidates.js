@@ -363,8 +363,23 @@ export async function getDestinationRefCoords(destinationContext) {
 export async function geocodeCandidate(name, destinationContext, refCoords, address = null) {
   let coords = null;
   let networkHit = false;
+  // geocode() now re-throws geocode_quota (Nominatim 429) instead of swallowing
+  // it (#488). In this per-candidate loop a rate-limit on one stop shouldn't
+  // abort the whole geocode-candidates job, so treat a quota throw as a miss
+  // (null) — the job's failure counter already records the incomplete pin.
+  const safeGeocode = async (query) => {
+    try {
+      return await geocode(query);
+    } catch (e) {
+      if (e instanceof TraverseError && e.code === 'geocode_quota') {
+        console.warn(`geocodeCandidate: rate-limited geocoding "${query}" — treating as a miss`);
+        return { coords: null, fromCache: false };
+      }
+      throw e;
+    }
+  };
   if (typeof address === 'string' && address.trim()) {
-    const { coords: byAddr, fromCache: addrFromCache } = await geocode(address.trim());
+    const { coords: byAddr, fromCache: addrFromCache } = await safeGeocode(address.trim());
     if (!addrFromCache) networkHit = true;
     if (byAddr && (!refCoords || distanceMi(byAddr, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {
       coords = byAddr;
@@ -375,14 +390,14 @@ export async function geocodeCandidate(name, destinationContext, refCoords, addr
     }
   }
   if (!coords && destinationContext) {
-    const { coords: scoped, fromCache: scopedFromCache } = await geocode(`${name}, ${destinationContext}`);
+    const { coords: scoped, fromCache: scopedFromCache } = await safeGeocode(`${name}, ${destinationContext}`);
     if (!scopedFromCache) networkHit = true;
     if (scoped && (!refCoords || distanceMi(scoped, refCoords) <= MAX_CANDIDATE_DISTANCE_MI)) {
       coords = scoped;
     }
   }
   if (!coords && refCoords) {
-    const { coords: bare, fromCache: bareFromCache } = await geocode(name);
+    const { coords: bare, fromCache: bareFromCache } = await safeGeocode(name);
     if (!bareFromCache) networkHit = true;
     if (bare && distanceMi(bare, refCoords) <= MAX_CANDIDATE_DISTANCE_MI) {
       coords = bare;
