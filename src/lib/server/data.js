@@ -1018,15 +1018,20 @@ export async function geocodeWaypoints(waypoints, { homeCoords, destCoords } = {
 // browser tabs, F5 spam) don't re-walk the file system. Mutating endpoints
 // call `invalidateEnrichCache()` to force a refresh.
 //
-// Concurrency (#273):
+// Concurrency (#273, #490):
 //   - `enrichInflight` coalesces overlapping calls onto a single promise so
 //     two simultaneous enrichTrips() requests don't both walk the FS and
 //     race on pruneCaches.
 //   - `enrichGeneration` increments on every invalidateEnrichCache. The
-//     in-flight enrichment captures the generation at start and skips
-//     pruneCaches if the generation moved during the await — meaning a
-//     mutating endpoint wrote a new trip/cache entry mid-flight and the
-//     in-flight enrichment's `liveKeys` snapshot is stale.
+//     in-flight enrichment captures the generation at start and (a) skips
+//     pruneCaches and (b) skips memoizing if the generation moved during the
+//     await — meaning a mutating endpoint wrote a new trip/cache entry
+//     mid-flight and the in-flight enrichment's snapshot is stale.
+//   - #490: skipping the memo isn't enough on its own — any caller COALESCED
+//     onto the in-flight promise still receives that stale snapshot, so a trip
+//     created mid-run is missing from the home page for up to the 30s TTL. So
+//     enrichTrips() re-runs the enumeration when the run it awaited turned out
+//     to be stale, looping until a run completes with the generation steady.
 const ENRICH_TTL_MS = 30_000;
 let enrichMemo = null;
 let enrichTime = 0;
@@ -1038,11 +1043,26 @@ export function invalidateEnrichCache() {
   enrichGeneration++;
 }
 
-export function enrichTrips() {
-  if (enrichMemo && Date.now() - enrichTime < ENRICH_TTL_MS) return Promise.resolve(enrichMemo);
-  if (enrichInflight) return enrichInflight;
-  enrichInflight = enrichTripsImpl().finally(() => { enrichInflight = null; });
-  return enrichInflight;
+export async function enrichTrips() {
+  if (enrichMemo && Date.now() - enrichTime < ENRICH_TTL_MS) return enrichMemo;
+
+  // Re-run as long as a mutation invalidated the cache while the run we awaited
+  // was in flight. Each iteration captures the generation BEFORE starting (or
+  // joining) a run; if it moved by the time the run resolved, the result is a
+  // pre-mutation snapshot and we go again. This terminates once mutations stop
+  // (the generation holds steady across one full run).
+  for (;;) {
+    const genAtStart = enrichGeneration;
+    if (!enrichInflight) {
+      enrichInflight = enrichTripsImpl().finally(() => { enrichInflight = null; });
+    }
+    const result = await enrichInflight;
+    if (enrichGeneration === genAtStart) return result;
+    // A mutation landed mid-run: `result` is stale. A fresh memo may already be
+    // serving the post-mutation state (a later run finished first) — prefer it.
+    if (enrichMemo && Date.now() - enrichTime < ENRICH_TTL_MS) return enrichMemo;
+    // Otherwise loop and re-enumerate from the current generation.
+  }
 }
 
 async function enrichTripsImpl() {
