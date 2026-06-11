@@ -13,7 +13,8 @@
 // format edge cases, streaming, tool loops, and error paths — this file just
 // pins down the cross-cutting contract.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { PROVIDERS } from '../src/lib/server/providers.js';
+import { PROVIDERS, MAX_CUMULATIVE_OUTPUT_TOKENS } from '../src/lib/server/providers.js';
+import { TraverseError } from '../src/lib/server/errors.js';
 
 // Block any settings.json overlay from leaking real API keys into resolveEnv().
 vi.mock('node:fs', () => ({
@@ -31,6 +32,29 @@ vi.mock('@anthropic-ai/sdk', () => ({
     constructor() { this.messages = { create: mockAnthropicCreate, stream: vi.fn() }; }
   },
 }));
+
+// Build an OpenAI-compatible fetch mock for a bounded tool loop: first turn is
+// a tool call, second turn is a normal stop. Shared by the openai + openrouter
+// harnesses (identical wire format).
+function openAiCompatBoundedLoopFetch() {
+  const jsonOf = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => '' });
+  return vi.fn()
+    .mockResolvedValueOnce(jsonOf({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'web_search', arguments: '{"query":"x"}' } }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+      usage: { prompt_tokens: 10, completion_tokens: 500 },
+    }))
+    .mockResolvedValueOnce(jsonOf({
+      choices: [{ message: { role: 'assistant', content: 'done' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 20, completion_tokens: 50 },
+    }));
+}
 
 // Each per-provider harness is a small adapter-of-an-adapter: it sets up the
 // right mock (SDK class or fetch), invokes the chat() function, then returns
@@ -62,6 +86,30 @@ const harnesses = {
       expect(imageBlock.source?.media_type, `${this.modulePath} source.media_type`).toBe('image/jpeg');
       expect(imageBlock.source?.data, `${this.modulePath} source.data`).toBe('aGVsbG8=');
     },
+    // Set up a loop that never naturally terminates: every turn is a tool_use
+    // emitting `perTurnOutput` output tokens, so the cumulative ceiling is the
+    // only thing that can stop it.
+    setupRunawayLoop(perTurnOutput) {
+      mockAnthropicCreate.mockReset();
+      mockAnthropicCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', id: 'tu_loop', name: 'web_search', input: { query: 'x' } }],
+        stop_reason: 'tool_use',
+        usage: { input_tokens: 10, output_tokens: perTurnOutput },
+      });
+    },
+    setupBoundedLoop() {
+      mockAnthropicCreate.mockReset();
+      mockAnthropicCreate.mockResolvedValueOnce({
+        content: [{ type: 'tool_use', id: 'tu_1', name: 'web_search', input: { query: 'x' } }],
+        stop_reason: 'tool_use',
+        usage: { input_tokens: 10, output_tokens: 500 },
+      });
+      mockAnthropicCreate.mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'done' }],
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 20, output_tokens: 50 },
+      });
+    },
   },
   openai: {
     envKey: 'OPENAI_API_KEY',
@@ -91,6 +139,27 @@ const harnesses = {
       expect(imageBlock.image_url.url.startsWith('data:image/jpeg;base64,'),
         `openai image_url.url should be a data URI, got ${imageBlock.image_url.url}`).toBe(true);
       expect(imageBlock.image_url.url.endsWith('aGVsbG8=')).toBe(true);
+    },
+    setupRunawayLoop(perTurnOutput) {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{ id: 'call_loop', type: 'function', function: { name: 'web_search', arguments: '{"query":"x"}' } }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+          usage: { prompt_tokens: 10, completion_tokens: perTurnOutput },
+        }),
+        text: async () => '',
+      });
+    },
+    setupBoundedLoop() {
+      global.fetch = openAiCompatBoundedLoopFetch();
     },
   },
   openrouter: {
@@ -122,7 +191,38 @@ const harnesses = {
         `openrouter image_url.url should be a data URI, got ${imageBlock.image_url.url}`).toBe(true);
       expect(imageBlock.image_url.url.endsWith('aGVsbG8=')).toBe(true);
     },
+    setupRunawayLoop(perTurnOutput) {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [{ id: 'call_loop', type: 'function', function: { name: 'web_search', arguments: '{"query":"x"}' } }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+          usage: { prompt_tokens: 10, completion_tokens: perTurnOutput },
+        }),
+        text: async () => '',
+      });
+    },
+    setupBoundedLoop() {
+      global.fetch = openAiCompatBoundedLoopFetch();
+    },
   },
+};
+
+// A normalized tool both wire formats accept (openai-compat rejects
+// anthropic-native tools; anthropic accepts normalized). Used to keep the
+// runaway loop turning until the cumulative ceiling aborts it.
+const LOOP_TOOL = {
+  kind: 'normalized',
+  name: 'web_search',
+  description: 'search the web',
+  inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 };
 
 // Tripwire: every entry in PROVIDERS must have a corresponding harness here. If
@@ -151,6 +251,57 @@ describe.each(providerEntries)(
     beforeEach(() => {
       process.env[harness.envKey] = harness.envValue;
       harness.beforeEach();
+    });
+
+    // Cross-cutting cost-control contract (#495): the per-call maxTokens ceiling
+    // doesn't bound a multi-turn tool loop, so each adapter must abort with a
+    // typed `max_tokens_exceeded` failure once the cumulative *output* tokens
+    // across turns exceed MAX_CUMULATIVE_OUTPUT_TOKENS — and the partial usage
+    // must be attached so chat() can record the real multi-turn cost.
+    it('aborts the tool loop with a typed max_tokens_exceeded failure once cumulative output exceeds the ceiling', async () => {
+      const { chat } = await import(harness.modulePath);
+      // Two turns of (ceiling/2 + 1) output tokens overshoot the ceiling, so the
+      // loop must abort on the second turn — well before MAX_TOOL_TURNS.
+      const perTurnOutput = Math.floor(MAX_CUMULATIVE_OUTPUT_TOKENS / 2) + 1;
+      harness.setupRunawayLoop(perTurnOutput);
+
+      let thrown;
+      try {
+        await chat({
+          model: harness.model,
+          system: 's',
+          maxTokens: 8000,
+          messages: [{ role: 'user', content: 'search forever' }],
+          tools: [LOOP_TOOL],
+          onToolCall: async () => ({ ok: true }),
+        });
+      } catch (err) {
+        thrown = err;
+      }
+
+      expect(thrown, `${providerName} should abort the runaway loop`).toBeInstanceOf(TraverseError);
+      expect(thrown.code, `${providerName} abort code`).toBe('max_tokens_exceeded');
+      // Partial usage rides along so workflow stats record the real cost.
+      expect(thrown.usage?.output, `${providerName} should attach cumulative output usage`).toBeGreaterThan(MAX_CUMULATIVE_OUTPUT_TOKENS);
+    });
+
+    it('does not abort a legitimate multi-turn loop that stays under the ceiling', async () => {
+      const { chat } = await import(harness.modulePath);
+      // Each turn emits a modest output; a couple of turns stays well under the
+      // ceiling, then the loop terminates normally.
+      harness.setupBoundedLoop();
+
+      const { text, usage } = await chat({
+        model: harness.model,
+        system: 's',
+        maxTokens: 8000,
+        messages: [{ role: 'user', content: 'search a bit' }],
+        tools: [LOOP_TOOL],
+        onToolCall: async () => ({ ok: true }),
+      });
+
+      expect(usage.output, `${providerName} bounded loop output`).toBeLessThanOrEqual(MAX_CUMULATIVE_OUTPUT_TOKENS);
+      expect(typeof text, `${providerName} bounded loop returns text`).toBe('string');
     });
 
     if (meta.supportsImages) {
