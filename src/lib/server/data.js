@@ -1357,6 +1357,27 @@ export function rejectInvalidSlug(slug) {
   return new Response('Invalid slug', { status: 400 });
 }
 
+// Candidate / stop / lodging / todo ids are minted by makeCandidateId() in
+// candidates.js — a kebab-case ASCII string (`name.replace(/[^a-z0-9]+/g,'-')`
+// with an optional `-N` de-dupe suffix, fallback `candidate`). They share the
+// slug character class. Today these `[id]` route params only feed pure
+// in-memory `.find(c => c.id === id)` lookups (no filesystem join), so an
+// out-of-format id is harmless. This format guard is future-proofing (#496):
+// it stops a later refactor from silently turning an `[id]` into a path or
+// regex component. Length cap is generous (ids can carry a long source name).
+const CANDIDATE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,199}$/;
+
+export function isValidCandidateId(id) {
+  return typeof id === 'string' && CANDIDATE_ID_PATTERN.test(id);
+}
+
+// Returns a 400 Response when a candidate/stop/lodging/todo id is malformed,
+// else null. Use at the top of every `[id]` / `[todoId]` route handler.
+export function rejectInvalidId(id) {
+  if (isValidCandidateId(id)) return null;
+  return new Response('Invalid id', { status: 400 });
+}
+
 // AI-emitted file paths must match exactly `ideas/<kebab>.md`. Reject the
 // entire batch if any file fails so a partial write doesn't drop only some
 // of a planned set.

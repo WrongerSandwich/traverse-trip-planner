@@ -17,6 +17,11 @@ const dataMocks = vi.hoisted(() => ({
       ? null
       : new Response('Invalid slug', { status: 400 }),
   ),
+  rejectInvalidId: vi.fn((id) =>
+    typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,199}$/.test(id)
+      ? null
+      : new Response('Invalid id', { status: 400 }),
+  ),
 }));
 vi.mock('$lib/server/data.js', () => dataMocks);
 
@@ -57,6 +62,18 @@ describe('PATCH todo done', () => {
 
   test('400 for invalid slug', async () => {
     const res = await PATCH({ params: { slug: '../etc', id: 'a', todoId: 't1' }, request: jsonReq({ done: true }) });
+    expect(res.status).toBe(400);
+    expect(mockSetTodoDone).not.toHaveBeenCalled();
+  });
+
+  test('400 for malformed stop id, before any data access (#496)', async () => {
+    const res = await PATCH({ params: { slug: 'trip', id: '../../home', todoId: 't1' }, request: jsonReq({ done: true }) });
+    expect(res.status).toBe(400);
+    expect(mockSetTodoDone).not.toHaveBeenCalled();
+  });
+
+  test('400 for malformed todo id, before any data access (#496)', async () => {
+    const res = await PATCH({ params: { slug: 'trip', id: 'a', todoId: 'foo/bar' }, request: jsonReq({ done: true }) });
     expect(res.status).toBe(400);
     expect(mockSetTodoDone).not.toHaveBeenCalled();
   });

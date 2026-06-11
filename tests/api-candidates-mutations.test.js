@@ -29,6 +29,11 @@ const dataMocks = vi.hoisted(() => ({
       ? null
       : new Response('Invalid slug', { status: 400 }),
   ),
+  rejectInvalidId: vi.fn((id) =>
+    typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,199}$/.test(id)
+      ? null
+      : new Response('Invalid id', { status: 400 }),
+  ),
 }));
 vi.mock('$lib/server/data.js', () => dataMocks);
 
@@ -96,6 +101,12 @@ describe('candidate mutation API routes', () => {
 
   it('DELETE /api/candidates/[slug]/stops/[id] returns 400 for invalid slug', async () => {
     const res = await deleteStop({ params: { slug: '../etc', id: 'lake' } });
+    expect(res.status).toBe(400);
+    expect(mocks.deleteCandidateStop).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /api/candidates/[slug]/stops/[id] returns 400 for malformed id (#496)', async () => {
+    const res = await deleteStop({ params: { slug: 't', id: '../../home' } });
     expect(res.status).toBe(400);
     expect(mocks.deleteCandidateStop).not.toHaveBeenCalled();
   });

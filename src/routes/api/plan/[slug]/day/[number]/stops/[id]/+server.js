@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { removeStopFromDay, moveStopToDay } from '$lib/server/plan.js';
-import { invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
+import { invalidateEnrichCache, rejectInvalidSlug, rejectInvalidId } from '$lib/server/data.js';
 
 function parseDayNumber(raw) {
   const n = Number(raw);
@@ -10,6 +10,8 @@ function parseDayNumber(raw) {
 export async function DELETE({ params }) {
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
+  const invalidId = rejectInvalidId(params.id);
+  if (invalidId) return invalidId;
   const dayNumber = parseDayNumber(params.number);
   if (dayNumber === null) return json({ error: 'invalid day number' }, { status: 400 });
   try {
@@ -24,6 +26,8 @@ export async function DELETE({ params }) {
 export async function PATCH({ params, request }) {
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
+  const invalidId = rejectInvalidId(params.id);
+  if (invalidId) return invalidId;
   const dayNumber = parseDayNumber(params.number);
   if (dayNumber === null) return json({ error: 'invalid day number' }, { status: 400 });
   const body = await request.json().catch(() => ({}));

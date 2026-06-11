@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { setTodoDone } from '$lib/server/candidates.js';
-import { invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
+import { invalidateEnrichCache, rejectInvalidSlug, rejectInvalidId } from '$lib/server/data.js';
 
 /**
  * PATCH toggles the `done` flag for a single todo on a stop candidate. Body shape:
@@ -11,6 +11,8 @@ import { invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
 export async function PATCH({ params, request }) {
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
+  const invalidId = rejectInvalidId(params.id) || rejectInvalidId(params.todoId);
+  if (invalidId) return invalidId;
   let body;
   try { body = await request.json(); } catch { body = {}; }
   if (typeof body?.done !== 'boolean') {

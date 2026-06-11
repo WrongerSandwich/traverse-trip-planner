@@ -1,10 +1,12 @@
 import { json } from '@sveltejs/kit';
 import { deleteCandidateLodging, setCandidateHidden } from '$lib/server/candidates.js';
-import { invalidateEnrichCache, rejectInvalidSlug } from '$lib/server/data.js';
+import { invalidateEnrichCache, rejectInvalidSlug, rejectInvalidId } from '$lib/server/data.js';
 
 export async function DELETE({ params }) {
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
+  const invalidId = rejectInvalidId(params.id);
+  if (invalidId) return invalidId;
   try {
     deleteCandidateLodging(params.slug, params.id);
     invalidateEnrichCache();
@@ -23,6 +25,8 @@ export async function DELETE({ params }) {
 export async function PATCH({ params, request }) {
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
+  const invalidId = rejectInvalidId(params.id);
+  if (invalidId) return invalidId;
   let body;
   try { body = await request.json(); } catch { body = {}; }
   if (typeof body?.hidden !== 'boolean') {

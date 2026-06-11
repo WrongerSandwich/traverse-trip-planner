@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { setStopCapture } from '$lib/server/candidates.js';
-import { invalidateEnrichCache, rejectInvalidSlug, findTripLocation } from '$lib/server/data.js';
+import { invalidateEnrichCache, rejectInvalidSlug, rejectInvalidId, findTripLocation } from '$lib/server/data.js';
 
 const MAX_NOTE = 2000;
 const VALID_STATUS = new Set(['visited', 'skipped']);
@@ -14,6 +14,8 @@ const VALID_STATUS = new Set(['visited', 'skipped']);
 export async function PATCH({ params, request }) {
   const invalid = rejectInvalidSlug(params.slug);
   if (invalid) return invalid;
+  const invalidId = rejectInvalidId(params.id);
+  if (invalidId) return invalidId;
 
   const loc = findTripLocation(params.slug);
   if (!loc || loc.kind !== 'dir') return json({ code: 'trip_not_found' }, { status: 404 });

@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   isValidSlug,
   rejectInvalidSlug,
+  isValidCandidateId,
+  rejectInvalidId,
   isSafeIdeaPath,
   assertSafeIdeaPath,
 } from '../src/lib/server/data.js';
@@ -90,6 +92,49 @@ describe('rejectInvalidSlug', () => {
     const res = rejectInvalidSlug(undefined);
     expect(res).toBeInstanceOf(Response);
     expect(res.status).toBe(400);
+  });
+});
+
+describe('isValidCandidateId / rejectInvalidId', () => {
+  // Candidate / stop / lodging / todo ids are minted by makeCandidateId() —
+  // kebab-case ASCII with an optional `-N` suffix, fallback `candidate` (#496).
+  it('accepts well-formed candidate ids', () => {
+    expect(isValidCandidateId('lake-mcdonald')).toBe(true);
+    expect(isValidCandidateId('lake-mcdonald-2')).toBe(true);
+    expect(isValidCandidateId('candidate')).toBe(true);
+    expect(isValidCandidateId('a')).toBe(true);
+    expect(isValidCandidateId('a'.repeat(200))).toBe(true); // generous cap for long names
+  });
+
+  it('rejects traversal / path / regex-shaped ids', () => {
+    expect(isValidCandidateId('../../home')).toBe(false);
+    expect(isValidCandidateId('foo/bar')).toBe(false);
+    expect(isValidCandidateId('/etc/passwd')).toBe(false);
+    expect(isValidCandidateId('lake..mcdonald')).toBe(false);
+    expect(isValidCandidateId('.*')).toBe(false);
+  });
+
+  it('rejects uppercase, whitespace, null bytes, leading dash, empty / non-string', () => {
+    expect(isValidCandidateId('Lake-McDonald')).toBe(false);
+    expect(isValidCandidateId('lake mcdonald')).toBe(false);
+    expect(isValidCandidateId('lake\0mcdonald')).toBe(false);
+    expect(isValidCandidateId('-lake')).toBe(false);
+    expect(isValidCandidateId('')).toBe(false);
+    expect(isValidCandidateId(null)).toBe(false);
+    expect(isValidCandidateId(undefined)).toBe(false);
+    expect(isValidCandidateId(42)).toBe(false);
+  });
+
+  it('rejects ids past the (generous) length cap', () => {
+    expect(isValidCandidateId('a'.repeat(201))).toBe(false);
+  });
+
+  it('rejectInvalidId returns null for a valid id and 400 otherwise', async () => {
+    expect(rejectInvalidId('lake-mcdonald')).toBeNull();
+    const res = rejectInvalidId('../../home');
+    expect(res).toBeInstanceOf(Response);
+    expect(res.status).toBe(400);
+    expect(await res.text()).toMatch(/invalid/i);
   });
 });
 
