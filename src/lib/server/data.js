@@ -1195,7 +1195,28 @@ async function enrichTripsImpl() {
   //      seed/add/deepen request just inserted — see #273)
   const generationStable = enrichGeneration === startGen;
   if (trips.length > 0 && completedEnumeration && generationStable) {
-    pruneCaches(liveRouteKeys, liveImageKeys, liveGeocodeKeys);
+    // Snapshot race (#489): liveImageKeys/liveGeocodeKeys were collected at the
+    // START of enrichment, but the prune runs at the END. Anything cached in
+    // between — a candidate added to an existing trip, an image fetched
+    // concurrently — is absent from the early snapshot and would be wrongly
+    // pruned, wasting Nominatim/Pexels quota and flickering pins/photos on the
+    // next load. Re-walk the FS at GC time and UNION the fresh static keys with
+    // the early snapshot (which still holds the loop-accumulated route keys and
+    // the image keys whose plans we parsed inline). The generation guard (#3)
+    // already catches trip-level mutations; this also covers intra-trip
+    // candidate adds and concurrent cache writes within the enrichment window.
+    let pruneGeocodeKeys = liveGeocodeKeys;
+    let pruneImageKeys = liveImageKeys;
+    try {
+      const fresh = collectLiveCacheKeys();
+      pruneGeocodeKeys = new Set([...liveGeocodeKeys, ...fresh.geocodes]);
+      pruneImageKeys = new Set([...liveImageKeys, ...fresh.images]);
+    } catch (e) {
+      // A transient FS error during the re-walk must not turn the GC into a
+      // wipe — fall back to the early snapshot (conservative: prunes less).
+      console.warn('enrichTrips: live-key re-walk failed, using start-of-run snapshot —', e?.message ?? e);
+    }
+    pruneCaches(liveRouteKeys, pruneImageKeys, pruneGeocodeKeys);
   } else if (trips.length > 0 && !completedEnumeration) {
     console.warn('enrichTrips: skipping cache prune due to partial enrichment');
   } else if (trips.length > 0 && !generationStable) {
