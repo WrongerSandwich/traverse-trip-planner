@@ -160,6 +160,10 @@ export const ERROR_REGISTRY = {
     sentence: 'A previous research job was interrupted by a server restart. Try re-running it.',
     affordances: ['retry', 'dismiss'],
   },
+  registry_persist_failed: {
+    sentence: "Couldn't save the background-jobs registry to disk — your data/.cache/ directory may be read-only or full. Live jobs still work, but an interrupted job may not be recoverable after a restart. Check disk space and permissions.",
+    affordances: ['dismiss'],
+  },
   forbidden_remote_write: {
     sentence: 'Config writes are restricted to loopback. Set TRAVERSE_ALLOW_LAN_WRITES=1 to permit LAN writes (after confirming the network is trusted), or set TRUST_PROXY_FOR_AUTH=1 if running behind a reverse proxy. See docs/deploy.md.',
     affordances: ['dismiss'],

@@ -6,7 +6,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // a prefix. `statSync(p)` returns {isDirectory, mtime} based on whether the
 // path is a known dir or a known file.
 
-const fs = { files: {}, dirs: new Set() };
+const fs = { files: {}, dirs: new Set(), failPaths: [] };
+
+// Force a write to throw when its target path contains any registered
+// substring. Used to simulate a read-only `.cache/` (EACCES) or full disk
+// (ENOSPC) so we can assert persistRegistry() surfaces the failure rather
+// than swallowing it. atomicWrite writes to `${path}.tmp` first, so matching
+// on a substring catches the temp-file write too.
+function shouldFailWrite(p) {
+  return fs.failPaths.some((needle) => p.includes(needle));
+}
 
 function pathExists(p) {
   return p in fs.files || fs.dirs.has(p);
@@ -39,6 +48,9 @@ vi.mock('node:fs', async (importOriginal) => {
       return fs.files[p].content;
     },
     writeFileSync: (p, content) => {
+      if (shouldFailWrite(p)) {
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+      }
       const prev = fs.files[p];
       setFile(p, content, prev?.mtimeMs ?? Date.now());
     },
@@ -111,6 +123,7 @@ const ORIGINAL_CWD = process.cwd;
 beforeEach(() => {
   fs.files = {};
   fs.dirs = new Set();
+  fs.failPaths = [];
   ensureDir(ROOT);
   ensureDir(DATA);
   ensureDir(`${DATA}/ideas`);
@@ -416,6 +429,104 @@ describe('cancelJob', () => {
 
   it('is a no-op for an unknown job', () => {
     expect(() => cancelJob('deepen', 'never-started')).not.toThrow();
+  });
+});
+
+// ─── Registry persistence failures (#492) ────────────────────────────────────
+//
+// When the central `.cache/.jobs.json` write fails (read-only `.cache/`, full
+// disk), the registry MUST NOT swallow the error. A silent swallow desyncs the
+// in-memory map from disk and — worse — leaves the boot sweep with a stale or
+// missing file, so an interrupted trip never gets `last_run_error: 'interrupted'`.
+// The fix: surface the failure to callers (throw), escalate the log to
+// error level, and emit a one-shot in-app warning event for the indicator.
+
+describe('registry persistence failures', () => {
+  function withSilencedError(fn) {
+    const original = console.error;
+    const calls = [];
+    console.error = (...args) => { calls.push(args.join(' ')); };
+    try {
+      fn(calls);
+    } finally {
+      console.error = original;
+    }
+    return calls;
+  }
+
+  it('startJob throws when the registry write fails (no silent swallow)', () => {
+    seedIdea('marfa-tx');
+    fs.failPaths = ['.jobs.json'];
+
+    withSilencedError(() => {
+      expect(() => startJob('deepen', 'marfa-tx')).toThrow();
+    });
+  });
+
+  it('logs the persistence failure at error level, not warn', () => {
+    seedIdea('marfa-tx');
+    fs.failPaths = ['.jobs.json'];
+
+    const warns = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => { warns.push(args.join(' ')); };
+
+    const errors = withSilencedError(() => {
+      try { startJob('deepen', 'marfa-tx'); } catch { /* expected */ }
+    });
+    console.warn = originalWarn;
+
+    // Escalated from console.warn → console.error.
+    expect(errors.some((l) => l.includes('[jobs]') && l.includes('persist'))).toBe(true);
+    expect(warns.some((l) => l.includes('persist'))).toBe(false);
+  });
+
+  it('emits a one-shot failure event so the indicator can surface the desync', () => {
+    seedIdea('marfa-tx');
+    fs.failPaths = ['.jobs.json'];
+
+    withSilencedError(() => {
+      try { startJob('deepen', 'marfa-tx'); } catch { /* expected */ }
+    });
+
+    const events = listRecentEvents();
+    const warn = events.find((e) => e.code === 'registry_persist_failed');
+    expect(warn).toBeDefined();
+    expect(warn.outcome).toBe('failure');
+  });
+
+  it('completeJob propagates the registry write failure to its caller', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx'); // succeeds — registry writable here
+
+    fs.failPaths = ['.jobs.json']; // now make the next persist fail
+    withSilencedError(() => {
+      expect(() => completeJob('deepen', 'marfa-tx', { tokens: 100 })).toThrow();
+    });
+  });
+
+  it('failJob propagates the registry write failure to its caller', () => {
+    seedIdea('marfa-tx');
+    startJob('deepen', 'marfa-tx');
+
+    fs.failPaths = ['.jobs.json'];
+    withSilencedError(() => {
+      expect(() => failJob('deepen', 'marfa-tx', { code: 'provider_error' })).toThrow();
+    });
+  });
+
+  it('keeps the in-memory map authoritative even when persistence fails on startJob', () => {
+    seedIdea('marfa-tx');
+    fs.failPaths = ['.jobs.json'];
+
+    withSilencedError(() => {
+      try { startJob('deepen', 'marfa-tx'); } catch { /* expected */ }
+    });
+
+    // The in-memory entry is still present — live reads (listJobs / the 10s
+    // poll) must not be affected by a disk-persistence failure.
+    expect(listJobs()).toHaveLength(1);
+    expect(listJobs()[0].slug).toBe('marfa-tx');
   });
 });
 
