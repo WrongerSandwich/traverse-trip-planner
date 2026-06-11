@@ -49,9 +49,13 @@ export function _startGeocodeCandidatesJob(slug) {
 
   (async () => {
     try {
-      await geocodeCandidatesJob(slug, { signal: job.controller.signal });
+      const summary = await geocodeCandidatesJob(slug, { signal: job.controller.signal });
       try {
-        completeJob('geocode-candidates', slug);
+        // Thread the partial-failure counts through completeJob so the
+        // trip-detail banner / job event can note "X stops couldn't be
+        // pinned" instead of the data silently looking incomplete (#488).
+        const failed = (summary?.geocodeFailures ?? 0) + (summary?.reverseFailures ?? 0);
+        completeJob('geocode-candidates', slug, failed > 0 ? { partial_failures: failed } : {});
       } catch (e) {
         console.error(`[geocode-candidates] ${slug}: completeJob threw after success:`, e?.message ?? e);
       }

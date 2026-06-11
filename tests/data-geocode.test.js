@@ -264,8 +264,9 @@ describe('geocodeWaypoints(): cache + off-axis eviction', () => {
     // Now call geocodeWaypoints with home + dest such that Council Bluffs is on the corridor.
     const HOME = [38.97, -94.69];
     const DEST = [41.83, -95.93];
-    const coords = await mod.geocodeWaypoints(['Council Bluffs IA'], { homeCoords: HOME, destCoords: DEST });
+    const { coords, error } = await mod.geocodeWaypoints(['Council Bluffs IA'], { homeCoords: HOME, destCoords: DEST });
     expect(coords).toEqual([[41.2588, -95.8519]]);
+    expect(error).toBeNull();
     // Only the initial seed fetch — no re-fetch
     expect(seedFetch).toHaveBeenCalledTimes(1);
     // suppress unused
@@ -302,7 +303,7 @@ describe('geocodeWaypoints(): cache + off-axis eviction', () => {
     // Now geocodeWaypoints with proper context — the cached (40.92, -93.13) is
     // ~120 mi off the Overland Park → Pisgah corridor, so it should be evicted
     // and re-geocoded.
-    const coords = await mod.geocodeWaypoints(['Honey Creek IA'], {
+    const { coords } = await mod.geocodeWaypoints(['Honey Creek IA'], {
       homeCoords: HOME, destCoords: DEST,
     });
     expect(fetchCalls).toBe(2);
@@ -324,9 +325,26 @@ describe('geocodeWaypoints(): cache + off-axis eviction', () => {
     const initialCalls = globalThis.fetch.mock.calls.length;
 
     // Without context, no eviction — cache value is returned as-is.
-    const coords = await mod.geocodeWaypoints(['Honey Creek IA']);
+    const { coords } = await mod.geocodeWaypoints(['Honey Creek IA']);
     expect(coords).toEqual([[40.92, -93.13]]);
     // No additional fetch
     expect(globalThis.fetch.mock.calls.length).toBe(initialCalls);
+  });
+
+  // ── #488: surface swallowed rate-limit instead of silently truncating ──
+  it('surfaces a geocode_quota error when Nominatim rate-limits a waypoint', async () => {
+    // Make the post-429-retry sleep instant so the test doesn't wait 2s.
+    const realSetTimeout = globalThis.setTimeout;
+    vi.stubGlobal('setTimeout', (cb) => realSetTimeout(cb, 0));
+    // Every fetch returns 429 → geocode() retries once then throws geocode_quota.
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 429, json: async () => [] })));
+
+    const { coords, error } = await mod.geocodeWaypoints(['Anytown USA rate-limited']);
+
+    // No coord resolved, and the transient failure is surfaced rather than
+    // swallowed into a silently-shorter array.
+    expect(coords).toEqual([]);
+    expect(error).toBeTruthy();
+    expect(error.code).toBe('geocode_quota');
   });
 });

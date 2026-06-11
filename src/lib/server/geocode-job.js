@@ -33,7 +33,11 @@ import {
 /**
  * @param {string} slug
  * @param {{ signal?: AbortSignal }} [opts]
- * @returns {Promise<void>}
+ * @returns {Promise<{ geocodeFailures: number, reverseFailures: number } | undefined>}
+ *   A summary of swallowed failures so the caller can surface a "X stops
+ *   couldn't be pinned / addressed" hint instead of the data just looking
+ *   incomplete (#488). Returns `undefined` only when there's no candidates
+ *   file (nothing was attempted).
  */
 export async function geocodeCandidatesJob(slug, opts = {}) {
   const signal = opts.signal;
@@ -54,7 +58,22 @@ export async function geocodeCandidatesJob(slug, opts = {}) {
     const fm = parseFrontmatter(overviewRaw) || {};
     destinationContext = fm.destination ?? '';
   }
-  const refCoords = await getDestinationRefCoords(destinationContext);
+  // getDestinationRefCoords throws if Nominatim is down (#488 point 3). The
+  // ref coord is only a disambiguation aid — degrade to `null` (bare-name
+  // geocoding without distance-gating) rather than crashing the whole job.
+  let refCoords = null;
+  try {
+    refCoords = await getDestinationRefCoords(destinationContext);
+  } catch (e) {
+    console.warn(`[geocode-candidates] ${slug}: ref-coords lookup failed, continuing without disambiguation —`, e?.message ?? e);
+  }
+
+  // Count swallowed failures so the job can report partial completion (#488
+  // point 2). A forward-geocode miss (geocodeCandidate → null) and a
+  // reverse-geocode miss (reverseGeocode → null) both leave a candidate
+  // looking incomplete; tracking them lets the caller surface a hint.
+  let geocodeFailures = 0;
+  let reverseFailures = 0;
 
   // Build the work list from the initial read so we know which ids to
   // process. We re-read candidates inside the loop on each iteration so any
@@ -105,6 +124,9 @@ export async function geocodeCandidatesJob(slug, opts = {}) {
       if (coordsArr) {
         target.coords = { lat: coordsArr[0], lng: coordsArr[1] };
         needsWrite = true;
+      } else {
+        // Forward geocode found no plausible match — the pin won't appear.
+        geocodeFailures++;
       }
     }
     if (!coordsArr) continue;
@@ -118,9 +140,22 @@ export async function geocodeCandidatesJob(slug, opts = {}) {
       if (addr) {
         target.address = addr;
         needsWrite = true;
+      } else {
+        // Reverse geocode failed (HTTP error, rate-limit, empty response) —
+        // the stop keeps its coords but renders with a blank address. Count
+        // it so the job can report how many addresses we couldn't backfill.
+        reverseFailures++;
       }
     }
 
     if (needsWrite) writeCandidates(slug, fresh);
   }
+
+  if (geocodeFailures > 0 || reverseFailures > 0) {
+    console.warn(
+      `[geocode-candidates] ${slug}: ${geocodeFailures} stop(s) couldn't be pinned, ` +
+      `${reverseFailures} address(es) couldn't be resolved`,
+    );
+  }
+  return { geocodeFailures, reverseFailures };
 }

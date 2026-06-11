@@ -291,6 +291,11 @@ export async function geocode(destination, opts = {}) {
       geocodeDirty = true;
       return { coords, fromCache: false };
     } catch (e) {
+      // A TraverseError (e.g. geocode_quota from the 429 branch above) is a
+      // deliberate typed signal — let it propagate so callers can distinguish
+      // a transient rate-limit from a genuine miss (#488). Only the generic
+      // network/parse errors get the retry-then-null treatment.
+      if (e instanceof TraverseError) throw e;
       if (attempt === 0) { await sleep(500); continue; }
       console.warn('geocode error for', destination, '—', e.message);
       return { coords: null, fromCache: false };
@@ -965,11 +970,23 @@ export function collectLiveCacheKeys(trips = collectTrips()) {
  *
  * Without context (homeCoords/destCoords missing), both behaviors are
  * skipped: viewbox is omitted and stale cached values are trusted.
+ *
+ * Return shape (#488): `{ coords, error }`.
+ *   - `coords` is the array of resolved `[lat, lon]` pairs (possibly shorter
+ *     than `waypoints` when some lookups missed or were rate-limited).
+ *   - `error` is `null` on a clean run, or a `TraverseError` (currently only
+ *     `geocode_quota`) when a transient failure was swallowed mid-loop. This
+ *     lets callers distinguish "Nominatim genuinely had no result" (shorter
+ *     array, `error: null`) from "the route line is incomplete because we got
+ *     rate-limited" (`error.code === 'geocode_quota'`) and surface a banner.
+ *
+ * Non-quota errors still propagate by throwing, as before.
  */
 export async function geocodeWaypoints(waypoints, { homeCoords, destCoords } = {}) {
   const wps = Array.isArray(waypoints) ? waypoints : [waypoints];
   const viewbox = buildViewbox(homeCoords, destCoords);
   const geocoded = [];
+  let error = null;
   for (const wp of wps) {
     // Self-heal: if a cached coord lies far off the home→dest corridor it's
     // almost certainly a wrong-disambiguation hit (a same-named river or
@@ -987,12 +1004,15 @@ export async function geocodeWaypoints(waypoints, { homeCoords, destCoords } = {
     } catch (e) {
       if (e instanceof TraverseError && e.code === 'geocode_quota') {
         console.warn('geocode rate-limited during enrichment for', wp);
+        // Surface the transient failure to the caller rather than silently
+        // dropping it. Keep the first one — a single banner is enough.
+        if (!error) error = e;
       } else {
         throw e;
       }
     }
   }
-  return geocoded;
+  return { coords: geocoded, error };
 }
 // 30-second memo on the enriched trip list so rapid-fire page loads (multiple
 // browser tabs, F5 spam) don't re-walk the file system. Mutating endpoints
@@ -1128,7 +1148,7 @@ async function enrichTripsImpl() {
         trip._route_status = trip.route_status;
       }
       if (trip.waypoints) {
-        const geocoded = await geocodeWaypoints(trip.waypoints, {
+        const { coords: geocoded, error: geocodeError } = await geocodeWaypoints(trip.waypoints, {
           homeCoords,
           destCoords: trip._coords,
         });
@@ -1141,9 +1161,12 @@ async function enrichTripsImpl() {
         } else {
           // Waypoints present but none geocoded — set a status code so the UI
           // can signal "route unavailable" rather than silently showing no line.
+          // Distinguish a transient rate-limit (geocode_quota) from a genuine
+          // miss so the badge can say "try again" rather than "no route" (#488).
           trip._has_route = false;
           if (!trip._route_status) {
-            trip._route_status = 'geocode_failed';
+            trip._route_status =
+              geocodeError?.code === 'geocode_quota' ? 'geocode_quota' : 'geocode_failed';
           }
         }
       } else {
@@ -1204,7 +1227,7 @@ export async function getTripRoute(slug) {
     // any trip enrichTrips has already touched, so this is free in practice.
     const homeCoords = getHome()?.coords ?? null;
     const destCoords = fm.destination ? (await geocode(fm.destination)).coords : null;
-    const geocoded = await geocodeWaypoints(fm.waypoints, { homeCoords, destCoords });
+    const { coords: geocoded } = await geocodeWaypoints(fm.waypoints, { homeCoords, destCoords });
     if (geocoded.length < 2) { flushCaches(); return null; }
     const route = await fetchRoute(geocoded);
     flushCaches();
