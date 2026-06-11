@@ -49,30 +49,47 @@
   let tripFiles = $state(null);
   let activeTab  = $state('overview');
   let loading    = $state(false);
+  let loadError  = $state(/** @type {string | null} */ (null));
+  // Bumped to retrigger the section-files fetch effect (Retry after a failure).
+  let loadNonce  = $state(0);
 
   $effect(() => {
     const slug = trip?._slug;
-    if (!slug) { tripFiles = null; return; }
+    // Re-read the nonce so a Retry re-runs this effect for the same slug.
+    loadNonce;
+    if (!slug) { tripFiles = null; loadError = null; return; }
 
     const controller = new AbortController();
     loading = true;
+    loadError = null;
     tripFiles = null;
 
     fetch(`/api/trip/${encodeURIComponent(slug)}`, { signal: controller.signal })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(d => {
         tripFiles = d;
         activeTab = Object.keys(d?.files || {})[0] || 'overview';
       })
       .catch(err => {
         // Ignore aborts — panel closed or trip changed before fetch completed.
-        if (err.name !== 'AbortError') console.warn('[DetailPanel] fetch error:', err);
+        if (err.name === 'AbortError') return;
+        console.warn('[DetailPanel] fetch error:', err);
+        // Surface a recoverable error instead of leaving the panel stuck in
+        // its loading state forever (#493).
+        loadError = failureSentence('section_load_failed');
       })
       .finally(() => { loading = false; });
 
     // Abort if the slug changes or the component is destroyed.
     return () => { controller.abort(); };
   });
+
+  function retryLoad() {
+    loadNonce += 1;
+  }
 
   const tabs = $derived(Object.keys(tripFiles?.files || {}).filter(k => tripFiles.files[k]));
   const renderedContent = $derived.by(() => {
@@ -178,6 +195,11 @@
   <div class="body">
     {#if loading}
       <div class="empty">Reading the file…</div>
+    {:else if loadError}
+      <div class="empty load-error" role="alert">
+        <p>{loadError}</p>
+        <button class="btn btn-secondary btn-compact" onclick={retryLoad}>Retry</button>
+      </div>
     {:else if !tripFiles || tabs.length === 0}
       <div class="empty">
         <p>Nothing researched yet.</p>
@@ -411,6 +433,8 @@
     line-height: 1.7;
   }
   .empty-hint { margin-top: 0.5rem; font-size: 0.8rem; }
+  .load-error { color: var(--text-secondary); }
+  .load-error p { margin: 0 0 0.9rem; }
 
   /* ── Danger zone (archive) ── */
   .danger-zone {

@@ -110,6 +110,10 @@ export const ERROR_REGISTRY = {
     sentence: "Couldn't save. Try again, or check the server log if it keeps happening.",
     affordances: ['retry', 'dismiss'],
   },
+  section_load_failed: {
+    sentence: "Couldn't load this trip's files. Check your connection and retry.",
+    affordances: ['retry', 'dismiss'],
+  },
   image_search_failed: {
     sentence: 'No photos found for that search. Try different words.',
     affordances: ['retry', 'dismiss'],

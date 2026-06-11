@@ -17,6 +17,7 @@
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import { focusTrap } from '$lib/actions/focusTrap.js';
   import { serializeFilters, parseFilters, FILTER_STORAGE_KEY } from '$lib/utils/filterPersist.js';
+  import { bookmarkRevertValue, normalizeStarred } from '$lib/utils/bookmarkToggle.js';
 
   let { data } = $props();
 
@@ -292,18 +293,44 @@
 
   function isStarred(trip) {
     if (bookmarkOverrides[trip._slug] !== undefined) return bookmarkOverrides[trip._slug];
-    return trip.starred === 'true' || trip.starred === true;
+    return normalizeStarred(trip.starred);
   }
+
+  // Serialize toggles per slug so rapid double-toggles run in order against
+  // the server (the endpoint flips state on each POST). Without this, two
+  // concurrent POSTs race and the optimistic override can settle on a value
+  // that disagrees with the server (#493).
+  let bookmarkChains = {};
 
   async function toggleBookmark(trip, e) {
     e?.stopPropagation();
     const slug = trip._slug;
-    const current = isStarred(trip);
-    bookmarkOverrides[slug] = !current; // optimistic
+    bookmarkOverrides[slug] = !isStarred(trip); // optimistic flip
+
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/bookmark/${encodeURIComponent(slug)}`, { method: 'POST' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // Trust the server-confirmed state rather than our optimistic guess —
+        // the endpoint returns the authoritative { slug, starred }.
+        const body = await res.json().catch(() => null);
+        if (body && typeof body.starred === 'boolean') {
+          bookmarkOverrides[slug] = body.starred;
+        }
+      } catch {
+        // Revert to the last server-confirmed value, not a pre-flip snapshot.
+        bookmarkOverrides[slug] = bookmarkRevertValue(normalizeStarred(trip.starred));
+      }
+    };
+
+    // Chain onto any in-flight request for this slug so they apply in order.
+    const prev = bookmarkChains[slug] ?? Promise.resolve();
+    const next = prev.then(run, run);
+    bookmarkChains[slug] = next;
     try {
-      await fetch(`/api/bookmark/${encodeURIComponent(slug)}`, { method: 'POST' });
-    } catch {
-      bookmarkOverrides[slug] = current; // revert
+      await next;
+    } finally {
+      if (bookmarkChains[slug] === next) delete bookmarkChains[slug];
     }
   }
 
