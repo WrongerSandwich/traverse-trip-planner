@@ -32,6 +32,32 @@ run after each substantive change. Batching multiple changes into one
 verify run means debugging multiple problems at once instead of catching
 each as it surfaces.
 
+## Spinning up a worktree
+
+Use `scripts/new-worktree.sh <name>` rather than a bare `git worktree add`. It
+handles four things a raw worktree does not, each of which has bitten us:
+
+1. **Non-hidden path.** `svelte-check` silently checks `0 FILES` (vacuously
+   green — `npm run check` passes without checking anything) when any parent
+   directory is dot-prefixed (e.g. `.claude/worktrees/*`). The script refuses
+   hidden paths and defaults to `../traverse-wt/<name>`.
+2. **`node_modules`** symlinked from the main checkout (a bare worktree has none;
+   per-worktree `npm install` is slow and mutates a shared tree).
+3. **Dev credentials** symlinked in as `.env` — gitignored secrets don't travel
+   into a worktree, so `npm run smoke` and `npm run dev` would otherwise run
+   keyless. Source file defaults to `~/.config/traverse/dev.env` (override with
+   `$TRAVERSE_DEV_ENV`); these are deliberately separate from the home-server
+   production keys so a throwaway worktree can't touch the production budget.
+   If the file is missing the script scaffolds it from `scripts/dev.env.example`.
+4. **`svelte-kit sync`** so `.svelte-kit/tsconfig.json` exists.
+
+```
+scripts/new-worktree.sh fix-geocode                 # → ../traverse-wt/fix-geocode on branch fix-geocode
+scripts/new-worktree.sh receipts -b feat/receipts --seed   # also seeds demo trips for manual UI QA
+```
+
+Tear down with `git worktree remove <path>` once the branch is merged.
+
 ## Non-obvious things
 
 A short list of patterns and constraints that aren't visible from grepping
