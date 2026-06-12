@@ -125,6 +125,23 @@ describe('load — no plan', () => {
     const result = await load({ params: { slug: 'st-louis' }, url: makeUrl() });
     expect(result.hasPlan).toBe(false);
   });
+
+  // Regression: a plan with an empty days array (e.g. a research model that
+  // returned candidates but never assembled day cards) must degrade to the
+  // documented "No day-by-day plan yet" empty state, not 500 the Today view
+  // by indexing days[selected - 1] === undefined and reading .date on the page.
+  it('returns hasPlan: false (not a crash) when days is an empty array', async () => {
+    mockDeriveBrochure.mockReturnValue(makeBrochure(makeDays([])));
+    const result = await load({ params: { slug: 'st-louis' }, url: makeUrl() });
+    expect(result.hasPlan).toBe(false);
+    expect(result.day).toBeUndefined();
+  });
+
+  it('returns hasPlan: false for empty days even with an explicit ?day param', async () => {
+    mockDeriveBrochure.mockReturnValue(makeBrochure(makeDays([])));
+    const result = await load({ params: { slug: 'st-louis' }, url: makeUrl('?day=1') });
+    expect(result.hasPlan).toBe(false);
+  });
 });
 
 // ── Day selection — ?day param ─────────────────────────────────────────────────

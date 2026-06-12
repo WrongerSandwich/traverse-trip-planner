@@ -49,7 +49,12 @@ export async function load({ params, url }) {
     console.warn(`deriveBrochure failed for ${slug}:`, err.message);
   }
 
-  if (!brochureData) {
+  // No plan, or a plan with zero day cards (e.g. a research run that produced
+  // candidates but never assembled days): degrade to the documented
+  // "No day-by-day plan yet" empty state rather than indexing into an empty
+  // days array and crashing the page on data.day.date. Mirrors the brochure's
+  // tolerance of an empty plan.
+  if (!brochureData || !brochureData.days?.length) {
     return {
       hasPlan: false,
       trip,
