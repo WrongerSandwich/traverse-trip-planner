@@ -1,4 +1,7 @@
-node_modules/
+# Match both the directory and a `node_modules` symlink (git-worktree dev
+# setup symlinks it — a trailing-slash pattern misses the symlink, which then
+# slips into `git add -A`).
+node_modules
 .svelte-kit/
 build/
 .DS_Store
