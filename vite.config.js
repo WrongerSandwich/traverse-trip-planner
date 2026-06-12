@@ -1,8 +1,29 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig, searchForWorkspaceRoot } from 'vite';
+import { realpathSync } from 'node:fs';
+
+// In a git-worktree dev setup (scripts/new-worktree.sh), node_modules is a
+// symlink into the main checkout. Its realpath therefore lives OUTSIDE the
+// worktree root, so Vite's dev-server fs allow-list (default: the workspace
+// root) 403s the client runtime served from there — the page SSR-loads but
+// never hydrates. Allow that realpath too, but ONLY when node_modules is
+// actually symlinked, so normal checkouts are unaffected. Dev-server only;
+// no effect on the production build.
+function symlinkedModulesRealpath() {
+  try {
+    const real = realpathSync('node_modules');
+    return real.startsWith(realpathSync('.')) ? null : real;
+  } catch {
+    return null; // no node_modules yet
+  }
+}
+const extraFsAllow = symlinkedModulesRealpath();
 
 export default defineConfig({
   plugins: [sveltekit()],
+  ...(extraFsAllow
+    ? { server: { fs: { allow: [searchForWorkspaceRoot(process.cwd()), extraFsAllow] } } }
+    : {}),
   test: {
     // Exclude git worktrees under .claude/worktrees/ — they have their own
     // test suites that vitest would otherwise pick up when run from the root.
