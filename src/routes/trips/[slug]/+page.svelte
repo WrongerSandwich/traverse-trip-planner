@@ -15,6 +15,7 @@
   import { focusTrap } from '$lib/actions/focusTrap.js';
   import { filterJobsForSlug } from '$lib/utils/jobLabels.js';
   import { isSectionsDirty } from '$lib/utils/sectionDirty.js';
+  import { partitionPaletteUpdates } from '$lib/utils/paletteUpdates.js';
   import { hasWaypoints } from '$lib/utils/waypoints.js';
   import { mapsDeepLinkSummary } from '$lib/utils/maps-links.js';
   import { browser } from '$app/environment';
@@ -352,6 +353,13 @@
   let actionError = $state(/** @type {null | {code: string, ctx?: object}} */ (null));
   function dismissActionError() { actionError = null; }
 
+  // Notice surfaced when a palette response targeted a section the user was
+  // mid-edit on: their draft is preserved, the model's version waits in the
+  // section overlay (#494). Not a failure — a heads-up — so it's a plain
+  // string banner, not an ERROR_REGISTRY code.
+  let paletteConflictNotice = $state(/** @type {string | null} */ (null));
+  function dismissPaletteConflictNotice() { paletteConflictNotice = null; }
+
   async function researchSection(section) {
     if (deepenSectionRunning) return;
     const ok = await showConfirm({
@@ -525,6 +533,13 @@
       const updates = body.updates || {};
       const turnAt = Date.now();
 
+      // Split the updates by whether the target section currently has an open
+      // textarea edit. Sections being edited are "queued": their unsaved draft
+      // must survive (#494), so we record the diff overlay but do NOT overwrite
+      // local content or close the editor — the overlay surfaces once the user
+      // saves/cancels (editing renders ahead of the overlay).
+      const { applied, queued } = partitionPaletteUpdates(updates, editing);
+
       // Record per-section pending edits BEFORE mutating local sections so
       // the "before" snapshot is the pre-turn content. If a section already
       // has a pending edit from a previous turn, mark the old one as
@@ -547,14 +562,16 @@
 
       // Apply the writes locally so the in-section overlay can diff against
       // the new content. The server already wrote to disk; this just keeps
-      // the page in sync without a full invalidateAll() round-trip.
-      for (const [section, content] of Object.entries(updates)) {
-        sections[section] = content;
-        if (editing[section]) {
-          editing[section] = false;
-          delete drafts[section];
-        }
+      // the page in sync without a full invalidateAll() round-trip. Only
+      // `applied` sections (not in edit mode) are mutated here.
+      for (const section of applied) {
+        sections[section] = updates[section];
       }
+      // Queued sections keep their unsaved draft; tell the user their edit was
+      // preserved and the model's version is waiting in the section overlay.
+      paletteConflictNotice = queued.length > 0
+        ? `Kept your unsaved edit${queued.length > 1 ? 's' : ''} to ${queued.join(', ')}. ${data.assistantName}'s version is waiting below — save or cancel your edit to review it.`
+        : null;
       // Refresh server-loaded data (frontmatter waypoints, drive hours, etc.)
       // so the trip card meta and map reflect any overview-frontmatter edits.
       if (Object.keys(updates).length > 0) await invalidateAll();
@@ -1485,6 +1502,13 @@
         </div>
       {/if}
 
+      {#if paletteConflictNotice}
+        <div class="palette-conflict-banner" role="status" aria-live="polite">
+          <span class="action-error-text">{paletteConflictNotice}</span>
+          <button class="action-error-dismiss" onclick={dismissPaletteConflictNotice} aria-label="Dismiss">Dismiss</button>
+        </div>
+      {/if}
+
     </main>
   </div>
 
@@ -2219,6 +2243,28 @@
   .action-error-dismiss:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
+  }
+
+  /* Palette/edit conflict heads-up — warning tone, not danger: the user's
+     edit was preserved, this is informational (#494). */
+  .palette-conflict-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.7rem 0.55rem 0.85rem;
+    background: var(--state-warning-surface);
+    border: 1px solid var(--state-warning);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    margin-top: 0.5rem;
+  }
+  .palette-conflict-banner .action-error-dismiss {
+    color: var(--state-warning);
+  }
+  .palette-conflict-banner .action-error-dismiss:hover {
+    background: color-mix(in oklab, var(--state-warning) 8%, transparent);
+    border-color: var(--state-warning);
   }
 
   /* ── Dangling-candidate-id integrity banner ──
