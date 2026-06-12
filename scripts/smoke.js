@@ -26,7 +26,10 @@ console.log('──────────────────────�
 let passed = 0;
 let failed = 0;
 
-const PROBE_TIMEOUT_MS = 10_000;
+// 30s, not 10s: a reasoning model (gpt-5-mini, gpt-oss) running a multi-turn
+// web-search tool loop legitimately takes 10–20s. 10s produced flaky timeouts
+// that read as failures; 30s still catches a genuine hang.
+const PROBE_TIMEOUT_MS = 30_000;
 
 async function probe(name, fn) {
   process.stdout.write(`  ${name.padEnd(38)} `);
@@ -47,9 +50,16 @@ async function probe(name, fn) {
 
 const tinyMessages = [{ role: 'user', content: 'Reply with the single word OK and nothing else.' }];
 
+// Reasoning models (gpt-5-mini, gpt-oss, gemini-*-flash thinking) reserve
+// output budget for hidden reasoning before emitting the visible answer. A
+// 10-token ceiling is below their floor — they either 400 or return an empty
+// final channel, producing a false smoke failure unrelated to connectivity.
+// 256 leaves room to think and still answer; the cost is a fraction of a cent.
+const PROBE_MAX_TOKENS = 256;
+
 if (d.modelDefault.ok) {
   await probe(`chat() default — ${d.modelDefault.provider}`, async () => {
-    const { text } = await chat({ ...config.modelDefault, label: 'smoke-default', system: 'Be terse.', messages: tinyMessages, maxTokens: 10 });
+    const { text } = await chat({ ...config.modelDefault, label: 'smoke-default', system: 'Be terse.', messages: tinyMessages, maxTokens: PROBE_MAX_TOKENS });
     if (!text.trim()) throw new Error('empty response');
   });
 } else {
@@ -58,7 +68,7 @@ if (d.modelDefault.ok) {
 
 if (d.modelResearch.ok) {
   await probe(`chat() research — ${d.modelResearch.provider}`, async () => {
-    const { text } = await chat({ ...config.modelResearch, label: 'smoke-research', system: 'Be terse.', messages: tinyMessages, maxTokens: 10 });
+    const { text } = await chat({ ...config.modelResearch, label: 'smoke-research', system: 'Be terse.', messages: tinyMessages, maxTokens: PROBE_MAX_TOKENS });
     if (!text.trim()) throw new Error('empty response');
   });
 } else {
