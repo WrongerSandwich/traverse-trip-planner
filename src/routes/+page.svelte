@@ -17,7 +17,7 @@
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import { focusTrap } from '$lib/actions/focusTrap.js';
   import { serializeFilters, parseFilters, FILTER_STORAGE_KEY } from '$lib/utils/filterPersist.js';
-  import { bookmarkRevertValue, normalizeStarred } from '$lib/utils/bookmarkToggle.js';
+  import { bookmarkRevertValue, normalizeStarred, confirmedStarredValue } from '$lib/utils/bookmarkToggle.js';
 
   let { data } = $props();
 
@@ -276,6 +276,11 @@
 
   // Optimistic bookmark overrides (slug → boolean) so toggles feel instant
   let bookmarkOverrides = $state({});
+  // Last server-confirmed starred per slug (slug → boolean), recorded on each
+  // successful toggle. `trip.starred` is only the page-load value and goes
+  // stale after a successful toggle (no invalidateAll), so revert-on-failure
+  // reads this instead — see confirmedStarredValue / #493(b).
+  let bookmarkConfirmed = $state({});
 
   // ── Confirm modal ──
   let confirmOpen  = $state(false);
@@ -316,10 +321,14 @@
         const body = await res.json().catch(() => null);
         if (body && typeof body.starred === 'boolean') {
           bookmarkOverrides[slug] = body.starred;
+          bookmarkConfirmed[slug] = body.starred; // record the server truth
         }
       } catch {
-        // Revert to the last server-confirmed value, not a pre-flip snapshot.
-        bookmarkOverrides[slug] = bookmarkRevertValue(normalizeStarred(trip.starred));
+        // Revert to the LAST server-confirmed value (not the page-load
+        // trip.starred, which goes stale after a prior successful toggle).
+        bookmarkOverrides[slug] = bookmarkRevertValue(
+          confirmedStarredValue(bookmarkConfirmed, slug, trip.starred)
+        );
       }
     };
 

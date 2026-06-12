@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bookmarkRevertValue, normalizeStarred } from '../src/lib/utils/bookmarkToggle.js';
+import { bookmarkRevertValue, normalizeStarred, confirmedStarredValue } from '../src/lib/utils/bookmarkToggle.js';
 
 describe('normalizeStarred', () => {
   it('treats the YAML string "true" and boolean true as starred', () => {
@@ -26,5 +26,22 @@ describe('bookmarkRevertValue', () => {
   it('coerces truthy/falsy confirmed values to a boolean', () => {
     expect(bookmarkRevertValue('true')).toBe(true);
     expect(bookmarkRevertValue(undefined)).toBe(false);
+  });
+});
+
+describe('confirmedStarredValue', () => {
+  it('falls back to the page-load starred when the slug was never confirmed', () => {
+    expect(confirmedStarredValue({}, 'a', 'true')).toBe(true);
+    expect(confirmedStarredValue({}, 'a', false)).toBe(false);
+    expect(confirmedStarredValue(undefined, 'a', true)).toBe(true);
+  });
+
+  it('prefers the last server-confirmed value over the stale page-load value', () => {
+    // The residual half of #493(b), reproduced manually: page load says
+    // starred=true, but a prior successful toggle confirmed it false on the
+    // server. A later FAILED toggle must revert to false (server truth), not
+    // the stale page-load true. Reverting to trip.starred alone got this wrong.
+    expect(confirmedStarredValue({ a: false }, 'a', 'true')).toBe(false);
+    expect(confirmedStarredValue({ a: true }, 'a', false)).toBe(true);
   });
 });

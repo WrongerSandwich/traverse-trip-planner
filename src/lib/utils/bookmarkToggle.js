@@ -29,3 +29,25 @@ export function bookmarkRevertValue(confirmedStarred) {
 export function normalizeStarred(starred) {
   return starred === 'true' || starred === true;
 }
+
+/**
+ * Resolve the last server-confirmed starred state for a slug.
+ *
+ * `bookmarkRevertValue` needs the *last server-confirmed* value, but the
+ * page-load `trip.starred` goes stale after any successful toggle in the same
+ * session (there's no invalidateAll). Track confirmations per slug and fall
+ * back to the page-load value only when a slug has never been confirmed.
+ *
+ * Without this, a failure *after* a prior successful toggle reverts the UI to
+ * the page-load value, which can disagree with the server — the residual half
+ * of #493(b): success → fail lands on the wrong value.
+ *
+ * @param {Record<string, boolean>} confirmedMap - per-slug last confirmed starred.
+ * @param {string} slug
+ * @param {unknown} loadStarred - the trip's page-load `starred` frontmatter.
+ * @returns {boolean}
+ */
+export function confirmedStarredValue(confirmedMap, slug, loadStarred) {
+  const confirmed = confirmedMap?.[slug];
+  return confirmed === undefined ? normalizeStarred(loadStarred) : !!confirmed;
+}
