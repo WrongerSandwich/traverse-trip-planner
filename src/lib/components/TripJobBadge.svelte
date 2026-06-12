@@ -78,8 +78,18 @@
   // Auto-close when the trip has no more jobs (e.g. after the user cancels
   // the last one and the parent's poll catches up).
   $effect(() => {
-    if (jobs.length === 0) open = false;
+    if (jobs.length === 0) closePanel(false);
   });
+
+  // Close the popover. When `restoreFocus` is true (every user-initiated
+  // close — Escape, click-outside, the ✕ button), return focus to the trigger
+  // so keyboard users aren't stranded on a detached element. The jobs-empty
+  // auto-close passes false: the badge unmounts entirely, so there's no
+  // trigger left to focus.
+  function closePanel(restoreFocus = true) {
+    open = false;
+    if (restoreFocus) triggerEl?.focus();
+  }
 
   // Click-outside + ESC close, only wired when open.
   $effect(() => {
@@ -87,12 +97,11 @@
     function onPointer(e) {
       if (triggerEl?.contains(e.target)) return;
       if (panelEl?.contains(e.target)) return;
-      open = false;
+      closePanel();
     }
     function onKey(e) {
       if (e.key === 'Escape') {
-        open = false;
-        triggerEl?.focus();
+        closePanel();
       }
     }
     document.addEventListener('mousedown', onPointer);
@@ -146,7 +155,7 @@
             <button
               type="button"
               class="popover-close"
-              onclick={() => (open = false)}
+              onclick={() => closePanel()}
               aria-label="Close"
             >✕</button>
           </header>

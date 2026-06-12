@@ -24,7 +24,7 @@
       L.marker(coords, {
         icon: L.divIcon({
           className: '',
-          html: `<div style="width:${interactive ? 12 : 10}px;height:${interactive ? 12 : 10}px;background:${color};border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+          html: `<div style="width:${interactive ? 12 : 10}px;height:${interactive ? 12 : 10}px;background:${color};border:2px solid var(--map-pin-stroke);border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
           iconSize: [interactive ? 12 : 10, interactive ? 12 : 10],
           iconAnchor: [interactive ? 6 : 5, interactive ? 6 : 5],
         }),
