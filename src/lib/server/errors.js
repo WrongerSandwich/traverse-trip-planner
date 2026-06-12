@@ -61,6 +61,34 @@ export function adapterErrorFromResponse({ provider, model, status, cause, detai
   });
 }
 
+/**
+ * Enforce the cumulative output-token ceiling across a tool-loop request.
+ *
+ * Adapters call this after accumulating each turn's usage. When the running
+ * `usage.output` total exceeds `ceiling`, it throws a typed
+ * `TraverseError('max_tokens_exceeded')` so the failure routes through
+ * ERROR_REGISTRY rather than surfacing a raw adapter error. The partial
+ * `usage` snapshot is attached to the error as `.usage` so chat() can still
+ * record the real (multi-turn) cost in workflow stats — otherwise an aborted
+ * runaway loop would report zero tokens and the p50 estimates would stay blind
+ * to it.
+ *
+ * @param {{ input: number, output: number, total: number, turns: number }} usage
+ * @param {number} ceiling
+ * @param {{ provider: string, model?: string }} ctx
+ */
+export function assertCumulativeOutputBudget(usage, ceiling, { provider, model } = {}) {
+  if (usage.output > ceiling) {
+    const head = model ? `${provider}/${model}` : provider;
+    const err = new TraverseError(
+      'max_tokens_exceeded',
+      `${head}: cumulative output ${usage.output} tokens over ${usage.turns} turns exceeds the per-request ceiling of ${ceiling}; aborting the tool loop.`,
+    );
+    err.usage = { ...usage };
+    throw err;
+  }
+}
+
 export function logAdapterError(err) {
   if (!(err instanceof AdapterError)) return;
   const head = `[${err.provider}${err.model ? `/${err.model}` : ''}]`;

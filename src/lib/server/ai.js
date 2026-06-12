@@ -58,6 +58,12 @@ export async function chat({ provider, model, system, messages, maxTokens, tools
     const result = await adapter.chat({ model, system, messages, maxTokens, tools, onToolCall, onActivity: wrappedActivity, signal, onText });
     u = result.usage || {};
     return result;
+  } catch (err) {
+    // A cumulative-ceiling abort (#495) carries the partial multi-turn usage so
+    // workflow stats reflect the real cost of the runaway loop, not zero. Other
+    // failures leave `u` empty (recorded as 0/0, as before).
+    if (err?.usage) u = err.usage;
+    throw err;
   } finally {
     const end = Date.now();
     const ms = end - start;

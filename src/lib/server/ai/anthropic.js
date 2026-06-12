@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AdapterError, formatSummary, logAdapterError } from '../errors.js';
+import { AdapterError, formatSummary, logAdapterError, assertCumulativeOutputBudget } from '../errors.js';
 import { resolveEnv } from '../settings.js';
-import { MAX_TOOL_TURNS } from '../providers.js';
+import { MAX_TOOL_TURNS, MAX_CUMULATIVE_OUTPUT_TOKENS } from '../providers.js';
 
 function translateTools(tools) {
   if (!tools || tools.length === 0) return undefined;
@@ -105,6 +105,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
     const turnOutput = response.usage?.output_tokens ?? 0;
     accumUsage(usage, response.usage);
     usage.total = usage.input + usage.output;
+    assertCumulativeOutputBudget(usage, MAX_CUMULATIVE_OUTPUT_TOKENS, { provider: 'anthropic', model });
 
     if (response.stop_reason === 'end_turn' || response.stop_reason === 'max_tokens') {
       onActivity?.({ type: 'turn', turn: turn + 1, elapsed_ms: Date.now() - turnStart, input: turnInput, output: turnOutput, tool_used: null });

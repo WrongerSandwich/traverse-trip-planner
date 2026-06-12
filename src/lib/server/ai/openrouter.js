@@ -1,8 +1,8 @@
 import { withRetry } from '../retry.js';
-import { adapterErrorFromResponse, logAdapterError } from '../errors.js';
+import { adapterErrorFromResponse, logAdapterError, assertCumulativeOutputBudget } from '../errors.js';
 import { resolveEnv } from '../settings.js';
 import { translateTools, findTool, translateMessages, accumUsage } from './openai-compat.js';
-import { MAX_TOOL_TURNS } from '../providers.js';
+import { MAX_TOOL_TURNS, MAX_CUMULATIVE_OUTPUT_TOKENS } from '../providers.js';
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 const REFERER = 'https://github.com/WrongerSandwich/traverse-trip-planner';
@@ -62,6 +62,7 @@ export async function chat({ model, system, messages, maxTokens, tools, onToolCa
     const turnOutput = data.usage?.completion_tokens ?? 0;
     accumUsage(usage, data.usage);
     usage.total = usage.input + usage.output;
+    assertCumulativeOutputBudget(usage, MAX_CUMULATIVE_OUTPUT_TOKENS, { provider: 'openrouter', model });
 
     const choice = data.choices?.[0];
     if (!choice) throw new Error('OpenRouter adapter: no choices returned.');
