@@ -1350,4 +1350,17 @@
     cursor: pointer;
   }
   .kebab-item:hover { background: var(--surface-sunken); }
+
+  /* Touch: the tool controls under the filter strip (Refresh metadata +
+     its kebab, the Add / Find-more panel's Submit / Close + text input)
+     all sit below the 44px floor on desktop. Floor them on phones, and
+     widen the dot-less "All" filter chip so it isn't a cramped 32px target. */
+  @media (pointer: coarse) {
+    .btn-inline { min-height: var(--tap-min); }
+    .kebab-btn { min-width: var(--tap-min); min-height: var(--tap-min); }
+    .panel-submit,
+    .panel-cancel { min-height: var(--tap-min); }
+    .panel-input { min-height: var(--tap-min); }
+    .chip--all { min-width: var(--tap-min); justify-content: center; }
+  }
 </style>

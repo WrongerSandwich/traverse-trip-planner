@@ -611,6 +611,24 @@
       padding: 0.6rem 0.85rem;
       font-size: 13px;
     }
+    /* To-do rows are real tap targets on a phone: full-height label,
+       larger box, and a little breathing room so adjacent items aren't
+       mis-tapped. */
+    .prep ul.todos {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .prep ul.todos li label {
+      min-height: var(--tap-min);
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .prep ul.todos li input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
   }
 
   .stop-card.compact .prep {

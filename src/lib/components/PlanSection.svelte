@@ -1268,9 +1268,17 @@
   }
   .nudge-btn:disabled { opacity: 0.3; cursor: not-allowed; }
   @media (pointer: coarse) {
+    /* On a phone the reorder controls reflow to a horizontal toolbar
+       beneath the (now full-width) stop card, so each arrow is a full
+       44px tap target side by side rather than a stretched vertical rail. */
+    .nudge-stack {
+      flex-direction: row;
+      gap: 0.4rem;
+    }
     .nudge-btn {
       width: var(--tap-min);
-      min-height: calc(var(--tap-min) / 2 - 1px);
+      min-height: var(--tap-min);
+      flex: 0 0 auto;
       font-size: 1rem;
     }
   }
@@ -1567,6 +1575,19 @@
       min-width: var(--tap-min);
       font-size: 0.95rem;
       padding: 0 12px;
+    }
+    /* Stop the reorder/move controls from stretching to the full card
+       height — they were rendering as 900px+ vertical rails that crushed
+       the stop content into a ~170px column. The card now takes the full
+       row width and the nudge + Move controls wrap to a compact toolbar
+       beneath it. */
+    .stop-row-controls {
+      flex-wrap: wrap;
+      align-items: center;
+      row-gap: 0.45rem;
+    }
+    .stop-row-controls > :global(.stop-card) {
+      flex: 1 1 100%;
     }
   }
 
