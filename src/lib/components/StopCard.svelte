@@ -126,6 +126,16 @@
     {#if promoted && !compact}
       <span class="in-plan-mark" title="In your plan" aria-label="In plan">●</span>
     {/if}
+    {#if compact && !readonly}
+      <button
+        type="button"
+        class="hide hide--head"
+        onclick={(e) => { e.stopPropagation(); onHide(); }}
+        title="Remove from this day"
+        aria-label="Remove {stop.name} from this day"
+        disabled={working}
+      >×</button>
+    {/if}
   </div>
 
   {#if summary && !compact}
@@ -249,7 +259,7 @@
         <a class="link" href={stop.source_url} target="_blank" rel="noreferrer noopener" onclick={(e) => e.stopPropagation()}>Source ↗</a>
       {/if}
     {/if}
-    {#if !readonly}
+    {#if !readonly && !compact}
       <button
         type="button"
         class="hide"
@@ -574,6 +584,10 @@
   }
   @media (pointer: coarse) {
     .drag-handle { display: none; }
+    /* In compact mode the footer's only content is the drag-handle (hidden
+       on touch) — the remove × now lives in the head. Drop the empty footer
+       so it can't add a phantom gap below the drawer. */
+    .stop-card.compact footer { display: none; }
   }
 
   /* Action buttons — compact density variant matching the .btn-inline
