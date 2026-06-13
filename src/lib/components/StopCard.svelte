@@ -83,13 +83,16 @@
   const hasDrawer = $derived(hasContactDetail || hasPrep);
   const drawerLabel = $derived.by(() => {
     const segs = [];
-    if (hasContactDetail) segs.push('Hours & contact');
-    if (hasPrep) {
-      const p = [];
-      if (hasTips) { const n = stop.tips.length; p.push(`${n} ${n === 1 ? 'tip' : 'tips'}`); }
-      if (hasTodos) { const n = stop.todos.length; p.push(`${n} ${n === 1 ? 'to-do' : 'to-dos'}`); }
-      segs.push(p.join(' · '));
+    // Lead with the actionable hook — outstanding to-dos are the real reason
+    // to open a stop while planning, not a count of how many metadata fields
+    // exist. Hours/contact trail as the reference tail.
+    if (hasTodos) {
+      const left = stop.todos.filter((t) => !t.done).length;
+      const n = stop.todos.length;
+      segs.push(left > 0 ? `${left} to-do${left === 1 ? '' : 's'} left` : `${n} to-do${n === 1 ? '' : 's'}`);
     }
+    if (hasTips) { const n = stop.tips.length; segs.push(`${n} tip${n === 1 ? '' : 's'}`); }
+    if (hasContactDetail) segs.push('hours & contact');
     return segs.join(' · ');
   });
 
@@ -120,23 +123,34 @@
   <div class="head">
     <span class="cat-badge" aria-hidden="true" title={stop.category}>{glyph}</span>
     <h4 class="name">{stop.name}</h4>
-    {#if distance != null}
+    {#if distance != null && !compact}
       <span class="distance" title="Distance from destination">{distance} mi</span>
     {/if}
     {#if promoted && !compact}
       <span class="in-plan-mark" title="In your plan" aria-label="In plan">●</span>
     {/if}
-    {#if compact && !readonly}
-      <button
-        type="button"
-        class="hide hide--head"
-        onclick={(e) => { e.stopPropagation(); onHide(); }}
-        title="Remove from this day"
-        aria-label="Remove {stop.name} from this day"
-        disabled={working}
-      >×</button>
-    {/if}
   </div>
+
+  <!-- Compact substats row — the name owns the line above; distance and the
+       remove-× drop here so a long stop name is never clipped to make room
+       for secondary chrome. -->
+  {#if compact && (distance != null || !readonly)}
+    <div class="compact-substats">
+      {#if distance != null}
+        <span class="distance" title="Distance from destination">{distance} mi</span>
+      {/if}
+      {#if !readonly}
+        <button
+          type="button"
+          class="hide hide--head"
+          onclick={(e) => { e.stopPropagation(); onHide(); }}
+          title="Remove from this day"
+          aria-label="Remove {stop.name} from this day"
+          disabled={working}
+        >×</button>
+      {/if}
+    </div>
+  {/if}
 
   {#if summary && !compact}
     <p class="summary">{summary}</p>
@@ -175,10 +189,10 @@
     <div class="compact-addr">
       {#if mapsUrl}
         <a class="meta-link meta-link--primary" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
-          <span class="meta-icon" aria-hidden="true">📍</span><span class="addr-text">{stop.address}</span>
+          <svg class="addr-pin" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="addr-text">{stop.address}</span>
         </a>
       {:else}
-        <span><span class="meta-icon" aria-hidden="true">📍</span><span class="addr-text">{stop.address}</span></span>
+        <span><svg class="addr-pin" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="addr-text">{stop.address}</span></span>
       {/if}
     </div>
   {/if}
@@ -351,6 +365,18 @@
     align-items: center;
     gap: 0.5rem;
   }
+  /* Secondary row under the name: distance on the left, remove-× pushed to
+     the right edge. Indented to sit under the name (past the badge). */
+  .stop-card.compact .compact-substats {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: calc(18px + 0.5rem);
+  }
+  .stop-card.compact .compact-substats .hide--head {
+    margin-left: auto;
+  }
   .stop-card.compact .cat-badge {
     width: 18px;
     height: 18px;
@@ -405,6 +431,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .compact-addr .addr-pin {
+    flex-shrink: 0;
+    color: var(--text-tertiary);
   }
 
   .head {
@@ -668,6 +698,20 @@
       min-height: var(--tap-min);
       padding: 0.6rem 0.85rem;
       font-size: 13px;
+    }
+    .link {
+      min-height: var(--tap-min);
+      display: inline-flex;
+      align-items: center;
+    }
+    /* Bound a pathological drawer (long hours + many tips/to-dos) so one
+       open stop can't fully swallow the phone screen. Generous cap, so
+       typical drawers are untouched; contained scroll so it doesn't
+       chain to the page. */
+    .stop-card.compact .prep-content {
+      max-height: 60vh;
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
     /* To-do rows are real tap targets on a phone: full-height label,
        larger box, and a little breathing room so adjacent items aren't

@@ -57,6 +57,10 @@
 
   // ── UI state ──
   let pickerOpen = $state(null); // day number or `lodging:${n}` (legacy click-fallback)
+  // Per-day actions menu (⋯). Holds the open day number or null. Destructive
+  // day removal lives here rather than as a bare × in the header, matching the
+  // detail page's lifecycle-menu pattern and reserving × for "remove an item".
+  let dayMenuOpen = $state(/** @type {number | null} */ (null));
   // Cross-day move picker for touch / keyboard users (the drag-handle
   // affordance is hidden on coarse pointers). Holds the stop being moved.
   let movePickerFor = $state(/** @type {null | { dayNumber: number, stopId: string }} */ (null));
@@ -195,6 +199,22 @@
   }
   function closeMovePicker() {
     movePickerFor = null;
+  }
+  // "Move" tap handler. With only one other day there's a single possible
+  // destination, so skip the picker and move directly; otherwise toggle the
+  // day picker. Avoids a one-option Hobson's-choice list on short trips.
+  function startMove(dayNumber, stopId) {
+    const others = (plan?.days ?? []).filter((d) => d.number !== dayNumber);
+    if (others.length === 1) {
+      if (movePickerFor) closeMovePicker();
+      moveStopAcrossDays(dayNumber, others[0].number, stopId);
+      return;
+    }
+    if (movePickerFor?.stopId === stopId && movePickerFor?.dayNumber === dayNumber) {
+      closeMovePicker();
+    } else {
+      openMovePicker(dayNumber, stopId);
+    }
   }
   async function moveViaPicker(toDay) {
     if (!movePickerFor) return;
@@ -512,6 +532,11 @@
   );
 </script>
 
+<svelte:window onpointerdown={(e) => {
+  if (dayMenuOpen == null) return;
+  if (!e.target?.closest?.('.day-menu-wrap')) dayMenuOpen = null;
+}} />
+
 {#if errorCode}
   <div class="banner-error" role="alert">
     <span>{failureSentence(errorCode, errorCtx)}</span>
@@ -621,14 +646,31 @@
           >+ date</button>
         {/if}
 
-        <button
-          type="button"
-          class="btn-inline btn-icon header-icon"
-          onclick={() => removeDay(day.number)}
-          disabled={working || readonly}
-          aria-label="Remove day"
-          title="Remove day"
-        >×</button>
+        {#if !readonly}
+          <div class="day-menu-wrap">
+            <button
+              type="button"
+              class="btn-inline btn-icon header-icon"
+              onclick={(e) => { e.stopPropagation(); dayMenuOpen = dayMenuOpen === day.number ? null : day.number; }}
+              disabled={working}
+              aria-label="Day actions"
+              aria-haspopup="menu"
+              aria-expanded={dayMenuOpen === day.number}
+              title="Day actions"
+            >⋯</button>
+            {#if dayMenuOpen === day.number}
+              <div class="day-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="day-menu-item day-menu-item--danger"
+                  onclick={() => { dayMenuOpen = null; removeDay(day.number); }}
+                  disabled={working}
+                >Remove day</button>
+              </div>
+            {/if}
+          </div>
+        {/if}
       </header>
 
       <!-- Notes at rest — first-class field, not edit-only as before. -->
@@ -719,7 +761,7 @@
                         type="button"
                         class="move-btn"
                         class:active={movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
-                        onclick={() => movePickerFor?.stopId === id ? closeMovePicker() : openMovePicker(day.number, id)}
+                        onclick={() => startMove(day.number, id)}
                         aria-label="Move {cand.name} to a different day"
                         title="Move to another day"
                         disabled={working}
@@ -1040,6 +1082,45 @@
     min-width: 1.6rem;
   }
 
+  /* Per-day actions menu (⋯) — mirrors CandidatesSection's refresh kebab.
+     Holds the confirm-gated "Remove day" so destructive day removal isn't a
+     bare × on the surface next to the per-stop remove ×. */
+  .day-menu-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+  .day-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.25rem;
+    background: var(--surface-raised);
+    border: 0.5px solid var(--border-default);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px var(--shadow-soft, rgba(0, 0, 0, 0.08));
+    z-index: 10;
+    min-width: 9rem;
+    overflow: hidden;
+  }
+  .day-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    padding: 0.5rem 0.7rem;
+    font-family: var(--font-sans);
+    font-size: 0.84rem;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .day-menu-item:hover:not(:disabled) { background: var(--surface-sunken); }
+  .day-menu-item:disabled { opacity: 0.5; cursor: not-allowed; }
+  .day-menu-item--danger { color: var(--state-danger); }
+  @media (pointer: coarse) {
+    .day-menu-item { min-height: var(--tap-min); }
+  }
+
   /* Header chip used for drive distance + date placeholders. Click toggles
      inline editing. Placeholder variant is muted so it doesn't compete
      with populated chips. */
@@ -1328,6 +1409,11 @@
     font-family: var(--font-sans);
     font-size: 0.78rem;
     color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .move-picker-head strong {
     color: var(--text-primary);
@@ -1673,6 +1759,12 @@
     .notes-add {
       min-height: var(--tap-min);
       padding: 0.5rem 0.85rem;
+    }
+    .banner-dismiss {
+      min-height: var(--tap-min);
+    }
+    .notes--editable {
+      min-height: var(--tap-min);
     }
   }
 
