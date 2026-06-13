@@ -69,6 +69,27 @@
     return desc;
   });
 
+  // Compact (in-day) prep disclosure — collapses tips + to-dos behind a
+  // summary so a Plan day card stays scannable instead of expanding every
+  // stop to full height. Mirrors TodayStopCard's label vocabulary so the
+  // planning and in-trip surfaces describe prep the same way. Only used in
+  // compact mode; the candidate-pool card doesn't render prep at all.
+  const hasTips = $derived(!!(stop.tips?.length));
+  const hasTodos = $derived(!!(stop.todos?.length));
+  const hasPrep = $derived(hasTips || hasTodos);
+  const prepLabel = $derived.by(() => {
+    const parts = [];
+    if (hasTips) {
+      const n = stop.tips.length;
+      parts.push(`${n} ${n === 1 ? 'tip' : 'tips'}`);
+    }
+    if (hasTodos) {
+      const n = stop.todos.length;
+      parts.push(`${n} ${n === 1 ? 'to-do' : 'to-dos'}`);
+    }
+    return `Tips & to-dos (${parts.join(' · ')})`;
+  });
+
   function handleDragStart(e) {
     if (!e.dataTransfer) return;
     e.dataTransfer.effectAllowed = 'move';
@@ -160,16 +181,21 @@
     </div>
   {/if}
 
-  {#if compact && (stop.tips?.length || stop.todos?.length)}
-    <div class="prep">
-      {#if stop.tips?.length}
+  {#if compact && hasPrep}
+    <details class="prep disclosure">
+      <summary class="disclosure-summary">
+        <span class="disclosure-chev" aria-hidden="true">›</span>
+        {prepLabel}
+      </summary>
+      <div class="prep-content">
+      {#if hasTips}
         <ul class="tips">
           {#each stop.tips as tip}
             <li>{tip}</li>
           {/each}
         </ul>
       {/if}
-      {#if stop.todos?.length}
+      {#if hasTodos}
         <ul class="todos">
           {#each stop.todos as todo (todo.id)}
             <li>
@@ -189,7 +215,8 @@
           {/each}
         </ul>
       {/if}
-    </div>
+      </div>
+    </details>
   {/if}
 
   <footer>
@@ -611,11 +638,35 @@
       padding: 0.6rem 0.85rem;
       font-size: 13px;
     }
+    /* To-do rows are real tap targets on a phone: full-height label,
+       larger box, and a little breathing room so adjacent items aren't
+       mis-tapped. */
+    .prep ul.todos {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .prep ul.todos li label {
+      min-height: var(--tap-min);
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .prep ul.todos li input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
   }
 
   .stop-card.compact .prep {
     flex-basis: 100%;
     margin-top: 0.4rem;
+  }
+  /* Flex lives on an inner wrapper, NOT the <details> itself — overriding
+     `display` on <details> can defeat the native collapse in some engines
+     (notably WebKit/iOS, the primary phone target). The <details> stays a
+     default block element so its closed content is reliably hidden. */
+  .stop-card.compact .prep-content {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
@@ -640,5 +691,38 @@
   .prep ul.todos span.done {
     text-decoration: line-through;
     opacity: 0.6;
+  }
+
+  /* Prep disclosure — collapses tips + to-dos behind a summary row so a
+     Plan day card stays scannable. Mirrors TodayStopCard's .disclosure
+     (chevron, tap-floor summary) for cross-surface consistency. The
+     dashed top rule separates prep from the meta above it. */
+  .stop-card.compact .prep.disclosure {
+    border-top: 1px dashed var(--border-subtle);
+    padding-top: 0.4rem;
+  }
+  .disclosure-summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: var(--tap-min);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--c, var(--accent-text));
+    user-select: none;
+  }
+  .disclosure-summary::-webkit-details-marker { display: none; }
+  .disclosure-chev {
+    font-size: 0.8rem;
+    line-height: 1;
+    transition: transform 0.15s ease;
+  }
+  .prep.disclosure[open] .disclosure-chev {
+    transform: rotate(90deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .disclosure-chev { transition: none; }
   }
 </style>
