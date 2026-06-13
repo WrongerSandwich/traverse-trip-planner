@@ -69,25 +69,28 @@
     return desc;
   });
 
-  // Compact (in-day) prep disclosure — collapses tips + to-dos behind a
-  // summary so a Plan day card stays scannable instead of expanding every
-  // stop to full height. Mirrors TodayStopCard's label vocabulary so the
-  // planning and in-trip surfaces describe prep the same way. Only used in
-  // compact mode; the candidate-pool card doesn't render prep at all.
+  // Compact (in-day) details drawer — on a Plan day card a stop shows only
+  // its identity at rest (badge + name + distance + a one-line address) and
+  // tucks hours, contact links, tips, and to-dos behind a single <details>
+  // drawer, so the day stays scannable instead of expanding every stop to
+  // full height. Mirrors TodayStopCard's collapse vocabulary; the difference
+  // is the Plan drawer also holds logistics (the Today view shows those in
+  // its body, where they're actionable). Only used in compact mode.
+  const hasContactDetail = $derived(!!(stop.hours || webUrl || telUrl));
   const hasTips = $derived(!!(stop.tips?.length));
   const hasTodos = $derived(!!(stop.todos?.length));
   const hasPrep = $derived(hasTips || hasTodos);
-  const prepLabel = $derived.by(() => {
-    const parts = [];
-    if (hasTips) {
-      const n = stop.tips.length;
-      parts.push(`${n} ${n === 1 ? 'tip' : 'tips'}`);
+  const hasDrawer = $derived(hasContactDetail || hasPrep);
+  const drawerLabel = $derived.by(() => {
+    const segs = [];
+    if (hasContactDetail) segs.push('Hours & contact');
+    if (hasPrep) {
+      const p = [];
+      if (hasTips) { const n = stop.tips.length; p.push(`${n} ${n === 1 ? 'tip' : 'tips'}`); }
+      if (hasTodos) { const n = stop.todos.length; p.push(`${n} ${n === 1 ? 'to-do' : 'to-dos'}`); }
+      segs.push(p.join(' · '));
     }
-    if (hasTodos) {
-      const n = stop.todos.length;
-      parts.push(`${n} ${n === 1 ? 'to-do' : 'to-dos'}`);
-    }
-    return `Tips & to-dos (${parts.join(' · ')})`;
+    return segs.join(' · ');
   });
 
   function handleDragStart(e) {
@@ -158,63 +161,63 @@
     </div>
   {/if}
 
-  {#if hasMeta && compact}
-    <div class="meta-stack" aria-label="Stop details">
-      {#if stop.address}
-        <div class="meta-line meta-line--addr">
-          {#if mapsUrl}
-            <a class="meta-link meta-link--primary" href={mapsUrl} target="_blank" rel="noopener" onclick={(e) => e.stopPropagation()}>
-              {stop.address} <span class="meta-cta">→ Maps</span>
-            </a>
-          {:else}
-            <span>{stop.address}</span>
-          {/if}
-        </div>
-      {/if}
-      {#if stop.hours}<div class="meta-line meta-line--hours">{stop.hours}</div>{/if}
-      {#if webUrl || telUrl}
-        <div class="meta-line meta-line--contact">
-          {#if webUrl}<a class="meta-link" href={webUrl} target="_blank" rel="noopener" onclick={(e) => e.stopPropagation()}>{webLabel} ↗</a>{/if}
-          {#if telUrl}<a class="meta-link" href={telUrl} onclick={(e) => e.stopPropagation()}>{stop.phone} ↗</a>{/if}
-        </div>
+  {#if compact && stop.address}
+    <div class="compact-addr">
+      {#if mapsUrl}
+        <a class="meta-link meta-link--primary" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
+          <span class="meta-icon" aria-hidden="true">📍</span><span class="addr-text">{stop.address}</span>
+        </a>
+      {:else}
+        <span><span class="meta-icon" aria-hidden="true">📍</span><span class="addr-text">{stop.address}</span></span>
       {/if}
     </div>
   {/if}
 
-  {#if compact && hasPrep}
+  {#if compact && hasDrawer}
     <details class="prep disclosure">
       <summary class="disclosure-summary">
         <span class="disclosure-chev" aria-hidden="true">›</span>
-        {prepLabel}
+        {drawerLabel}
       </summary>
       <div class="prep-content">
-      {#if hasTips}
-        <ul class="tips">
-          {#each stop.tips as tip}
-            <li>{tip}</li>
-          {/each}
-        </ul>
-      {/if}
-      {#if hasTodos}
-        <ul class="todos">
-          {#each stop.todos as todo (todo.id)}
-            <li>
-              <label
-                role="presentation"
-                onclick={(e) => e.stopPropagation()}
-              >
-                <input
-                  type="checkbox"
-                  checked={todo.done}
-                  disabled={readonly || working}
-                  onchange={(e) => onToggleTodo(todo.id, e.currentTarget.checked)}
-                />
-                <span class:done={todo.done}>{todo.text}</span>
-              </label>
-            </li>
-          {/each}
-        </ul>
-      {/if}
+        {#if hasContactDetail}
+          <div class="drawer-contact" aria-label="Hours and contact">
+            {#if stop.hours}<div class="meta-line meta-line--hours">{stop.hours}</div>{/if}
+            {#if webUrl || telUrl}
+              <div class="meta-line meta-line--contact">
+                {#if webUrl}<a class="meta-link" href={webUrl} target="_blank" rel="noopener" onclick={(e) => e.stopPropagation()}>{webLabel} ↗</a>{/if}
+                {#if telUrl}<a class="meta-link" href={telUrl} onclick={(e) => e.stopPropagation()}>{stop.phone} ↗</a>{/if}
+              </div>
+            {/if}
+          </div>
+        {/if}
+        {#if hasTips}
+          <ul class="tips">
+            {#each stop.tips as tip}
+              <li>{tip}</li>
+            {/each}
+          </ul>
+        {/if}
+        {#if hasTodos}
+          <ul class="todos">
+            {#each stop.todos as todo (todo.id)}
+              <li>
+                <label
+                  role="presentation"
+                  onclick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={todo.done}
+                    disabled={readonly || working}
+                    onchange={(e) => onToggleTodo(todo.id, e.currentTarget.checked)}
+                  />
+                  <span class:done={todo.done}>{todo.text}</span>
+                </label>
+              </li>
+            {/each}
+          </ul>
+        {/if}
       </div>
     </details>
   {/if}
@@ -324,10 +327,12 @@
     border-radius: 4px;
     background: transparent;
   }
+  /* Hover stays a quiet background wash only — no border, so a compact
+     stop never re-asserts a card-in-a-card outline inside the day card.
+     Keyboard focus still gets the shared focus-ring outline above. */
   .stop-card.compact:hover,
   .stop-card.compact:focus-visible {
     background: var(--surface-page);
-    border-color: var(--border-subtle);
   }
   .stop-card.compact .head {
     flex: 1 1 auto;
@@ -367,9 +372,29 @@
   .stop-card.compact .drag-dots {
     font-size: 0.75rem;
   }
-  .stop-card.compact .meta-stack {
+  /* Rest-state address — the single always-visible meta line on a compact
+     stop, clamped to one line. Indented under the name (past the badge) so
+     it reads as belonging to the stop above it. Everything else (hours,
+     links, prep) lives in the drawer. */
+  .stop-card.compact .compact-addr {
     flex-basis: 100%;
-    padding-left: calc(18px + 0.5rem); /* indent under the badge */
+    min-width: 0;
+    margin-top: 0.1rem;
+    padding-left: calc(18px + 0.5rem);
+    font-size: 0.8rem;
+  }
+  .compact-addr a,
+  .compact-addr > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .compact-addr .addr-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .head {
@@ -482,19 +507,16 @@
     white-space: nowrap;
   }
 
-  /* Compact mode (inside Plan day cards) — vertical stack, larger touch
-     targets, address gets primary visual weight. */
-  .meta-stack {
+  /* Hours + contact, shown inside the compact drawer (and on the
+     non-compact candidate card via the same line classes). */
+  .drawer-contact {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    margin-top: 0.25rem;
     font-size: 0.82rem;
     line-height: 1.4;
-    width: 100%;
   }
   .meta-line { color: var(--text-secondary); }
-  .meta-line--addr { font-weight: 500; }
   .meta-line--hours { color: var(--text-tertiary); font-style: italic; }
   .meta-line--contact { display: flex; gap: 0.8rem; flex-wrap: wrap; }
   .meta-link {
@@ -507,12 +529,7 @@
     color: var(--text-primary);
     border-bottom-color: color-mix(in oklab, var(--text-primary) 35%, transparent);
   }
-  .meta-cta {
-    color: var(--accent-text);
-    margin-left: 0.25rem;
-  }
   @media (pointer: coarse) {
-    .meta-line--addr a { min-height: var(--tap-min); display: inline-flex; align-items: center; }
     .meta-link { min-height: var(--tap-min); display: inline-flex; align-items: center; padding: 0.2rem 0; }
   }
 
@@ -693,14 +710,19 @@
     opacity: 0.6;
   }
 
-  /* Prep disclosure — collapses tips + to-dos behind a summary row so a
-     Plan day card stays scannable. Mirrors TodayStopCard's .disclosure
-     (chevron, tap-floor summary) for cross-surface consistency. The
-     dashed top rule separates prep from the meta above it. */
+  /* Details drawer — collapses hours/contact + tips + to-dos behind a
+     summary row so a Plan day card stays scannable. Mirrors TodayStopCard's
+     .disclosure (chevron, tap-floor summary) for cross-surface consistency.
+     No top rule: the only thing above it at rest is the one-line address,
+     and the inter-stop divider already carries structural separation. */
   .stop-card.compact .prep.disclosure {
-    border-top: 1px dashed var(--border-subtle);
-    padding-top: 0.4rem;
+    padding-top: 0.1rem;
   }
+  /* Summary label uses --text-secondary for guaranteed AA contrast on the
+     raised surface (the raw category color --c is too light on some tints,
+     e.g. view/quirky). The category accent lives on the chevron instead,
+     so the cross-reference to the badge/pin survives without risking
+     legibility. */
   .disclosure-summary {
     list-style: none;
     cursor: pointer;
@@ -710,13 +732,14 @@
     min-height: var(--tap-min);
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--c, var(--accent-text));
+    color: var(--text-secondary);
     user-select: none;
   }
   .disclosure-summary::-webkit-details-marker { display: none; }
   .disclosure-chev {
     font-size: 0.8rem;
     line-height: 1;
+    color: var(--c, var(--accent-text));
     transition: transform 0.15s ease;
   }
   .prep.disclosure[open] .disclosure-chev {

@@ -69,8 +69,9 @@
   let errorCode = $state(/** @type {string|null} */ (null));
   let errorCtx = $state(/** @type {Record<string,string>} */ ({}));
 
-  // Hide-with-undo toast for stop removal, mirroring CandidatesSection.
-  let hideToast = $state(/** @type {{ dayNumber: number, candidateId: string, name: string } | null} */ (null));
+  // Hide-with-undo toast for stop removal + lodging clear, mirroring
+  // CandidatesSection. `kind` discriminates how Undo restores the item.
+  let hideToast = $state(/** @type {{ kind: 'stop'|'lodging', dayNumber: number, candidateId: string, name: string } | null} */ (null));
   let hideToastTimer = null;
 
   // ── Drag-drop state ──
@@ -377,7 +378,7 @@
     const ok = await api(`/api/plan/${slug}/day/${dayNumber}/stops/${id}`, {
       method: 'DELETE',
     });
-    if (ok) queueHideToast({ dayNumber, candidateId: id, name });
+    if (ok) queueHideToast({ kind: 'stop', dayNumber, candidateId: id, name });
   }
 
   async function setLodging(dayNumber, candidateId) {
@@ -386,6 +387,23 @@
       body: JSON.stringify({ id: candidateId }),
     });
     pickerOpen = null;
+  }
+
+  // Clear a day's lodging with an undo toast — matches the stop-removal
+  // safety model so a fat-finger tap on the lodging × isn't an
+  // unrecoverable wipe of a chosen stay (the previous behavior cleared
+  // it silently and immediately).
+  async function clearLodgingWithUndo(dayNumber) {
+    const day = plan.days.find((d) => d.number === dayNumber);
+    const priorId = day?.lodging_id;
+    if (!priorId) return;
+    const cand = candidateById(priorId);
+    const name = cand?.name ?? priorId;
+    const ok = await api(`/api/plan/${slug}/day/${dayNumber}/lodging`, {
+      method: 'PUT',
+      body: JSON.stringify({ id: null }),
+    });
+    if (ok) queueHideToast({ kind: 'lodging', dayNumber, candidateId: priorId, name });
   }
 
   async function saveField(dayNumber, patch) {
@@ -433,14 +451,22 @@
   }
   async function undoHide() {
     if (!hideToast) return;
-    const { dayNumber, candidateId } = hideToast;
+    const { kind, dayNumber, candidateId } = hideToast;
     hideToast = null;
     if (hideToastTimer) { clearTimeout(hideToastTimer); hideToastTimer = null; }
-    // Re-promote: same endpoint that promotes candidates into days.
-    await api(`/api/plan/${slug}/promote`, {
-      method: 'POST',
-      body: JSON.stringify({ id: candidateId, day: dayNumber }),
-    });
+    if (kind === 'lodging') {
+      // Re-assign the lodging we just cleared.
+      await api(`/api/plan/${slug}/day/${dayNumber}/lodging`, {
+        method: 'PUT',
+        body: JSON.stringify({ id: candidateId }),
+      });
+    } else {
+      // Re-promote: same endpoint that promotes candidates into days.
+      await api(`/api/plan/${slug}/promote`, {
+        method: 'POST',
+        body: JSON.stringify({ id: candidateId, day: dayNumber }),
+      });
+    }
   }
   function dismissHideToast() {
     hideToast = null;
@@ -644,7 +670,7 @@
 
       <!-- Stops list — compact StopCards instead of bare flexbox rows. -->
       {#if day.stops.length > 0}
-        <ul class="stops-list" role="list">
+        <ul class="stops-list" role="list" aria-busy={working}>
           {#each day.stops as id, i (id)}
             {@const cand = candidateById(id)}
             <li
@@ -701,7 +727,8 @@
                     {/if}
                   </div>
                   {#if movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
-                    <div class="move-picker" role="listbox" aria-label="Move {cand.name} to which day">
+                    <div class="move-picker" role="group" aria-label="Move {cand.name} to which day">
+                      <p class="move-picker-head">Move <strong>{cand.name}</strong> to…</p>
                       {#each plan.days.filter((d) => d.number !== day.number) as target (target.number)}
                         {@const targetHeader = formatDayHeader(target)}
                         <button
@@ -715,6 +742,7 @@
                           <span class="move-picker-count">{target.stops.length} stop{target.stops.length === 1 ? '' : 's'}</span>
                         </button>
                       {/each}
+                      <button type="button" class="move-picker-cancel" onclick={closeMovePicker}>Cancel</button>
                     </div>
                   {/if}
                 {:else if candidates?.lodging?.find((l) => l.id === id)}
@@ -766,7 +794,7 @@
               {readonly}
               {working}
               showDragHandle={false}
-              onHide={() => setLodging(day.number, null)}
+              onHide={() => clearLodgingWithUndo(day.number)}
             />
           {:else}
             <div class="dangling-row" role="alert">
@@ -843,7 +871,7 @@
 
 <HideToast
   open={!!hideToast}
-  message={hideToast ? `Removed ${hideToast.name} from Day ${hideToast.dayNumber}.` : ''}
+  message={hideToast ? `${hideToast.kind === 'lodging' ? 'Cleared' : 'Removed'} ${hideToast.name} from Day ${hideToast.dayNumber}.` : ''}
   onUndo={undoHide}
   onDismiss={dismissHideToast}
 />
@@ -1294,6 +1322,33 @@
     background: var(--surface-sunken);
     border-radius: 5px;
   }
+  .move-picker-head {
+    margin: 0;
+    padding: 0.3rem 0.4rem 0.4rem;
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+  .move-picker-head strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .move-picker-cancel {
+    margin-top: 2px;
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    padding: 0.4rem 0.65rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.12s, color 0.12s;
+  }
+  .move-picker-cancel:hover {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
   .move-picker-item {
     display: grid;
     grid-template-columns: auto auto 1fr;
@@ -1580,14 +1635,44 @@
        height — they were rendering as 900px+ vertical rails that crushed
        the stop content into a ~170px column. The card now takes the full
        row width and the nudge + Move controls wrap to a compact toolbar
-       beneath it. */
+       beneath it. The toolbar hugs its own card (small row-gap) while a
+       generous gap separates one stop from the next, so the controls read
+       as the footer of the card above them, not the header of the one
+       below. A hairline between stops makes the boundary unambiguous so
+       the floating ↑/↓/Move toolbar can't be misread as the next stop's. */
+    .stops-list {
+      gap: 0;
+    }
+    .stop-row + .stop-row {
+      margin-top: 0.65rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--border-subtle);
+    }
     .stop-row-controls {
       flex-wrap: wrap;
       align-items: center;
-      row-gap: 0.45rem;
+      row-gap: 0.25rem;
     }
     .stop-row-controls > :global(.stop-card) {
       flex: 1 1 100%;
+    }
+    /* Remaining sub-44px tap targets: the click-fallback stop/lodging
+       picker rows, the move-to-day picker rows + its Cancel, and the
+       "+ Add notes" affordance. Floor them like the rest of the card. */
+    .picker-item {
+      min-height: var(--tap-min);
+      display: flex;
+      align-items: center;
+    }
+    .move-picker-item {
+      min-height: var(--tap-min);
+    }
+    .move-picker-cancel {
+      min-height: var(--tap-min);
+    }
+    .notes-add {
+      min-height: var(--tap-min);
+      padding: 0.5rem 0.85rem;
     }
   }
 
