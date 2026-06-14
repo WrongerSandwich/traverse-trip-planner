@@ -760,7 +760,9 @@
             {#if i > 0}
               {@const prevId = day.stops[i - 1]}
               {@const prevCand = candidateById(prevId)}
-              {@const seg = prevCand?.drive_to_next ?? {}}
+              {@const seg = (prevCand?.drive_to_next?.mi > 0)
+                ? prevCand.drive_to_next
+                : { mi: distanceMi(prevCand?.coords, cand?.coords) }}
               {@const connLabel = driveConnectorLabel(seg)}
               {#if connLabel}
                 <li class="drive-connector" aria-hidden="true">{connLabel}</li>
@@ -779,7 +781,7 @@
                       stop={cand}
                       compact={true}
                       promoted={true}
-                      distance={destCoords ? distanceMi(cand.coords, destCoords) : null}
+                      distance={null}
                       {readonly}
                       {working}
                       ondragstart={() => onStopDragStart(day.number, id, i, event)}
@@ -1359,9 +1361,11 @@
     gap: 2px;
   }
 
-  /* Drive connector — renders between consecutive stops when per-segment
-     drive data exists. At rest (no data) it never appears because
-     driveConnectorLabel returns null and the element is not rendered. */
+  /* Drive connector — renders between consecutive stops when both stops have
+     coords. Prefers real drive data (prevCand.drive_to_next.mi) when present;
+     falls back to straight-line Haversine distance between the two stops.
+     driveConnectorLabel returns null when mi is null/0, so pairs without
+     coords simply produce no connector element. */
   .drive-connector {
     display: flex;
     align-items: center;
