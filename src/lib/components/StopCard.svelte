@@ -131,27 +131,6 @@
     {/if}
   </div>
 
-  <!-- Compact substats row — the name owns the line above; distance and the
-       remove-× drop here so a long stop name is never clipped to make room
-       for secondary chrome. -->
-  {#if compact && (distance != null || !readonly)}
-    <div class="compact-substats">
-      {#if distance != null}
-        <span class="distance" title="Distance from destination">{distance} mi</span>
-      {/if}
-      {#if !readonly}
-        <button
-          type="button"
-          class="hide hide--head"
-          onclick={(e) => { e.stopPropagation(); onHide(); }}
-          title="Remove from this day"
-          aria-label="Remove {stop.name} from this day"
-          disabled={working}
-        >×</button>
-      {/if}
-    </div>
-  {/if}
-
   {#if summary && !compact}
     <p class="summary">{summary}</p>
   {/if}
@@ -185,14 +164,19 @@
     </div>
   {/if}
 
-  {#if compact && stop.address}
+  {#if compact && (stop.address || distance != null)}
     <div class="compact-addr">
-      {#if mapsUrl}
-        <a class="meta-link meta-link--primary" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
-          <svg class="addr-pin" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="addr-text">{stop.address}</span>
-        </a>
-      {:else}
-        <span><svg class="addr-pin" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="addr-text">{stop.address}</span></span>
+      {#if stop.address}
+        {#if mapsUrl}
+          <a class="meta-link meta-link--primary addr-link" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
+            <svg class="addr-pin" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="addr-text">{stop.address}</span>
+          </a>
+        {:else}
+          <span class="addr-link"><svg class="addr-pin" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="addr-text">{stop.address}</span></span>
+        {/if}
+      {/if}
+      {#if distance != null}
+        <span class="distance compact-distance" title="Distance from destination">{distance} mi</span>
       {/if}
     </div>
   {/if}
@@ -365,18 +349,6 @@
     align-items: center;
     gap: 0.5rem;
   }
-  /* Secondary row under the name: distance on the left, remove-× pushed to
-     the right edge. Indented to sit under the name (past the badge). */
-  .stop-card.compact .compact-substats {
-    flex-basis: 100%;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding-left: calc(18px + 0.5rem);
-  }
-  .stop-card.compact .compact-substats .hide--head {
-    margin-left: auto;
-  }
   .stop-card.compact .cat-badge {
     width: 18px;
     height: 18px;
@@ -418,14 +390,20 @@
     margin-top: 0.1rem;
     padding-left: calc(18px + 0.5rem);
     font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
   }
-  .compact-addr a,
-  .compact-addr > span {
+  .compact-addr .addr-link {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    max-width: 100%;
     min-width: 0;
+    flex: 0 1 auto;
+  }
+  .compact-addr .compact-distance {
+    flex-shrink: 0;
+    margin-left: auto;
   }
   .compact-addr .addr-text {
     overflow: hidden;

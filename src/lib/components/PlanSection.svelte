@@ -61,6 +61,10 @@
   // day removal lives here rather than as a bare × in the header, matching the
   // detail page's lifecycle-menu pattern and reserving × for "remove an item".
   let dayMenuOpen = $state(/** @type {number | null} */ (null));
+  // Per-day "arrange" mode. When set to a day number, that day's stops reveal
+  // their reorder / move / remove toolbar; at rest the cards are pure identity.
+  // Only one day arranges at a time.
+  let arrangingDay = $state(/** @type {number | null} */ (null));
   // Cross-day move picker for touch / keyboard users (the drag-handle
   // affordance is hidden on coarse pointers). Holds the stop being moved.
   let movePickerFor = $state(/** @type {null | { dayNumber: number, stopId: string }} */ (null));
@@ -598,6 +602,7 @@
     {@const header = formatDayHeader(day)}
     <article
       class="day-card"
+      class:arranging={arrangingDay === day.number}
       class:drop-target-active={dragOverDay === day.number && reorderDrag?.dayNumber !== day.number}
       class:drop-stop={dragOverDay === day.number && activeDragType !== 'lodging' && reorderDrag?.dayNumber !== day.number}
       class:drop-lodging={dragOverDay === day.number && activeDragType === 'lodging'}
@@ -661,29 +666,46 @@
         {/if}
 
         {#if !readonly}
-          <div class="day-menu-wrap">
+          {#if arrangingDay === day.number}
             <button
               type="button"
-              class="btn-inline btn-icon header-icon"
-              onclick={(e) => { e.stopPropagation(); dayMenuOpen = dayMenuOpen === day.number ? null : day.number; }}
-              disabled={working}
-              aria-label="Day actions"
-              aria-haspopup="menu"
-              aria-expanded={dayMenuOpen === day.number}
-              title="Day actions"
-            >⋯</button>
-            {#if dayMenuOpen === day.number}
-              <div class="day-menu" role="menu">
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="day-menu-item day-menu-item--danger"
-                  onclick={() => { dayMenuOpen = null; removeDay(day.number); }}
-                  disabled={working}
-                >Remove day</button>
-              </div>
-            {/if}
-          </div>
+              class="btn-inline btn-primary day-done"
+              onclick={() => { arrangingDay = null; }}
+            >Done</button>
+          {:else}
+            <div class="day-menu-wrap">
+              <button
+                type="button"
+                class="btn-inline btn-icon header-icon"
+                onclick={(e) => { e.stopPropagation(); dayMenuOpen = dayMenuOpen === day.number ? null : day.number; }}
+                disabled={working}
+                aria-label="Day actions"
+                aria-haspopup="menu"
+                aria-expanded={dayMenuOpen === day.number}
+                title="Day actions"
+              >⋯</button>
+              {#if dayMenuOpen === day.number}
+                <div class="day-menu" role="menu">
+                  {#if day.stops.length > 0}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="day-menu-item"
+                      onclick={() => { dayMenuOpen = null; arrangingDay = day.number; }}
+                      disabled={working}
+                    >Arrange stops</button>
+                  {/if}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="day-menu-item day-menu-item--danger"
+                    onclick={() => { dayMenuOpen = null; removeDay(day.number); }}
+                    disabled={working}
+                  >Remove day</button>
+                </div>
+              {/if}
+            </div>
+          {/if}
         {/if}
       </header>
 
@@ -747,39 +769,48 @@
                       {working}
                       ondragstart={() => onStopDragStart(day.number, id, i, event)}
                       ondragend={onStopDragEnd}
-                      onHide={() => removeStopWithUndo(day.number, id)}
                       onToggleTodo={(todoId, done) => toggleTodo(cand.id, todoId, done)}
                     />
-                    {#if !readonly && day.stops.length > 1}
-                      <div class="nudge-stack" role="group" aria-label="Reorder {cand.name}">
+                    {#if arrangingDay === day.number && !readonly}
+                      <div class="arrange-toolbar" role="group" aria-label="Arrange {cand.name}">
+                        {#if day.stops.length > 1}
+                          <button
+                            type="button"
+                            class="nudge-btn"
+                            onclick={() => nudgeStop(day.number, i, -1)}
+                            aria-label="Move {cand.name} up"
+                            title="Move up"
+                            disabled={working || i === 0}
+                          >↑</button>
+                          <button
+                            type="button"
+                            class="nudge-btn"
+                            onclick={() => nudgeStop(day.number, i, +1)}
+                            aria-label="Move {cand.name} down"
+                            title="Move down"
+                            disabled={working || i === day.stops.length - 1}
+                          >↓</button>
+                        {/if}
+                        {#if plan.days.length > 1}
+                          <button
+                            type="button"
+                            class="move-btn"
+                            class:active={movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
+                            onclick={() => startMove(day.number, id)}
+                            aria-label="Move {cand.name} to a different day"
+                            title="Move to another day"
+                            disabled={working}
+                          >Move</button>
+                        {/if}
                         <button
                           type="button"
-                          class="nudge-btn"
-                          onclick={() => nudgeStop(day.number, i, -1)}
-                          aria-label="Move {cand.name} up"
-                          title="Move up"
-                          disabled={working || i === 0}
-                        >↑</button>
-                        <button
-                          type="button"
-                          class="nudge-btn"
-                          onclick={() => nudgeStop(day.number, i, +1)}
-                          aria-label="Move {cand.name} down"
-                          title="Move down"
-                          disabled={working || i === day.stops.length - 1}
-                        >↓</button>
+                          class="arrange-remove"
+                          onclick={() => removeStopWithUndo(day.number, id)}
+                          aria-label="Remove {cand.name} from this day"
+                          title="Remove from this day"
+                          disabled={working}
+                        >✕</button>
                       </div>
-                    {/if}
-                    {#if !readonly && plan.days.length > 1}
-                      <button
-                        type="button"
-                        class="move-btn"
-                        class:active={movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
-                        onclick={() => startMove(day.number, id)}
-                        aria-label="Move {cand.name} to a different day"
-                        title="Move to another day"
-                        disabled={working}
-                      >Move</button>
                     {/if}
                   </div>
                   {#if movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
@@ -1025,6 +1056,12 @@
     background: var(--surface-raised);
     font-family: var(--font-sans);
     transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  /* Arrange mode — a quiet accent wash + border so it's clear which day's
+     stops are currently rearrangeable. */
+  .day-card.arranging {
+    border-color: color-mix(in oklab, var(--accent) 35%, var(--border-default));
+    background: color-mix(in oklab, var(--accent) 3%, var(--surface-raised));
   }
   /* Drop target affordance — dashed inset outline + accent border + soft
      accent wash. Differentiated by payload type so the user sees what
@@ -1297,48 +1334,80 @@
   .stop-row {
     position: relative;
   }
-  /* Stop-row flex container — holds the compact StopCard + the optional
-     "Move" button used by touch / keyboard users (drag handles hide on
-     coarse pointers). The button is visually de-emphasized when drag is
-     the natural gesture (fine pointers) so desktop users see the row as
-     the compact card alone. */
+  /* Stop-row container — holds the compact StopCard and, only while the day
+     is being arranged, the reorder/move/remove toolbar, which wraps to its
+     own full-width row beneath the card. */
   .stop-row-controls {
     display: flex;
-    align-items: stretch;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 0.25rem;
+    row-gap: 0.35rem;
   }
   .stop-row-controls > :global(.stop-card) {
-    flex: 1;
+    flex: 1 1 100%;
     min-width: 0;
   }
+
+  /* Arrange-mode toolbar — a horizontal row of reorder (↑ ↓), Move, and
+     remove (✕), shown only when the day is in arrange mode. Indented to
+     align under the card content. */
+  .arrange-toolbar {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-left: calc(18px + 0.5rem + 8px);
+  }
+  .nudge-btn,
+  .arrange-remove {
+    flex-shrink: 0;
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1;
+    min-width: 2rem;
+    padding: 0.25rem 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .nudge-btn:hover:not(:disabled) {
+    background: var(--surface-page);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+  .nudge-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .arrange-remove {
+    margin-left: auto;
+    color: var(--text-tertiary);
+  }
+  .arrange-remove:hover:not(:disabled) {
+    color: var(--state-danger);
+    border-color: var(--state-danger);
+  }
+  .arrange-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+
   .move-btn {
     flex-shrink: 0;
     background: transparent;
     border: 0.5px solid var(--border-default);
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     font-family: var(--font-sans);
-    font-size: 10.5px;
+    font-size: 11.5px;
     font-weight: 500;
     letter-spacing: 0.04em;
-    padding: 0 8px;
+    padding: 0.25rem 12px;
     border-radius: 4px;
     cursor: pointer;
-    transition: background-color 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
-    /* On hover-capable pointers, the button is hidden — drag is the
-       primary gesture there. Restored on coarse pointers and on focus
-       (keyboard users) below. */
-    opacity: 0;
-    pointer-events: none;
-  }
-  .stop-row-controls:focus-within .move-btn,
-  .move-btn:focus-visible,
-  .move-btn.active {
-    opacity: 1;
-    pointer-events: auto;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
   }
   .move-btn:hover:not(:disabled) {
     background: var(--surface-page);
-    color: var(--text-secondary);
+    color: var(--text-primary);
     border-color: var(--border-strong);
   }
   .move-btn.active {
@@ -1348,65 +1417,16 @@
   }
   .move-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   @media (pointer: coarse) {
-    .move-btn { opacity: 1; pointer-events: auto; }
-  }
-
-  /* Within-day reorder buttons — touch substitute for the drag handle on
-     the StopCard. ↑/↓ stacked so they take one column of the row instead
-     of two. Hidden by default on fine pointers (drag is the primary gesture);
-     revealed on focus-within and always on coarse pointers, matching the
-     .move-btn pattern. */
-  .nudge-stack {
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.12s;
-  }
-  .stop-row-controls:focus-within .nudge-stack,
-  .nudge-stack:focus-within {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  @media (pointer: coarse) {
-    .nudge-stack { opacity: 1; pointer-events: auto; }
-  }
-  .nudge-btn {
-    background: transparent;
-    border: 0.5px solid var(--border-default);
-    color: var(--text-tertiary);
-    font-family: var(--font-sans);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1;
-    padding: 0;
-    width: 26px;
-    flex: 1;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
-  }
-  .nudge-btn:hover:not(:disabled) {
-    background: var(--surface-page);
-    color: var(--text-secondary);
-    border-color: var(--border-strong);
-  }
-  .nudge-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-  @media (pointer: coarse) {
-    /* On a phone the reorder controls reflow to a horizontal toolbar
-       beneath the (now full-width) stop card, so each arrow is a full
-       44px tap target side by side rather than a stretched vertical rail. */
-    .nudge-stack {
-      flex-direction: row;
-      gap: 0.4rem;
-    }
-    .nudge-btn {
-      width: var(--tap-min);
+    .nudge-btn,
+    .arrange-remove {
+      min-width: var(--tap-min);
       min-height: var(--tap-min);
-      flex: 0 0 auto;
       font-size: 1rem;
+    }
+    .move-btn {
+      min-height: var(--tap-min);
+      font-size: 0.95rem;
+      padding: 0 12px;
     }
   }
 
@@ -1729,21 +1749,9 @@
       min-height: var(--tap-min);
       padding: 0.7rem 0.85rem;
     }
-    .move-btn {
-      min-height: var(--tap-min);
-      min-width: var(--tap-min);
-      font-size: 0.95rem;
-      padding: 0 12px;
-    }
-    /* Stop the reorder/move controls from stretching to the full card
-       height — they were rendering as 900px+ vertical rails that crushed
-       the stop content into a ~170px column. The card now takes the full
-       row width and the nudge + Move controls wrap to a compact toolbar
-       beneath it. The toolbar hugs its own card (small row-gap) while a
-       generous gap separates one stop from the next, so the controls read
-       as the footer of the card above them, not the header of the one
-       below. A hairline between stops makes the boundary unambiguous so
-       the floating ↑/↓/Move toolbar can't be misread as the next stop's. */
+    /* A hairline + breathing room between stops keeps the resting list of
+       places legible, and clearly bounds each stop when arrange mode adds
+       its toolbar. */
     .stops-list {
       gap: 0;
     }
@@ -1751,14 +1759,6 @@
       margin-top: 0.65rem;
       padding-top: 0.65rem;
       border-top: 1px solid var(--border-subtle);
-    }
-    .stop-row-controls {
-      flex-wrap: wrap;
-      align-items: center;
-      row-gap: 0.25rem;
-    }
-    .stop-row-controls > :global(.stop-card) {
-      flex: 1 1 100%;
     }
     /* Remaining sub-44px tap targets: the click-fallback stop/lodging
        picker rows, the move-to-day picker rows + its Cancel, and the
