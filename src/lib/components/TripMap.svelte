@@ -385,9 +385,15 @@
 <style>
   /* Wrapper holds both the map canvas and the hint overlay in a stacking
      context so the overlay can sit over the map without disrupting the map's
-     own z-index layers (Leaflet controls, popups, etc.). */
+     own z-index layers (Leaflet controls, popups, etc.).
+     `isolation: isolate` is what actually establishes that stacking context —
+     position:relative alone does not. Without it, Leaflet's internal panes and
+     controls (z-index up to 1000) compete at the root level and paint OVER app
+     chrome like the sticky header. Isolating here fixes it for every map
+     consumer (overview, candidates, rail) at the source. */
   .trip-map-wrap {
     position: relative;
+    isolation: isolate;
     width: 100%;
     height: 100%;
   }
