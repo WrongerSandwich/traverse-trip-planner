@@ -349,10 +349,18 @@
     align-items: center;
     gap: 0.5rem;
   }
+  /* In compact (Plan day card) mode the cat-badge becomes a solid square
+     icon-chip matching the T1 .cat-chip spec: filled with the full category
+     color, glyph in --text-inverse. Sized up slightly from the non-compact
+     circular form so it reads as a distinct visual anchor. */
   .stop-card.compact .cat-badge {
-    width: 18px;
-    height: 18px;
-    font-size: 0.7rem;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    font-size: 0.72rem;
+    background: var(--c, var(--cat-misc));
+    color: var(--text-inverse);
+    box-shadow: none;
   }
   .stop-card.compact .name {
     font-size: 0.92rem;
@@ -373,12 +381,17 @@
   .stop-card.compact .drag-handle {
     padding: 2px 5px;
     font-size: 9.5px;
-    /* Within-day reorder is a new gesture; keep the "drag" label so the
-       affordance is discoverable from inside a day card, not just from
-       the candidate-side rows the user already learned the gesture on. */
+  }
+  /* In compact mode show only the ⠿ grip glyph — no "drag" label text.
+     The gesture is discoverable from the Arrange mode button; the label
+     clutters the tight day-card row on mobile. Hidden on coarse pointers
+     entirely (existing @media rule above). */
+  .stop-card.compact .drag-label {
+    display: none;
   }
   .stop-card.compact .drag-dots {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
+    letter-spacing: -1px;
   }
   /* Rest-state address — the single always-visible meta line on a compact
      stop, clamped to one line. Indented under the name (past the badge) so
@@ -748,28 +761,32 @@
 
   /* Details drawer — collapses hours/contact + tips + to-dos behind a
      summary row so a Plan day card stays scannable. Mirrors TodayStopCard's
-     .disclosure (chevron, tap-floor summary) for cross-surface consistency.
-     No top rule: the only thing above it at rest is the one-line address,
-     and the inter-stop divider already carries structural separation. */
+     .disclosure (chevron, tap-floor summary) for cross-surface consistency. */
   .stop-card.compact .prep.disclosure {
     padding-top: 0.1rem;
   }
-  /* Summary label uses --text-secondary for guaranteed AA contrast on the
-     raised surface (the raw category color --c is too light on some tints,
-     e.g. view/quirky). The category accent lives on the chevron instead,
-     so the cross-reference to the badge/pin survives without risking
-     legibility. */
+  /* Disclosure summary styled as a pill: raised surface + subtle border +
+     rounded corners. Still a native <details> so keyboard/no-JS stays intact. */
   .disclosure-summary {
     list-style: none;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 0.4rem;
     min-height: var(--tap-min);
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: 0.76rem;
+    font-weight: 500;
     color: var(--text-secondary);
     user-select: none;
+    /* Pill treatment */
+    background: var(--surface-raised);
+    border: 0.5px solid var(--border-subtle);
+    border-radius: 999px;
+    padding: 0.25rem 0.65rem 0.25rem 0.5rem;
+  }
+  .disclosure-summary:hover {
+    border-color: var(--border-default);
+    color: var(--text-primary);
   }
   .disclosure-summary::-webkit-details-marker { display: none; }
   .disclosure-chev {

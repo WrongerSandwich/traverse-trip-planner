@@ -1393,7 +1393,13 @@
                 <span class="section-rule" aria-hidden="true"></span>
               </div>
             {:else}
-              <h2>{SECTION_LABELS[section] || section}</h2>
+              <h2 class:section-heading-serif={section === 'plan' || section === 'candidates'}>{SECTION_LABELS[section] || section}</h2>
+              {#if section === 'plan' && data.plan?.days?.length}
+                {@const planDays = data.plan.days}
+                {@const n = planDays.length}
+                {@const datesSet = planDays.filter((d) => d.date)}
+                <span class="section-plan-meta" aria-hidden="true">{n} day{n === 1 ? '' : 's'}{#if datesSet.length >= 2} · {datesSet[0].date.slice(5).replace('-', '/').replace(/^0/, '')}–{datesSet[datesSet.length - 1].date.slice(5).replace('-', '/').replace(/^0/, '')}{/if}</span>
+              {/if}
             {/if}
             {#if section === 'candidates' && candidatesPinHint}
               <span class="section-header-hint" aria-live="polite">{candidatesPinHint}</span>
@@ -1947,6 +1953,16 @@
     padding: 1.25rem 1.4rem 1.5rem;
   }
 
+  /* Tier-2 sections (Plan, Candidates) get the elevated card treatment:
+     larger radius, soft shadow, slightly more padding. No inner card is
+     added — this IS the card. */
+  #section-plan,
+  #section-candidates {
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 1.25rem 1.25rem 1.5rem;
+  }
+
   .section-header {
     display: flex;
     align-items: center;
@@ -1961,6 +1977,23 @@
     letter-spacing: -0.015em;
     color: var(--text-primary);
     margin: 0;
+  }
+  /* Tier-2 section headings (Plan, Candidates) use Fraunces serif per spec. */
+  .section-header h2.section-heading-serif {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  /* Right-aligned meta string on the Plan header (e.g. "2 days · Jun 20–21"). */
+  .section-plan-meta {
+    margin-left: auto;
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
   }
 
   /* ── Tier 1 — calm prose sections (Overview / Route / Logistics / …) ──

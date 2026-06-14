@@ -7,6 +7,7 @@
   import { failureSentence } from '$lib/errors-registry.js';
   import { formatDayHeader } from '$lib/format-date.js';
   import { nudgeJobsPoll } from '$lib/utils/jobs-store.js';
+  import { driveConnectorLabel } from '$lib/utils/drive-connector.js';
 
   let { plan, candidates, slug, destination = null, readonly = false } = $props();
 
@@ -587,15 +588,20 @@
         <span class="count">{prepDone} of {prepTotal} done</span>
         {#if !readonly}
           <div class="trip-prep-actions">
-            <button type="button" class="btn-inline" disabled={working} onclick={() => startStopPrep(false)}>
+            <button type="button" class="prep-chip" disabled={working} onclick={() => startStopPrep(false)}>
               Refresh prep
             </button>
-            <button type="button" class="btn-inline" disabled={working} onclick={confirmRegenerate}>
+            <button type="button" class="prep-chip" disabled={working} onclick={confirmRegenerate}>
               Re-generate all
             </button>
           </div>
         {/if}
       </div>
+      {#if prepTotal > 0}
+        <div class="trip-prep-bar" role="progressbar" aria-valuenow={prepDone} aria-valuemin={0} aria-valuemax={prepTotal} aria-label="Trip prep: {prepDone} of {prepTotal} done">
+          <div class="trip-prep-bar-fill" style="width: {Math.round((prepDone / prepTotal) * 100)}%"></div>
+        </div>
+      {/if}
     </div>
   {/if}
   {#each plan.days as day (day.number)}
@@ -751,6 +757,15 @@
         <ul class="stops-list" role="list" aria-busy={working}>
           {#each day.stops as id, i (id)}
             {@const cand = candidateById(id)}
+            {#if i > 0}
+              {@const prevId = day.stops[i - 1]}
+              {@const prevCand = candidateById(prevId)}
+              {@const seg = prevCand?.drive_to_next ?? {}}
+              {@const connLabel = driveConnectorLabel(seg)}
+              {#if connLabel}
+                <li class="drive-connector" aria-hidden="true">{connLabel}</li>
+              {/if}
+            {/if}
             <li
               class="stop-row"
               class:reorder-target={reorderOverIdx === i && reorderDrag?.dayNumber === day.number}
@@ -1049,26 +1064,30 @@
   /* ── Day card ───────────────────────────────────────────────────────── */
   .day-card {
     position: relative;
-    border: 1px solid var(--border-default);
-    border-radius: 6px;
-    padding: 0.85rem 1rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    /* 3px accent left edge — the signature Tier-2 day-card treatment. */
+    border-left: 3px solid var(--accent);
+    padding: 0.85rem 1rem 0.85rem 0.9rem;
     margin-bottom: 0.85rem;
-    background: var(--surface-raised);
+    background: var(--surface-page);
     font-family: var(--font-sans);
     transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   }
   /* Arrange mode — a quiet accent wash + border so it's clear which day's
      stops are currently rearrangeable. */
   .day-card.arranging {
-    border-color: color-mix(in oklab, var(--accent) 35%, var(--border-default));
-    background: color-mix(in oklab, var(--accent) 3%, var(--surface-raised));
+    border-color: color-mix(in oklab, var(--accent) 35%, var(--border-subtle));
+    border-left-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 3%, var(--surface-page));
   }
   /* Drop target affordance — dashed inset outline + accent border + soft
      accent wash. Differentiated by payload type so the user sees what
      they're about to commit to. */
   .day-card.drop-target-active {
     border-color: var(--accent);
-    background: color-mix(in oklab, var(--accent) 5%, var(--surface-raised));
+    border-left-color: var(--accent);
+    background: color-mix(in oklab, var(--accent) 5%, var(--surface-page));
     box-shadow: inset 0 0 0 1px var(--accent);
   }
   .day-card.drop-target-active::after {
@@ -1125,11 +1144,19 @@
     font-weight: 600;
     letter-spacing: 0.005em;
   }
+  /* "Day N" secondary label — rendered as a quiet pill badge beside the
+     date so the day number is always visible even on date-labelled cards. */
   .day-secondary {
-    color: var(--text-tertiary);
-    font-size: 0.78rem;
-    font-weight: 500;
-    letter-spacing: 0.02em;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--accent-text);
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+    padding: 0.14rem 0.5rem;
+    border-radius: 999px;
+    border: 0.5px solid color-mix(in oklab, var(--accent) 30%, transparent);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .header-icon {
     padding: 3px 8px;
@@ -1330,6 +1357,23 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  /* Drive connector — renders between consecutive stops when per-segment
+     drive data exists. At rest (no data) it never appears because
+     driveConnectorLabel returns null and the element is not rendered. */
+  .drive-connector {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0 0.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    letter-spacing: 0.02em;
+    list-style: none;
+    height: 1.4rem;
   }
   .stop-row {
     position: relative;
@@ -1534,23 +1578,26 @@
   }
 
   /* ── Add stop ───────────────────────────────────────────────────────── */
+  /* Dashed ghost button — full-width to read as "append to this day", not
+     an afterthought. Kept dashed so it visually reads as "not filled yet". */
   .add-stop {
+    width: 100%;
     background: transparent;
-    border: 0.5px dashed var(--border-default);
+    border: 1px dashed var(--border-default);
     color: var(--text-tertiary);
     font-family: var(--font-sans);
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    padding: 0.35rem 0.75rem;
-    border-radius: 4px;
+    padding: 0.4rem 0.75rem;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     margin-bottom: 0.85rem;
     transition: color 0.12s, border-color 0.12s, background-color 0.12s;
   }
   .add-stop:hover:not(:disabled) {
-    color: var(--text-secondary);
-    border-color: var(--border-strong);
-    background: color-mix(in oklab, var(--surface-sunken) 40%, transparent);
+    color: var(--accent-text);
+    border-color: color-mix(in oklab, var(--accent) 50%, var(--border-default));
+    background: color-mix(in oklab, var(--accent) 4%, transparent);
   }
   .add-stop:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -1792,30 +1839,76 @@
   /* ── Trip-prep roll-up ──────────────────────────────────────────────── */
   .trip-prep {
     margin-bottom: 1rem;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--border-default);
-    border-radius: 6px;
-    background: var(--surface-raised);
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--accent) 4%, var(--surface-sunken));
   }
   .trip-prep-head {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.65rem;
     flex-wrap: wrap;
   }
   .trip-prep-head h3 {
     margin: 0;
     font-family: var(--font-sans);
-    font-size: 0.95rem;
+    font-size: 0.88rem;
+    font-weight: 600;
     color: var(--text-primary);
   }
   .trip-prep-head .count {
     color: var(--text-tertiary);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 500;
   }
   .trip-prep-actions {
     margin-left: auto;
     display: flex;
-    gap: 0.5rem;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+  /* Quiet chip buttons for prep actions (Refresh / Re-generate). */
+  .prep-chip {
+    display: inline-flex;
+    align-items: center;
+    background: var(--surface-raised);
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .prep-chip:hover:not(:disabled) {
+    background: var(--surface-page);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+  .prep-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* Progress bar — thin accent fill on a sunken track. */
+  .trip-prep-bar {
+    margin-top: 0.5rem;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--surface-sunken);
+    overflow: hidden;
+  }
+  .trip-prep-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+  }
+  @media (pointer: coarse) {
+    .prep-chip {
+      min-height: var(--tap-min);
+      padding: 0.5rem 0.8rem;
+      font-size: 0.8rem;
+    }
   }
 </style>
