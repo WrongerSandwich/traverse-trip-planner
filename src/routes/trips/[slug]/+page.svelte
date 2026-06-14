@@ -9,6 +9,7 @@
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
   import AffordanceButtons from '$lib/workflow-status/AffordanceButtons.svelte';
   import { failureSentence, ERROR_REGISTRY } from '$lib/errors-registry.js';
+  import { MONTHS, parseISODate } from '$lib/format-date.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
   import { tripColor } from '$lib/utils/colors.js';
@@ -118,6 +119,9 @@
   let drafts  = $state({});      // staging textareas while editing
   let saving  = $state({});
   let completing = $state(false);
+  // ── Plan section ref + working state (for the + Add day button in the header) ──
+  let planSection = $state(/** @type {any} */ (null));
+  let planWorking = $state(false);
 
   // True when any open draft differs from the saved section content.
   // Cancel explicitly resets the draft to the saved value before exiting,
@@ -1398,7 +1402,17 @@
                 {@const planDays = data.plan.days}
                 {@const n = planDays.length}
                 {@const datesSet = planDays.filter((d) => d.date)}
-                <span class="section-plan-meta" aria-hidden="true">{n} day{n === 1 ? '' : 's'}{#if datesSet.length >= 2} · {datesSet[0].date.slice(5).replace('-', '/').replace(/^0/, '')}–{datesSet[datesSet.length - 1].date.slice(5).replace('-', '/').replace(/^0/, '')}{/if}</span>
+                {@const formatPlanDateRange = () => {
+                  if (datesSet.length < 2) return '';
+                  const d0 = parseISODate(datesSet[0].date);
+                  const d1 = parseISODate(datesSet[datesSet.length - 1].date);
+                  if (!d0 || !d1) return '';
+                  const m0 = MONTHS[d0.getMonth()];
+                  const m1 = MONTHS[d1.getMonth()];
+                  if (m0 === m1) return ` · ${m0} ${d0.getDate()}–${d1.getDate()}`;
+                  return ` · ${m0} ${d0.getDate()} – ${m1} ${d1.getDate()}`;
+                }}
+                <span class="section-plan-meta" aria-hidden="true">{n} day{n === 1 ? '' : 's'}{formatPlanDateRange()}</span>
               {/if}
             {/if}
             {#if section === 'candidates' && candidatesPinHint}
@@ -1412,10 +1426,21 @@
                 <button class="btn btn-secondary btn-compact" onclick={() => startEdit(section)}>Edit</button>
               </div>
             {/if}
+            {#if section === 'plan' && isPlanning}
+              <div class="section-header-actions">
+                <button
+                  class="btn btn-secondary btn-compact"
+                  onclick={() => planSection?.addDay()}
+                  disabled={planWorking}
+                >+ Add day</button>
+              </div>
+            {/if}
           </header>
 
           {#if section === 'plan'}
             <PlanSection
+              bind:this={planSection}
+              bind:working={planWorking}
               plan={data.plan}
               candidates={data.candidates}
               slug={data.trip._slug}

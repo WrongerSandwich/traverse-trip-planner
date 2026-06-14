@@ -9,7 +9,7 @@
   import { nudgeJobsPoll } from '$lib/utils/jobs-store.js';
   import { driveConnectorLabel } from '$lib/utils/drive-connector.js';
 
-  let { plan, candidates, slug, destination = null, readonly = false } = $props();
+  let { plan, candidates, slug, destination = null, readonly = false, working = $bindable(false) } = $props();
 
   // ── Confirm modal ──
   let confirmOpen = $state(false);
@@ -74,7 +74,6 @@
   // shared-form pattern that bundled all three.
   let editingField = $state(/** @type {null | { dayNumber: number, field: 'date'|'drive'|'notes' }} */ (null));
   let editDraft = $state(/** @type {any} */ (null));
-  let working = $state(false);
   let errorCode = $state(/** @type {string|null} */ (null));
   let errorCtx = $state(/** @type {Record<string,string>} */ ({}));
 
@@ -382,7 +381,7 @@
     await startStopPrep(true);
   }
 
-  async function addDay() {
+  export async function addDay() {
     await api(`/api/plan/${slug}`, { method: 'POST' });
   }
 
@@ -544,11 +543,7 @@
     const x = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2) ** 2;
     return Math.round(2 * R * Math.asin(Math.sqrt(x)));
   }
-  const destCoords = $derived(
-    Array.isArray(destination) && destination.length === 2
-      ? { lat: destination[0], lng: destination[1] }
-      : null
-  );
+
 </script>
 
 <svelte:window onpointerdown={(e) => {
@@ -970,7 +965,6 @@
       {/if}
     </article>
   {/each}
-  <button class="btn-inline add-day" onclick={addDay} disabled={working || readonly}>+ Add day</button>
 {/if}
 
 <HideToast
@@ -1714,7 +1708,7 @@
     font-size: 0.85rem;
   }
 
-  /* ── Buttons (legacy chrome kept for + Add day at the bottom) ───────── */
+  /* ── Buttons ─────────────────────────────────────────────────────────── */
   .btn-inline {
     display: inline-flex;
     align-items: center;
@@ -1762,9 +1756,6 @@
     padding: 3px 8px;
     line-height: 1;
     min-width: 1.75rem;
-  }
-  .add-day {
-    margin-top: 0.5rem;
   }
 
   /* Hide-toast chrome lives in HideToast.svelte — shared with CandidatesSection. */
