@@ -125,10 +125,11 @@
      Per the candidates-section shape brief, each stop category maps to a
      brand-family ramp so a user scanning candidates can read "what kind of
      trip is forming" by color. Three tokens per category:
-       --cat-X        — saturated pin color (used on the map and as the
-                        card's leading edge); reads on bone/forest surfaces
-       --cat-X-tint   — light tint for the category chip background
-       --cat-X-on     — text color readable on the tint
+       --cat-X        — saturated color: map pins, the card's leading edge,
+                        and the solid .cat-chip icon-chip (glyph in --text-inverse)
+       --cat-X-tint   — light tint background for tinted chips (e.g. category
+                        filter chips in the Candidates section)
+       --cat-X-on     — text color readable on the tint (paired with -tint)
      Categories deliberately reuse brand families (historic/cultural → bark,
      food/entertainment → sunset, outdoors → forest, view/quirky → sky,
      shopping/misc → bone) so the palette stays inside Dusk. */

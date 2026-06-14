@@ -52,7 +52,7 @@ export function metaPills(trip = {}) {
     pills.push({ kind: 'drive', text: distText });
   }
   const nights = lodgingNights(trip);
-  if (Number.isFinite(nights) && nights > 0) {
+  if (nights) {
     pills.push({ kind: 'nights', text: `${nights} night${nights === 1 ? '' : 's'}` });
   }
   if (trip?._cost) pills.push({ kind: 'cost', text: trip._cost });
