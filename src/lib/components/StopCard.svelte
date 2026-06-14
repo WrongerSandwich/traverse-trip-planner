@@ -430,15 +430,15 @@
     min-width: 0;
     margin-top: 0.1rem;
     padding-left: calc(18px + 0.5rem);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
   }
   /* In the Plan itinerary spine the badge is gone, so the address sits flush
      under the name (the rail provides the left gutter, not the badge). */
   .stop-card.compact.in-rail .compact-addr {
     padding-left: 0;
-    font-size: 0.8rem;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
   }
   .compact-addr .addr-link {
     display: inline-flex;
