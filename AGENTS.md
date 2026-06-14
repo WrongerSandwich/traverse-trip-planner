@@ -63,6 +63,22 @@ Tear down with `git worktree remove <path>` once the branch is merged.
 A short list of patterns and constraints that aren't visible from grepping
 the source. Knowing these up front saves debugging time.
 
+- **The trip detail page (`/trips/[slug]`) hand-manages root scroll for
+  `position: sticky`.** The home route locks `html, body { overflow: hidden }`
+  in a route stylesheet that persists across client-side nav, so the detail page
+  re-enables scrolling via inline styles in `onMount`. Those styles MUST be
+  `overflow: visible` (NOT `auto`/`hidden`): `overflow: auto`/`hidden` on the
+  root `<html>` silently breaks `position: sticky` for every descendant — the
+  sticky header AND the desktop trip rail just scroll away. The same `onMount`
+  also sets `overscroll-behavior-x: none` to kill iOS Safari's horizontal
+  rubber-band (a few px of overscroll that reveals blank page bg; doesn't
+  reproduce on desktop). Don't "simplify" any of this to a CSS-only `:global`
+  reset or back to `overflow: auto`.
+- **Leaflet maps must isolate their stacking context.** `TripMap`'s root sets
+  `isolation: isolate` so Leaflet's internal panes/controls (z-index up to
+  ~1000) can't paint over app chrome like the sticky header. New map containers
+  should rely on that, not re-leak it (a bare `position: relative` wrapper does
+  NOT create a stacking context).
 - **Disk-backed caches under `data/.cache/`.**
   `data/.cache/.caches.json` (shape `{ geo, image, route }` — collapsed
   from three files in #420 so flushCaches() is atomic across all three
