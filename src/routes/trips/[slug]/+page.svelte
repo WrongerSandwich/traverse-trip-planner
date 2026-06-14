@@ -919,8 +919,14 @@
   // SvelteKit doesn't reliably unload route stylesheets on client nav, so a
   // CSS-only :global reset here loses the cascade fight. Settings already
   // hit this and solved it with inline styles in onMount — same fix here.
-  // Without this, the sticky header doesn't compute against a scrolling
-  // container and the page reads as fixed-height instead.
+  // Without this, the page reads as fixed-height instead of scrolling.
+  //
+  // overflow MUST be 'visible', NOT 'auto'. Setting overflow:auto on the
+  // root <html> element makes <html> the sticky scroll-reference while the
+  // actual scroll stays on the viewport, which silently kills
+  // `position: sticky` for every descendant (the sticky header AND the
+  // desktop trip rail just scroll away). 'visible' lets the viewport scroll
+  // the document normally, which is what sticky needs.
   onMount(() => {
     const html = document.documentElement;
     const body = document.body;
@@ -930,9 +936,9 @@
       bodyOverflow: body.style.overflow,
       bodyHeight: body.style.height,
     };
-    html.style.overflow = 'auto';
+    html.style.overflow = 'visible';
     html.style.height = 'auto';
-    body.style.overflow = 'auto';
+    body.style.overflow = 'visible';
     body.style.height = 'auto';
     return () => {
       html.style.overflow = prev.htmlOverflow;
