@@ -943,9 +943,11 @@
     align-items: center;
     gap: 0.35rem;
     background: transparent;
-    border: 0.5px solid var(--border-default);
+    /* Status/toggle pill family: --chip-radius + --chip-border. Toggle
+       states (active fills/inks) layer on below; only geometry unifies. */
+    border: var(--chip-border) solid var(--border-default);
     padding: 3px 9px 3px 7px;
-    border-radius: 999px;
+    border-radius: var(--chip-radius);
     color: var(--text-tertiary);
     cursor: pointer;
     font-family: var(--font-sans);

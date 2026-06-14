@@ -1150,8 +1150,9 @@
     color: var(--accent-text);
     background: color-mix(in oklab, var(--accent) 12%, transparent);
     padding: 0.14rem 0.5rem;
-    border-radius: 999px;
-    border: 0.5px solid color-mix(in oklab, var(--accent) 30%, transparent);
+    /* Status/toggle pill family: --chip-radius + --chip-border (accent tint). */
+    border-radius: var(--chip-radius);
+    border: var(--chip-border) solid color-mix(in oklab, var(--accent) 30%, transparent);
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -1205,14 +1206,15 @@
      with populated chips. */
   .chip {
     background: var(--surface-page);
-    border: 0.5px solid var(--border-default);
+    /* Status/toggle pill family: --chip-radius + --chip-border. */
+    border: var(--chip-border) solid var(--border-default);
     color: var(--text-secondary);
     font-family: var(--font-sans);
     font-size: 0.74rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     padding: 3px 9px;
-    border-radius: 999px;
+    border-radius: var(--chip-radius);
     cursor: pointer;
     transition: background-color 0.12s, color 0.12s, border-color 0.12s;
   }
@@ -1869,13 +1871,14 @@
     display: inline-flex;
     align-items: center;
     background: var(--surface-raised);
-    border: 0.5px solid var(--border-default);
+    /* Status/toggle pill family: --chip-radius + --chip-border. */
+    border: var(--chip-border) solid var(--border-default);
     color: var(--text-secondary);
     font-family: var(--font-sans);
     font-size: 0.72rem;
     font-weight: 500;
     padding: 0.22rem 0.6rem;
-    border-radius: 999px;
+    border-radius: var(--chip-radius);
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 0.12s, color 0.12s, border-color 0.12s;

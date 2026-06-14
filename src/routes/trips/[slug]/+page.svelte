@@ -1875,7 +1875,10 @@
     min-width: 0;
     overflow-wrap: anywhere;
     padding: 0.28rem 0.7rem;
-    border-radius: var(--radius-lg);
+    /* Status/toggle pill family: fully-rounded (was --radius-lg 16px).
+       Filled sunken tag — no border by intent (the row reads as content
+       tokens, not outlined controls). */
+    border-radius: var(--chip-radius);
     background: var(--surface-sunken);
     color: var(--text-secondary);
     line-height: 1.3;
@@ -2626,8 +2629,9 @@
     gap: 0.4rem;
     padding: 0.45rem 0.6rem;
     background: var(--surface-overlay);
-    border: 1px solid color-mix(in oklab, var(--state-success) 35%, var(--border-default));
-    border-radius: 999px;
+    /* Status/toggle pill family: --chip-radius + --chip-border (state-tinted). */
+    border: var(--chip-border) solid color-mix(in oklab, var(--state-success) 35%, var(--border-default));
+    border-radius: var(--chip-radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     font-family: var(--font-sans);
     font-size: 0.78rem;
@@ -2657,13 +2661,13 @@
   }
   .palette-chip-btn {
     background: var(--surface-page);
-    border: 1px solid var(--border-default);
+    border: var(--chip-border) solid var(--border-default);
     color: var(--text-secondary);
     font-family: var(--font-sans);
     font-size: 0.72rem;
     font-weight: 600;
     padding: 0.22rem 0.55rem;
-    border-radius: 999px;
+    border-radius: var(--chip-radius);
     cursor: pointer;
     transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
