@@ -6,7 +6,14 @@ The source-of-truth design system for **Traverse**. This spec defined the brand 
 
 **Stack:** SvelteKit with CSS custom properties declared in `src/app.css`.
 
----
+> **For AI agents:** a concise, machine-readable token summary (Google-Stitch
+> `DESIGN.md` format) lives in [`DESIGN.md`](DESIGN.md) and tracks the implemented
+> tokens in `src/app.css` — it's what the impeccable skill auto-loads. This file
+> remains the comprehensive human reference (logo, iconography, voice). If the two
+> ever disagree on a value, `src/app.css` is the source of truth and `DESIGN.md`
+> reflects it. Note: the radius scale here (§5) predates the 2026-06 planning-page
+> refresh, which moved the implemented `--radius-*` tokens to 8/12/16 (+ a 999px
+> chip radius); see `DESIGN.md` for current values.
 
 ## Table of contents
 
