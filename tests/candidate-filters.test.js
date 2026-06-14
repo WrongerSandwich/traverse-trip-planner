@@ -10,4 +10,5 @@ describe('activeCategories', () => {
     expect(activeCategories([{ category: 'food' }, {}, { category: 'nope' }])).toEqual(['food']);
   });
   it('handles an empty pool', () => { expect(activeCategories([])).toEqual([]); });
+  it('handles a null pool gracefully', () => { expect(activeCategories(null)).toEqual([]); });
 });

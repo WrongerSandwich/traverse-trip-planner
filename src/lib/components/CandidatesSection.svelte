@@ -70,9 +70,10 @@
     allStops.filter((s) => s.hidden).length + allLodging.filter((l) => l.hidden).length
   );
 
-  // activeCategories returns the distinct known categories in canonical order.
-  // The filtering expression still uses `s.category || 'misc'` so stops without
-  // a category are bucketed to misc when a misc chip is present.
+  // activeCategories returns the distinct KNOWN categories present in the pool,
+  // in canonical order; unknown/missing categories are excluded from the chips.
+  // Note: filteredStops (below) still uses `s.category || 'misc'`, so stops
+  // without a category show through when the misc chip is active.
   const presentCategories = $derived(activeCategories(visibleStops));
 
   // Active tab as a candidate-type tag ('stop' | 'lodging') used by the
@@ -497,6 +498,7 @@
         type="button"
         class="chip chip--all"
         class:active={!visibleCategories}
+        aria-pressed={!visibleCategories}
         onclick={clearCategoryFilter}
       >All</button>
       {#each presentCategories as cat}
@@ -505,6 +507,7 @@
           class="chip"
           data-category={cat}
           class:active={visibleCategories?.has(cat)}
+          aria-pressed={visibleCategories?.has(cat) ?? false}
           onclick={() => toggleCategoryChip(cat)}
         >
           <span class="chip-dot" aria-hidden="true"></span>
