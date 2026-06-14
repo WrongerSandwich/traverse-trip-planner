@@ -747,7 +747,11 @@
         >+ Add notes</button>
       {/if}
 
-      <!-- Stops list — compact StopCards instead of bare flexbox rows. -->
+      <!-- Stops list — an "itinerary spine": each stop sits on a numbered,
+           category-colored marker in a left rail, threaded by a continuous
+           line, with the drive between stops riding the thread as a node.
+           The marker lives in PlanSection's rail (not StopCard) so the thread
+           never collides with a stop's full-width disclosure drawer. -->
       {#if day.stops.length > 0}
         <ul class="stops-list" role="list" aria-busy={working}>
           {#each day.stops as id, i (id)}
@@ -760,7 +764,10 @@
                 : { mi: distanceMi(prevCand?.coords, cand?.coords) }}
               {@const connLabel = driveConnectorLabel(seg)}
               {#if connLabel}
-                <li class="drive-connector" aria-hidden="true">{connLabel}</li>
+                <li class="drive-connector" aria-hidden="true">
+                  <span class="rail rail--thread"></span>
+                  <span class="drive-leg">{connLabel}</span>
+                </li>
               {/if}
             {/if}
             <li
@@ -769,12 +776,17 @@
               ondragover={(e) => onStopDragOver(day.number, i, e)}
               ondrop={(e) => onStopDrop(day.number, i, e)}
             >
+              <span class="rail">
+                <span class="marker" data-category={cand?.category ?? 'misc'} aria-hidden="true">{i + 1}</span>
+              </span>
+              <div class="stop-body">
               {#if cand}
                 {#if cand.id && candidates?.stops?.find((s) => s.id === id)}
                   <div class="stop-row-controls">
                     <StopCard
                       stop={cand}
                       compact={true}
+                      inRail={true}
                       promoted={true}
                       distance={null}
                       {readonly}
@@ -858,6 +870,7 @@
                   <button class="btn-inline btn-icon" onclick={() => removeStopWithUndo(day.number, id)} disabled={readonly}>×</button>
                 </div>
               {/if}
+              </div>
             </li>
           {/each}
         </ul>
@@ -1133,13 +1146,17 @@
     align-items: baseline;
     gap: 0.45rem;
   }
+  /* Day title in the brand serif so each day reads as a field-notebook page,
+     echoing the Fraunces "Plan" section title rather than the operational
+     sans chrome around it. Weight 500 per the two-weights register. */
   .day-primary {
     margin: 0;
     color: var(--text-primary);
-    font-family: var(--font-sans);
-    font-size: 1rem;
-    font-weight: 600;
+    font-family: var(--font-serif);
+    font-size: 1.2rem;
+    font-weight: 500;
     letter-spacing: 0.005em;
+    line-height: 1.15;
   }
   /* "Day N" secondary label — rendered as a quiet pill badge beside the
      date so the day number is always visible even on date-labelled cards. */
@@ -1349,35 +1366,127 @@
   }
 
   /* ── Stops list ─────────────────────────────────────────────────────── */
+  /* ── Itinerary spine ────────────────────────────────────────────────────
+     The day's stops are a numbered timeline: a fixed left rail holds a
+     category-colored marker per stop, threaded by one continuous vertical
+     line; the drive between stops rides the same thread as a node. gap:0 is
+     load-bearing — the thread is drawn per-rail-cell and adjacent cells must
+     touch for the line to read as continuous. --rail-w sizes both the rail
+     column and the marker's lane; the thread centers on it. */
   .stops-list {
+    --rail-w: 26px;
+    --marker-c: 16px; /* marker center from rail-cell top: margin-top + radius */
+    --thread: var(--border-default);
     list-style: none;
     padding: 0;
-    margin: 0 0 0.45rem;
+    margin: 0 0 0.55rem;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 0;
   }
 
-  /* Drive connector — renders between consecutive stops when both stops have
-     coords. Prefers real drive data (prevCand.drive_to_next.mi) when present;
-     falls back to straight-line Haversine distance between the two stops.
-     driveConnectorLabel returns null when mi is null/0, so pairs without
-     coords simply produce no connector element. */
-  .drive-connector {
+  /* Left rail cell (shared by stop rows and drive connectors). Carries the
+     continuous thread as a centered pseudo-element spanning the full cell
+     height; the opaque marker sits on top with a page-colored halo so the
+     line visually starts/stops at each marker's edge. */
+  .rail {
+    position: relative;
+    align-self: stretch;
     display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0 0.5rem;
-    font-family: var(--font-sans);
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: var(--text-tertiary);
-    letter-spacing: 0.02em;
-    list-style: none;
-    height: 1.4rem;
+    justify-content: center;
+    align-items: flex-start;
   }
+  .rail::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    background: var(--thread);
+  }
+  /* Trim the thread at the day's first and last marker so it doesn't
+     protrude past the endpoints; a single-stop day collapses it to nothing. */
+  .stop-row:first-of-type .rail::before { top: var(--marker-c); }
+  .stop-row:last-child .rail::before { bottom: calc(100% - var(--marker-c)); }
+
+  .marker {
+    position: relative;
+    z-index: 1;
+    margin-top: 3px; /* nudge marker center to the stop name's baseline */
+    width: var(--rail-w);
+    height: var(--rail-w);
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-family: var(--font-sans);
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    /* Category color carries "what kind of stop"; the number carries order.
+       Defaults to cream ink on the saturated fill; the two lightest fills
+       (food, misc) take dark forest ink to clear glyph contrast — mirrors
+       the global .cat-chip ink decisions. */
+    background: var(--cat-misc);
+    color: var(--text-inverse);
+    /* Halo masks the thread behind the marker so it reads as a node, not a
+       bead the line passes under. Matches the day-card surface. */
+    box-shadow: 0 0 0 3px var(--surface-page);
+  }
+  .day-card.arranging .marker { box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 3%, var(--surface-page)); }
+  .marker[data-category="historic"]      { background: var(--cat-historic); }
+  .marker[data-category="cultural"]      { background: var(--cat-cultural); }
+  .marker[data-category="food"]          { background: var(--cat-food); color: var(--forest-900); }
+  .marker[data-category="entertainment"] { background: var(--cat-entertainment); }
+  .marker[data-category="outdoors"]      { background: var(--cat-outdoors); }
+  .marker[data-category="view"]          { background: var(--cat-view); }
+  .marker[data-category="quirky"]        { background: var(--cat-quirky); }
+  .marker[data-category="shopping"]      { background: var(--cat-shopping); }
+  .marker[data-category="misc"]          { background: var(--cat-misc); color: var(--forest-900); }
+
+  /* Drive connector — the node on the thread between two stops. Prefers real
+     drive data (prevCand.drive_to_next.mi); falls back to straight-line
+     Haversine. driveConnectorLabel returns null when mi is null/0, so pairs
+     without coords produce no connector and the thread simply runs straight
+     through. Figure set in mono for the atlas-instrument feel. */
+  .drive-connector {
+    display: grid;
+    grid-template-columns: var(--rail-w) 1fr;
+    column-gap: 0.6rem;
+    align-items: center;
+    list-style: none;
+    min-height: 1.5rem;
+  }
+  .rail--thread {
+    align-self: stretch;
+    padding-top: 0;
+  }
+  .drive-leg {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.01em;
+    color: var(--text-tertiary);
+    padding: 0.3rem 0;
+  }
+
+  /* Stop row — a two-column grid: the rail, then the stop body. */
   .stop-row {
     position: relative;
+    display: grid;
+    grid-template-columns: var(--rail-w) 1fr;
+    column-gap: 0.6rem;
+    align-items: start;
+    /* No vertical padding: the per-cell thread spans the rail cell, so any
+       row padding would open a gap in the line. Air between stops comes from
+       the StopCard's own padding instead. */
+    padding: 0;
+  }
+  .stop-body {
+    min-width: 0;
   }
   /* Stop-row container — holds the compact StopCard and, only while the day
      is being arranged, the reorder/move/remove toolbar, which wraps to its
@@ -1402,7 +1511,9 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    padding-left: calc(18px + 0.5rem + 8px);
+    /* Lives in the stop body column already; the rail provides the left
+       gutter, so no extra badge-width indent (the in-card badge is gone). */
+    padding-left: 0;
   }
   .nudge-btn,
   .arrange-remove {
@@ -1481,7 +1592,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    margin: 4px 0 8px 1rem;
+    margin: 4px 0 8px 0;
     padding: 4px;
     background: var(--surface-sunken);
     border-radius: 5px;
@@ -1794,16 +1905,15 @@
       min-height: var(--tap-min);
       padding: 0.7rem 0.85rem;
     }
-    /* A hairline + breathing room between stops keeps the resting list of
-       places legible, and clearly bounds each stop when arrange mode adds
-       its toolbar. */
+    /* On touch the spine carries separation; add breathing room by enlarging
+       the marker's tap-friendly lane rather than a full-width hairline, which
+       would sever the continuous thread. */
     .stops-list {
-      gap: 0;
+      --rail-w: 30px;
     }
-    .stop-row + .stop-row {
-      margin-top: 0.65rem;
-      padding-top: 0.65rem;
-      border-top: 1px solid var(--border-subtle);
+    .stop-body :global(.stop-card.compact) {
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
     }
     /* Remaining sub-44px tap targets: the click-fallback stop/lodging
        picker rows, the move-to-day picker rows + its Cancel, and the

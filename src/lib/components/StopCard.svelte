@@ -23,6 +23,12 @@
     // drag handle and the hover-revealed Hide button since they map to
     // the in-day gestures (reorder + remove-from-day).
     compact = false,
+    // `inRail` is the "rendered inside a Plan day's itinerary spine" mode:
+    // PlanSection draws a numbered, category-colored marker in its own left
+    // rail, so this card suppresses its in-card category badge (one marker
+    // per stop, not two) and drops the address line's badge indent. Only the
+    // Plan day rows pass it; CandidatesSection never does, so it's untouched.
+    inRail = false,
     onHover = () => {},
     onClick = () => {},
     onPromote = () => {},
@@ -110,6 +116,7 @@
   class:promoted
   class:hovered
   class:compact
+  class:in-rail={inRail}
   data-category={stop.category}
   draggable={showDragHandle && !readonly && !working ? 'true' : 'false'}
   onmouseenter={() => onHover(stop.id)}
@@ -121,7 +128,9 @@
   aria-label="Candidate stop: {stop.name}"
 >
   <div class="head">
-    <span class="cat-badge" aria-hidden="true" title={stop.category}>{glyph}</span>
+    {#if !inRail}
+      <span class="cat-badge" aria-hidden="true" title={stop.category}>{glyph}</span>
+    {/if}
     <h3 class="name">{stop.name}</h3>
     {#if distance != null && !compact}
       <span class="distance" title="Distance from destination">{distance} mi</span>
@@ -417,6 +426,11 @@
     min-width: 0;
     margin-top: 0.1rem;
     padding-left: calc(18px + 0.5rem);
+  }
+  /* In the Plan itinerary spine the badge is gone, so the address sits flush
+     under the name (the rail provides the left gutter, not the badge). */
+  .stop-card.compact.in-rail .compact-addr {
+    padding-left: 0;
     font-size: 0.8rem;
     display: flex;
     align-items: center;
