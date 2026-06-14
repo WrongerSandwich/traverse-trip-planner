@@ -490,31 +490,9 @@
     />
   </div>
 
-  <!-- Filter strip: category chips on the left, Stops/Lodging tabs on the right.
-       Chips control map+cards together; tabs only switch the list type. -->
-  <div class="filter-strip">
-    <div class="chips" role="group" aria-label="Filter by category">
-      <button
-        type="button"
-        class="chip chip--all"
-        class:active={!visibleCategories}
-        aria-pressed={!visibleCategories}
-        onclick={clearCategoryFilter}
-      >All</button>
-      {#each presentCategories as cat}
-        <button
-          type="button"
-          class="chip"
-          data-category={cat}
-          class:active={visibleCategories?.has(cat)}
-          aria-pressed={visibleCategories?.has(cat) ?? false}
-          onclick={() => toggleCategoryChip(cat)}
-        >
-          <span class="chip-dot" aria-hidden="true"></span>
-          {titleCase(cat)}
-        </button>
-      {/each}
-    </div>
+  <!-- Tab row: Stops / Lodging segmented control. Comes first so content
+       type is established before any filter affordance. -->
+  <div class="tab-row">
     <div class="tabs" role="tablist" aria-label="Candidate type">
       <button
         type="button"
@@ -532,6 +510,51 @@
       >Lodging <span class="tab-count">{visibleLodging.length}</span></button>
     </div>
   </div>
+
+  <!-- Category filter: only meaningful for Stops; hidden on Lodging tab.
+       Collapsed behind a <details> affordance so the chip wall doesn't
+       push content below the fold on mobile. Active-filter count is
+       surfaced on the summary so the user knows filters are applied
+       even when the panel is closed. -->
+  {#if tab === 'stops' && presentCategories.length > 0}
+    <details class="filter-disclosure">
+      <summary class="filter-summary">
+        {#if visibleCategories && visibleCategories.size > 0}
+          Filter · {visibleCategories.size}
+          <button
+            type="button"
+            class="filter-clear-inline"
+            onclick={(e) => { e.preventDefault(); clearCategoryFilter(); }}
+            aria-label="Clear category filter"
+          >Clear</button>
+        {:else}
+          Filter
+        {/if}
+      </summary>
+      <div class="chips" role="group" aria-label="Filter by category">
+        <button
+          type="button"
+          class="chip chip--all"
+          class:active={!visibleCategories}
+          aria-pressed={!visibleCategories}
+          onclick={clearCategoryFilter}
+        >All</button>
+        {#each presentCategories as cat}
+          <button
+            type="button"
+            class="chip"
+            data-category={cat}
+            class:active={visibleCategories?.has(cat)}
+            aria-pressed={visibleCategories?.has(cat) ?? false}
+            onclick={() => toggleCategoryChip(cat)}
+          >
+            <span class="chip-dot" aria-hidden="true"></span>
+            {titleCase(cat)}
+          </button>
+        {/each}
+      </div>
+    </details>
+  {/if}
 
   {#if !readonly}
     <div class="subtools" role="group" aria-label="Add or find more candidates">
@@ -921,22 +944,95 @@
       padding: 0.5rem 0.95rem;
       font-size: 13px;
     }
+    .filter-summary {
+      min-height: var(--tap-min);
+    }
   }
 
-  /* ── Filter strip ───────────────────────────────────────────────────── */
-  .filter-strip {
+  /* ── Tab row ────────────────────────────────────────────────────────── */
+  .tab-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+  }
+
+  /* ── Filter disclosure ──────────────────────────────────────────────── */
+  /* The <details> collapses the chip wall behind a compact affordance.
+     When filters are active, the summary reads "Filter · N" (count is
+     rendered in the Svelte template). A "Clear" ghost button sits inline
+     on the summary so the user can reset without opening the panel. */
+  .filter-disclosure {
     margin-bottom: 0.75rem;
+  }
+  .filter-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    list-style: none;           /* Safari resets the triangle on list-style: none */
+    cursor: pointer;
+    user-select: none;
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    padding: 3px 8px 3px 6px;
+    border: var(--chip-border) solid var(--border-default);
+    border-radius: var(--chip-radius);
+    transition: color 0.12s, border-color 0.12s, background-color 0.12s;
+  }
+  /* Remove default <details> triangle in all browsers */
+  .filter-summary::-webkit-details-marker { display: none; }
+  .filter-disclosure[open] .filter-summary,
+  .filter-summary:hover {
+    color: var(--text-primary);
+    border-color: var(--border-default);
+    background: var(--surface-raised);
+  }
+  /* When filters are applied, tint the border accent so the affordance
+     is visually distinct from the inactive state. */
+  .filter-disclosure:has(.chip.active:not(.chip--all)) .filter-summary {
+    border-color: var(--accent);
+    color: var(--text-primary);
+    background: color-mix(in oklab, var(--accent) 7%, transparent);
+  }
+  /* Expand indicator — a small chevron that flips open/closed */
+  .filter-summary::after {
+    content: '▾';
+    font-size: 9px;
+    line-height: 1;
+    color: var(--text-tertiary);
+    transition: transform 0.15s;
+  }
+  .filter-disclosure[open] .filter-summary::after {
+    transform: rotate(180deg);
+  }
+  /* Inline Clear button that lives on the summary row so the user can
+     clear filters without expanding the panel. It's a <button> child of
+     <summary> — clicking it must not toggle the <details> open/closed,
+     so we preventDefault on its click (done in the template). */
+  .filter-clear-inline {
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-tertiary);
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    line-height: 1.4;
+    transition: color 0.12s, border-color 0.12s;
+  }
+  .filter-clear-inline:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
   }
   .chips {
     display: flex;
     align-items: center;
     gap: 0.35rem;
     flex-wrap: wrap;
+    padding-top: 0.5rem;
   }
   .chip {
     display: inline-flex;
