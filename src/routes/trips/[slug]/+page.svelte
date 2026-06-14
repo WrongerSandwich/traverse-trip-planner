@@ -9,7 +9,7 @@
   import PromiseTooltip from '$lib/components/PromiseTooltip.svelte';
   import AffordanceButtons from '$lib/workflow-status/AffordanceButtons.svelte';
   import { failureSentence, ERROR_REGISTRY } from '$lib/errors-registry.js';
-  import { MONTHS, parseISODate } from '$lib/format-date.js';
+  import { formatPlanDateRange } from '$lib/format-date.js';
   import { formatTokens } from '$lib/utils/formatTokens.js';
   import { receiptsErrorFromStatus } from '$lib/utils/receiptsErrors.js';
   import { tripColor } from '$lib/utils/colors.js';
@@ -1401,18 +1401,8 @@
               {#if section === 'plan' && data.plan?.days?.length}
                 {@const planDays = data.plan.days}
                 {@const n = planDays.length}
-                {@const datesSet = planDays.filter((d) => d.date)}
-                {@const formatPlanDateRange = () => {
-                  if (datesSet.length < 2) return '';
-                  const d0 = parseISODate(datesSet[0].date);
-                  const d1 = parseISODate(datesSet[datesSet.length - 1].date);
-                  if (!d0 || !d1) return '';
-                  const m0 = MONTHS[d0.getMonth()];
-                  const m1 = MONTHS[d1.getMonth()];
-                  if (m0 === m1) return ` · ${m0} ${d0.getDate()}–${d1.getDate()}`;
-                  return ` · ${m0} ${d0.getDate()} – ${m1} ${d1.getDate()}`;
-                }}
-                <span class="section-plan-meta" aria-hidden="true">{n} day{n === 1 ? '' : 's'}{formatPlanDateRange()}</span>
+                {@const dateRange = formatPlanDateRange(planDays)}
+                <span class="section-plan-meta" aria-hidden="true">{n} day{n === 1 ? '' : 's'}{dateRange ? ` · ${dateRange}` : ''}</span>
               {/if}
             {/if}
             {#if section === 'candidates' && candidatesPinHint}
@@ -1444,7 +1434,6 @@
               plan={data.plan}
               candidates={data.candidates}
               slug={data.trip._slug}
-              destination={trip?._coords}
               readonly={isCompleted}
             />
           {:else if section === 'candidates'}
@@ -1992,6 +1981,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 0.5rem;
     margin-bottom: 0.75rem;
     border-bottom: 1px solid var(--border-subtle);
     padding-bottom: 0.55rem;

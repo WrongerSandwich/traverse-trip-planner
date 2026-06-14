@@ -49,6 +49,40 @@ export function formatDayHeader(day) {
 }
 
 /**
+ * Date-range string for the Plan section header meta (e.g. "Jun 20–21",
+ * "Jun 30 – Jul 2"). Rules:
+ *   - 0 dates set → ''
+ *   - 1 date set  → that single date (e.g. "Jun 20")
+ *   - ≥2 dates    → range using the earliest and latest set dates;
+ *                   same month: "Jun 20–21", cross-month: "Jun 30 – Jul 2"
+ *
+ * The leading " · " separator is intentionally NOT included here — the
+ * caller appends it so the empty-string path produces no stray punctuation.
+ *
+ * Timezone-safe: uses parseISODate so YYYY-MM-DD is read as a local-zone
+ * calendar date, never as midnight UTC.
+ *
+ * @param {Array<{ date?: string|null }>} planDays
+ * @returns {string}
+ */
+export function formatPlanDateRange(planDays) {
+  const datesSet = (planDays ?? []).filter((d) => d.date);
+  if (datesSet.length === 0) return '';
+  if (datesSet.length === 1) {
+    const d = parseISODate(datesSet[0].date);
+    if (!d) return '';
+    return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  }
+  const d0 = parseISODate(datesSet[0].date);
+  const d1 = parseISODate(datesSet[datesSet.length - 1].date);
+  if (!d0 || !d1) return '';
+  const m0 = MONTHS[d0.getMonth()];
+  const m1 = MONTHS[d1.getMonth()];
+  if (m0 === m1) return `${m0} ${d0.getDate()}–${d1.getDate()}`;
+  return `${m0} ${d0.getDate()} – ${m1} ${d1.getDate()}`;
+}
+
+/**
  * Compact day reference for space-constrained surfaces (e.g. the
  * `in-plan` tag on a candidate LodgingCard, which currently renders
  * `Day 1, 2`). Returns the three-letter weekday when a date exists,

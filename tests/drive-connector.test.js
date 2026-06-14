@@ -16,4 +16,21 @@ describe('driveConnectorLabel', () => {
     expect(driveConnectorLabel({})).toBeNull();
     expect(driveConnectorLabel({ mi: 0 })).toBeNull();
   });
+
+  // Guard-logic boundary tests — protect against regressions on invalid inputs.
+  it('returns null for negative distance', () => {
+    expect(driveConnectorLabel({ mi: -1 })).toBeNull();
+  });
+  it('returns null for NaN distance', () => {
+    expect(driveConnectorLabel({ mi: NaN })).toBeNull();
+  });
+  it('returns null for Infinity distance', () => {
+    expect(driveConnectorLabel({ mi: Infinity })).toBeNull();
+  });
+  it('returns null when called with no arguments', () => {
+    expect(driveConnectorLabel()).toBeNull();
+  });
+  it('rounds fractional minutes', () => {
+    expect(driveConnectorLabel({ mi: 3, min: 7.6 })).toBe('↓ 3 mi · 8 min');
+  });
 });

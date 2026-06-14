@@ -9,7 +9,7 @@
   import { nudgeJobsPoll } from '$lib/utils/jobs-store.js';
   import { driveConnectorLabel } from '$lib/utils/drive-connector.js';
 
-  let { plan, candidates, slug, destination = null, readonly = false, working = $bindable(false) } = $props();
+  let { plan, candidates, slug, readonly = false, working = $bindable(false) } = $props();
 
   // ── Confirm modal ──
   let confirmOpen = $state(false);
@@ -530,7 +530,7 @@
   // Day header formatting is shared with CandidatesSection via the
   // format-date util — see src/lib/format-date.js for the format rules.
 
-  // Haversine in miles for the distance chip on each compact StopCard.
+  // Haversine straight-line fallback for between-stop drive connectors when drive_to_next is absent.
   function distanceMi(a, b) {
     if (!a || !b) return null;
     const lat1 = Number(a.lat), lng1 = Number(a.lng);
@@ -1082,7 +1082,6 @@
      they're about to commit to. */
   .day-card.drop-target-active {
     border-color: var(--accent);
-    border-left-color: var(--accent);
     background: color-mix(in oklab, var(--accent) 5%, var(--surface-page));
     box-shadow: inset 0 0 0 1px var(--accent);
   }

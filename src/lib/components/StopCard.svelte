@@ -766,8 +766,9 @@
     padding-top: 0.1rem;
   }
   /* Disclosure summary styled as a pill: raised surface + subtle border +
-     rounded corners. Still a native <details> so keyboard/no-JS stays intact. */
-  .disclosure-summary {
+     rounded corners. Still a native <details> so keyboard/no-JS stays intact.
+     Scoped to compact mode so CandidatesSection (compact=false) is unaffected. */
+  .stop-card.compact .disclosure-summary {
     list-style: none;
     cursor: pointer;
     display: inline-flex;
@@ -784,11 +785,11 @@
     border-radius: 999px;
     padding: 0.25rem 0.65rem 0.25rem 0.5rem;
   }
-  .disclosure-summary:hover {
+  .stop-card.compact .disclosure-summary:hover {
     border-color: var(--border-default);
     color: var(--text-primary);
   }
-  .disclosure-summary::-webkit-details-marker { display: none; }
+  .stop-card.compact .disclosure-summary::-webkit-details-marker { display: none; }
   .disclosure-chev {
     font-size: 0.8rem;
     line-height: 1;
