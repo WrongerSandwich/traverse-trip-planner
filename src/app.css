@@ -332,10 +332,18 @@ body {
 }
 
 /* ── Category chip ──────────────────────────────────────────────────────────
-   Square, filled with the category's pin color; glyph in the on-color.
-   data-category selectors keep it tokenized (no inline color literals). Shared
-   utility — Plan stop rows and Candidates cards (later tickets) reuse it.
+   Canonical solid category icon-chip used by standalone chip markup (e.g.
+   filter chips, Candidates cards). Square, filled with the category's pin
+   color; glyph in --text-inverse. data-category selectors keep it tokenized
+   (no inline color literals).
    Markup: <span class="cat-chip" data-category="food" aria-hidden="true">♪</span>
+
+   NOTE: Component-scoped base classes (e.g. StopCard's .cat-badge with its
+   circular/tint form) already carry Svelte-scoped specificity (0,2,0 for a
+   compound selector like .stop-card.compact .cat-badge), which beats this
+   global utility's (0,1,0). That means adding .cat-chip to a scoped element
+   won't win against the scoped base rules. Components that need the solid
+   square treatment must mirror these tokens locally in their own scoped CSS.
 
    Glyph uses --text-inverse, which already flips per mode (cream in light,
    dark ink in dark). The --cat-* fills flip in tandem (saturated/dark stops in

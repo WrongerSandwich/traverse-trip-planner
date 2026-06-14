@@ -121,7 +121,7 @@
   aria-label="Candidate stop: {stop.name}"
 >
   <div class="head">
-    <span class="cat-badge" class:cat-chip={compact} data-category={stop.category} aria-hidden="true" title={stop.category}>{glyph}</span>
+    <span class="cat-badge" aria-hidden="true" title={stop.category}>{glyph}</span>
     <h4 class="name">{stop.name}</h4>
     {#if distance != null && !compact}
       <span class="distance" title="Distance from destination">{distance} mi</span>
@@ -349,14 +349,21 @@
     align-items: center;
     gap: 0.5rem;
   }
-  /* In compact (Plan day card) mode the cat-badge uses the global .cat-chip
-     utility (square, filled category color, --text-inverse glyph). Scoped
-     size override keeps the compact chip at 24×24 / 0.72rem — smaller than
-     .cat-chip's default 28×28 / 14px — and strips the non-compact ring. */
+  /* In compact (Plan day card) mode the cat-badge becomes a solid square
+     icon-chip matching the global .cat-chip spec: filled with the full
+     category color, glyph in --text-inverse. These rules intentionally
+     mirror the token treatment in the global .cat-chip utility — we can't
+     consume .cat-chip directly here because Svelte's scoped component styles
+     (specificity 0,2,0 for .stop-card.compact .cat-badge) would override
+     the global utility (0,1,0), leaving the base circular/tint form intact.
+     Sized at 24×24 / 0.72rem — slightly smaller than .cat-chip's 28×28 / 14px. */
   .stop-card.compact .cat-badge {
     width: 24px;
     height: 24px;
+    border-radius: var(--radius-sm);
     font-size: 0.72rem;
+    background: var(--c, var(--cat-misc));
+    color: var(--text-inverse);
     box-shadow: none;
   }
   .stop-card.compact .name {
