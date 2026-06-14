@@ -594,7 +594,7 @@
       </div>
       {#if prepTotal > 0}
         <div class="trip-prep-bar" role="progressbar" aria-valuenow={prepDone} aria-valuemin={0} aria-valuemax={prepTotal} aria-label="Trip prep: {prepDone} of {prepTotal} done">
-          <div class="trip-prep-bar-fill" style="width: {Math.round((prepDone / prepTotal) * 100)}%"></div>
+          <div class="trip-prep-bar-fill" style="transform: scaleX({prepTotal > 0 ? prepDone / prepTotal : 0})"></div>
         </div>
       {/if}
     </div>
@@ -1062,8 +1062,10 @@
     position: relative;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    /* 3px accent left edge — the signature Tier-2 day-card treatment. */
-    border-left: 3px solid var(--accent);
+    /* 3px accent left edge — the signature Tier-2 day-card treatment.
+       Uses --accent-edge semantic token so dark mode can lift the edge
+       to a slightly lighter sunset stop for legibility on deep surfaces. */
+    border-left: 3px solid var(--accent-edge, var(--accent));
     padding: 0.85rem 1rem 0.85rem 0.9rem;
     margin-bottom: 0.85rem;
     background: var(--surface-page);
@@ -1884,7 +1886,11 @@
     border-color: var(--border-strong);
   }
   .prep-chip:disabled { opacity: 0.5; cursor: not-allowed; }
-  /* Progress bar — thin accent fill on a sunken track. */
+  /* Progress bar — thin accent fill on a sunken track.
+     Uses transform: scaleX() instead of width animation so the fill
+     is GPU-composited (no layout reflow). transform-origin: left so
+     the fill grows from the left edge. prefers-reduced-motion disables
+     the animation for users who prefer less motion. */
   .trip-prep-bar {
     margin-top: 0.5rem;
     height: 4px;
@@ -1894,9 +1900,14 @@
   }
   .trip-prep-bar-fill {
     height: 100%;
+    width: 100%;
     background: var(--accent);
     border-radius: 999px;
-    transition: width 0.3s ease;
+    transform-origin: left center;
+    transition: transform 0.3s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .trip-prep-bar-fill { transition: none; }
   }
   @media (pointer: coarse) {
     .prep-chip {

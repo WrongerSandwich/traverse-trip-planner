@@ -78,7 +78,7 @@
 
   <div class="body">
     <div class="head">
-      <h4 class="name">{lodging.name}</h4>
+      <h3 class="name">{lodging.name}</h3>
       {#if promoted && daysUsed.length && !compact}
         {@const sortedDays = [...daysUsed].sort((a, b) =>
           (typeof a === 'object' ? a.number : a) - (typeof b === 'object' ? b.number : b)
@@ -250,21 +250,32 @@
   /* In compact mode the Book button is the primary CTA — accent fill so
      it reads as an actionable "go book this" signal, not a footnote.
      border-radius inherits the 4px from the base .book rule (same as .btn).
-     Hover darkens with --text-primary (semantic dark-ink anchor = #112619 in
-     light, re-mapped in dark) rather than the raw --forest-900 palette token. */
+     Light mode: uses --sunset-800 fill so cream --text-inverse clears AA
+     (5.9:1). Dark mode override below restores --accent fill, where the
+     dark --text-inverse (#15211B) gives ≥5.3:1 against the orange fill. */
   .lodging-card.compact .book {
     margin-left: 0;
     padding: 3px 10px;
     font-size: 11px;
     font-weight: 600;
-    background: var(--accent);
+    background: var(--sunset-800);
     color: var(--text-inverse);
-    border-color: var(--accent);
+    border-color: var(--sunset-800);
   }
   .lodging-card.compact .book:hover {
+    background: color-mix(in oklab, var(--sunset-800) 80%, var(--forest-900));
+    border-color: color-mix(in oklab, var(--sunset-800) 80%, var(--forest-900));
+    color: var(--text-inverse);
+  }
+  /* Dark mode: restore --accent fill (the dark --text-inverse = #15211B
+     gives 5.3:1 on --accent #D87B3F, which passes AA). */
+  :global([data-theme="dark"]) .lodging-card.compact .book {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  :global([data-theme="dark"]) .lodging-card.compact .book:hover {
     background: color-mix(in oklab, var(--accent) 80%, var(--text-primary));
     border-color: color-mix(in oklab, var(--accent) 80%, var(--text-primary));
-    color: var(--text-inverse);
   }
 
   /* Bed glyph slot — a small "media" column on the left. The SVG is
@@ -305,15 +316,22 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* In-plan tag — pill showing which days this lodging covers. Uses
+     --sunset-800 fill so cream --text-inverse clears AA in light mode
+     (5.9:1). In dark mode (override below) --accent fill passes with
+     the dark --text-inverse (5.3:1). */
   .in-plan-tag {
     font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 0.02em;
     color: var(--text-inverse);
-    background: var(--accent);
+    background: var(--sunset-800);
     padding: 0.12rem 0.45rem;
     border-radius: 999px;
     flex-shrink: 0;
+  }
+  :global([data-theme="dark"]) .in-plan-tag {
+    background: var(--accent);
   }
 
   /* Price ramp — 3 dots in the sunset family, brand-coherent and unique
