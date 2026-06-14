@@ -490,9 +490,12 @@
     />
   </div>
 
-  <!-- Tab row: Stops / Lodging segmented control. Comes first so content
-       type is established before any filter affordance. -->
-  <div class="tab-row">
+  <!-- Toolbar: the Stops/Lodging segmented control and the add/find/refresh
+       tools share one cohesive row (tabs left, tools right) so the section's
+       controls read as a single bar instead of three stacked clusters. The
+       category filter keeps its own affordance below, since its open chip
+       wall needs full width. -->
+  <div class="toolbar">
     <div class="tabs" role="tablist" aria-label="Candidate type">
       <button
         type="button"
@@ -509,6 +512,60 @@
         onclick={() => setTab('lodging')}
       >Lodging <span class="tab-count">{visibleLodging.length}</span></button>
     </div>
+
+    {#if !readonly}
+      <div class="toolbar-actions" role="group" aria-label="Add or find more candidates">
+        <button
+          type="button"
+          class="tool"
+          aria-pressed={openPanel === 'add'}
+          onclick={() => { openPanel = openPanel === 'add' ? null : 'add'; }}
+        >
+          + Add {currentTabType === 'stop' ? 'stop' : 'lodging'}
+        </button>
+        <button
+          type="button"
+          class="tool"
+          aria-pressed={openPanel === 'find-more'}
+          onclick={() => { openPanel = openPanel === 'find-more' ? null : 'find-more'; }}
+        >
+          Find more {currentTabType === 'stop' ? 'stops' : 'lodging'}
+          <svg class="tool-spark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 3l1.5 4.5L19 9l-4.5 1.5L13 15l-1.5-4.5L7 9z" /><path d="M18.5 14l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z" /></svg>
+        </button>
+
+        {#if tab === 'stops' && (allStops?.length ?? 0) > 0 && features?.['enrich-candidates']}
+          <div class="refresh-controls">
+            <button
+              type="button"
+              class="tool refresh-btn"
+              disabled={refreshing || anyBlockingJobRunning}
+              onclick={() => refreshMetadata({ force: false })}
+              title="Fetch hours/website/phone for stops that are missing them"
+            >
+              {#if refreshing}Refreshing…{:else}↻ Refresh metadata{/if}
+            </button>
+            <button
+              type="button"
+              class="tool kebab-btn"
+              disabled={refreshing || anyBlockingJobRunning}
+              onclick={() => (kebabOpen = !kebabOpen)}
+              aria-label="More refresh options"
+              aria-expanded={kebabOpen}
+            >⌄</button>
+            {#if kebabOpen}
+              <div class="kebab-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="kebab-item"
+                  onclick={() => refreshMetadata({ force: true })}
+                >Re-fetch all (force overwrite)</button>
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   <!-- Category filter: only meaningful for Stops; hidden on Lodging tab.
@@ -554,59 +611,6 @@
         {/each}
       </div>
     </details>
-  {/if}
-
-  {#if !readonly}
-    <div class="subtools" role="group" aria-label="Add or find more candidates">
-      <button
-        type="button"
-        class="subtool"
-        aria-pressed={openPanel === 'add'}
-        onclick={() => { openPanel = openPanel === 'add' ? null : 'add'; }}
-      >
-        + Add {currentTabType === 'stop' ? 'stop' : 'lodging'}
-      </button>
-      <button
-        type="button"
-        class="subtool"
-        aria-pressed={openPanel === 'find-more'}
-        onclick={() => { openPanel = openPanel === 'find-more' ? null : 'find-more'; }}
-      >
-        Find more {currentTabType === 'stop' ? 'stops' : 'lodging'} ✨
-      </button>
-
-      {#if tab === 'stops' && (allStops?.length ?? 0) > 0 && features?.['enrich-candidates']}
-        <div class="refresh-controls">
-          <button
-            type="button"
-            class="btn-inline refresh-btn"
-            disabled={refreshing || anyBlockingJobRunning}
-            onclick={() => refreshMetadata({ force: false })}
-            title="Fetch hours/website/phone for stops that are missing them"
-          >
-            {#if refreshing}Refreshing…{:else}↻ Refresh metadata{/if}
-          </button>
-          <button
-            type="button"
-            class="btn-inline kebab-btn"
-            disabled={refreshing || anyBlockingJobRunning}
-            onclick={() => (kebabOpen = !kebabOpen)}
-            aria-label="More refresh options"
-            aria-expanded={kebabOpen}
-          >⌄</button>
-          {#if kebabOpen}
-            <div class="kebab-menu" role="menu">
-              <button
-                type="button"
-                role="menuitem"
-                class="kebab-item"
-                onclick={() => refreshMetadata({ force: true })}
-              >Re-fetch all (force overwrite)</button>
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
   {/if}
 
   {#if refreshError}
@@ -949,11 +953,66 @@
     }
   }
 
-  /* ── Tab row ────────────────────────────────────────────────────────── */
-  .tab-row {
+  /* ── Toolbar ────────────────────────────────────────────────────────── */
+  /* One row: the Stops/Lodging segmented control on the left, the
+     add/find/refresh tools on the right. Wraps on narrow widths. */
+  .toolbar {
     display: flex;
     align-items: center;
+    gap: 0.5rem 0.6rem;
+    flex-wrap: wrap;
     margin-bottom: 0.6rem;
+  }
+  .toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+  /* Unified tool button — one geometry for + Add, Find more, and Refresh, so
+     the bar reads as a consistent control set rather than three button
+     dialects. */
+  .tool {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 11px;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .tool:hover:not(:disabled) {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    border-color: var(--text-tertiary);
+  }
+  .tool:disabled { opacity: 0.5; cursor: not-allowed; }
+  .tool[aria-pressed="true"] {
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+  /* Inline sparkle on "Find more" — replaces the ✨ emoji so the toolbar
+     stays inside the monochrome Dusk vocabulary. Sunset-tinted to read as
+     the "AI find" affordance without a full accent fill. */
+  .tool-spark {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    color: var(--accent);
+    opacity: 0.85;
+  }
+  @media (pointer: coarse) {
+    .tool { min-height: var(--tap-min); padding: 0.5rem 0.85rem; font-size: 12.5px; }
   }
 
   /* ── Filter disclosure ──────────────────────────────────────────────── */
@@ -1298,40 +1357,6 @@
 
   /* Hide-toast chrome lives in HideToast.svelte — shared with PlanSection. */
 
-  /* ── Subtools row ────────────────────────────────────────────────────── */
-  .subtools {
-    display: flex;
-    gap: 0.5rem;
-    margin: -0.25rem 0 0.75rem;
-    flex-wrap: wrap;
-  }
-  .subtool {
-    background: transparent;
-    border: 0.5px solid var(--border-default);
-    color: var(--text-secondary);
-    font-family: var(--font-sans);
-    font-size: 12px;
-    font-weight: 500;
-    padding: 5px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    line-height: 1;
-    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
-  }
-  .subtool:hover {
-    background: var(--surface-raised);
-    color: var(--text-primary);
-    border-color: var(--text-tertiary);
-  }
-  .subtool[aria-pressed="true"] {
-    background: color-mix(in oklab, var(--accent) 10%, transparent);
-    color: var(--text-primary);
-    border-color: var(--accent);
-  }
-  @media (pointer: coarse) {
-    .subtool { min-height: var(--tap-min); padding: 0.5rem 0.85rem; font-size: 12.5px; }
-  }
-
   /* ── Add / find-more inline panel ──────────────────────────────────── */
   .panel {
     display: flex;
@@ -1424,35 +1449,16 @@
   }
 
   /* ── Refresh metadata controls ──────────────────────────────────────── */
+  /* The refresh button + its kebab are `.tool` buttons; this wrapper only
+     anchors the kebab menu's absolute position. */
   .refresh-controls {
     position: relative;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    margin-left: auto;
   }
-  .btn-inline {
-    background: transparent;
-    border: 0.5px solid var(--border-default);
-    color: var(--text-secondary);
-    font-family: var(--font-sans);
-    font-size: 12px;
-    font-weight: 500;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    line-height: 1;
-    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
-  }
-  .btn-inline:hover:not(:disabled) {
-    background: var(--surface-raised);
-    color: var(--text-primary);
-    border-color: var(--text-tertiary);
-  }
-  .btn-inline:disabled { opacity: 0.5; cursor: not-allowed; }
-  .refresh-btn { white-space: nowrap; }
   .kebab-btn {
-    padding: 0.2rem 0.4rem;
+    padding: 5px 7px;
     font-size: 0.9rem;
   }
   .kebab-menu {
@@ -1486,7 +1492,6 @@
      all sit below the 44px floor on desktop. Floor them on phones, and
      widen the dot-less "All" filter chip so it isn't a cramped 32px target. */
   @media (pointer: coarse) {
-    .btn-inline { min-height: var(--tap-min); }
     .kebab-btn { min-width: var(--tap-min); min-height: var(--tap-min); }
     .panel-submit,
     .panel-cancel { min-height: var(--tap-min); }
