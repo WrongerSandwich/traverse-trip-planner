@@ -41,7 +41,16 @@ export function metaPills(trip = {}) {
   const pills = [];
   if (trip?.destination) pills.push({ kind: 'destination', text: trip.destination });
   const drive = driveLabel(trip);
-  if (drive) pills.push({ kind: 'drive', text: drive });
+  const distMi = trip?.home_distance_mi;
+  const hasDistance = distMi != null && Number.isFinite(Number(distMi));
+  const distText = hasDistance ? `${Math.round(Number(distMi))} mi` : null;
+  if (drive && distText) {
+    pills.push({ kind: 'drive', text: `${drive} · ${distText}` });
+  } else if (drive) {
+    pills.push({ kind: 'drive', text: drive });
+  } else if (distText) {
+    pills.push({ kind: 'drive', text: distText });
+  }
   const nights = lodgingNights(trip);
   if (Number.isFinite(nights) && nights > 0) {
     pills.push({ kind: 'nights', text: `${nights} night${nights === 1 ? '' : 's'}` });

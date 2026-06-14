@@ -17,14 +17,34 @@ describe('metaPills', () => {
     const trip = {
       destination: 'St. Louis, MO',
       _drive_hours: 4,
+      home_distance_mi: 312,
       duration_days: 3,
       _cost: '$700–$1,400',
     };
     expect(metaPills(trip)).toEqual([
       { kind: 'destination', text: 'St. Louis, MO' },
-      { kind: 'drive', text: '4 hr' },
+      { kind: 'drive', text: '4 hr · 312 mi' },
       { kind: 'nights', text: '2 nights' },
       { kind: 'cost', text: '$700–$1,400' },
+    ]);
+  });
+  it('combines fractional drive hours with distance', () => {
+    const trip = { _drive_hours: 4.5, home_distance_mi: 287.7 };
+    expect(metaPills(trip)).toEqual([
+      { kind: 'drive', text: '4.5 hr · 288 mi' },
+    ]);
+  });
+  it('shows distance alone (no drive hours) as a drive pill', () => {
+    const trip = { destination: 'X', home_distance_mi: 150 };
+    expect(metaPills(trip)).toEqual([
+      { kind: 'destination', text: 'X' },
+      { kind: 'drive', text: '150 mi' },
+    ]);
+  });
+  it('omits distance pill when home_distance_mi is absent', () => {
+    const trip = { _drive_hours: 4 };
+    expect(metaPills(trip)).toEqual([
+      { kind: 'drive', text: '4 hr' },
     ]);
   });
   it('omits nights when not derivable and singularizes one night', () => {
