@@ -122,7 +122,7 @@
 >
   <div class="head">
     <span class="cat-badge" aria-hidden="true" title={stop.category}>{glyph}</span>
-    <h4 class="name">{stop.name}</h4>
+    <h3 class="name">{stop.name}</h3>
     {#if distance != null && !compact}
       <span class="distance" title="Distance from destination">{distance} mi</span>
     {/if}
@@ -290,15 +290,22 @@
     transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.15s ease;
     outline: none;
   }
+  /* --chip-ink: glyph color for the solid compact .cat-badge chip.
+     Defaults to --text-inverse (cream in light, dark in dark) which
+     works for dark fills (historic, cultural, entertainment, outdoors,
+     quirky). Food and misc fills are too light for cream to clear 3:1
+     decorative glyph contrast — those categories override to --forest-900
+     (always dark forest ink, mode-invariant) which clears ≥5:1 in both
+     light and dark mode. */
   .stop-card[data-category="historic"]      { --c: var(--cat-historic);      --c-tint: var(--cat-historic-tint);      --c-on: var(--cat-historic-on); }
   .stop-card[data-category="cultural"]      { --c: var(--cat-cultural);      --c-tint: var(--cat-cultural-tint);      --c-on: var(--cat-cultural-on); }
-  .stop-card[data-category="food"]          { --c: var(--cat-food);          --c-tint: var(--cat-food-tint);          --c-on: var(--cat-food-on); }
+  .stop-card[data-category="food"]          { --c: var(--cat-food);          --c-tint: var(--cat-food-tint);          --c-on: var(--cat-food-on);          --chip-ink: var(--forest-900); }
   .stop-card[data-category="entertainment"] { --c: var(--cat-entertainment); --c-tint: var(--cat-entertainment-tint); --c-on: var(--cat-entertainment-on); }
   .stop-card[data-category="outdoors"]      { --c: var(--cat-outdoors);      --c-tint: var(--cat-outdoors-tint);      --c-on: var(--cat-outdoors-on); }
   .stop-card[data-category="view"]          { --c: var(--cat-view);          --c-tint: var(--cat-view-tint);          --c-on: var(--cat-view-on); }
   .stop-card[data-category="quirky"]        { --c: var(--cat-quirky);        --c-tint: var(--cat-quirky-tint);        --c-on: var(--cat-quirky-on); }
   .stop-card[data-category="shopping"]      { --c: var(--cat-shopping);      --c-tint: var(--cat-shopping-tint);      --c-on: var(--cat-shopping-on); }
-  .stop-card[data-category="misc"]          { --c: var(--cat-misc);          --c-tint: var(--cat-misc-tint);          --c-on: var(--cat-misc-on); }
+  .stop-card[data-category="misc"]          { --c: var(--cat-misc);          --c-tint: var(--cat-misc-tint);          --c-on: var(--cat-misc-on);          --chip-ink: var(--forest-900); }
 
   .stop-card:hover,
   .stop-card:focus-visible {
@@ -363,7 +370,11 @@
     border-radius: var(--radius-sm);
     font-size: 0.72rem;
     background: var(--c, var(--cat-misc));
-    color: var(--text-inverse);
+    /* Use --chip-ink when set (food/misc: always-dark --forest-900 to
+       clear ≥3:1 decorative glyph contrast on their lighter fills in
+       both modes); fall back to --text-inverse (cream/dark per mode)
+       for the dark fills that already pass. */
+    color: var(--chip-ink, var(--text-inverse));
     box-shadow: none;
   }
   .stop-card.compact .name {

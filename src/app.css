@@ -189,6 +189,25 @@
   --radius-md: 12px;
   --radius-lg: 16px;
 
+  /* ── Chip & badge geometry ───────────────────────────────────────────────
+     The planning page carries three distinct "rounded token" intents. They
+     are deliberately NOT one component — their colors and states differ — but
+     they share ONE radius + ONE border-width story per family so the page
+     reads as a system rather than hand-assembled. The three families:
+
+       1. Chrome controls (header pills, .btn) — squarish, button radius (4px),
+          1.5px border. Not pills; they're buttons. (Owned by .btn / .header-pill.)
+       2. Status / toggle pills — fully-rounded informational + toggle tokens:
+          meta pills, day drive/date chips, the "Day N" badge, Candidates
+          filter chips, Plan prep chips, the field-guide palette chip. They
+          consume --chip-radius (999px) and, when outlined, --chip-border
+          (one width — the former 0.5/1px drift collapses to a single value).
+          Each keeps its own fill/ink/toggle state; only geometry unifies.
+       3. Category icon badge (.cat-chip / compact .cat-badge) — SQUARE on
+          purpose (it's an icon container, not a pill); uses --radius-sm. */
+  --chip-radius: 999px;
+  --chip-border: 1px;
+
   /* Map tile placeholder bg — used by MiniMap before tiles load */
   --map-tile-bg: #E8E4DE;
 
@@ -247,9 +266,13 @@
   --state-warning-surface: #3A2A18;
 
   /* Accent — sunset holds; accent-text shifts to a lighter sunset for
-     small text legibility on the dark surface */
+     small text legibility on the dark surface. accent-edge lifts the
+     left-border on day-cards (3px solid) so it reads against the deep
+     dark surface — sunset-400 (#E0884F) is visibly brighter than the
+     flat --accent on a near-black background. */
   --accent:      #D87B3F;
   --accent-text: #E0884F;
+  --accent-edge: var(--sunset-400);
 
   /* Focus — slightly lighter sunset for visibility against dark UI */
   --focus-ring: #E0884F;
@@ -349,6 +372,13 @@ body {
    dark ink in dark). The --cat-* fills flip in tandem (saturated/dark stops in
    light, lighter stops in dark), so the inverse ink reads on both. AA across
    all nine categories is verified at the T5 closeout. */
+/* Canonical solid category icon-chip. See comment above for design
+   rationale. Food and misc fills are too light for cream --text-inverse
+   to clear the decorative glyph 3:1 threshold in both modes (food
+   light: 2.9:1; misc light: 1.9:1; food dark: 2.5:1; misc dark: 1.2:1).
+   Those two categories override to --forest-900 (always-dark brand ink,
+   ≥5:1 against both light and dark fills). All other fills pass with
+   the default --text-inverse (cream light / dark ink dark). */
 .cat-chip {
   width: 28px; height: 28px; flex: none;
   display: inline-flex; align-items: center; justify-content: center;
@@ -359,13 +389,13 @@ body {
 }
 .cat-chip[data-category="historic"]      { background: var(--cat-historic); }
 .cat-chip[data-category="cultural"]      { background: var(--cat-cultural); }
-.cat-chip[data-category="food"]          { background: var(--cat-food); }
+.cat-chip[data-category="food"]          { background: var(--cat-food); color: var(--forest-900); }
 .cat-chip[data-category="entertainment"] { background: var(--cat-entertainment); }
 .cat-chip[data-category="outdoors"]      { background: var(--cat-outdoors); }
 .cat-chip[data-category="view"]          { background: var(--cat-view); }
 .cat-chip[data-category="quirky"]        { background: var(--cat-quirky); }
 .cat-chip[data-category="shopping"]      { background: var(--cat-shopping); }
-.cat-chip[data-category="misc"]          { background: var(--cat-misc); }
+.cat-chip[data-category="misc"]          { background: var(--cat-misc); color: var(--forest-900); }
 
 /* Photos / trip imagery — dim slightly in dark mode so they don't glare. */
 [data-theme="dark"] img:not([data-theme-invariant]) {
