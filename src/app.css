@@ -177,6 +177,17 @@
   --thumb-h: 220px;
   --tap-min: 44px;
 
+  /* ── Elevation ───────────────────────────────────────────────────────────
+     Soft warm shadows for Tier-2 cards (light mode). Shadow alpha is a raw
+     literal — permitted, shadows are one of the two literal exemptions. */
+  --shadow-card:   0 2px 12px rgba(60, 41, 33, 0.09);
+  --shadow-raised: 0 8px 28px rgba(60, 41, 33, 0.14);
+
+  /* ── Radius scale ──────────────────────────────────────────────────────── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
   /* Map tile placeholder bg — used by MiniMap before tiles load */
   --map-tile-bg: #E8E4DE;
 
@@ -250,6 +261,12 @@
   /* RGB triple matching the dark --surface-raised */
   --surface-raised-rgb: 30, 44, 36;
 
+  /* Elevation — shadows read poorly on dark surfaces, so elevation is carried
+     by surface lightness + borders instead. Keep shadows minimal (a 1px hairline)
+     so Tier-2 cards still get a faint edge without a muddy halo. */
+  --shadow-card:   0 1px 0 rgba(0, 0, 0, 0.25);
+  --shadow-raised: 0 1px 0 rgba(0, 0, 0, 0.35);
+
   /* ── Status pills — dark stops from the same family as light mode ─────
      Deeper surface stops for the bg + lighter foreground stops for the
      text/icon, both pulled from the same brand ramp the light value
@@ -312,6 +329,34 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ── Category chip ──────────────────────────────────────────────────────────
+   Square, filled with the category's pin color; glyph in the on-color.
+   data-category selectors keep it tokenized (no inline color literals). Shared
+   utility — Plan stop rows and Candidates cards (later tickets) reuse it.
+   Markup: <span class="cat-chip" data-category="food" aria-hidden="true">♪</span>
+
+   Glyph uses --text-inverse, which already flips per mode (cream in light,
+   dark ink in dark). The --cat-* fills flip in tandem (saturated/dark stops in
+   light, lighter stops in dark), so the inverse ink reads on both. AA across
+   all nine categories is verified at the T5 closeout. */
+.cat-chip {
+  width: 28px; height: 28px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 14px; line-height: 1;
+  color: var(--text-inverse);
+  background: var(--cat-misc);
+}
+.cat-chip[data-category="historic"]      { background: var(--cat-historic); }
+.cat-chip[data-category="cultural"]      { background: var(--cat-cultural); }
+.cat-chip[data-category="food"]          { background: var(--cat-food); }
+.cat-chip[data-category="entertainment"] { background: var(--cat-entertainment); }
+.cat-chip[data-category="outdoors"]      { background: var(--cat-outdoors); }
+.cat-chip[data-category="view"]          { background: var(--cat-view); }
+.cat-chip[data-category="quirky"]        { background: var(--cat-quirky); }
+.cat-chip[data-category="shopping"]      { background: var(--cat-shopping); }
+.cat-chip[data-category="misc"]          { background: var(--cat-misc); }
 
 /* Photos / trip imagery — dim slightly in dark mode so they don't glare. */
 [data-theme="dark"] img:not([data-theme-invariant]) {

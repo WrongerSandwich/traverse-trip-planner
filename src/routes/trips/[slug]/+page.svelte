@@ -18,6 +18,7 @@
   import { partitionPaletteUpdates } from '$lib/utils/paletteUpdates.js';
   import { hasWaypoints } from '$lib/utils/waypoints.js';
   import { mapsDeepLinkSummary } from '$lib/utils/maps-links.js';
+  import { metaPills, driveLabel as deriveDriveLabel } from '$lib/utils/trip-meta.js';
   import { browser } from '$app/environment';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
   import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
@@ -49,6 +50,11 @@
   });
 
   const tripJobs = $derived(filterJobsForSlug(allJobs, trip?._slug ?? ''));
+
+  // Prose sections get the Tier-1 calm treatment (overline + serif title +
+  // accent hairline, no card box). Plan & Candidates are component sections and
+  // are deliberately left out — they keep their own surface treatment.
+  const PROSE_SECTIONS = new Set(['overview', 'route', 'logistics', 'stops', 'notes']);
 
   const SECTION_LABELS = {
     overview: 'Overview',
@@ -187,11 +193,13 @@
 
   const markerColor = $derived(tripColor(trip));
 
-  const driveLabel = $derived(
-    trip?._drive_hours != null
-      ? `${trip._drive_hours % 1 === 0 ? trip._drive_hours : trip._drive_hours.toFixed(1)} hr`
-      : null
-  );
+  // Drive label feeds the TripMap (and, via metaPills, the meta strip). Shared
+  // formatter lives in trip-meta.js so the strip and the map can't drift.
+  const driveLabel = $derived(deriveDriveLabel(trip ?? {}));
+
+  // The meta strip is a pure projection of the enriched trip — destination,
+  // drive time, lodging nights, and cost tier — built by metaPills().
+  const metaItems = $derived(metaPills(trip ?? {}));
 
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
 
@@ -1227,15 +1235,9 @@
 
   <div class="trip-meta">
     <span class="stage-pill stage-{stage || 'planning'}">{stage || 'planning'}</span>
-    {#if trip?.destination}
-      <span class="trip-meta-item">{trip.destination}</span>
-    {/if}
-    {#if driveLabel}
-      <span class="trip-meta-item">{driveLabel}</span>
-    {/if}
-    {#if trip?._cost}
-      <span class="trip-meta-item trip-meta-cost">{trip._cost}</span>
-    {/if}
+    {#each metaItems as pill (pill.kind)}
+      <span class="meta-pill meta-pill-{pill.kind}">{pill.text}</span>
+    {/each}
   </div>
 
   <div class="layout">
@@ -1379,11 +1381,20 @@
       {#each canonicalSections as section}
         <section
           class="section"
+          class:prose-section={PROSE_SECTIONS.has(section)}
           class:muted-section={section === 'logistics' || section === 'route'}
           id="section-{section}"
         >
           <header class="section-header">
-            <h2>{SECTION_LABELS[section] || section}</h2>
+            {#if PROSE_SECTIONS.has(section)}
+              <div class="section-heading">
+                <span class="section-overline text-caption">{SECTION_LABELS[section] || section}</span>
+                <h2>{SECTION_LABELS[section] || section}</h2>
+                <span class="section-rule" aria-hidden="true"></span>
+              </div>
+            {:else}
+              <h2>{SECTION_LABELS[section] || section}</h2>
+            {/if}
             {#if section === 'candidates' && candidatesPinHint}
               <span class="section-header-hint" aria-live="polite">{candidatesPinHint}</span>
             {/if}
@@ -1624,10 +1635,12 @@
      in-header badge needs to remain visible. z-index sits above body
      content but below modals/confirms (which use 1000+). */
   .page > header {
-    background: var(--forest-800);
+    /* Slim forest band — a subtle top-lit gradient gives the sticky chrome a
+       hair of depth without reading as a separate UI layer. */
+    background: linear-gradient(160deg, var(--forest-800), var(--forest-900));
     color: var(--bone-200);
     border-bottom: 1px solid var(--border-default);
-    padding: 1.1rem 1.75rem;
+    padding: 0.85rem 1.75rem;
     display: flex;
     align-items: center;
     gap: 0.9rem;
@@ -1727,7 +1740,7 @@
     flex: 1;
     min-width: 0;
     font-family: var(--font-serif);
-    font-size: 1.6rem;
+    font-size: 1.5rem;
     font-weight: 500;
     /* 1.3 (was 1.1) leaves room for serif descenders (g, p, y). With
        overflow:hidden on this same box, a tighter line-height clipped
@@ -1742,39 +1755,39 @@
 
   /* ── Trip meta strip ──
      Lives between the hero photo and the map. Carries the stage pill plus
-     factual trip meta (destination, drive time, cost tier) that used to be
-     scattered across the sticky header. Surface tokens (not forest-800)
-     because we want this to read as page content, not chrome — one dark
-     band (the sticky header) is plenty. Items separated by middle dots
-     drawn via ::before so wrapping doesn't leave orphan separators at the
-     start of a wrapped line. */
+     factual trip meta (destination, drive time, lodging nights, cost tier)
+     built by metaPills(). Rendered on the cream --surface-raised strip so it
+     reads as page content, not chrome — one dark band (the sticky header) is
+     plenty. The factual pills are sunken chips so the row reads as a row of
+     content tokens rather than a run of dot-separated text. */
   .trip-meta {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem 0.85rem;
-    padding: 0.7rem 1.75rem;
+    gap: 0.5rem 0.6rem;
+    padding: 0.75rem 1.75rem;
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border-subtle);
     font-size: 0.82rem;
     color: var(--text-secondary);
   }
-  .trip-meta-item {
-    position: relative;
+  .meta-pill {
     display: inline-flex;
     align-items: center;
     min-width: 0;
     overflow-wrap: anywhere;
+    padding: 0.28rem 0.7rem;
+    border-radius: var(--radius-lg);
+    background: var(--surface-sunken);
+    color: var(--text-secondary);
+    line-height: 1.3;
   }
-  .trip-meta-item + .trip-meta-item::before {
-    content: '·';
-    margin-right: 0.85rem;
-    color: var(--text-tertiary);
-  }
-  .trip-meta-cost {
+  /* Cost stays the row's strongest factual pill — slightly heavier ink so the
+     budget read pops without a separate color. */
+  .meta-pill-cost {
     font-weight: 600;
     color: var(--text-primary);
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
   }
 
   /* Stage pill colors come from the per-stage modifier class so the
@@ -1796,14 +1809,25 @@
 
   .hero {
     position: relative;
-    height: 280px;
+    height: 240px;
     overflow: hidden;
     background: var(--surface-sunken);
   }
   .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* Soft bottom scrim so the vibe tag stays legible over any photo. A raw
+     rgba over photographic content — one of the two literal exemptions. */
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 38%;
+    background: linear-gradient(to top, rgba(17, 38, 25, 0.62), transparent);
+    pointer-events: none;
+  }
   .hero .vibe {
     position: absolute;
-    top: 0.9rem; left: 1.2rem;
+    bottom: 0.9rem; left: 1.2rem;
+    z-index: 1;
     font-size: 0.62rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -1938,6 +1962,58 @@
     color: var(--text-primary);
     margin: 0;
   }
+
+  /* ── Tier 1 — calm prose sections (Overview / Route / Logistics / …) ──
+     No card box; each section is an editorial unit: a small accent overline,
+     the title in Fraunces, and a short accent hairline rule. Sections are
+     separated by a hairline divider so the page reads as a tiered document
+     rather than a stack of boxes. Plan & Candidates (component sections)
+     keep the .section card treatment above — this only targets .prose-section. */
+  .section.prose-section {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+  }
+  /* Hairline divider between consecutive prose sections. */
+  .section.prose-section + .section.prose-section {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 1.6rem;
+    margin-top: 0.2rem;
+  }
+  .section.prose-section .section-header {
+    align-items: flex-start;
+    margin-bottom: 0.85rem;
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+  .section-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+  /* Overline: the section label as a quiet accent eyebrow above the serif
+     title. text-caption (global) supplies the 11px tracked-caps treatment. */
+  .section-overline {
+    color: var(--accent-text);
+    text-transform: uppercase;
+  }
+  .section.prose-section .section-header h2 {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+    line-height: 1.2;
+  }
+  /* Short accent hairline under the title — a 42×3px accent bar. */
+  .section-rule {
+    width: 42px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--accent);
+    margin-top: 0.45rem;
+  }
   .section-header-actions {
     display: inline-flex;
     align-items: center;
@@ -2058,6 +2134,14 @@
     color: var(--text-tertiary);
     font-style: italic;
     margin: 0;
+  }
+  /* Calmer empty state inside a Tier-1 prose section: a soft sunken panel so
+     the "not yet researched" placeholder reads as a quiet resting state rather
+     than naked italic text under a bare title. */
+  .section.prose-section .section-empty-block {
+    background: var(--surface-sunken);
+    border-radius: var(--radius-md);
+    padding: 0.9rem 1.1rem;
   }
 
   /* Prose: 1rem body with 1.75 line-height at 680px column yields ~78-82ch,
@@ -2548,9 +2632,8 @@
       line-height: 1;
     }
 
-    .trip-meta { padding: 0.6rem 1rem; font-size: 0.78rem; gap: 0.4rem 0.7rem; }
-    .trip-meta-item + .trip-meta-item::before { margin-right: 0.7rem; }
-    .hero { height: 200px; }
+    .trip-meta { padding: 0.6rem 1rem; font-size: 0.78rem; gap: 0.4rem 0.5rem; }
+    .hero { height: 180px; }
     .map-section { height: 220px; }
     .layout { padding: 1rem 0.85rem 6rem; }
     .section { padding: 1rem 1.1rem 1.2rem; }
