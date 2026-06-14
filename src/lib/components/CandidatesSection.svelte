@@ -968,7 +968,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    list-style: none;           /* Safari resets the triangle on list-style: none */
+    list-style: none;           /* belt-and-suspenders triangle suppression */
     cursor: pointer;
     user-select: none;
     font-family: var(--font-sans);
@@ -1018,7 +1018,7 @@
     font-size: 10px;
     font-weight: 600;
     padding: 1px 6px;
-    border-radius: 3px;
+    border-radius: 4px; /* chrome-control family (matches .subtool, .btn-inline) */
     cursor: pointer;
     line-height: 1.4;
     transition: color 0.12s, border-color 0.12s;
@@ -1134,7 +1134,7 @@
     color: var(--text-tertiary);
     background: color-mix(in oklab, var(--text-tertiary) 12%, transparent);
     padding: 0.1rem 0.35rem;
-    border-radius: 999px;
+    border-radius: var(--chip-radius); /* status/badge pill family */
     min-width: 1.4em;
     text-align: center;
   }
@@ -1264,7 +1264,7 @@
     color: var(--state-success);
     background: var(--state-success-surface);
     padding: 0.18rem 0.5rem;
-    border-radius: 999px;
+    border-radius: var(--chip-radius); /* status/badge pill family */
   }
   .day-meta-empty {
     grid-column: 1 / -1;
@@ -1481,7 +1481,7 @@
   }
   .kebab-item:hover { background: var(--surface-sunken); }
 
-  /* Touch: the tool controls under the filter strip (Refresh metadata +
+  /* Touch: the tool controls under the filter disclosure (Refresh metadata +
      its kebab, the Add / Find-more panel's Submit / Close + text input)
      all sit below the 44px floor on desktop. Floor them on phones, and
      widen the dot-less "All" filter chip so it isn't a cramped 32px target. */
