@@ -20,6 +20,8 @@
   import { hasWaypoints } from '$lib/utils/waypoints.js';
   import { mapsDeepLinkSummary } from '$lib/utils/maps-links.js';
   import { metaPills, driveLabel as deriveDriveLabel } from '$lib/utils/trip-meta.js';
+  import { activeSection } from '$lib/utils/trip-rail.js';
+  import TripRail from '$lib/components/TripRail.svelte';
   import { browser } from '$app/environment';
   import KebabMenu from '$lib/components/KebabMenu.svelte';
   import CoverPhotoModal from '$lib/components/CoverPhotoModal.svelte';
@@ -206,6 +208,63 @@
   const metaItems = $derived(metaPills(trip ?? {}));
 
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
+
+  // ── Desktop rail — section jump-nav sections list ──
+  // Mirrors canonicalSections as { id, label } pairs for TripRail.
+  const railSections = $derived(
+    canonicalSections.map(id => ({ id, label: SECTION_LABELS[id] || id }))
+  );
+
+  // ── Desktop rail — scroll-spy ──
+  // Tracks which section is currently in view by measuring each section
+  // element's offsetTop and comparing to scrollY + header height offset.
+  // Throttled via requestAnimationFrame so we coalesce rapid scroll events
+  // into at most one layout read per animation frame.
+  let railActiveId = $state(/** @type {string|null} */ (null));
+
+  $effect(() => {
+    if (!browser) return;
+    let rafId = /** @type {number|null} */ (null);
+    // Header is position:sticky; measure it once and track on resize.
+    let headerOffset = 0;
+
+    function measureHeader() {
+      const headerEl = document.querySelector('.page > header');
+      headerOffset = headerEl ? headerEl.offsetHeight : 0;
+    }
+
+    function update() {
+      rafId = null;
+      // Read each section's position relative to the document.
+      const positions = canonicalSections
+        .map(id => {
+          const el = document.getElementById(`section-${id}`);
+          if (!el) return null;
+          return { id, top: el.getBoundingClientRect().top + window.scrollY };
+        })
+        .filter(Boolean);
+
+      // Offset the scroll line by the header height so a section counts as
+      // "active" only when its top has cleared the sticky bar.
+      railActiveId = activeSection(positions, window.scrollY + headerOffset + 16);
+    }
+
+    function onScroll() {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(update);
+    }
+
+    measureHeader();
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', () => { measureHeader(); update(); }, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', () => { measureHeader(); update(); });
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  });
 
   // Overview soft cap (Phase 5 task 5.1). Prompt-side instructs the model to
   // keep overview prose to ~3 sentences, but legacy overviews on disk can be
@@ -1310,7 +1369,7 @@
       {/if}
 
       {#if Array.isArray(trip?._coords)}
-        <div class="map-section">
+        <div class="map-section no-desktop">
           <TripMap
             mode="overview"
             {trip}
@@ -1541,6 +1600,19 @@
       {/if}
 
     </main>
+
+    <aside class="rail-wrap" aria-label="Trip overview">
+      <TripRail
+        {trip}
+        home={data.home}
+        sections={railSections}
+        activeId={railActiveId}
+        planDaysCount={data.plan?.days?.length ?? null}
+        color={markerColor}
+        driveLabel={driveLabel}
+        {showWaypointHint}
+      />
+    </aside>
   </div>
 
   {#if retroOpen}
@@ -1872,6 +1944,50 @@
     display: flex;
     flex-direction: column;
     gap: 1.4rem;
+  }
+
+  /* Rail hidden by default on mobile; shown as a sticky sidebar at ≥960px. */
+  .rail-wrap { display: none; }
+
+  /* Desktop two-column layout. At ≥960px, .layout switches from centred
+     flex to a two-column grid: a fluid content column (left, capped at
+     680px) + a fixed 320px sticky rail (right). The outer flex centering
+     is replaced by grid + margin:auto on the inner container so the pair
+     stays centred in wide viewports. */
+  @media (min-width: 960px) {
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 680px) 320px;
+      align-items: start;
+      gap: 1.75rem;
+      justify-content: center;
+      padding: 1.75rem 2rem 4rem;
+    }
+
+    .content {
+      /* Grid child — width is controlled by the column; remove the old
+         centering max-width so it fills its column naturally. */
+      max-width: none;
+    }
+
+    /* Rail becomes visible and sticky. `top` matches the sticky header
+       height (header padding 0.85rem×2 + 1.3 line-height × 1.5rem ≈ 58px)
+       plus a small breathing gap. We use a CSS variable with a sane fallback
+       so if the header height ever changes, only one value needs updating. */
+    .rail-wrap {
+      display: block;
+      position: sticky;
+      top: calc(var(--header-height, 60px) + 1rem);
+      align-self: start;
+      /* Prevent the rail from growing taller than the viewport. */
+      max-height: calc(100vh - var(--header-height, 60px) - 2rem);
+      overflow-y: auto;
+    }
+
+    /* Hide the inline overview map on desktop — it now lives in the rail. */
+    .no-desktop {
+      display: none;
+    }
   }
 
   /* Full-border callouts; the side-stripe variant tripped the absolute ban
