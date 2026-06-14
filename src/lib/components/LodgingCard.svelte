@@ -248,7 +248,10 @@
     font-size: 0.75rem;
   }
   /* In compact mode the Book button is the primary CTA — accent fill so
-     it reads as an actionable "go book this" signal, not a footnote. */
+     it reads as an actionable "go book this" signal, not a footnote.
+     border-radius inherits the 4px from the base .book rule (same as .btn).
+     Hover darkens with --text-primary (semantic dark-ink anchor = #112619 in
+     light, re-mapped in dark) rather than the raw --forest-900 palette token. */
   .lodging-card.compact .book {
     margin-left: 0;
     padding: 3px 10px;
@@ -257,11 +260,10 @@
     background: var(--accent);
     color: var(--text-inverse);
     border-color: var(--accent);
-    border-radius: 4px;
   }
   .lodging-card.compact .book:hover {
-    background: color-mix(in oklab, var(--accent) 80%, var(--forest-900));
-    border-color: color-mix(in oklab, var(--accent) 80%, var(--forest-900));
+    background: color-mix(in oklab, var(--accent) 80%, var(--text-primary));
+    border-color: color-mix(in oklab, var(--accent) 80%, var(--text-primary));
     color: var(--text-inverse);
   }
 

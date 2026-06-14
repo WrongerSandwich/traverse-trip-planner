@@ -296,7 +296,7 @@
 
   --cat-food:               var(--sunset-400);
   --cat-food-tint:          var(--sunset-800);
-  --cat-food-on:            var(--sunset-200);
+  --cat-food-on:            var(--sunset-100); /* lifted from -200 (3.52:1) to -100 (4.64:1) for AA on sunset-800 tint */
 
   --cat-entertainment:      var(--sunset-200);
   --cat-entertainment-tint: var(--sunset-900);
