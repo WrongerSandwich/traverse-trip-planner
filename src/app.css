@@ -125,10 +125,11 @@
      Per the candidates-section shape brief, each stop category maps to a
      brand-family ramp so a user scanning candidates can read "what kind of
      trip is forming" by color. Three tokens per category:
-       --cat-X        — saturated pin color (used on the map and as the
-                        card's leading edge); reads on bone/forest surfaces
-       --cat-X-tint   — light tint for the category chip background
-       --cat-X-on     — text color readable on the tint
+       --cat-X        — saturated color: map pins, the card's leading edge,
+                        and the solid .cat-chip icon-chip (glyph in --text-inverse)
+       --cat-X-tint   — light tint background for tinted chips (e.g. category
+                        filter chips in the Candidates section)
+       --cat-X-on     — text color readable on the tint (paired with -tint)
      Categories deliberately reuse brand families (historic/cultural → bark,
      food/entertainment → sunset, outdoors → forest, view/quirky → sky,
      shopping/misc → bone) so the palette stays inside Dusk. */
@@ -176,6 +177,17 @@
   /* ── Layout constants ────────────────────────────────────────────────── */
   --thumb-h: 220px;
   --tap-min: 44px;
+
+  /* ── Elevation ───────────────────────────────────────────────────────────
+     Soft warm shadows for Tier-2 cards (light mode). Shadow alpha is a raw
+     literal — permitted, shadows are one of the two literal exemptions. */
+  --shadow-card:   0 2px 12px rgba(60, 41, 33, 0.09);
+  --shadow-raised: 0 8px 28px rgba(60, 41, 33, 0.14);
+
+  /* ── Radius scale ──────────────────────────────────────────────────────── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 
   /* Map tile placeholder bg — used by MiniMap before tiles load */
   --map-tile-bg: #E8E4DE;
@@ -250,6 +262,12 @@
   /* RGB triple matching the dark --surface-raised */
   --surface-raised-rgb: 30, 44, 36;
 
+  /* Elevation — shadows read poorly on dark surfaces, so elevation is carried
+     by surface lightness + borders instead. Keep shadows minimal (a 1px hairline)
+     so Tier-2 cards still get a faint edge without a muddy halo. */
+  --shadow-card:   0 1px 0 rgba(0, 0, 0, 0.25);
+  --shadow-raised: 0 1px 0 rgba(0, 0, 0, 0.35);
+
   /* ── Status pills — dark stops from the same family as light mode ─────
      Deeper surface stops for the bg + lighter foreground stops for the
      text/icon, both pulled from the same brand ramp the light value
@@ -278,7 +296,7 @@
 
   --cat-food:               var(--sunset-400);
   --cat-food-tint:          var(--sunset-800);
-  --cat-food-on:            var(--sunset-200);
+  --cat-food-on:            var(--sunset-100); /* lifted from -200 (3.52:1) to -100 (4.64:1) for AA on sunset-800 tint */
 
   --cat-entertainment:      var(--sunset-200);
   --cat-entertainment-tint: var(--sunset-900);
@@ -312,6 +330,42 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ── Category chip ──────────────────────────────────────────────────────────
+   Canonical solid category icon-chip used by standalone chip markup (e.g.
+   filter chips, Candidates cards). Square, filled with the category's pin
+   color; glyph in --text-inverse. data-category selectors keep it tokenized
+   (no inline color literals).
+   Markup: <span class="cat-chip" data-category="food" aria-hidden="true">♪</span>
+
+   NOTE: Component-scoped base classes (e.g. StopCard's .cat-badge with its
+   circular/tint form) already carry Svelte-scoped specificity (0,2,0 for a
+   compound selector like .stop-card.compact .cat-badge), which beats this
+   global utility's (0,1,0). That means adding .cat-chip to a scoped element
+   won't win against the scoped base rules. Components that need the solid
+   square treatment must mirror these tokens locally in their own scoped CSS.
+
+   Glyph uses --text-inverse, which already flips per mode (cream in light,
+   dark ink in dark). The --cat-* fills flip in tandem (saturated/dark stops in
+   light, lighter stops in dark), so the inverse ink reads on both. AA across
+   all nine categories is verified at the T5 closeout. */
+.cat-chip {
+  width: 28px; height: 28px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 14px; line-height: 1;
+  color: var(--text-inverse);
+  background: var(--cat-misc);
+}
+.cat-chip[data-category="historic"]      { background: var(--cat-historic); }
+.cat-chip[data-category="cultural"]      { background: var(--cat-cultural); }
+.cat-chip[data-category="food"]          { background: var(--cat-food); }
+.cat-chip[data-category="entertainment"] { background: var(--cat-entertainment); }
+.cat-chip[data-category="outdoors"]      { background: var(--cat-outdoors); }
+.cat-chip[data-category="view"]          { background: var(--cat-view); }
+.cat-chip[data-category="quirky"]        { background: var(--cat-quirky); }
+.cat-chip[data-category="shopping"]      { background: var(--cat-shopping); }
+.cat-chip[data-category="misc"]          { background: var(--cat-misc); }
 
 /* Photos / trip imagery — dim slightly in dark mode so they don't glare. */
 [data-theme="dark"] img:not([data-theme-invariant]) {

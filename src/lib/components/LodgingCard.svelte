@@ -187,21 +187,19 @@
      PlanSection. Drops the description, collapses meta + footer into a
      single row beneath the name, hides the Set-lodging-for-day button
      (the parent owns the assignment gesture), and tightens padding.
-     Keeps the bed glyph + name + price ramp + nights + Book CTA + Hide
-     because those are the at-rest signals that earn the slot. */
+     Tinted sub-card: --surface-sunken fill + --radius-md so it reads as
+     a nested "place to stay" block, distinct from the stop rows above. */
   .lodging-card.compact {
-    padding: 0.45rem 0.6rem 0.45rem 0.45rem;
+    padding: 0.5rem 0.65rem 0.5rem 0.55rem;
     gap: 0.55rem;
-    /* Dissolve the card chrome inside a day card — the dashed lodging-slot
-       rule + the bed-slot shape already mark this as "a place to sleep", so
-       a border + raised fill here would be a card-in-a-card. */
-    border-color: transparent;
-    background: transparent;
+    background: var(--surface-sunken);
+    border-color: var(--border-subtle);
+    border-radius: var(--radius-md);
   }
   .lodging-card.compact:hover,
   .lodging-card.compact:focus-visible {
-    background: var(--surface-page);
-    border-color: transparent;
+    background: color-mix(in oklab, var(--accent) 4%, var(--surface-sunken));
+    border-color: color-mix(in oklab, var(--accent) 30%, var(--border-subtle));
   }
   .lodging-card.compact .bed-slot {
     width: 26px;
@@ -249,10 +247,24 @@
   .lodging-card.compact .drag-dots {
     font-size: 0.75rem;
   }
+  /* In compact mode the Book button is the primary CTA — accent fill so
+     it reads as an actionable "go book this" signal, not a footnote.
+     border-radius inherits the 4px from the base .book rule (same as .btn).
+     Hover darkens with --text-primary (semantic dark-ink anchor = #112619 in
+     light, re-mapped in dark) rather than the raw --forest-900 palette token. */
   .lodging-card.compact .book {
     margin-left: 0;
-    padding: 2px 7px;
-    font-size: 10.5px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--text-inverse);
+    border-color: var(--accent);
+  }
+  .lodging-card.compact .book:hover {
+    background: color-mix(in oklab, var(--accent) 80%, var(--text-primary));
+    border-color: color-mix(in oklab, var(--accent) 80%, var(--text-primary));
+    color: var(--text-inverse);
   }
 
   /* Bed glyph slot — a small "media" column on the left. The SVG is

@@ -4,6 +4,7 @@
   import { formatDayHeader } from '$lib/format-date.js';
   import { streamAction } from '$lib/utils/action.js';
   import { nudgeJobsPoll } from '$lib/utils/jobs-store.js';
+  import { activeCategories } from '$lib/utils/candidate-filters.js';
   import TripMap from './TripMap.svelte';
   import StopCard from './StopCard.svelte';
   import LodgingCard from './LodgingCard.svelte';
@@ -69,11 +70,11 @@
     allStops.filter((s) => s.hidden).length + allLodging.filter((l) => l.hidden).length
   );
 
-  const presentCategories = $derived.by(() => {
-    const set = new Set();
-    for (const s of visibleStops) set.add(s.category || 'misc');
-    return Array.from(set);
-  });
+  // activeCategories returns the distinct KNOWN categories present in the pool,
+  // in canonical order; unknown/missing categories are excluded from the chips.
+  // Note: filteredStops (below) still uses `s.category || 'misc'`, so stops
+  // without a category show through when the misc chip is active.
+  const presentCategories = $derived(activeCategories(visibleStops));
 
   // Active tab as a candidate-type tag ('stop' | 'lodging') used by the
   // subtools row to wire add/find-more to the right pool.
@@ -497,6 +498,7 @@
         type="button"
         class="chip chip--all"
         class:active={!visibleCategories}
+        aria-pressed={!visibleCategories}
         onclick={clearCategoryFilter}
       >All</button>
       {#each presentCategories as cat}
@@ -505,6 +507,7 @@
           class="chip"
           data-category={cat}
           class:active={visibleCategories?.has(cat)}
+          aria-pressed={visibleCategories?.has(cat) ?? false}
           onclick={() => toggleCategoryChip(cat)}
         >
           <span class="chip-dot" aria-hidden="true"></span>
@@ -895,7 +898,7 @@
   .map-block {
     height: 280px;
     margin-bottom: 0.85rem;
-    border-radius: 5px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     border: 1px solid var(--border-subtle);
   }
@@ -956,11 +959,30 @@
     background: var(--surface-raised);
     color: var(--text-primary);
   }
-  .chip.active {
+  /* "All" chip active state uses accent tint. Category chips each light in
+     their own --cat-<category>-tint background + --cat-<category>-on text
+     when active. Inactive chips remain neutral (--border-subtle outline). */
+  .chip--all.active {
     background: color-mix(in oklab, var(--accent) 10%, transparent);
     color: var(--text-primary);
     border-color: var(--accent);
   }
+  .chip[data-category].active {
+    /* Fallback — overridden by per-category rules below */
+    background: color-mix(in oklab, var(--accent) 10%, transparent);
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+  .chip[data-category="historic"].active      { background: var(--cat-historic-tint);      color: var(--cat-historic-on);      border-color: var(--cat-historic); }
+  .chip[data-category="cultural"].active      { background: var(--cat-cultural-tint);      color: var(--cat-cultural-on);      border-color: var(--cat-cultural); }
+  .chip[data-category="food"].active          { background: var(--cat-food-tint);          color: var(--cat-food-on);          border-color: var(--cat-food); }
+  .chip[data-category="entertainment"].active { background: var(--cat-entertainment-tint); color: var(--cat-entertainment-on); border-color: var(--cat-entertainment); }
+  .chip[data-category="outdoors"].active      { background: var(--cat-outdoors-tint);      color: var(--cat-outdoors-on);      border-color: var(--cat-outdoors); }
+  .chip[data-category="view"].active          { background: var(--cat-view-tint);          color: var(--cat-view-on);          border-color: var(--cat-view); }
+  .chip[data-category="quirky"].active        { background: var(--cat-quirky-tint);        color: var(--cat-quirky-on);        border-color: var(--cat-quirky); }
+  .chip[data-category="shopping"].active      { background: var(--cat-shopping-tint);      color: var(--cat-shopping-on);      border-color: var(--cat-shopping); }
+  .chip[data-category="misc"].active          { background: var(--cat-misc-tint);          color: var(--cat-misc-on);          border-color: var(--cat-misc); }
+
   .chip-dot {
     width: 8px;
     height: 8px;
@@ -984,7 +1006,7 @@
     gap: 0.15rem;
     background: var(--surface-sunken);
     padding: 2px;
-    border-radius: 5px;
+    border-radius: var(--radius-md);
   }
   .tabs button {
     background: transparent;
@@ -992,7 +1014,7 @@
     padding: 4px 10px;
     color: var(--text-tertiary);
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-family: var(--font-sans);
     font-size: 12px;
     font-weight: 500;
@@ -1006,7 +1028,7 @@
   .tabs button.active {
     background: var(--surface-page);
     color: var(--text-primary);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
   }
   .tab-count {
     font-size: 10px;
@@ -1038,6 +1060,16 @@
     gap: 0;
   }
   .hidden-row { opacity: 0.55; }
+
+  /* Gentle hover elevation for candidate cards, scoped to this section so
+     brochure/today/plan contexts are unaffected. The shadow is visually
+     inert on compact cards (transparent background/border absorbs it). */
+  .row :global(.stop-card:hover),
+  .row :global(.stop-card.hovered),
+  .row :global(.lodging-card:hover),
+  .row :global(.lodging-card.hovered) {
+    box-shadow: var(--shadow-card);
+  }
 
   /* ── Day picker (mini-cards) ────────────────────────────────────────── */
   .day-picker {
