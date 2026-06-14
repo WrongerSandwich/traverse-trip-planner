@@ -192,6 +192,16 @@
   .lodging-card.compact {
     padding: 0.45rem 0.6rem 0.45rem 0.45rem;
     gap: 0.55rem;
+    /* Dissolve the card chrome inside a day card — the dashed lodging-slot
+       rule + the bed-slot shape already mark this as "a place to sleep", so
+       a border + raised fill here would be a card-in-a-card. */
+    border-color: transparent;
+    background: transparent;
+  }
+  .lodging-card.compact:hover,
+  .lodging-card.compact:focus-visible {
+    background: var(--surface-page);
+    border-color: transparent;
   }
   .lodging-card.compact .bed-slot {
     width: 26px;
@@ -451,6 +461,22 @@
   .hide:hover:not(:disabled) { color: var(--state-danger); }
   .hide:disabled { opacity: 0.3; cursor: not-allowed; }
   @media (pointer: coarse) {
-    .hide { opacity: 0.65; }
+    /* LodgingCard had no touch floors — Assign / Book / clear-× all sat
+       ~20px tall. Bring it to parity with StopCard. */
+    .action {
+      min-height: var(--tap-min);
+      padding: 0.5rem 0.85rem;
+    }
+    .book {
+      min-height: var(--tap-min);
+      display: inline-flex;
+      align-items: center;
+    }
+    .hide {
+      opacity: 1;
+      min-width: var(--tap-min);
+      min-height: var(--tap-min);
+      padding: 0 0.5rem;
+    }
   }
 </style>

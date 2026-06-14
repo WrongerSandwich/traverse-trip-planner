@@ -57,6 +57,14 @@
 
   // ── UI state ──
   let pickerOpen = $state(null); // day number or `lodging:${n}` (legacy click-fallback)
+  // Per-day actions menu (⋯). Holds the open day number or null. Destructive
+  // day removal lives here rather than as a bare × in the header, matching the
+  // detail page's lifecycle-menu pattern and reserving × for "remove an item".
+  let dayMenuOpen = $state(/** @type {number | null} */ (null));
+  // Per-day "arrange" mode. When set to a day number, that day's stops reveal
+  // their reorder / move / remove toolbar; at rest the cards are pure identity.
+  // Only one day arranges at a time.
+  let arrangingDay = $state(/** @type {number | null} */ (null));
   // Cross-day move picker for touch / keyboard users (the drag-handle
   // affordance is hidden on coarse pointers). Holds the stop being moved.
   let movePickerFor = $state(/** @type {null | { dayNumber: number, stopId: string }} */ (null));
@@ -69,8 +77,9 @@
   let errorCode = $state(/** @type {string|null} */ (null));
   let errorCtx = $state(/** @type {Record<string,string>} */ ({}));
 
-  // Hide-with-undo toast for stop removal, mirroring CandidatesSection.
-  let hideToast = $state(/** @type {{ dayNumber: number, candidateId: string, name: string } | null} */ (null));
+  // Hide-with-undo toast for stop removal + lodging clear, mirroring
+  // CandidatesSection. `kind` discriminates how Undo restores the item.
+  let hideToast = $state(/** @type {{ kind: 'stop'|'lodging'|'move', dayNumber?: number, candidateId?: string, name: string, fromDay?: number, toDay?: number, stopId?: string } | null} */ (null));
   let hideToastTimer = null;
 
   // ── Drag-drop state ──
@@ -178,10 +187,18 @@
    * or entirely failed.
    */
   async function moveStopAcrossDays(fromDay, toDay, stopId) {
-    await api(`/api/plan/${slug}/move-stop`, {
+    const ok = await api(`/api/plan/${slug}/move-stop`, {
       method: 'POST',
       body: JSON.stringify({ fromDay, toDay, stopId }),
     });
+    // Moves are reversible like removals — surface an undo toast so a one-tap
+    // (or accidental drag) relocation can be taken back. Applies to every move
+    // path: direct one-tap, picker, and cross-day drag-drop.
+    if (ok) {
+      const cand = candidateById(stopId);
+      queueHideToast({ kind: 'move', name: cand?.name ?? stopId, fromDay, toDay, stopId });
+    }
+    return ok;
   }
 
   // Touch-flow path for cross-day move: open the picker, then select a
@@ -194,6 +211,22 @@
   }
   function closeMovePicker() {
     movePickerFor = null;
+  }
+  // "Move" tap handler. With only one other day there's a single possible
+  // destination, so skip the picker and move directly; otherwise toggle the
+  // day picker. Avoids a one-option Hobson's-choice list on short trips.
+  function startMove(dayNumber, stopId) {
+    const others = (plan?.days ?? []).filter((d) => d.number !== dayNumber);
+    if (others.length === 1) {
+      if (movePickerFor) closeMovePicker();
+      moveStopAcrossDays(dayNumber, others[0].number, stopId);
+      return;
+    }
+    if (movePickerFor?.stopId === stopId && movePickerFor?.dayNumber === dayNumber) {
+      closeMovePicker();
+    } else {
+      openMovePicker(dayNumber, stopId);
+    }
   }
   async function moveViaPicker(toDay) {
     if (!movePickerFor) return;
@@ -377,7 +410,7 @@
     const ok = await api(`/api/plan/${slug}/day/${dayNumber}/stops/${id}`, {
       method: 'DELETE',
     });
-    if (ok) queueHideToast({ dayNumber, candidateId: id, name });
+    if (ok) queueHideToast({ kind: 'stop', dayNumber, candidateId: id, name });
   }
 
   async function setLodging(dayNumber, candidateId) {
@@ -386,6 +419,23 @@
       body: JSON.stringify({ id: candidateId }),
     });
     pickerOpen = null;
+  }
+
+  // Clear a day's lodging with an undo toast — matches the stop-removal
+  // safety model so a fat-finger tap on the lodging × isn't an
+  // unrecoverable wipe of a chosen stay (the previous behavior cleared
+  // it silently and immediately).
+  async function clearLodgingWithUndo(dayNumber) {
+    const day = plan.days.find((d) => d.number === dayNumber);
+    const priorId = day?.lodging_id;
+    if (!priorId) return;
+    const cand = candidateById(priorId);
+    const name = cand?.name ?? priorId;
+    const ok = await api(`/api/plan/${slug}/day/${dayNumber}/lodging`, {
+      method: 'PUT',
+      body: JSON.stringify({ id: null }),
+    });
+    if (ok) queueHideToast({ kind: 'lodging', dayNumber, candidateId: priorId, name });
   }
 
   async function saveField(dayNumber, patch) {
@@ -433,14 +483,28 @@
   }
   async function undoHide() {
     if (!hideToast) return;
-    const { dayNumber, candidateId } = hideToast;
+    const { kind, dayNumber, candidateId, fromDay, toDay, stopId } = hideToast;
     hideToast = null;
     if (hideToastTimer) { clearTimeout(hideToastTimer); hideToastTimer = null; }
-    // Re-promote: same endpoint that promotes candidates into days.
-    await api(`/api/plan/${slug}/promote`, {
-      method: 'POST',
-      body: JSON.stringify({ id: candidateId, day: dayNumber }),
-    });
+    if (kind === 'move') {
+      // Move the stop back to the day it came from.
+      await api(`/api/plan/${slug}/move-stop`, {
+        method: 'POST',
+        body: JSON.stringify({ fromDay: toDay, toDay: fromDay, stopId }),
+      });
+    } else if (kind === 'lodging') {
+      // Re-assign the lodging we just cleared.
+      await api(`/api/plan/${slug}/day/${dayNumber}/lodging`, {
+        method: 'PUT',
+        body: JSON.stringify({ id: candidateId }),
+      });
+    } else {
+      // Re-promote: same endpoint that promotes candidates into days.
+      await api(`/api/plan/${slug}/promote`, {
+        method: 'POST',
+        body: JSON.stringify({ id: candidateId, day: dayNumber }),
+      });
+    }
   }
   function dismissHideToast() {
     hideToast = null;
@@ -485,6 +549,11 @@
       : null
   );
 </script>
+
+<svelte:window onpointerdown={(e) => {
+  if (dayMenuOpen == null) return;
+  if (!e.target?.closest?.('.day-menu-wrap')) dayMenuOpen = null;
+}} />
 
 {#if errorCode}
   <div class="banner-error" role="alert">
@@ -533,6 +602,7 @@
     {@const header = formatDayHeader(day)}
     <article
       class="day-card"
+      class:arranging={arrangingDay === day.number}
       class:drop-target-active={dragOverDay === day.number && reorderDrag?.dayNumber !== day.number}
       class:drop-stop={dragOverDay === day.number && activeDragType !== 'lodging' && reorderDrag?.dayNumber !== day.number}
       class:drop-lodging={dragOverDay === day.number && activeDragType === 'lodging'}
@@ -595,14 +665,48 @@
           >+ date</button>
         {/if}
 
-        <button
-          type="button"
-          class="btn-inline btn-icon header-icon"
-          onclick={() => removeDay(day.number)}
-          disabled={working || readonly}
-          aria-label="Remove day"
-          title="Remove day"
-        >×</button>
+        {#if !readonly}
+          {#if arrangingDay === day.number}
+            <button
+              type="button"
+              class="btn-inline btn-primary day-done"
+              onclick={() => { arrangingDay = null; }}
+            >Done</button>
+          {:else}
+            <div class="day-menu-wrap">
+              <button
+                type="button"
+                class="btn-inline btn-icon header-icon"
+                onclick={(e) => { e.stopPropagation(); dayMenuOpen = dayMenuOpen === day.number ? null : day.number; }}
+                disabled={working}
+                aria-label="Day actions"
+                aria-haspopup="menu"
+                aria-expanded={dayMenuOpen === day.number}
+                title="Day actions"
+              >⋯</button>
+              {#if dayMenuOpen === day.number}
+                <div class="day-menu" role="menu">
+                  {#if day.stops.length > 0}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="day-menu-item"
+                      onclick={() => { dayMenuOpen = null; arrangingDay = day.number; }}
+                      disabled={working}
+                    >Arrange stops</button>
+                  {/if}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="day-menu-item day-menu-item--danger"
+                    onclick={() => { dayMenuOpen = null; removeDay(day.number); }}
+                    disabled={working}
+                  >Remove day</button>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        {/if}
       </header>
 
       <!-- Notes at rest — first-class field, not edit-only as before. -->
@@ -644,7 +748,7 @@
 
       <!-- Stops list — compact StopCards instead of bare flexbox rows. -->
       {#if day.stops.length > 0}
-        <ul class="stops-list" role="list">
+        <ul class="stops-list" role="list" aria-busy={working}>
           {#each day.stops as id, i (id)}
             {@const cand = candidateById(id)}
             <li
@@ -665,43 +769,53 @@
                       {working}
                       ondragstart={() => onStopDragStart(day.number, id, i, event)}
                       ondragend={onStopDragEnd}
-                      onHide={() => removeStopWithUndo(day.number, id)}
                       onToggleTodo={(todoId, done) => toggleTodo(cand.id, todoId, done)}
                     />
-                    {#if !readonly && day.stops.length > 1}
-                      <div class="nudge-stack" role="group" aria-label="Reorder {cand.name}">
+                    {#if arrangingDay === day.number && !readonly}
+                      <div class="arrange-toolbar" role="group" aria-label="Arrange {cand.name}">
+                        {#if day.stops.length > 1}
+                          <button
+                            type="button"
+                            class="nudge-btn"
+                            onclick={() => nudgeStop(day.number, i, -1)}
+                            aria-label="Move {cand.name} up"
+                            title="Move up"
+                            disabled={working || i === 0}
+                          >↑</button>
+                          <button
+                            type="button"
+                            class="nudge-btn"
+                            onclick={() => nudgeStop(day.number, i, +1)}
+                            aria-label="Move {cand.name} down"
+                            title="Move down"
+                            disabled={working || i === day.stops.length - 1}
+                          >↓</button>
+                        {/if}
+                        {#if plan.days.length > 1}
+                          <button
+                            type="button"
+                            class="move-btn"
+                            class:active={movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
+                            onclick={() => startMove(day.number, id)}
+                            aria-label="Move {cand.name} to a different day"
+                            title="Move to another day"
+                            disabled={working}
+                          >Move</button>
+                        {/if}
                         <button
                           type="button"
-                          class="nudge-btn"
-                          onclick={() => nudgeStop(day.number, i, -1)}
-                          aria-label="Move {cand.name} up"
-                          title="Move up"
-                          disabled={working || i === 0}
-                        >↑</button>
-                        <button
-                          type="button"
-                          class="nudge-btn"
-                          onclick={() => nudgeStop(day.number, i, +1)}
-                          aria-label="Move {cand.name} down"
-                          title="Move down"
-                          disabled={working || i === day.stops.length - 1}
-                        >↓</button>
+                          class="arrange-remove"
+                          onclick={() => removeStopWithUndo(day.number, id)}
+                          aria-label="Remove {cand.name} from this day"
+                          title="Remove from this day"
+                          disabled={working}
+                        >✕</button>
                       </div>
-                    {/if}
-                    {#if !readonly && plan.days.length > 1}
-                      <button
-                        type="button"
-                        class="move-btn"
-                        class:active={movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
-                        onclick={() => movePickerFor?.stopId === id ? closeMovePicker() : openMovePicker(day.number, id)}
-                        aria-label="Move {cand.name} to a different day"
-                        title="Move to another day"
-                        disabled={working}
-                      >Move</button>
                     {/if}
                   </div>
                   {#if movePickerFor?.stopId === id && movePickerFor?.dayNumber === day.number}
-                    <div class="move-picker" role="listbox" aria-label="Move {cand.name} to which day">
+                    <div class="move-picker" role="group" aria-label="Move {cand.name} to which day">
+                      <p class="move-picker-head">Move <strong>{cand.name}</strong> to…</p>
                       {#each plan.days.filter((d) => d.number !== day.number) as target (target.number)}
                         {@const targetHeader = formatDayHeader(target)}
                         <button
@@ -715,6 +829,7 @@
                           <span class="move-picker-count">{target.stops.length} stop{target.stops.length === 1 ? '' : 's'}</span>
                         </button>
                       {/each}
+                      <button type="button" class="move-picker-cancel" onclick={closeMovePicker}>Cancel</button>
                     </div>
                   {/if}
                 {:else if candidates?.lodging?.find((l) => l.id === id)}
@@ -766,7 +881,7 @@
               {readonly}
               {working}
               showDragHandle={false}
-              onHide={() => setLodging(day.number, null)}
+              onHide={() => clearLodgingWithUndo(day.number)}
             />
           {:else}
             <div class="dangling-row" role="alert">
@@ -843,7 +958,11 @@
 
 <HideToast
   open={!!hideToast}
-  message={hideToast ? `Removed ${hideToast.name} from Day ${hideToast.dayNumber}.` : ''}
+  message={hideToast
+    ? (hideToast.kind === 'move'
+        ? `Moved ${hideToast.name} to Day ${hideToast.toDay}.`
+        : `${hideToast.kind === 'lodging' ? 'Cleared' : 'Removed'} ${hideToast.name} from Day ${hideToast.dayNumber}.`)
+    : ''}
   onUndo={undoHide}
   onDismiss={dismissHideToast}
 />
@@ -938,6 +1057,12 @@
     font-family: var(--font-sans);
     transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   }
+  /* Arrange mode — a quiet accent wash + border so it's clear which day's
+     stops are currently rearrangeable. */
+  .day-card.arranging {
+    border-color: color-mix(in oklab, var(--accent) 35%, var(--border-default));
+    background: color-mix(in oklab, var(--accent) 3%, var(--surface-raised));
+  }
   /* Drop target affordance — dashed inset outline + accent border + soft
      accent wash. Differentiated by payload type so the user sees what
      they're about to commit to. */
@@ -1010,6 +1135,45 @@
     padding: 3px 8px;
     line-height: 1;
     min-width: 1.6rem;
+  }
+
+  /* Per-day actions menu (⋯) — mirrors CandidatesSection's refresh kebab.
+     Holds the confirm-gated "Remove day" so destructive day removal isn't a
+     bare × on the surface next to the per-stop remove ×. */
+  .day-menu-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+  .day-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.25rem;
+    background: var(--surface-raised);
+    border: 0.5px solid var(--border-default);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px var(--shadow-soft, rgba(0, 0, 0, 0.08));
+    z-index: 10;
+    min-width: 9rem;
+    overflow: hidden;
+  }
+  .day-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    padding: 0.5rem 0.7rem;
+    font-family: var(--font-sans);
+    font-size: 0.84rem;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .day-menu-item:hover:not(:disabled) { background: var(--surface-sunken); }
+  .day-menu-item:disabled { opacity: 0.5; cursor: not-allowed; }
+  .day-menu-item--danger { color: var(--state-danger); }
+  @media (pointer: coarse) {
+    .day-menu-item { min-height: var(--tap-min); }
   }
 
   /* Header chip used for drive distance + date placeholders. Click toggles
@@ -1170,48 +1334,80 @@
   .stop-row {
     position: relative;
   }
-  /* Stop-row flex container — holds the compact StopCard + the optional
-     "Move" button used by touch / keyboard users (drag handles hide on
-     coarse pointers). The button is visually de-emphasized when drag is
-     the natural gesture (fine pointers) so desktop users see the row as
-     the compact card alone. */
+  /* Stop-row container — holds the compact StopCard and, only while the day
+     is being arranged, the reorder/move/remove toolbar, which wraps to its
+     own full-width row beneath the card. */
   .stop-row-controls {
     display: flex;
-    align-items: stretch;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 0.25rem;
+    row-gap: 0.35rem;
   }
   .stop-row-controls > :global(.stop-card) {
-    flex: 1;
+    flex: 1 1 100%;
     min-width: 0;
   }
+
+  /* Arrange-mode toolbar — a horizontal row of reorder (↑ ↓), Move, and
+     remove (✕), shown only when the day is in arrange mode. Indented to
+     align under the card content. */
+  .arrange-toolbar {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-left: calc(18px + 0.5rem + 8px);
+  }
+  .nudge-btn,
+  .arrange-remove {
+    flex-shrink: 0;
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1;
+    min-width: 2rem;
+    padding: 0.25rem 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .nudge-btn:hover:not(:disabled) {
+    background: var(--surface-page);
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+  .nudge-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .arrange-remove {
+    margin-left: auto;
+    color: var(--text-tertiary);
+  }
+  .arrange-remove:hover:not(:disabled) {
+    color: var(--state-danger);
+    border-color: var(--state-danger);
+  }
+  .arrange-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+
   .move-btn {
     flex-shrink: 0;
     background: transparent;
     border: 0.5px solid var(--border-default);
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     font-family: var(--font-sans);
-    font-size: 10.5px;
+    font-size: 11.5px;
     font-weight: 500;
     letter-spacing: 0.04em;
-    padding: 0 8px;
+    padding: 0.25rem 12px;
     border-radius: 4px;
     cursor: pointer;
-    transition: background-color 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
-    /* On hover-capable pointers, the button is hidden — drag is the
-       primary gesture there. Restored on coarse pointers and on focus
-       (keyboard users) below. */
-    opacity: 0;
-    pointer-events: none;
-  }
-  .stop-row-controls:focus-within .move-btn,
-  .move-btn:focus-visible,
-  .move-btn.active {
-    opacity: 1;
-    pointer-events: auto;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
   }
   .move-btn:hover:not(:disabled) {
     background: var(--surface-page);
-    color: var(--text-secondary);
+    color: var(--text-primary);
     border-color: var(--border-strong);
   }
   .move-btn.active {
@@ -1221,65 +1417,16 @@
   }
   .move-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   @media (pointer: coarse) {
-    .move-btn { opacity: 1; pointer-events: auto; }
-  }
-
-  /* Within-day reorder buttons — touch substitute for the drag handle on
-     the StopCard. ↑/↓ stacked so they take one column of the row instead
-     of two. Hidden by default on fine pointers (drag is the primary gesture);
-     revealed on focus-within and always on coarse pointers, matching the
-     .move-btn pattern. */
-  .nudge-stack {
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.12s;
-  }
-  .stop-row-controls:focus-within .nudge-stack,
-  .nudge-stack:focus-within {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  @media (pointer: coarse) {
-    .nudge-stack { opacity: 1; pointer-events: auto; }
-  }
-  .nudge-btn {
-    background: transparent;
-    border: 0.5px solid var(--border-default);
-    color: var(--text-tertiary);
-    font-family: var(--font-sans);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1;
-    padding: 0;
-    width: 26px;
-    flex: 1;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
-  }
-  .nudge-btn:hover:not(:disabled) {
-    background: var(--surface-page);
-    color: var(--text-secondary);
-    border-color: var(--border-strong);
-  }
-  .nudge-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-  @media (pointer: coarse) {
-    /* On a phone the reorder controls reflow to a horizontal toolbar
-       beneath the (now full-width) stop card, so each arrow is a full
-       44px tap target side by side rather than a stretched vertical rail. */
-    .nudge-stack {
-      flex-direction: row;
-      gap: 0.4rem;
-    }
-    .nudge-btn {
-      width: var(--tap-min);
+    .nudge-btn,
+    .arrange-remove {
+      min-width: var(--tap-min);
       min-height: var(--tap-min);
-      flex: 0 0 auto;
       font-size: 1rem;
+    }
+    .move-btn {
+      min-height: var(--tap-min);
+      font-size: 0.95rem;
+      padding: 0 12px;
     }
   }
 
@@ -1293,6 +1440,38 @@
     padding: 4px;
     background: var(--surface-sunken);
     border-radius: 5px;
+  }
+  .move-picker-head {
+    margin: 0;
+    padding: 0.3rem 0.4rem 0.4rem;
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .move-picker-head strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .move-picker-cancel {
+    margin-top: 2px;
+    background: transparent;
+    border: 0.5px solid var(--border-default);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    padding: 0.4rem 0.65rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.12s, color 0.12s;
+  }
+  .move-picker-cancel:hover {
+    background: var(--surface-raised);
+    color: var(--text-primary);
   }
   .move-picker-item {
     display: grid;
@@ -1570,24 +1749,43 @@
       min-height: var(--tap-min);
       padding: 0.7rem 0.85rem;
     }
-    .move-btn {
+    /* A hairline + breathing room between stops keeps the resting list of
+       places legible, and clearly bounds each stop when arrange mode adds
+       its toolbar. */
+    .stops-list {
+      gap: 0;
+    }
+    .stop-row + .stop-row {
+      margin-top: 0.65rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--border-subtle);
+    }
+    /* Remaining sub-44px tap targets: the click-fallback stop/lodging
+       picker rows, the move-to-day picker rows + its Cancel, and the
+       "+ Add notes" affordance. Floor them like the rest of the card. */
+    .picker-item {
       min-height: var(--tap-min);
-      min-width: var(--tap-min);
-      font-size: 0.95rem;
-      padding: 0 12px;
-    }
-    /* Stop the reorder/move controls from stretching to the full card
-       height — they were rendering as 900px+ vertical rails that crushed
-       the stop content into a ~170px column. The card now takes the full
-       row width and the nudge + Move controls wrap to a compact toolbar
-       beneath it. */
-    .stop-row-controls {
-      flex-wrap: wrap;
+      display: flex;
       align-items: center;
-      row-gap: 0.45rem;
     }
-    .stop-row-controls > :global(.stop-card) {
-      flex: 1 1 100%;
+    .move-picker-item {
+      min-height: var(--tap-min);
+    }
+    .move-picker-cancel {
+      min-height: var(--tap-min);
+    }
+    .notes-add {
+      min-height: var(--tap-min);
+      padding: 0.5rem 0.85rem;
+    }
+    .banner-dismiss {
+      min-height: var(--tap-min);
+    }
+    .notes--editable {
+      min-height: var(--tap-min);
+    }
+    .field-input {
+      min-height: var(--tap-min);
     }
   }
 
