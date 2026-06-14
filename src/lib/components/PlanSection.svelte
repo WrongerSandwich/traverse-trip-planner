@@ -75,7 +75,7 @@
 
   // Hide-with-undo toast for stop removal + lodging clear, mirroring
   // CandidatesSection. `kind` discriminates how Undo restores the item.
-  let hideToast = $state(/** @type {{ kind: 'stop'|'lodging', dayNumber: number, candidateId: string, name: string } | null} */ (null));
+  let hideToast = $state(/** @type {{ kind: 'stop'|'lodging'|'move', dayNumber?: number, candidateId?: string, name: string, fromDay?: number, toDay?: number, stopId?: string } | null} */ (null));
   let hideToastTimer = null;
 
   // ── Drag-drop state ──
@@ -183,10 +183,18 @@
    * or entirely failed.
    */
   async function moveStopAcrossDays(fromDay, toDay, stopId) {
-    await api(`/api/plan/${slug}/move-stop`, {
+    const ok = await api(`/api/plan/${slug}/move-stop`, {
       method: 'POST',
       body: JSON.stringify({ fromDay, toDay, stopId }),
     });
+    // Moves are reversible like removals — surface an undo toast so a one-tap
+    // (or accidental drag) relocation can be taken back. Applies to every move
+    // path: direct one-tap, picker, and cross-day drag-drop.
+    if (ok) {
+      const cand = candidateById(stopId);
+      queueHideToast({ kind: 'move', name: cand?.name ?? stopId, fromDay, toDay, stopId });
+    }
+    return ok;
   }
 
   // Touch-flow path for cross-day move: open the picker, then select a
@@ -471,10 +479,16 @@
   }
   async function undoHide() {
     if (!hideToast) return;
-    const { kind, dayNumber, candidateId } = hideToast;
+    const { kind, dayNumber, candidateId, fromDay, toDay, stopId } = hideToast;
     hideToast = null;
     if (hideToastTimer) { clearTimeout(hideToastTimer); hideToastTimer = null; }
-    if (kind === 'lodging') {
+    if (kind === 'move') {
+      // Move the stop back to the day it came from.
+      await api(`/api/plan/${slug}/move-stop`, {
+        method: 'POST',
+        body: JSON.stringify({ fromDay: toDay, toDay: fromDay, stopId }),
+      });
+    } else if (kind === 'lodging') {
       // Re-assign the lodging we just cleared.
       await api(`/api/plan/${slug}/day/${dayNumber}/lodging`, {
         method: 'PUT',
@@ -913,7 +927,11 @@
 
 <HideToast
   open={!!hideToast}
-  message={hideToast ? `${hideToast.kind === 'lodging' ? 'Cleared' : 'Removed'} ${hideToast.name} from Day ${hideToast.dayNumber}.` : ''}
+  message={hideToast
+    ? (hideToast.kind === 'move'
+        ? `Moved ${hideToast.name} to Day ${hideToast.toDay}.`
+        : `${hideToast.kind === 'lodging' ? 'Cleared' : 'Removed'} ${hideToast.name} from Day ${hideToast.dayNumber}.`)
+    : ''}
   onUndo={undoHide}
   onDismiss={dismissHideToast}
 />
@@ -1764,6 +1782,9 @@
       min-height: var(--tap-min);
     }
     .notes--editable {
+      min-height: var(--tap-min);
+    }
+    .field-input {
       min-height: var(--tap-min);
     }
   }
