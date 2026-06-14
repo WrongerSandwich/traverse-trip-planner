@@ -6,6 +6,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Planning page visual refresh** (#510). Redesigned the trip detail page
+  (`/trips/<slug>`) into a tiered "soft-card dashboard": calm editorial prose for
+  Overview/Route/Logistics, elevated cards for Plan & Candidates (day-card accent
+  edges, category icon-chips, disclosure pills, between-stop drive connectors,
+  lodging sub-card), a slim gradient header with a meta pill row, and — on desktop
+  (≥960px) — a two-column layout with a sticky **trip rail** (mini overview map,
+  quick stats, scroll-spy section nav). Adds elevation/radius + chip design tokens
+  to `app.css`. Mobile-first; all behavior preserved.
+
+### Changed
+- **Candidates browsing** (#511). Stops/Lodging is now a segmented control, and
+  the category filter collapses behind an opt-in **Filter** affordance (scoped to
+  Stops) so the section leads with content instead of a chip wall. Chip/badge
+  geometry consolidated into shared `app.css` primitives for consistency.
+
+### Fixed
+- **Accessibility** (#511). AA contrast on accent-filled controls (e.g. the
+  lodging "Book" button) and category-chip glyphs in both themes; corrected a
+  skipped heading level (h2→h3) in Candidates; the prep progress bar no longer
+  animates a layout property.
+- **Sticky header + trip rail** (#512). The trip detail page set `overflow: auto`
+  on `<html>` to re-enable scrolling, which silently broke `position: sticky` for
+  the header and rail (they scrolled away). Use `overflow: visible`.
+- **Map over sticky header** (#513). Leaflet maps no longer paint over the sticky
+  header — `TripMap` now isolates its stacking context so Leaflet's internal
+  z-index layers can't escape over app chrome.
+- **iOS horizontal overscroll** (#513). `overscroll-behavior-x: none` on the trip
+  detail page stops a few px of horizontal rubber-band on iPad.
+
 ## [0.1.3] — 2026-06-08 · Offline support
 
 ### Added
