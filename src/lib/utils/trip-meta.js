@@ -23,7 +23,7 @@ export function driveLabel(trip = {}) {
  * @param {{ duration_days?: number | string | (number | string)[] }} trip
  * @returns {number | null}
  */
-function lodgingNights(trip = {}) {
+export function lodgingNights(trip = {}) {
   let raw = trip?.duration_days;
   if (Array.isArray(raw)) raw = raw[0];
   const days = Number(raw);

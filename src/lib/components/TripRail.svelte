@@ -20,6 +20,10 @@
     color = null,
     driveLabel: driveLabelProp = null,
     showWaypointHint = false,
+    // Action callbacks forwarded to the rail map so desktop users see the
+    // same Research → / Edit overview affordances as the inline mobile map.
+    onResearch = null,
+    onEditOverview = null,
   } = $props();
 
   const stats = $derived(tripQuickStats(trip ?? {}, planDaysCount));
@@ -37,6 +41,8 @@
         driveLabel={driveLabelProp}
         homeDistanceMi={trip?.home_distance_mi ?? null}
         {showWaypointHint}
+        onResearch={onResearch}
+        onEditOverview={onEditOverview}
       />
     </div>
   {/if}

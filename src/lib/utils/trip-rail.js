@@ -1,24 +1,9 @@
 // Pure helpers for the desktop trip rail.
 // No DOM here — the component measures section offsets and passes them in.
-// driveLabel and lodgingNights logic are re-used from trip-meta.js so the
+// driveLabel and lodgingNights are imported from trip-meta.js so the
 // rail stats can't drift from the meta strip.
 
-import { driveLabel } from './trip-meta.js';
-
-/**
- * Derive lodging nights from `duration_days` (same logic as trip-meta.js's
- * lodgingNights, mirrored here so trip-rail stays DOM-free without an internal
- * export dance). A trip of N days spans N-1 nights.
- * @param {{ duration_days?: number | string | (number|string)[] }} trip
- * @returns {number|null}
- */
-function lodgingNights(trip = {}) {
-  let raw = trip?.duration_days;
-  if (Array.isArray(raw)) raw = raw[0];
-  const days = Number(raw);
-  if (!Number.isFinite(days) || days <= 1) return null;
-  return days - 1;
-}
+import { driveLabel, lodgingNights } from './trip-meta.js';
 
 /**
  * Build the quick-stats row for the desktop trip rail. Fixed order:
@@ -32,7 +17,7 @@ function lodgingNights(trip = {}) {
 export function tripQuickStats(trip = {}, planDaysCount = null) {
   const rows = [];
 
-  if (Number.isFinite(Number(trip?.home_distance_mi)) && trip.home_distance_mi != null) {
+  if (Number.isFinite(Number(trip?.home_distance_mi))) {
     rows.push({ label: 'Distance', value: `${Math.round(Number(trip.home_distance_mi))} mi` });
   }
 

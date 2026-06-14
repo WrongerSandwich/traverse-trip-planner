@@ -47,6 +47,12 @@ describe('tripQuickStats', () => {
   it('returns [] when nothing is known', () => {
     expect(tripQuickStats({})).toEqual([]);
   });
+
+  it('rounds float home_distance_mi to the nearest integer', () => {
+    expect(tripQuickStats({ home_distance_mi: 312.7 })).toEqual([
+      { label: 'Distance', value: '313 mi' },
+    ]);
+  });
 });
 
 describe('activeSection', () => {
@@ -72,7 +78,7 @@ describe('activeSection', () => {
     expect(activeSection([], 100)).toBeNull();
   });
 
-  it('returns first section when exactly at its top', () => {
+  it('a section at its exact top boundary is active (inclusive)', () => {
     expect(activeSection(positions, 500)).toBe('route');
     expect(activeSection(positions, 1200)).toBe('plan');
   });

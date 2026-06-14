@@ -230,7 +230,9 @@
 
     function measureHeader() {
       const headerEl = document.querySelector('.page > header');
-      headerOffset = headerEl ? headerEl.offsetHeight : 0;
+      const h = headerEl ? headerEl.offsetHeight : 0;
+      headerOffset = h;
+      document.documentElement.style.setProperty('--header-height', `${h}px`);
     }
 
     function update() {
@@ -254,14 +256,16 @@
       rafId = requestAnimationFrame(update);
     }
 
+    function onResize() { measureHeader(); update(); }
+
     measureHeader();
     update();
     window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', () => { measureHeader(); update(); }, { passive: true });
+    window.addEventListener('resize', onResize, { passive: true });
 
     return () => {
       window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', () => { measureHeader(); update(); });
+      window.removeEventListener('resize', onResize);
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
   });
@@ -1604,13 +1608,15 @@
     <aside class="rail-wrap" aria-label="Trip overview">
       <TripRail
         {trip}
-        home={data.home}
+        home={data.home?.coords}
         sections={railSections}
         activeId={railActiveId}
         planDaysCount={data.plan?.days?.length ?? null}
         color={markerColor}
         driveLabel={driveLabel}
         {showWaypointHint}
+        onResearch={canReResearch ? () => reResearch() : null}
+        onEditOverview={() => editOverview()}
       />
     </aside>
   </div>
@@ -2081,6 +2087,7 @@
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     padding: 1.25rem 1.4rem 1.5rem;
+    scroll-margin-top: calc(var(--header-height, 60px) + 1rem);
   }
 
   /* Tier-2 sections (Plan, Candidates) get the elevated card treatment:
@@ -2733,6 +2740,7 @@
     .map-section,
     .hero,
     .palette-chip,
+    .rail-wrap,
     .no-print { display: none !important; }
 
     .page { background: var(--bone-50); color: var(--bark-900); }
