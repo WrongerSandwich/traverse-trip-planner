@@ -145,30 +145,34 @@
   {/if}
 
   {#if hasMeta && !compact}
-    <div class="meta-row" aria-label="Stop details">
+    <div class="meta-block" aria-label="Stop details">
       {#if stop.address}
         {#if mapsUrl}
-          <a class="meta-chip meta-chip--addr" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
-            <span class="meta-icon" aria-hidden="true">📍</span><span class="meta-chip-text">{stop.address}</span>
+          <a class="addr-line" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
+            <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="meta-text">{stop.address}</span>
           </a>
         {:else}
-          <span class="meta-chip meta-chip--addr"><span class="meta-icon" aria-hidden="true">📍</span><span class="meta-chip-text">{stop.address}</span></span>
+          <span class="addr-line addr-line--static"><svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="meta-text">{stop.address}</span></span>
         {/if}
       {/if}
-      {#if stop.hours}
-        <span class="meta-chip meta-chip--hours" title={stop.hours}>
-          <span class="meta-icon" aria-hidden="true">⏰</span><span class="meta-chip-text">{stop.hours}</span>
-        </span>
-      {/if}
-      {#if webUrl}
-        <a class="meta-chip meta-chip--web" href={webUrl} target="_blank" rel="noopener" aria-label="Website: {webLabel}" onclick={(e) => e.stopPropagation()}>
-          <span class="meta-icon" aria-hidden="true">🌐</span><span class="meta-chip-text">{webLabel}</span>
-        </a>
-      {/if}
-      {#if telUrl}
-        <a class="meta-chip meta-chip--phone" href={telUrl} aria-label="Call {stop.phone}" onclick={(e) => e.stopPropagation()}>
-          <span class="meta-icon" aria-hidden="true">☎</span><span class="meta-chip-text">{stop.phone}</span>
-        </a>
+      {#if stop.hours || webUrl || telUrl}
+        <div class="meta-actions">
+          {#if stop.hours}
+            <span class="meta-act meta-act--info" title={stop.hours}>
+              <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 1.8" /></svg><span class="meta-text">{stop.hours}</span>
+            </span>
+          {/if}
+          {#if webUrl}
+            <a class="meta-act" href={webUrl} target="_blank" rel="noopener" aria-label="Website: {webLabel}" onclick={(e) => e.stopPropagation()}>
+              <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4 11 13" /><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" /></svg><span class="meta-text">{webLabel}</span>
+            </a>
+          {/if}
+          {#if telUrl}
+            <a class="meta-act" href={telUrl} aria-label="Call {stop.phone}" onclick={(e) => e.stopPropagation()}>
+              <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4h-2A1.5 1.5 0 0 0 3 5.5 15.5 15.5 0 0 0 18.5 21 1.5 1.5 0 0 0 20 19.5v-2a1.5 1.5 0 0 0-1.2-1.47l-2.4-.48a1.5 1.5 0 0 0-1.43.53l-.7.86a12 12 0 0 1-5.2-5.2l.86-.7a1.5 1.5 0 0 0 .53-1.43l-.48-2.4A1.5 1.5 0 0 0 6.5 4z" /></svg><span class="meta-text">call</span>
+            </a>
+          {/if}
+        </div>
       {/if}
     </div>
   {/if}
@@ -528,43 +532,70 @@
     overflow: hidden;
   }
 
-  .meta-row {
+  /* Meta zone — a calm address line over a row of low-chrome icon-actions
+     (hours/website/phone), replacing the former wall of pill chips. The
+     emoji icons (📍⏰🌐☎) are gone in favor of inline stroke SVGs in
+     currentColor so the meta reads as part of the Dusk palette, not a strip
+     of multicolor glyphs. Keeps a long candidate pool fast to scan. */
+  .meta-block {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: 0.15rem;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 0.1rem;
   }
-  .meta-chip {
+  .meta-svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    color: var(--text-tertiary);
+    transition: color 0.12s;
+  }
+  .addr-line {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    font-size: 0.74rem;
-    line-height: 1.2;
+    gap: 0.35rem;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    font-size: 0.8rem;
     color: var(--text-secondary);
-    background: var(--surface-sunken);
-    padding: 0.18rem 0.45rem;
-    border-radius: 999px;
-    max-width: 18rem;
     text-decoration: none;
-    border: 0.5px solid transparent;
-    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
   }
-  a.meta-chip { cursor: pointer; }
-  a.meta-chip:hover {
-    background: var(--surface-raised);
-    color: var(--accent-text);
-    border-color: var(--border-default);
+  a.addr-line { cursor: pointer; }
+  a.addr-line:hover { color: var(--accent-text); }
+  a.addr-line:hover .meta-svg { color: var(--accent-text); }
+  a.addr-line:hover .meta-text { text-decoration: underline; text-underline-offset: 2px; }
+  .meta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.85rem;
   }
-  .meta-icon {
-    font-size: 0.7rem;
-    line-height: 1;
-    flex-shrink: 0;
+  .meta-act {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.76rem;
+    color: var(--text-tertiary);
+    background: transparent;
+    border: none;
+    padding: 0;
+    text-decoration: none;
   }
-  .meta-chip-text {
+  a.meta-act { cursor: pointer; }
+  a.meta-act:hover { color: var(--accent-text); }
+  a.meta-act:hover .meta-svg { color: var(--accent-text); }
+  a.meta-act:hover .meta-text { text-decoration: underline; text-underline-offset: 2px; }
+  .meta-text {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 17rem;
+  }
+  @media (pointer: coarse) {
+    a.addr-line,
+    a.meta-act { min-height: var(--tap-min); }
   }
 
   /* Hours + contact, shown inside the compact drawer (and on the
