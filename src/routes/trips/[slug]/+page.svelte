@@ -933,18 +933,29 @@
     const prev = {
       htmlOverflow: html.style.overflow,
       htmlHeight: html.style.height,
+      htmlOverscrollX: html.style.overscrollBehaviorX,
       bodyOverflow: body.style.overflow,
       bodyHeight: body.style.height,
+      bodyOverscrollX: body.style.overscrollBehaviorX,
     };
     html.style.overflow = 'visible';
     html.style.height = 'auto';
     body.style.overflow = 'visible';
     body.style.height = 'auto';
+    // iOS Safari allows a few px of horizontal rubber-band/overscroll even with
+    // no content wider than the viewport (desktop clamps it to 0, so it doesn't
+    // reproduce there). overscroll-behavior-x: none stops that bounce. Unlike
+    // overflow-x: hidden/clip it does NOT create a scroll container, so it's
+    // safe for the sticky header + trip rail above.
+    html.style.overscrollBehaviorX = 'none';
+    body.style.overscrollBehaviorX = 'none';
     return () => {
       html.style.overflow = prev.htmlOverflow;
       html.style.height = prev.htmlHeight;
+      html.style.overscrollBehaviorX = prev.htmlOverscrollX;
       body.style.overflow = prev.bodyOverflow;
       body.style.height = prev.bodyHeight;
+      body.style.overscrollBehaviorX = prev.bodyOverscrollX;
     };
   });
 
