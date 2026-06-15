@@ -647,6 +647,16 @@ Tailwind's default spacing scale matches this — use `p-4`, `gap-3`, `mb-6`, et
 - Accent fill: `#D87B3F` (sunset-600) on a single highlight element per icon — hardcoded so it doesn't theme-shift
 - Most paths use `fill="none"`; only small accent details are filled
 
+### No emoji as UI icons
+
+Functional UI icons — the candidate meta-actions (address pin, hours clock,
+website link, phone), the "find more" sparkle, and any future affordance glyph —
+are **inline stroke SVGs** following the style spec above (`currentColor`, round
+caps, `viewBox 0 0 24 24`). **Never emoji** (📍 ⏰ 🌐 ☎ ✨): emoji inject
+multicolor glyphs that break the warm Dusk palette and render inconsistently
+across platforms and fonts. `currentColor` lets one icon sit quietly as tertiary
+ink in a meta row and pick up the sunset on hover, which an emoji can't do.
+
 ### Base icon set
 
 Eight icons covering the core road-trip vocabulary. All use `stroke="currentColor"` so they inherit color from their parent — set `color: var(--forest-800)` on the container.
