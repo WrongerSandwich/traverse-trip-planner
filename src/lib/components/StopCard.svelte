@@ -1,10 +1,13 @@
 <script>
-  // Stop candidate card. Category-tinted leading edge, an icon glyph per
-  // category, a single-line description (the previous `.why` paragraph is
-  // folded into hover/focus reveal), a distance chip, drag handle, and a
-  // hover-revealed Hide button. The visible form is intentionally
-  // distinct from LodgingCard — the brief calls for "stop cards look
-  // like a place to do; lodging cards look like a place to sleep."
+  // Stop candidate card. Category badge glyph, name + distance, then the
+  // two decision-driving lines at rest: the full `description` (what it is)
+  // and the `why_recommended` rationale (why it fits this traveler). The
+  // website sits at rest; address/hours/phone tuck behind a `Details`
+  // disclosure. A drag handle and hover-revealed Hide button round it out.
+  // The visible form is intentionally distinct from LodgingCard — the brief
+  // calls for "stop cards look like a place to do; lodging cards look like a
+  // place to sleep." (Note: the `compact` mode below — used in Plan day
+  // cards — renders a tighter single-row variant with its own drawer.)
 
   import { mapsHref, telHref, websiteHref, hostLabel } from '$lib/utils/links.js';
 
@@ -56,24 +59,24 @@
 
   const glyph = $derived(CATEGORY_GLYPH[stop.category] ?? CATEGORY_GLYPH.misc);
 
-  const hasMeta = $derived(!!(stop.address || stop.hours || stop.website || stop.phone));
   const mapsUrl = $derived(mapsHref(stop.address));
   const telUrl = $derived(telHref(stop.phone));
   const webUrl = $derived(websiteHref(stop.website));
   const webLabel = $derived(stop.website ? hostLabel(stop.website) : '');
 
-  // The visible text below the title. Fold `why_recommended` into the
-  // description if both exist and the description is short — keeps the
-  // card to one paragraph at rest. If both are long, the full `why` is
-  // surfaced on the title attr / hover state.
-  const summary = $derived.by(() => {
-    const desc = (stop.description || '').trim();
-    const why = (stop.why_recommended || '').trim();
-    if (!desc) return why;
-    if (!why) return desc;
-    if (desc.length + why.length < 140) return `${desc} ${why}`;
-    return desc;
-  });
+  // description and why_recommended are two distinct human-facing fields,
+  // rendered as separate lines at rest and never folded: description = what
+  // the place is (factual); why_recommended = why it fits this traveler
+  // (personalized to home.md + the trip vibe). The old fold heuristic dropped
+  // `why` whenever the two together ran long — i.e. on exactly the
+  // substantive cards — so the best decision signal was silently lost.
+  const description = $derived((stop.description || '').trim());
+  const why = $derived((stop.why_recommended || '').trim());
+
+  // Non-compact "Details" disclosure holds address/hours/phone — the fields
+  // that only matter once a stop is selected. Website is lifted to rest (the
+  // one link used to research a place pre-selection), so it's excluded here.
+  const hasCandidateDrawer = $derived(!!(stop.address || stop.hours || telUrl));
 
   // Compact (in-day) details drawer — on a Plan day card a stop shows only
   // its identity at rest (badge + name + distance + a one-line address) and
@@ -140,41 +143,53 @@
     {/if}
   </div>
 
-  {#if summary && !compact}
-    <p class="summary">{summary}</p>
-  {/if}
-
-  {#if hasMeta && !compact}
-    <div class="meta-block" aria-label="Stop details">
-      {#if stop.address}
-        {#if mapsUrl}
-          <a class="addr-line" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
-            <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="meta-text">{stop.address}</span>
-          </a>
-        {:else}
-          <span class="addr-line addr-line--static"><svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="meta-text">{stop.address}</span></span>
-        {/if}
-      {/if}
-      {#if stop.hours || webUrl || telUrl}
-        <div class="meta-actions">
-          {#if stop.hours}
-            <span class="meta-act meta-act--info" title={stop.hours}>
-              <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 1.8" /></svg><span class="meta-text">{stop.hours}</span>
-            </span>
+  {#if !compact}
+    {#if description}
+      <p class="summary">{description}</p>
+    {/if}
+    {#if why}
+      <p class="why"><span class="why-mark" aria-hidden="true">↳</span>{why}</p>
+    {/if}
+    {#if webUrl}
+      <div class="rest-meta">
+        <a class="meta-act" href={webUrl} target="_blank" rel="noopener" aria-label="Website: {webLabel}" onclick={(e) => e.stopPropagation()}>
+          <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4 11 13" /><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" /></svg><span class="meta-text">{webLabel}</span>
+        </a>
+      </div>
+    {/if}
+    {#if hasCandidateDrawer}
+      <details class="rest-disclosure">
+        <summary class="rest-summary">
+          <span class="rest-chev" aria-hidden="true">›</span>
+          Details
+        </summary>
+        <div class="rest-drawer" aria-label="Stop details">
+          {#if stop.address}
+            {#if mapsUrl}
+              <a class="addr-line" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
+                <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="meta-text">{stop.address}</span>
+              </a>
+            {:else}
+              <span class="addr-line addr-line--static"><svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="meta-text">{stop.address}</span></span>
+            {/if}
           {/if}
-          {#if webUrl}
-            <a class="meta-act" href={webUrl} target="_blank" rel="noopener" aria-label="Website: {webLabel}" onclick={(e) => e.stopPropagation()}>
-              <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4 11 13" /><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" /></svg><span class="meta-text">{webLabel}</span>
-            </a>
-          {/if}
-          {#if telUrl}
-            <a class="meta-act" href={telUrl} aria-label="Call {stop.phone}" onclick={(e) => e.stopPropagation()}>
-              <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4h-2A1.5 1.5 0 0 0 3 5.5 15.5 15.5 0 0 0 18.5 21 1.5 1.5 0 0 0 20 19.5v-2a1.5 1.5 0 0 0-1.2-1.47l-2.4-.48a1.5 1.5 0 0 0-1.43.53l-.7.86a12 12 0 0 1-5.2-5.2l.86-.7a1.5 1.5 0 0 0 .53-1.43l-.48-2.4A1.5 1.5 0 0 0 6.5 4z" /></svg><span class="meta-text">call</span>
-            </a>
+          {#if stop.hours || telUrl}
+            <div class="meta-actions">
+              {#if stop.hours}
+                <span class="meta-act meta-act--info" title={stop.hours}>
+                  <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 1.8" /></svg><span class="meta-text">{stop.hours}</span>
+                </span>
+              {/if}
+              {#if telUrl}
+                <a class="meta-act" href={telUrl} aria-label="Call {stop.phone}" onclick={(e) => e.stopPropagation()}>
+                  <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4h-2A1.5 1.5 0 0 0 3 5.5 15.5 15.5 0 0 0 18.5 21 1.5 1.5 0 0 0 20 19.5v-2a1.5 1.5 0 0 0-1.2-1.47l-2.4-.48a1.5 1.5 0 0 0-1.43.53l-.7.86a12 12 0 0 1-5.2-5.2l.86-.7a1.5 1.5 0 0 0 .53-1.43l-.48-2.4A1.5 1.5 0 0 0 6.5 4z" /></svg><span class="meta-text">call</span>
+                </a>
+              {/if}
+            </div>
           {/if}
         </div>
-      {/if}
-    </div>
+      </details>
+    {/if}
   {/if}
 
   {#if compact && (stop.address || distance != null)}
@@ -523,13 +538,26 @@
     font-size: 0.84rem;
     line-height: 1.45;
     color: var(--text-secondary);
-    /* Multi-line clamp at 2 — long descriptions never expand the card
-       beyond a tight resting height. */
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  }
+  /* why_recommended — the personalized "why this fits you" line, distinct
+     from the factual description above it. Muted, with a leading ↳ glyph
+     (a text marker, not an absolutely-positioned side-stripe) so it reads
+     as the rationale rather than another fact. */
+  .why {
+    margin: 0;
+    display: flex;
+    gap: 0.35rem;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    color: var(--text-tertiary);
+  }
+  .why-mark {
+    color: var(--accent-text);
+    flex-shrink: 0;
+  }
+  /* Website lifted to rest out of the old meta-block; reuses .meta-act. */
+  .rest-meta {
+    margin-top: 0.05rem;
   }
 
   /* Meta zone — a calm address line over a row of low-chrome icon-actions
@@ -537,12 +565,6 @@
      emoji icons (📍⏰🌐☎) are gone in favor of inline stroke SVGs in
      currentColor so the meta reads as part of the Dusk palette, not a strip
      of multicolor glyphs. Keeps a long candidate pool fast to scan. */
-  .meta-block {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    margin-top: 0.1rem;
-  }
   .meta-svg {
     width: 13px;
     height: 13px;
@@ -596,6 +618,55 @@
   @media (pointer: coarse) {
     a.addr-line,
     a.meta-act { min-height: var(--tap-min); }
+  }
+
+  /* ── Details disclosure (non-compact candidate card) ──────────────────
+     Address/hours/phone tuck behind a native <details> pill, mirroring the
+     compact StopCard / TodayStopCard drawer vocabulary (rotating chevron,
+     tap-floored summary, reduced-motion guard) but styled for the candidate
+     card's --surface-raised chassis (transparent pill + subtle border, so it
+     doesn't vanish against the card's own raised fill). */
+  .rest-disclosure { margin-top: 0.05rem; }
+  .rest-summary {
+    list-style: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    user-select: none;
+    background: transparent;
+    border: 0.5px solid var(--border-subtle);
+    border-radius: 999px;
+    padding: 0.25rem 0.65rem 0.25rem 0.5rem;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .rest-summary:hover {
+    background: var(--surface-sunken);
+    border-color: var(--border-default);
+    color: var(--text-primary);
+  }
+  .rest-summary::-webkit-details-marker { display: none; }
+  .rest-chev {
+    font-size: 0.8rem;
+    line-height: 1;
+    color: var(--accent-text);
+    transition: transform 0.15s ease;
+  }
+  .rest-disclosure[open] .rest-chev { transform: rotate(90deg); }
+  @media (prefers-reduced-motion: reduce) {
+    .rest-chev { transition: none; }
+  }
+  .rest-drawer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+  }
+  @media (pointer: coarse) {
+    .rest-summary { min-height: var(--tap-min); }
   }
 
   /* Hours + contact, shown inside the compact drawer (and on the
