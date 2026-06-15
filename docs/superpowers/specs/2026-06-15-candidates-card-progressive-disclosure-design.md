@@ -54,9 +54,12 @@ Resting layout, top to bottom:
 
 1. **head** — category badge · name · distance chip · in-plan dot
    *(unchanged)*
-2. **description** — full text, **`-webkit-line-clamp` removed**. A generous
-   safety clamp (5–6 lines) MAY be added so a pathologically long description
-   can't dominate the viewport; default is to show it all.
+2. **description** — full text, **`-webkit-line-clamp` removed**, shown
+   unbounded. Descriptions are generator-authored single paragraphs (1–4
+   sentences); no safety clamp — a clamp would re-introduce the exact
+   "truncated with no escape hatch" problem this refactor exists to kill,
+   since the `Details` disclosure holds only address/hours/phone, not the
+   description tail.
 3. **`why_recommended`** — rendered as its own line *when present*, never
    dropped. Muted treatment (`--text-secondary`/`--text-tertiary`) with a
    leading `↳` marker (a text glyph, not an absolutely-positioned side-stripe)
@@ -78,7 +81,7 @@ Resting layout, top to bottom:
 - Replace the current `summary` derivation. `description` and `why_recommended`
   become **two independent rendered fields**, not a single folded string. The
   140-char fold heuristic is removed.
-- `description` shows in full (modulo the optional safety clamp).
+- `description` shows in full, unbounded (no clamp).
 - `why_recommended` shows in full when non-empty.
 
 ### Disclosure gating
