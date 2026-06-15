@@ -1424,7 +1424,7 @@
     border-radius: 50%;
     font-family: var(--font-sans);
     font-size: 0.76rem;
-    font-weight: 600;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
     line-height: 1;
     /* Category color carries "what kind of stop"; the number carries order.

@@ -242,6 +242,10 @@ users expect; personality lives in the palette and type, not in invented control
 - **Category icon-chip** (`.cat-chip`): a solid square (`rounded.sm`, 28px) filled
   with the saturated `--cat-<category>` color, glyph in the on-color. Decorative
   (`aria-hidden`); the category is always also in text.
+- **Itinerary marker** (Plan day rail): a *circular* category-colored disc — not
+  the square `.cat-chip` — carrying the stop's sequence number in tabular figures.
+  The only place order is encoded as a marker; the number is decorative
+  (`aria-hidden`, sequence is also carried by DOM order).
 - **Status / toggle pills** (meta pills, day chips, filter chips, prep chips):
   fully rounded (`rounded.chip`) with a single 1px border (`--chip-border`). One
   pill geometry for all status/toggle tokens; color/state varies, geometry does
@@ -254,7 +258,13 @@ users expect; personality lives in the palette and type, not in invented control
   `rounded.lg`, `--shadow-card`, 16px padding. The elevated "tool" surface.
 - **Day card** (signature): `--surface-page`, `rounded.md`, full `--border-subtle`
   border plus a 3px sunset leading edge (`--accent-edge`, lifted in dark mode) that
-  reads as a "day spine," with a `Day N` chip in the header.
+  reads as a "day spine," with a `Day N` chip in the header. The day's title is a
+  small Fraunces serif (the only serif below section-title size). Inside the card
+  the stops render as a **numbered itinerary rail**: an itinerary-marker per stop
+  on a left rail, joined by one continuous hairline thread (`--border-default`, not
+  the accent), with the drive between stops riding the thread as a mono node.
+  Distinct from the card's day-spine leading edge; the thread is a centered gutter
+  rule, not a border stripe.
 - **Lodging sub-card:** tinted `--surface-sunken`, `rounded.md`, with an accent
   Book button.
 - **Tier-1 prose** (Overview/Route/Logistics): no card — an overline label, a
@@ -296,6 +306,10 @@ isolate their stacking context so internal z-index layers can't paint over chrom
   result.
 - **Don't** use gradient text (`background-clip: text`), decorative glassmorphism,
   or weights of 600+.
+- **Don't** use emoji as functional UI icons — they break the warm Dusk palette
+  with multicolor glyphs and render inconsistently across platforms. Use inline
+  stroke SVGs in `currentColor` (the address pin, hours, website, phone, and
+  "find more" sparkle all follow this). See `design-spec.md` §6 Iconography.
 - **Don't** use a colored single-sided border stripe (`border-left`/`border-right`
   > 1px as an accent) on cards, list items, or callouts. *(One sanctioned
   exception: the Plan day-card's 3px leading edge, which sits on a card that already
