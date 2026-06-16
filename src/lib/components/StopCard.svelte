@@ -1,9 +1,10 @@
 <script>
-  // Stop candidate card. Category badge glyph, name + distance, then the
-  // two decision-driving lines at rest: the full `description` (what it is)
-  // and the `why_recommended` rationale (why it fits this traveler). The
-  // website sits at rest; address/hours/phone tuck behind a `Details`
-  // disclosure. A drag handle and hover-revealed Hide button round it out.
+  // Stop candidate card. A category color dot + name + distance, with the
+  // category word as a caption under the name, then the two decision-driving
+  // lines at rest: the full `description` (what it is) and the
+  // `why_recommended` rationale (why it fits this traveler). The primary link
+  // and the `Details` disclosure (address/hours/phone) share a row below.
+  // A drag handle and hover-revealed Hide button round it out.
   // The visible form is intentionally distinct from LodgingCard — the brief
   // calls for "stop cards look like a place to do; lodging cards look like a
   // place to sleep." (Note: the `compact` mode below — used in Plan day
@@ -141,7 +142,11 @@
 >
   <div class="head">
     {#if !inRail}
-      <span class="cat-badge" aria-hidden="true" title={stop.category}>{glyph}</span>
+      {#if compact}
+        <span class="cat-badge" aria-hidden="true" title={stop.category}>{glyph}</span>
+      {:else if stop.category}
+        <span class="cat-dot" aria-hidden="true" title={stop.category}></span>
+      {/if}
     {/if}
     <h3 class="name">{stop.name}</h3>
     {#if distance != null && !compact}
@@ -153,6 +158,9 @@
   </div>
 
   {#if !compact}
+    {#if stop.category}
+      <span class="cat-label">{stop.category}</span>
+    {/if}
     {#if description}
       <p class="summary">{description}</p>
     {/if}
@@ -511,6 +519,32 @@
        tint fill — quiet but legible signal that this is the same family
        as the matching pin on the map. */
     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c, var(--border-default)) 35%, transparent);
+  }
+  /* Non-compact category signal. Replaces the abstract glyph badge (which
+     carried no meaning) with a small color dot on the name row — the dot
+     keeps the category color that ties this card to its map pin — plus the
+     category word as a caption under the name (.cat-label). */
+  .cat-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--c, var(--cat-misc));
+    flex-shrink: 0;
+  }
+  /* Category caption — the plain category word under the name. Color lives in
+     the dot (legible across all 9 categories + dark mode); the word stays a
+     quiet neutral micro-label, matching the filter chips' resting style.
+     Indented past the dot so it sits under the name, tucked up tight. */
+  .cat-label {
+    display: block;
+    width: fit-content;
+    margin: -0.2rem 0 0 calc(9px + 0.55rem);
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--text-tertiary);
+    line-height: 1.2;
   }
   .name {
     margin: 0;
