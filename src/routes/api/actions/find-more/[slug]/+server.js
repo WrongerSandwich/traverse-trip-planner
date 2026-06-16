@@ -34,6 +34,7 @@ import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { TraverseError } from '$lib/server/errors.js';
 import { isAbort } from '$lib/utils/abort.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
+import { _startGeocodeCandidatesJob } from '../../geocode-candidates/[slug]/+server.js';
 
 export const _promise = HAND_DEFAULTS['find-more'];
 
@@ -214,6 +215,18 @@ ${fields}
       }
       invalidateEnrichCache();
       console.log(`[find-more] ${slug} (${type}): added ${added} of ${additions.length} candidates`);
+      // Closes the metadata gap: newly-found candidates carry only inline
+      // coords. Fire the same idempotent geocode→enrich chain the deepen flow
+      // uses so address / hours / website / phone get backfilled in the
+      // background. Guarded so a kickoff failure can't fail an already-
+      // successful find-more job.
+      if (added > 0) {
+        try {
+          _startGeocodeCandidatesJob(slug);
+        } catch (e) {
+          console.error(`[find-more] ${slug}: _startGeocodeCandidatesJob threw:`, e?.message ?? e);
+        }
+      }
       completeJob(workflow, slug, { tokens: usageToTokens(usage) });
     } catch (err) {
       if (isAbort(err)) return;

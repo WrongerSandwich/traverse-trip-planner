@@ -75,6 +75,11 @@ vi.mock('$lib/server/jobs.js', () => ({
   cancelJob: vi.fn((workflow, slug) => { cancelledJobs.push({ workflow, slug }); }),
 }));
 
+const mockStartGeocodeCandidatesJob = vi.hoisted(() => vi.fn(() => null));
+vi.mock('../src/routes/api/actions/geocode-candidates/[slug]/+server.js', () => ({
+  _startGeocodeCandidatesJob: mockStartGeocodeCandidatesJob,
+}));
+
 const { POST } = await import('../src/routes/api/actions/find-more/[slug]/+server.js');
 
 function buildEvent(body) {
@@ -222,6 +227,46 @@ stops:
     expect(failedJobs).toHaveLength(1);
     expect(failedJobs[0].opts.code).toBe('empty_model_output');
     expect(mockAddCandidateStop).not.toHaveBeenCalled();
+  });
+
+  it('fires the geocode→enrich chain after a successful add', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<additions>
+stops:
+  - name: Adena Mansion
+    category: historic
+    description: 19th-century estate with valley views.
+    why_recommended: Aligns with your historic-sites tilt.
+    source_url: https://www.ohiohistory.org
+</additions>`,
+      usage: { input_tokens: 200, output_tokens: 100 },
+    });
+    const res = await POST(buildEvent({ type: 'stop', count: 5 }));
+    expect(res.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockAddCandidateStop).toHaveBeenCalledTimes(1);
+    expect(mockStartGeocodeCandidatesJob).toHaveBeenCalledWith('great-smoky-ramble');
+  });
+
+  it('does NOT fire the geocode→enrich chain when every addition is a duplicate', async () => {
+    mockReadCandidates.mockReturnValueOnce({
+      stops: [{ id: 'adena-mansion', name: 'Adena Mansion' }],
+      lodging: [],
+    });
+    mockChat.mockResolvedValueOnce({
+      text: `<additions>
+stops:
+  - name: Adena Mansion
+    category: historic
+    description: dup
+</additions>`,
+      usage: { input_tokens: 200, output_tokens: 100 },
+    });
+    const res = await POST(buildEvent({ type: 'stop', count: 5 }));
+    expect(res.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockAddCandidateStop).not.toHaveBeenCalled();
+    expect(mockStartGeocodeCandidatesJob).not.toHaveBeenCalled();
   });
 });
 
