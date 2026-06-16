@@ -31,6 +31,7 @@ import { rateLimitResponse } from '$lib/server/rate-limit.js';
 import { sseStream, withHeartbeat } from '$lib/server/sse.js';
 import { HAND_DEFAULTS, MAX_TOKENS } from '$lib/server/promises.js';
 import { usageToTokens } from '$lib/utils/formatTokens.js';
+import { _startGeocodeCandidatesJob } from '../../geocode-candidates/[slug]/+server.js';
 
 export const _promise = HAND_DEFAULTS['add-candidate'];
 
@@ -209,6 +210,16 @@ ${type === 'stop' ? stopFields : lodgingFields}
       : addCandidateLodging(slug, fields);
 
     invalidateEnrichCache();
+    // Closes the metadata gap: the inline geocode above only set coords. Fire
+    // the same idempotent geocode→enrich chain the deepen flow uses so address
+    // / hours / website / phone get backfilled via the Ambient pill — the card
+    // already appeared, so Instant Inline is preserved. Guarded so a kickoff
+    // failure can't turn a successful add into an error.
+    try {
+      _startGeocodeCandidatesJob(slug);
+    } catch (e) {
+      console.error(`[add-candidate] ${slug}: _startGeocodeCandidatesJob threw:`, e?.message ?? e);
+    }
     send({ msg: formatUsage(usage) });
     send({ msg: `Added ${parsed.name}.`, done: true, id, tokens: usageToTokens(usage) });
   });

@@ -71,6 +71,11 @@ vi.mock('$lib/server/rate-limit.js', () => ({
   rateLimitResponse: () => null,
 }));
 
+const mockStartGeocodeCandidatesJob = vi.hoisted(() => vi.fn(() => null));
+vi.mock('../src/routes/api/actions/geocode-candidates/[slug]/+server.js', () => ({
+  _startGeocodeCandidatesJob: mockStartGeocodeCandidatesJob,
+}));
+
 // SUT
 const { POST } = await import('../src/routes/api/actions/add-candidate/[slug]/+server.js');
 
@@ -221,6 +226,36 @@ source_url:
     const events = await readSse(res);
     expect(events[events.length - 1].code).toBe('invalid_input');
     expect(mockChat).not.toHaveBeenCalled();
+  });
+
+  it('fires the geocode→enrich chain after a successful stop add', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<candidate>
+name: Mound City Group
+category: historic
+description: Earthworks site of the Hopewell culture.
+why_recommended: Matches your taste for low-foot-traffic historic sites.
+source_url: https://www.nps.gov/hocu/index.htm
+</candidate>`,
+      usage: { input_tokens: 100, output_tokens: 200 },
+    });
+    const res = await POST(buildEvent({ name: 'Mound City Group', type: 'stop' }));
+    const events = await readSse(res);
+    expect(events[events.length - 1].code).toBeFalsy();
+    expect(mockAddCandidateStop).toHaveBeenCalledTimes(1);
+    expect(mockStartGeocodeCandidatesJob).toHaveBeenCalledWith('great-smoky-ramble');
+  });
+
+  it('does NOT fire the geocode→enrich chain on a duplicate envelope', async () => {
+    mockChat.mockResolvedValueOnce({
+      text: `<duplicate>Mound City Group</duplicate>`,
+      usage: { input_tokens: 50, output_tokens: 30 },
+    });
+    const res = await POST(buildEvent({ name: 'Mound City NHP', type: 'stop' }));
+    const events = await readSse(res);
+    expect(events[events.length - 1].code).toBe('candidate_duplicate');
+    expect(mockAddCandidateStop).not.toHaveBeenCalled();
+    expect(mockStartGeocodeCandidatesJob).not.toHaveBeenCalled();
   });
 });
 
