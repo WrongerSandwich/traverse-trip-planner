@@ -608,6 +608,12 @@
     align-items: flex-start;
     gap: 0.5rem;
     margin-top: 0.1rem;
+    /* min-width: 0 lets this grid item shrink below its content's intrinsic
+       width instead of forcing the card's 1fr track wider than its box. Without
+       it, opening the drawer (whose address/hours sit beside the non-shrinking
+       .rest-link) blows the track out and every row spills off the card's right
+       edge on narrow viewports. */
+    min-width: 0;
   }
   /* The primary link reuses .meta-act for icon+host styling; only the
      right-alignment is layout-specific. */
@@ -682,7 +688,10 @@
      tap-floored summary, reduced-motion guard) but styled for the candidate
      card's --surface-raised chassis (transparent pill + subtle border, so it
      doesn't vanish against the card's own raised fill). */
-  .rest-disclosure { margin-top: 0; }
+  /* min-width: 0 so the <details> flex item shrinks within .rest-row and its
+     inner .meta-text ellipsis engages, rather than holding the drawer at its
+     intrinsic width and overflowing the card. Pairs with .rest-row's min-width:0. */
+  .rest-disclosure { margin-top: 0; min-width: 0; }
   .rest-summary {
     list-style: none;
     cursor: pointer;
