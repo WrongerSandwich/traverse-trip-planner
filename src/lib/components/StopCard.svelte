@@ -1,9 +1,11 @@
 <script>
-  // Stop candidate card. A category color dot + name + distance, with the
-  // category word as a caption under the name, then the two decision-driving
-  // lines at rest: the full `description` (what it is) and the
-  // `why_recommended` rationale (why it fits this traveler). The primary link
-  // and the `Details` disclosure (address/hours/phone) share a row below.
+  // Stop candidate card. A category color dot + name, the category word as a
+  // caption under it, then the decision-first hierarchy at rest: the
+  // `why_recommended` rationale as the hero line (why it fits this traveler),
+  // a two-line-clamped `description` (what it is) with a `…more` affordance,
+  // and a meta row (distance + primary link + an expand chevron). Tapping the
+  // chevron / `…more` toggles an expanded state that un-clamps the description
+  // and reveals a full-width logistics panel (hours/address/phone).
   // A drag handle and hover-revealed Hide button round it out.
   // The visible form is intentionally distinct from LodgingCard — the brief
   // calls for "stop cards look like a place to do; lodging cards look like a
@@ -72,11 +74,6 @@
   // substantive cards — so the best decision signal was silently lost.
   const description = $derived((stop.description || '').trim());
   const why = $derived((stop.why_recommended || '').trim());
-
-  // Non-compact "Details" disclosure holds address/hours/phone — the fields
-  // that only matter once a stop is selected. The primary link lives at rest
-  // (see below), so it's excluded here.
-  const hasCandidateDrawer = $derived(!!(stop.address || stop.hours || telUrl));
 
   // Single primary link shown at rest: prefer the official `website`, fall
   // back to `source_url` when there's no website. We never show both — when
