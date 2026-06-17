@@ -6,23 +6,47 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.4] — 2026-06-17 · Planning-page refresh & candidate overhaul
+
 ### Added
-- **Planning page visual refresh** (#510). Redesigned the trip detail page
-  (`/trips/<slug>`) into a tiered "soft-card dashboard": calm editorial prose for
-  Overview/Route/Logistics, elevated cards for Plan & Candidates (day-card accent
-  edges, category icon-chips, disclosure pills, between-stop drive connectors,
-  lodging sub-card), a slim gradient header with a meta pill row, and — on desktop
-  (≥960px) — a two-column layout with a sticky **trip rail** (mini overview map,
-  quick stats, scroll-spy section nav). Adds elevation/radius + chip design tokens
-  to `app.css`. Mobile-first; all behavior preserved.
+- **Auto-enriched candidates** (#526). When you **Find more** or **Add** a
+  candidate, the new stop now automatically runs the same `geocode → enrich`
+  background chain the Research action uses — filling in coordinates, address,
+  hours, website, and phone — instead of landing bare and needing a separate
+  enrichment pass. The chain is idempotent and pool-wide, so it also backfills
+  older candidates that were missing metadata. Surfaced via the usual
+  Ambient-Background pills; the Add-a-candidate card still appears instantly while
+  the details fill in behind it.
 
 ### Changed
+- **Planning page visual refresh** (#510, #511, #516). Redesigned the trip detail
+  page (`/trips/<slug>`) into a tiered "soft-card dashboard": calm editorial prose
+  for Overview/Route/Logistics, elevated cards for Plan & Candidates (day-card
+  accent edges, category icon-chips, disclosure pills, between-stop drive
+  connectors, lodging sub-card), a slim gradient header with a meta pill row,
+  and — on desktop (≥960px) — a two-column layout with a sticky **trip rail** (mini
+  overview map, quick stats, scroll-spy section nav). Adds elevation/radius + chip
+  design tokens to `app.css`. Mobile-first; all behavior preserved.
+- **Decision-first candidate cards** (#518, #519, #520, #528). The candidate stop
+  card was re-ranked around the "does this belong in my plan?" decision: the
+  personalized **why-it-fits** line leads, the factual description clamps to two
+  lines with a `…more`, and a single tap expands the card to a **full-width** panel
+  of hours/address/phone — retiring the old half-width Details drawer. The source
+  link is deduped to one, and the category reads as a caption under the name.
+  Progressive disclosure keeps a long candidate pool scannable.
 - **Candidates browsing** (#511). Stops/Lodging is now a segmented control, and
   the category filter collapses behind an opt-in **Filter** affordance (scoped to
   Stops) so the section leads with content instead of a chip wall. Chip/badge
   geometry consolidated into shared `app.css` primitives for consistency.
+- **Plan section, mobile** (#508, #509). Bigger tap targets and clearer reorder
+  controls, tighter day-card density, and confirm-gated destructive actions on
+  phones.
 
 ### Fixed
+- **Candidate card off-screen overflow** (#527). Opening a candidate's Details on
+  a narrow viewport pushed the description/link rows off the right edge — a
+  flex/grid `min-width:auto` overflow trap. (Structurally retired by the #528
+  full-width panel above; the fix stands for any remaining narrow-card cases.)
 - **Accessibility** (#511). AA contrast on accent-filled controls (e.g. the
   lodging "Book" button) and category-chip glyphs in both themes; corrected a
   skipped heading level (h2→h3) in Candidates; the prep progress bar no longer
@@ -30,11 +54,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Sticky header + trip rail** (#512). The trip detail page set `overflow: auto`
   on `<html>` to re-enable scrolling, which silently broke `position: sticky` for
   the header and rail (they scrolled away). Use `overflow: visible`.
-- **Map over sticky header** (#513). Leaflet maps no longer paint over the sticky
-  header — `TripMap` now isolates its stacking context so Leaflet's internal
-  z-index layers can't escape over app chrome.
-- **iOS horizontal overscroll** (#513). `overscroll-behavior-x: none` on the trip
-  detail page stops a few px of horizontal rubber-band on iPad.
+- **Map over sticky header / iOS overscroll** (#513). Leaflet maps no longer paint
+  over the sticky header (`TripMap` isolates its stacking context), and
+  `overscroll-behavior-x: none` stops a few px of horizontal rubber-band on iPad.
+- **Fetch-failure safety** (#499). DetailPanel surfaces load errors instead of
+  hanging, bookmark toggles revert on a failed write, and concurrent palette edits
+  no longer clobber each other.
+- **Today empty state** (#505). A trip whose plan has zero days degrades to the
+  empty state instead of erroring.
+- **Data-layer robustness** (#503). Surfaced previously-swallowed geocode errors,
+  graceful route-line degradation, and fixed cache GC / memoization races.
+- **Background jobs** (#500). Registry-persistence failures are surfaced rather
+  than lost.
+- **AI token ceiling** (#501). Enforce a cumulative output-token ceiling across the
+  whole tool loop, not just per call.
+- **Defense-in-depth** (#502). A hardening batch across input handling.
+
+### Internal
+- Dev-experience: a worktree bootstrap script + dev-credentials template (#504),
+  worktree dev-server hydration + smoke-probe sizing for reasoning models (#506),
+  untracked an accidental `node_modules` symlink and hardened `.gitignore` (#507),
+  and a housekeeping batch — engines, doc paths, color tokens, popover focus
+  (#498).
+- Design docs: added `DESIGN.md` so the design context auto-loads (#515), recorded
+  the itinerary-rail / marker / no-emoji-icon patterns (#517), and the
+  planning-page refresh gotchas (#514).
+- Dependencies: bumped `@anthropic-ai/sdk`, `@sveltejs/kit`, `svelte`,
+  `svelte-check`, `vitest`, `marked`, and `isomorphic-dompurify` (#483, #484,
+  #485, #486, #487, #521, #522, #523, #524, #525).
 
 ## [0.1.3] — 2026-06-08 · Offline support
 
@@ -280,7 +327,8 @@ self-host path that doesn't require a Node toolchain on the host.
 - Single-user assumption: no auth model, no per-user data isolation. Sit
   behind a reverse proxy with basic auth if exposing beyond `localhost`.
 
-[Unreleased]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/WrongerSandwich/traverse-trip-planner/compare/v0.1.0...v0.1.1
