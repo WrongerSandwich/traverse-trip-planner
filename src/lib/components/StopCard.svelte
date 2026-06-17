@@ -34,7 +34,6 @@
     // Plan day rows pass it; CandidatesSection never does, so it's untouched.
     inRail = false,
     onHover = () => {},
-    onClick = () => {},
     onPromote = () => {},
     onUnpromote = () => {},
     onHide = () => {},
@@ -368,7 +367,6 @@
     border: 1px solid var(--border-subtle);
     border-radius: 5px;
     font-family: var(--font-sans);
-    cursor: pointer;
     transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.15s ease;
     outline: none;
   }
