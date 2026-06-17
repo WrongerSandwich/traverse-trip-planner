@@ -642,7 +642,10 @@
     overflow: hidden;
   }
   .more {
-    align-self: flex-start;
+    /* Grid item: justify-self (inline axis) left-aligns it under the
+       description; align-self alone wouldn't (that's the block axis), leaving
+       the button stretched full-width with its default centered text. */
+    justify-self: start;
     margin-top: 0.1rem;
     padding: 0;
     background: none;
