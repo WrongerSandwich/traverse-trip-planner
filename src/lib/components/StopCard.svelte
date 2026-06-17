@@ -1,9 +1,11 @@
 <script>
-  // Stop candidate card. A category color dot + name + distance, with the
-  // category word as a caption under the name, then the two decision-driving
-  // lines at rest: the full `description` (what it is) and the
-  // `why_recommended` rationale (why it fits this traveler). The primary link
-  // and the `Details` disclosure (address/hours/phone) share a row below.
+  // Stop candidate card. A category color dot + name, the category word as a
+  // caption under it, then the decision-first hierarchy at rest: the
+  // `why_recommended` rationale as the hero line (why it fits this traveler),
+  // a two-line-clamped `description` (what it is) with a `…more` affordance,
+  // and a meta row (distance + primary link + an expand chevron). Tapping the
+  // chevron / `…more` toggles an expanded state that un-clamps the description
+  // and reveals a full-width logistics panel (hours/address/phone).
   // A drag handle and hover-revealed Hide button round it out.
   // The visible form is intentionally distinct from LodgingCard — the brief
   // calls for "stop cards look like a place to do; lodging cards look like a
@@ -34,7 +36,6 @@
     // Plan day rows pass it; CandidatesSection never does, so it's untouched.
     inRail = false,
     onHover = () => {},
-    onClick = () => {},
     onPromote = () => {},
     onUnpromote = () => {},
     onHide = () => {},
@@ -73,11 +74,6 @@
   // substantive cards — so the best decision signal was silently lost.
   const description = $derived((stop.description || '').trim());
   const why = $derived((stop.why_recommended || '').trim());
-
-  // Non-compact "Details" disclosure holds address/hours/phone — the fields
-  // that only matter once a stop is selected. The primary link lives at rest
-  // (see below), so it's excluded here.
-  const hasCandidateDrawer = $derived(!!(stop.address || stop.hours || telUrl));
 
   // Single primary link shown at rest: prefer the official `website`, fall
   // back to `source_url` when there's no website. We never show both — when
@@ -122,6 +118,32 @@
     e.dataTransfer.setData('application/x-traverse-candidate', JSON.stringify({ id: stop.id, type: 'stop' }));
     ondragstart(stop.id);
   }
+
+  // ── Candidate (non-compact) expand model ──────────────────────────────
+  // One boolean drives both the description un-clamp and the logistics panel
+  // (the unified "one tap reveals the rest" behavior). Native <details> can't
+  // span both, so this is plain state.
+  let expanded = $state(false);
+  function toggleExpanded() { expanded = !expanded; }
+
+  // Address / hours / phone populate the expanded logistics panel.
+  const hasLogistics = $derived(!!(stop.address || stop.hours || telUrl));
+
+  // `…more` shows only when the 2-line-clamped description actually overflows.
+  // A ResizeObserver probe re-measures on width/clamp changes. When expanded
+  // the clamp is off so the node doesn't overflow → descOverflows is false,
+  // which is fine (we hide `…more` while expanded anyway).
+  let descOverflows = $state(false);
+  function clampProbe(node) {
+    const measure = () => { descOverflows = node.scrollHeight - node.clientHeight > 1; };
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    measure();
+    return { destroy() { ro.disconnect(); } };
+  }
+
+  // Anything to expand into? (full description tail OR logistics)
+  const expandable = $derived(hasLogistics || descOverflows);
 </script>
 
 <article
@@ -149,9 +171,6 @@
       {/if}
     {/if}
     <h3 class="name">{stop.name}</h3>
-    {#if distance != null && !compact}
-      <span class="distance" title="Distance from destination">{distance} mi</span>
-    {/if}
     {#if promoted && !compact}
       <span class="in-plan-mark" title="In your plan" aria-label="In plan">●</span>
     {/if}
@@ -161,53 +180,68 @@
     {#if stop.category}
       <span class="cat-label">{stop.category}</span>
     {/if}
-    {#if description}
-      <p class="summary">{description}</p>
-    {/if}
     {#if why}
       <p class="why"><span class="why-mark" aria-hidden="true">↳</span>{why}</p>
     {/if}
-    {#if hasCandidateDrawer || primaryUrl}
-      <div class="rest-row">
-        {#if hasCandidateDrawer}
-          <details class="rest-disclosure">
-            <summary class="rest-summary">
-              <span class="rest-chev" aria-hidden="true">›</span>
-              Details
-            </summary>
-            <div class="rest-drawer" aria-label="Stop details">
-              {#if stop.address}
-                {#if mapsUrl}
-                  <a class="addr-line" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
-                    <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="meta-text">{stop.address}</span>
-                  </a>
-                {:else}
-                  <span class="addr-line addr-line--static"><svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="meta-text">{stop.address}</span></span>
-                {/if}
-              {/if}
-              {#if stop.hours || telUrl}
-                <div class="meta-actions">
-                  {#if stop.hours}
-                    <span class="meta-act meta-act--info" title={stop.hours}>
-                      <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 1.8" /></svg><span class="meta-text">{stop.hours}</span>
-                    </span>
-                  {/if}
-                  {#if telUrl}
-                    <a class="meta-act" href={telUrl} aria-label="Call {stop.phone}" onclick={(e) => e.stopPropagation()}>
-                      <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4h-2A1.5 1.5 0 0 0 3 5.5 15.5 15.5 0 0 0 18.5 21 1.5 1.5 0 0 0 20 19.5v-2a1.5 1.5 0 0 0-1.2-1.47l-2.4-.48a1.5 1.5 0 0 0-1.43.53l-.7.86a12 12 0 0 1-5.2-5.2l.86-.7a1.5 1.5 0 0 0 .53-1.43l-.48-2.4A1.5 1.5 0 0 0 6.5 4z" /></svg><span class="meta-text">call</span>
-                    </a>
-                  {/if}
-                </div>
-              {/if}
-            </div>
-          </details>
+    {#if description}
+      <p class="summary" class:clamped={!expanded} use:clampProbe>{description}</p>
+      {#if !expanded && descOverflows}
+        <button type="button" class="more" onclick={toggleExpanded}>…more</button>
+      {/if}
+    {/if}
+
+    {#if expandable || distance != null || primaryUrl}
+      <div class="rest-meta">
+        {#if expandable}
+          <button
+            type="button"
+            class="toggle"
+            aria-expanded={expanded}
+            aria-label={expanded ? 'Hide details' : 'Show details'}
+            onclick={toggleExpanded}
+          >
+            {#if distance != null}<span class="meta-distance">
+              <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg>{distance} mi
+            </span>{/if}
+            <span class="chev" class:open={expanded} aria-hidden="true">▾</span>
+          </button>
+        {:else if distance != null}
+          <span class="meta-distance">
+            <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg>{distance} mi
+          </span>
         {/if}
         {#if primaryUrl}
-          <a class="meta-act rest-link" href={primaryUrl} target="_blank" rel="noopener" aria-label="{primaryLabel} (opens in a new tab)" onclick={(e) => e.stopPropagation()}>
-            <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4 11 13" /><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" /></svg><span class="meta-text">{primaryLabel}</span>
+          <a class="rest-link" href={primaryUrl} target="_blank" rel="noopener" aria-label="{primaryLabel} (opens in a new tab)" onclick={(e) => e.stopPropagation()}>
+            <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4 11 13" /><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" /></svg><span class="rest-link-text">{primaryLabel}</span>
           </a>
         {/if}
       </div>
+
+      {#if expanded && hasLogistics}
+        <div class="logistics" aria-label="Stop details">
+          {#if stop.hours}
+            <div class="li">
+              <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 1.8" /></svg><span class="li-tx">{stop.hours}</span>
+            </div>
+          {/if}
+          {#if stop.address}
+            {#if mapsUrl}
+              <a class="li li--act" href={mapsUrl} target="_blank" rel="noopener" aria-label="Open in maps: {stop.address}" onclick={(e) => e.stopPropagation()}>
+                <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="li-tx">{stop.address}</span>
+              </a>
+            {:else}
+              <div class="li">
+                <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z" /><circle cx="12" cy="11" r="2" /></svg><span class="li-tx">{stop.address}</span>
+              </div>
+            {/if}
+          {/if}
+          {#if telUrl}
+            <a class="li li--act" href={telUrl} aria-label="Call {stop.phone}" onclick={(e) => e.stopPropagation()}>
+              <svg class="meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4h-2A1.5 1.5 0 0 0 3 5.5 15.5 15.5 0 0 0 18.5 21 1.5 1.5 0 0 0 20 19.5v-2a1.5 1.5 0 0 0-1.2-1.47l-2.4-.48a1.5 1.5 0 0 0-1.43.53l-.7.86a12 12 0 0 1-5.2-5.2l.86-.7a1.5 1.5 0 0 0 .53-1.43l-.48-2.4A1.5 1.5 0 0 0 6.5 4z" /></svg><span class="li-tx">{stop.phone}</span>
+            </a>
+          {/if}
+        </div>
+      {/if}
     {/if}
   {/if}
 
@@ -330,7 +364,6 @@
     border: 1px solid var(--border-subtle);
     border-radius: 5px;
     font-family: var(--font-sans);
-    cursor: pointer;
     transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.15s ease;
     outline: none;
   }
@@ -575,58 +608,53 @@
     flex-shrink: 0;
   }
 
-  .summary {
-    margin: 0;
-    font-size: 0.84rem;
-    line-height: 1.45;
-    color: var(--text-secondary);
-  }
-  /* why_recommended — the personalized "why this fits you" line, distinct
-     from the factual description above it. Muted, with a leading ↳ glyph
-     (a text marker, not an absolutely-positioned side-stripe) so it reads
-     as the rationale rather than another fact. */
+  /* why_recommended is the hero decision line ("is this for me?") — promoted
+     above the factual description and given primary-ish emphasis. */
   .why {
     margin: 0;
     display: flex;
     gap: 0.35rem;
-    font-size: 0.82rem;
-    line-height: 1.4;
-    color: var(--text-tertiary);
+    font-size: 0.85rem;
+    line-height: 1.42;
+    color: var(--text-primary);
   }
   .why-mark {
     color: var(--accent-text);
     flex-shrink: 0;
   }
-  /* Rest row — the Details disclosure (left) and the single primary link
-     (right) share one line, killing the old stacked website→Details→footer
-     whitespace. align-items: flex-start keeps the link pinned to the summary
-     baseline when the drawer opens and grows downward. The link is pushed
-     right with margin-left:auto so it right-aligns even when it's the row's
-     only child (a stop with a link but no drawer). */
-  .rest-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
+  /* description = the factual "what it is", demoted under the why line and
+     clamped to two lines at rest; `…more` reveals the rest via the same
+     expand as the logistics panel. */
+  .summary {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+  }
+  .summary.clamped {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .more {
+    /* Grid item: justify-self (inline axis) left-aligns it under the
+       description; align-self alone wouldn't (that's the block axis), leaving
+       the button stretched full-width with its default centered text. */
+    justify-self: start;
     margin-top: 0.1rem;
-    /* min-width: 0 lets this grid item shrink below its content's intrinsic
-       width instead of forcing the card's 1fr track wider than its box. Without
-       it, opening the drawer (whose address/hours sit beside the non-shrinking
-       .rest-link) blows the track out and every row spills off the card's right
-       edge on narrow viewports. */
-    min-width: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    font: inherit;
+    font-size: 0.78rem;
+    color: var(--accent-text);
+    cursor: pointer;
   }
-  /* The primary link reuses .meta-act for icon+host styling; only the
-     right-alignment is layout-specific. */
-  .rest-link {
-    margin-left: auto;
-    flex-shrink: 0;
-  }
-
-  /* Meta zone — a calm address line over a row of low-chrome icon-actions
-     (hours/website/phone), replacing the former wall of pill chips. The
-     emoji icons (📍⏰🌐☎) are gone in favor of inline stroke SVGs in
-     currentColor so the meta reads as part of the Dusk palette, not a strip
-     of multicolor glyphs. Keeps a long candidate pool fast to scan. */
+  .more:hover { text-decoration: underline; text-underline-offset: 2px; }
+  /* Meta zone — stroke SVGs in currentColor so the meta reads as part of
+     the Dusk palette, not a strip of multicolor glyphs. */
   .meta-svg {
     width: 13px;
     height: 13px;
@@ -634,104 +662,102 @@
     color: var(--text-tertiary);
     transition: color 0.12s;
   }
-  .addr-line {
+  /* Rest meta row — the expand toggle (distance + chevron) on the left, the
+     single deduped website/source link on the right. min-width:0 throughout
+     so a long host label truncates instead of widening the card's 1fr track. */
+  .rest-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    margin-top: 0.15rem;
+  }
+  .toggle {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    width: fit-content;
-    max-width: 100%;
+    gap: 0.4rem;
     min-width: 0;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    text-decoration: none;
+    padding: 0.15rem 0;
+    background: none;
+    border: none;
+    font: inherit;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 4px;
   }
-  a.addr-line { cursor: pointer; }
-  a.addr-line:hover { color: var(--accent-text); }
-  a.addr-line:hover .meta-svg { color: var(--accent-text); }
-  a.addr-line:hover .meta-text { text-decoration: underline; text-underline-offset: 2px; }
-  .meta-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.2rem 0.85rem;
+  .toggle:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
   }
-  .meta-act {
+  /* Distinct from the category-tinted `.distance` pill (still used by compact
+     Plan-day cards) — the meta-row distance is a quiet inline pin + value. */
+  .meta-distance {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
     font-size: 0.76rem;
     color: var(--text-tertiary);
-    background: transparent;
-    border: none;
-    padding: 0;
+    white-space: nowrap;
+  }
+  .chev {
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--text-tertiary);
+    transition: transform 0.15s ease;
+  }
+  .chev.open { transform: rotate(180deg); }
+  @media (prefers-reduced-motion: reduce) {
+    .chev { transition: none; }
+  }
+  .rest-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    margin-left: auto;
+    font-size: 0.76rem;
+    color: var(--text-tertiary);
     text-decoration: none;
   }
-  a.meta-act { cursor: pointer; }
-  a.meta-act:hover { color: var(--accent-text); }
-  a.meta-act:hover .meta-svg { color: var(--accent-text); }
-  a.meta-act:hover .meta-text { text-decoration: underline; text-underline-offset: 2px; }
-  .meta-text {
+  .rest-link:hover { color: var(--accent-text); }
+  .rest-link:hover .meta-svg { color: var(--accent-text); }
+  .rest-link:hover .rest-link-text { text-decoration: underline; text-underline-offset: 2px; }
+  .rest-link-text {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 17rem;
   }
-  @media (pointer: coarse) {
-    a.addr-line,
-    a.meta-act { min-height: var(--tap-min); }
-  }
-
-  /* ── Details disclosure (non-compact candidate card) ──────────────────
-     Address/hours/phone tuck behind a native <details> pill, mirroring the
-     compact StopCard / TodayStopCard drawer vocabulary (rotating chevron,
-     tap-floored summary, reduced-motion guard) but styled for the candidate
-     card's --surface-raised chassis (transparent pill + subtle border, so it
-     doesn't vanish against the card's own raised fill). */
-  /* min-width: 0 so the <details> flex item shrinks within .rest-row and its
-     inner .meta-text ellipsis engages, rather than holding the drawer at its
-     intrinsic width and overflowing the card. Pairs with .rest-row's min-width:0. */
-  .rest-disclosure { margin-top: 0; min-width: 0; }
-  .rest-summary {
-    list-style: none;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.76rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    user-select: none;
-    background: transparent;
-    border: 0.5px solid var(--border-subtle);
-    border-radius: 999px;
-    padding: 0.25rem 0.65rem 0.25rem 0.5rem;
-    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
-  }
-  .rest-summary:hover {
-    background: var(--surface-sunken);
-    border-color: var(--border-default);
-    color: var(--text-primary);
-  }
-  .rest-summary::-webkit-details-marker { display: none; }
-  .rest-chev {
-    font-size: 0.8rem;
-    line-height: 1;
-    color: var(--accent-text);
-    transition: transform 0.15s ease;
-  }
-  .rest-disclosure[open] .rest-chev { transform: rotate(90deg); }
-  @media (prefers-reduced-motion: reduce) {
-    .rest-chev { transition: none; }
-  }
-  .rest-drawer {
+  /* NOTE: `.meta-svg` (≈13px stroke SVG, currentColor) already exists in this
+     file and is reused by the markup above — do NOT add a second rule for it. */
+  /* Expanded logistics panel — full-width block (not a flex item beside the
+     link), so long multi-day hours wrap cleanly and nothing overflows. */
+  .logistics {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
-    margin-top: 0.4rem;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 0.5px solid var(--border-subtle);
   }
+  .li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    min-width: 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
+  .li .meta-svg { margin-top: 0.15rem; color: var(--text-tertiary); }
+  .li-tx { min-width: 0; overflow-wrap: anywhere; }
+  a.li--act { cursor: pointer; }
+  a.li--act:hover { color: var(--accent-text); }
+  a.li--act:hover .meta-svg { color: var(--accent-text); }
+  a.li--act:hover .li-tx { text-decoration: underline; text-underline-offset: 2px; }
   @media (pointer: coarse) {
-    .rest-summary { min-height: var(--tap-min); }
+    .toggle, .more, .rest-link, a.li--act { min-height: var(--tap-min); }
   }
 
   /* Hours + contact, shown inside the compact drawer (and on the

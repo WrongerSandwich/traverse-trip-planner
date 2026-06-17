@@ -729,7 +729,6 @@
               {readonly}
               {working}
               onHover={setHover}
-              onClick={scrollToCard}
               onPromote={() => { promoteFor = promoteFor === stop.id ? null : stop.id; }}
               onUnpromote={() => unPromoteStop(stop.id)}
               onHide={() => hideCandidate(stop, 'stop')}
@@ -788,7 +787,6 @@
               {readonly}
               {working}
               onHover={setHover}
-              onClick={scrollToCard}
               onPromote={() => { promoteFor = promoteFor === l.id ? null : l.id; }}
               onHide={() => hideCandidate(l, 'lodging')}
             />
