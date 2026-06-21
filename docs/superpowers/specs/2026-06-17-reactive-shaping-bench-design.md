@@ -18,6 +18,42 @@ happens in lists/text; the map grounds and confirms it.
 The fix is to make the lists *reactive* — direct manipulation (drag) as the fast path,
 the map updating live as a confirmation surface — without making the map an input device.
 
+## Revision 2026-06-17 — existing implementation discovered
+
+The original draft of this spec assumed drag-and-drop was greenfield. Reading the two large
+components (`PlanSection` ~2032 lines, `CandidatesSection` ~1499 lines) revealed that **a
+prior iteration already shipped most of the "direct manipulation" surface** on `main`:
+
+- **Drag-to-promote** (candidate → day): `StopCard`/`LodgingCard` emit a
+  `application/x-traverse-candidate` payload on dragstart; `PlanSection.onDayDrop` reads it
+  and calls `addStop` / `setLodging`.
+- **Drag-reorder within a day**: `onStopDragStart` / `onStopDrop` (MIME
+  `application/x-traverse-reorder`) → `PUT …/day/[n]/stops`.
+- **Drag-move between days**: `onDayDrop` → `moveStopAcrossDays` → `POST …/move-stop`.
+- **Drag → lodging slot**: `onLodgingDrop` → `setLodging`.
+- **Non-drag fallbacks**: ↑↓ `nudgeStop`, move picker (`startMove`/`moveViaPicker`), promote
+  picker, un-promote — all present.
+- **Bidirectional card↔pin highlight**: the inline candidates map already wires
+  `hoveredId` / `onHover={setHover}` / `onClick={scrollToCard}`; `attachCandidateInteractions`
+  fires `onClick(id)` on pin click (pin→card) and the external-hover `$effect` does card→pin.
+
+**The gestures table and "pin→card (new direction)" items below are therefore largely already
+done.** What actually remains for #404 — and what this plan builds — is three things:
+
+1. **The C2 side-by-side layout** (the core remaining win). Today `plan` and `candidates`
+   are two *separate stacked* canonical sections, so the existing cross-section drag works but
+   is undiscoverable and crosses a long scroll gap. Putting the pool beside the day rail is
+   what makes it *feel* like shaping.
+2. **Optimistic-on-drop.** Both components currently persist via `api()` → `invalidate('app:trip')`
+   (server round-trip + full refetch), so the map/lists update only *after settle* — exactly the
+   ticket's complaint. Replace with optimistic local mutation + reconcile, revert-on-failure.
+3. **Bench-wide shared map + highlight.** One map for the bench showing pool + promoted pins,
+   with highlight spanning *both* plan stops and pool candidates (today the highlight is scoped
+   to the candidates section's own cards).
+
+Sections below are retained for rationale; where they describe building drag/fallbacks/pin→card
+from scratch, treat them as **already-satisfied** and read the three items above as the live scope.
+
 ## Guiding principle
 
 **Lists are the spine; the map is a live visualization, never an input.** This is the
@@ -108,54 +144,81 @@ gesture-as-its-own-feedback.
    via an `ERROR_REGISTRY` code (no inline catch sentences). A short re-sync re-reads plan/
    candidates.
 
-### Persistence — client-composed reorder (approach A)
+### Persistence — unchanged endpoints, optimistic local reconcile
 
-The existing mutation endpoints **append**; ordering is a separate `reorderStops` PUT. For a
-positional drop the bench already holds the desired ordering, so:
+**Endpoints are reused verbatim** — no server/`plan.js` change. The mutation set already in
+use by the two components is the contract:
 
-- **Reorder within a day:** one `reorderStops(day, fullOrderedIds)` call. No partial-failure
-  window.
-- **Promote-to-index / move-to-index:** the append mutation (`promote` / `move-stop`) **then**
-  `reorderStops(targetDay, fullOrderedIds)`.
+| Action | Endpoint | Body |
+|---|---|---|
+| Reorder within a day | `PUT /api/plan/[slug]/day/[n]/stops` | `{ order: [id…] }` |
+| Promote candidate → day | `POST /api/plan/[slug]/day/[n]/stops` | `{ id }` (appends) |
+| Move stop between days | `POST /api/plan/[slug]/move-stop` | `{ fromDay, toDay, stopId }` |
+| Remove stop from day | `DELETE /api/plan/[slug]/day/[n]/stops/[id]` | — |
+| Set day lodging | `PUT /api/plan/[slug]/day/[n]/lodging` | `{ id }` |
+| Un-promote | `POST /api/plan/[slug]/un-promote` | `{ id }` |
 
-**Partial-failure semantics (accepted):** if the second call (reorder) fails after the first
-(append) succeeds, the stop is correctly *in* the day but **appended rather than at the
-dropped index** — a position-only discrepancy, never data loss or a lost stop. The optimistic
-UI shows the intended order; on reorder failure we surface the error and re-sync, after which
-the user can re-drag. This benign worst-case is why approach A (reuse existing endpoints) was
-chosen over adding an atomic `position` param to the mutation endpoints.
+The change is **how the client applies them**: instead of `fetch → invalidate('app:trip')`
+(round-trip then refetch), the bench applies the same change to a **local optimistic snapshot
+first** (instant map/list update), then fires the request, then reconciles.
+
+**Optimistic reducer (the testable core).** A pure module `src/lib/plan-mutations.js` exports
+functions that take an immutable `{ plan, candidates }` snapshot and return the next one:
+`applyPromote`, `applyMoveStop`, `applyReorder`, `applyRemoveStop`, `applySetLodging`,
+`applyUnpromote`. These mirror the server's `plan.js` semantics closely enough that the
+optimistic state matches what the refetch returns. They are unit-tested with vitest (the one
+place with real logic) and are the source of truth for the reconcile.
+
+**Reconcile + revert.** The bench holds `local = $state(snapshot(data))` and a `$effect` that
+re-seeds `local` whenever the loader's `data.plan`/`data.candidates` change (i.e. after any
+successful `invalidate`, the server truth replaces the optimistic guess — normally identical).
+On a request **failure**, the bench calls `invalidate('app:trip')` to pull server truth
+(reverting the optimistic change) and surfaces an `ERROR_REGISTRY` code. Positional promote
+(drop into a day at an index) is append (`POST …/stops`) **then** `reorderStops`; if the reorder
+call fails the stop is correctly in the day but appended — a position-only discrepancy, never
+data loss.
 
 ### Map — bidirectional highlight only
 
-Reuse `TripMap` `'candidates'` mode, which already plots stop + lodging pins and implements
-**card → pin** hover sync (`attachCandidateInteractions`, external-hover effect). Two additions:
+`TripMap` `'candidates'` mode **already** implements both directions: card→pin (the
+`hoveredId` `$effect` toggling `.tm-pin--hovered`) and pin→card (`attachCandidateInteractions`
+firing `onClick(id)` → `scrollToCard`). No `TripMap` change. The only new work is at the bench
+level: lift `hoveredId`/`onHover` to a **single shared state** so highlight spans *both* the
+plan column and the candidate pool (today it is scoped to the candidates section), and feed the
+map a **merged** `stops` list (pool + promoted) so promoted stops are also pinned/highlightable.
 
-- **Pin → card (new direction):** hovering/clicking a pin highlights the matching card and
-  scrolls it into view within the bench. Shared highlight state (`highlightedId`) lives in the
-  bench and is passed to both the map and the lists.
-- **No promote affordance on pins** — clicking a pin never opens an "add to day" control.
-
-On desktop the highlighted surface is the **rail map**; on mobile it's the inline section map.
+- **No promote affordance on pins** — clicking a pin only scrolls/highlights its card; it never
+  mutates the plan. (Unchanged from today's behavior.)
+- The bench renders one shared map above its columns; the children's inline map is suppressed
+  when `store`/`mutate` are injected.
 
 ### Component architecture
 
-- `ShapingBench.svelte` (new) — planning-only. Owns: optimistic `plan`/`candidates` working
-  state, drag context (source + drop target + index), `highlightedId`, and the persistence
-  orchestration (append→reorder, revert-on-failure). Renders the two `<section>` regions in a
-  CSS grid at desktop width, stacked below the breakpoint. Mounts the candidates-mode map
-  binding to the rail (desktop) or inline (mobile).
-- `PlanSection.svelte` — gains drop targets (per day, per inter-stop gap) and drag handles on
-  stops; keeps ↑↓ arrows and `+ Add stop` picker as fallbacks. Drag/drop emit events the bench
-  handles; the component does not call endpoints directly when mounted in the bench (the bench
-  owns persistence). Standalone/completed use keeps its current direct behavior.
-- `CandidatesSection.svelte` — pool cards become drag sources; keeps "Promote to day…" /
-  "Un-promote". On desktop-bench, suppresses its inline map (rail map is authoritative).
-- `TripMap.svelte` — add pin→card emission + accept an external `highlightedId` for the second
-  highlight direction.
+The drag, fallbacks, and pin/highlight wiring inside `PlanSection`/`CandidatesSection` **stay as
+they are** (already built). The work is a thin coordination layer around them plus a shared
+optimistic store, so the two big components change minimally.
 
-A drag library is an implementation choice for the plan; prefer a small, a11y-aware approach
-(native HTML5 DnD or a minimal dnd helper) over a heavy dependency, and keep keyboard reorder
-working via the retained arrows.
+- `src/lib/plan-mutations.js` (new) — the pure optimistic reducers described above. No Svelte,
+  fully unit-tested.
+- `ShapingBench.svelte` (new) — planning-only wrapper. Owns the optimistic `local` store
+  (seeded/reconciled from loader `data`), `hoveredId`, and a single `mutate({ apply, request,
+  errorCtx })` orchestrator (optimistic apply → fetch → reconcile/revert). Renders the two
+  child sections in a CSS-grid bench at ≥960px, stacked below. Mounts **one** shared
+  candidates-mode `TripMap` (pool + promoted pins) above the bench columns; the children's own
+  inline map is suppressed when mounted in the bench.
+- `PlanSection.svelte` / `CandidatesSection.svelte` — gain **two optional props**: `store`
+  (the bench's `local` snapshot to render from, defaulting to the existing `plan`/`candidates`
+  props when absent) and `mutate` (the bench's orchestrator, defaulting to `null`). Their
+  internal `api()` helper gets one branch: when `mutate` is injected, route the change through
+  it (optimistic) instead of `fetch → invalidate`; when absent (standalone/completed), behave
+  exactly as today. `hoveredId`/`onHover` are lifted to props so the bench shares one highlight
+  state across both columns and the shared map. No other internal changes.
+- `TripMap.svelte` — **no change needed**; candidates mode already does pin→card (`onClick`)
+  and card→pin (`hoveredId` effect). The bench simply feeds it the merged pool+promoted `stops`
+  and a shared `hoveredId`/`onHover`/`onClick`.
+
+This keeps the invasive surface to the new files plus a single well-contained branch in each
+child's `api()` and a props-lift for highlight — not a rewrite of the 1500–2000-line components.
 
 ### Mobile
 
