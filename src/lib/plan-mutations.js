@@ -8,7 +8,10 @@
 function clone(state) {
   return {
     plan: { ...state.plan, days: (state.plan?.days ?? []).map((d) => ({ ...d, stops: [...(d.stops ?? [])] })) },
-    candidates: state.candidates,
+    candidates: {
+      stops:   [...(state.candidates?.stops   ?? [])],
+      lodging: [...(state.candidates?.lodging ?? [])],
+    },
   };
 }
 
