@@ -1,174 +1,95 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync, existsSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { describe, it, expect } from 'vitest';
+import {
+  applyReorder, applyPromote, applyMoveStop,
+  applyRemoveStop, applySetLodging, applyUnpromote,
+} from '../src/lib/plan-mutations.js';
 
-let ROOT;
-vi.mock('$lib/server/data.js', async () => {
-  const actual = await vi.importActual('$lib/server/data.js');
-  return {
-    ...actual,
-    findTripLocation: (slug) => {
-      const path = join(ROOT, 'planning', slug);
-      return existsSync(path) ? { kind: 'dir', path, stage: 'planning' } : null;
-    },
-  };
+const base = () => ({
+  plan: { days: [
+    { number: 1, stops: ['a', 'b'] },
+    { number: 2, stops: ['c'] },
+  ] },
+  candidates: {
+    stops: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }],
+    lodging: [{ id: 'inn' }],
+  },
 });
 
-import { emptyPlan, writePlan, readPlan, addDay, removeDay, addStopToDay, removeStopFromDay, moveStopToDay, reorderStops, setDayMetadata, setLodgingForDay, promoteCandidateToDay, unPromoteCandidate, isCandidatePromoted, findDanglingCandidateIds } from '../src/lib/server/plan.js';
-import { writeCandidates, emptyCandidates } from '../src/lib/server/candidates.js';
-
-describe('plan mutations', () => {
-  beforeEach(() => {
-    ROOT = mkdtempSync(join(tmpdir(), 'plan-mut-'));
-    mkdirSync(join(ROOT, 'planning', 't'), { recursive: true });
-    writePlan('t', emptyPlan());
-    writeCandidates('t', { stops: [{ id: 'a', name: 'A', user_added: false }, { id: 'b', name: 'B', user_added: false }], lodging: [{ id: 'inn', name: 'Inn', user_added: false }] });
+describe('applyReorder', () => {
+  it('sets a day stops to the new order', () => {
+    const next = applyReorder(base(), { dayNumber: 1, order: ['b', 'a'] });
+    expect(next.plan.days[0].stops).toEqual(['b', 'a']);
   });
-  afterEach(() => { rmSync(ROOT, { recursive: true, force: true }); });
-
-  it('addDay appends a new day with the next number', () => {
-    addDay('t');
-    addDay('t');
-    expect(readPlan('t').days.map((d) => d.number)).toEqual([1, 2]);
+  it('does not mutate the input', () => {
+    const s = base();
+    applyReorder(s, { dayNumber: 1, order: ['b', 'a'] });
+    expect(s.plan.days[0].stops).toEqual(['a', 'b']);
   });
+});
 
-  it('removeDay throws if the day still has stops', () => {
-    addDay('t');
-    addStopToDay('t', 1, 'a');
-    expect(() => removeDay('t', 1)).toThrow(/has assigned stops/);
+describe('applyPromote', () => {
+  it('appends a stop candidate to the target day', () => {
+    const next = applyPromote(base(), { id: 'd', dayNumber: 2 });
+    expect(next.plan.days[1].stops).toEqual(['c', 'd']);
   });
-
-  it('removeDay succeeds when empty and renumbers subsequent days', () => {
-    addDay('t'); addDay('t'); addDay('t');
-    removeDay('t', 2);
-    expect(readPlan('t').days.map((d) => d.number)).toEqual([1, 2]);
+  it('is idempotent if the stop is already in the day', () => {
+    const next = applyPromote(base(), { id: 'c', dayNumber: 2 });
+    expect(next.plan.days[1].stops).toEqual(['c']);
   });
-
-  it('removeDay throws if the day has lodging assigned', () => {
-    addDay('t');
-    setLodgingForDay('t', 1, 'inn');
-    expect(() => removeDay('t', 1)).toThrow(/has assigned lodging/);
+  it('null dayNumber targets the first day', () => {
+    const next = applyPromote(base(), { id: 'd', dayNumber: null });
+    expect(next.plan.days[0].stops).toEqual(['a', 'b', 'd']);
   });
-
-  it('removeDay drops date on renumbered days but preserves stops/notes/drive_distance', () => {
-    addDay('t'); addDay('t'); addDay('t');
-    setDayMetadata('t', 1, { date: '2026-07-15', notes: 'Day 1 notes', drive_distance_mi: 100 });
-    setDayMetadata('t', 3, { date: '2026-07-17', notes: 'Day 3 notes', drive_distance_mi: 200 });
-    removeDay('t', 2);
-    const days = readPlan('t').days;
-    // Day 1 is unchanged
-    expect(days[0]).toMatchObject({ number: 1, date: '2026-07-15', notes: 'Day 1 notes', drive_distance_mi: 100 });
-    // Old day 3 became day 2: date dropped, but notes + drive_distance preserved
-    expect(days[1]).toMatchObject({ number: 2, notes: 'Day 3 notes', drive_distance_mi: 200 });
-    expect(days[1].date).toBeUndefined();
+  it('sets lodging_id when the candidate is lodging', () => {
+    const next = applyPromote(base(), { id: 'inn', dayNumber: 1 });
+    expect(next.plan.days[0].lodging_id).toBe('inn');
+    expect(next.plan.days[0].stops).toEqual(['a', 'b']);
   });
-
-  it('parsePlanFile normalizes missing day.stops to an empty array', () => {
-    // Simulate a hand-edited plan.md missing a stops key on day 2.
-    addDay('t'); addDay('t');
-    const raw = readPlan('t');
-    delete raw.days[1].stops;
-    writePlan('t', raw);
-    // Re-read — normalization should produce a stops array.
-    const re = readPlan('t');
-    expect(re.days[1].stops).toEqual([]);
-    // And mutators should not crash.
-    expect(() => addStopToDay('t', 2, 'a')).not.toThrow();
+  it('creates day 1 when no days exist', () => {
+    const empty = { plan: { days: [] }, candidates: base().candidates };
+    const next = applyPromote(empty, { id: 'a', dayNumber: null });
+    expect(next.plan.days).toEqual([{ number: 1, stops: ['a'] }]);
   });
+});
 
-  it('addStopToDay appends a candidate id to the day', () => {
-    addDay('t');
-    addStopToDay('t', 1, 'a');
-    addStopToDay('t', 1, 'b');
-    expect(readPlan('t').days[0].stops).toEqual(['a', 'b']);
+describe('applyMoveStop', () => {
+  it('removes from source and appends to target', () => {
+    const next = applyMoveStop(base(), { fromDay: 1, toDay: 2, stopId: 'a' });
+    expect(next.plan.days[0].stops).toEqual(['b']);
+    expect(next.plan.days[1].stops).toEqual(['c', 'a']);
   });
-
-  it('addStopToDay rejects unknown candidate ids', () => {
-    addDay('t');
-    expect(() => addStopToDay('t', 1, 'nope')).toThrow(/not a stop candidate/);
+  it('does not duplicate if already in target', () => {
+    const s = base(); s.plan.days[1].stops = ['c', 'a'];
+    const next = applyMoveStop(s, { fromDay: 1, toDay: 2, stopId: 'a' });
+    expect(next.plan.days[1].stops).toEqual(['c', 'a']);
   });
+});
 
-  it('addStopToDay rejects lodging ids (kind guard)', () => {
-    addDay('t');
-    expect(() => addStopToDay('t', 1, 'inn')).toThrow(/not a stop candidate/);
+describe('applyRemoveStop', () => {
+  it('removes the stop from the day', () => {
+    const next = applyRemoveStop(base(), { dayNumber: 1, id: 'a' });
+    expect(next.plan.days[0].stops).toEqual(['b']);
   });
+});
 
-  it('setLodgingForDay rejects stop ids (kind guard)', () => {
-    addDay('t');
-    expect(() => setLodgingForDay('t', 1, 'a')).toThrow(/not a lodging candidate/);
+describe('applySetLodging', () => {
+  it('sets lodging_id', () => {
+    const next = applySetLodging(base(), { dayNumber: 1, id: 'inn' });
+    expect(next.plan.days[0].lodging_id).toBe('inn');
   });
-
-  it('removeStopFromDay removes by id', () => {
-    addDay('t'); addStopToDay('t', 1, 'a'); addStopToDay('t', 1, 'b');
-    removeStopFromDay('t', 1, 'a');
-    expect(readPlan('t').days[0].stops).toEqual(['b']);
+  it('clears lodging_id when id is null', () => {
+    const s = base(); s.plan.days[0].lodging_id = 'inn';
+    const next = applySetLodging(s, { dayNumber: 1, id: null });
+    expect(next.plan.days[0].lodging_id).toBeUndefined();
   });
+});
 
-  it('moveStopToDay moves between days', () => {
-    addDay('t'); addDay('t'); addStopToDay('t', 1, 'a');
-    moveStopToDay('t', 1, 2, 'a');
-    expect(readPlan('t').days[0].stops).toEqual([]);
-    expect(readPlan('t').days[1].stops).toEqual(['a']);
-  });
-
-  it('reorderStops swaps positions', () => {
-    addDay('t'); addStopToDay('t', 1, 'a'); addStopToDay('t', 1, 'b');
-    reorderStops('t', 1, ['b', 'a']);
-    expect(readPlan('t').days[0].stops).toEqual(['b', 'a']);
-  });
-
-  it('reorderStops rejects sets that do not match the day', () => {
-    addDay('t'); addStopToDay('t', 1, 'a');
-    expect(() => reorderStops('t', 1, ['a', 'b'])).toThrow(/mismatch/);
-  });
-
-  it('setDayMetadata updates date, drive_distance_mi, notes', () => {
-    addDay('t');
-    setDayMetadata('t', 1, { date: '2026-07-15', drive_distance_mi: 240, notes: 'Pack lunch.' });
-    expect(readPlan('t').days[0]).toMatchObject({ number: 1, date: '2026-07-15', drive_distance_mi: 240, notes: 'Pack lunch.' });
-  });
-
-  it('setLodgingForDay sets / clears the lodging_id', () => {
-    addDay('t');
-    setLodgingForDay('t', 1, 'inn');
-    expect(readPlan('t').days[0].lodging_id).toBe('inn');
-    setLodgingForDay('t', 1, null);
-    expect(readPlan('t').days[0].lodging_id).toBeUndefined();
-  });
-
-  it('promoteCandidateToDay creates day 1 if none exists', () => {
-    promoteCandidateToDay('t', 'a', null);
-    const p = readPlan('t');
-    expect(p.days.length).toBe(1);
-    expect(p.days[0].stops).toEqual(['a']);
-  });
-
-  it('promoteCandidateToDay assigns to the requested day', () => {
-    addDay('t'); addDay('t');
-    promoteCandidateToDay('t', 'a', 2);
-    expect(readPlan('t').days[1].stops).toEqual(['a']);
-  });
-
-  it('isCandidatePromoted reflects plan membership', () => {
-    addDay('t'); addStopToDay('t', 1, 'a');
-    expect(isCandidatePromoted('t', 'a')).toBe(true);
-    expect(isCandidatePromoted('t', 'b')).toBe(false);
-  });
-
-  it('unPromoteCandidate removes from all days', () => {
-    addDay('t'); addDay('t');
-    addStopToDay('t', 1, 'a'); addStopToDay('t', 2, 'a');
-    unPromoteCandidate('t', 'a');
-    expect(isCandidatePromoted('t', 'a')).toBe(false);
-  });
-
-  it('findDanglingCandidateIds returns ids referenced in plan but missing from candidates', () => {
-    addDay('t');
-    const p = readPlan('t');
-    p.days[0].stops = ['a', 'ghost'];
-    p.days[0].lodging_id = 'gone';
-    writePlan('t', p);
-    expect(findDanglingCandidateIds('t').sort()).toEqual(['ghost', 'gone']);
+describe('applyUnpromote', () => {
+  it('removes the id from every day stops and lodging', () => {
+    const s = base(); s.plan.days[0].lodging_id = 'inn';
+    const next = applyUnpromote(s, { id: 'a' });
+    expect(next.plan.days[0].stops).toEqual(['b']);
+    const next2 = applyUnpromote(s, { id: 'inn' });
+    expect(next2.plan.days[0].lodging_id).toBeUndefined();
   });
 });
