@@ -24,6 +24,7 @@
     local = { plan: $state.snapshot(p), candidates: $state.snapshot(c) };
   });
 
+  let planRef = $state(null);
   let working = $state(false);
   let hoveredId = $state(null);
   let errorCode = $state(null);
@@ -106,7 +107,14 @@
 
   <div class="bench-grid">
     <section class="section bench-col" id="section-plan" aria-label="Plan">
-      <header class="section-header"><h2 class="section-heading-serif">Plan</h2></header>
+      <header class="section-header">
+        <h2 class="section-heading-serif">Plan</h2>
+        {#if !readonly}
+          <div class="section-header-actions">
+            <button class="btn btn-secondary btn-compact" onclick={() => planRef?.addDay()} disabled={working}>+ Add day</button>
+          </div>
+        {/if}
+      </header>
       <PlanSection
         {slug}
         store={local}
@@ -115,6 +123,7 @@
         {onHover}
         bind:working
         readonly={readonly}
+        bind:this={planRef}
       />
     </section>
 
