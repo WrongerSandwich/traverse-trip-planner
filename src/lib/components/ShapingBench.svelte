@@ -31,30 +31,33 @@
   let errorCode = $state(null);
   let errorCtx = $state({});
 
-  // Single optimistic orchestrator handed to both children. Apply the reducer
-  // thunk to local immediately, fire the request, then reconcile via invalidate
-  // (which re-seeds `local` through the effect above). On failure, invalidate
-  // pulls server truth back (reverting the optimistic change) and we surface a
-  // registry code.
+  // Single optimistic orchestrator handed to both children. Snapshot `local`,
+  // apply the reducer thunk immediately, fire the request, then reconcile.
+  // On success, invalidate('app:trip') refetches and the reseed effect aligns
+  // `local` with server truth. On failure we EXPLICITLY restore the pre-mutation
+  // snapshot — we can't rely on invalidate to revert, because when the server
+  // state is unchanged (the mutation was rejected) the `plan`/`candidates` props
+  // don't change reference, so the reseed effect never fires.
   async function mutate({ apply, request, errorCtx: ctx }) {
     working = true;
     errorCode = null;
     errorCtx = {};
-    if (typeof apply === 'function') local = apply($state.snapshot(local));
+    const prev = $state.snapshot(local);
+    if (typeof apply === 'function') local = apply(prev);
     try {
       const res = await fetch(request.path, { headers: { 'content-type': 'application/json' }, ...request.opts });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         errorCode = body.code || 'action_failed';
         errorCtx = body.context || ctx || { action: 'update the plan' };
-        await invalidate('app:trip');
+        local = prev;
         return false;
       }
       await invalidate('app:trip');
       return true;
     } catch {
       errorCode = 'network_error';
-      await invalidate('app:trip');
+      local = prev;
       return false;
     } finally {
       working = false;
@@ -157,7 +160,19 @@
 </div>
 
 <style>
-  .bench-map { margin-bottom: 1rem; }
+  /* The candidates-mode TripMap is height:100% internally, so the container
+     must set an explicit height or Leaflet collapses to 0 (matches the
+     .map-block treatment in CandidatesSection). */
+  .bench-map {
+    height: 280px;
+    margin-bottom: 1rem;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+  }
+  @media (max-width: 600px) {
+    .bench-map { height: 200px; }
+  }
   .bench-grid { display: flex; flex-direction: column; gap: 1.4rem; }
   @media (min-width: 960px) {
     .bench-grid {
