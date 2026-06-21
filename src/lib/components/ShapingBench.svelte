@@ -5,6 +5,7 @@
   import PlanSection from './PlanSection.svelte';
   import CandidatesSection from './CandidatesSection.svelte';
   import TripMap from './TripMap.svelte';
+  import { failureSentence } from '$lib/errors-registry.js';
 
   let {
     plan, candidates, slug,
@@ -79,6 +80,13 @@
 </script>
 
 <div class="shaping-bench">
+  {#if errorCode}
+    <div class="banner-error" role="alert">
+      <span>{failureSentence(errorCode, errorCtx)}</span>
+      <button type="button" class="banner-dismiss" onclick={() => { errorCode = null; }}>Dismiss</button>
+    </div>
+  {/if}
+
   {#if Array.isArray(destination)}
     <div class="bench-map">
       <TripMap
@@ -143,5 +151,33 @@
       align-items: start;
     }
     .bench-col { min-width: 0; }
+  }
+  .banner-error {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--state-danger-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--state-danger);
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+  }
+  .banner-error span { flex: 1; }
+  .banner-dismiss {
+    background: transparent;
+    border: 0.5px solid var(--state-danger);
+    color: var(--state-danger);
+    font-family: var(--font-sans);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.25rem 0.55rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .banner-dismiss:hover {
+    background: color-mix(in oklab, var(--state-danger) 8%, transparent);
   }
 </style>
