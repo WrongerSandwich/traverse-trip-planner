@@ -1,5 +1,6 @@
 <!-- src/lib/components/ShapingBench.svelte -->
 <script>
+  import { untrack } from 'svelte';
   import { invalidate } from '$app/navigation';
   import PlanSection from './PlanSection.svelte';
   import CandidatesSection from './CandidatesSection.svelte';
@@ -15,7 +16,7 @@
   // Optimistic snapshot. Seeded from loader data and re-seeded whenever the
   // loader data changes (i.e. after every successful invalidate('app:trip') —
   // the server truth replaces the optimistic guess, normally identically).
-  let local = $state({ plan: $state.snapshot(plan), candidates: $state.snapshot(candidates) });
+  let local = $state(untrack(() => ({ plan: $state.snapshot(plan), candidates: $state.snapshot(candidates) })));
   $effect(() => {
     // Re-read on prop change. Touch both so Svelte tracks them.
     const p = plan, c = candidates;
