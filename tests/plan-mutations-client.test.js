@@ -50,6 +50,11 @@ describe('applyPromote', () => {
     const next = applyPromote(empty, { id: 'a', dayNumber: null });
     expect(next.plan.days).toEqual([{ number: 1, stops: ['a'] }]);
   });
+  it('does not mutate the input', () => {
+    const s = base();
+    applyPromote(s, { id: 'd', dayNumber: 1 });
+    expect(s.plan.days[0].stops).toEqual(['a', 'b']);
+  });
 });
 
 describe('applyMoveStop', () => {
@@ -63,12 +68,23 @@ describe('applyMoveStop', () => {
     const next = applyMoveStop(s, { fromDay: 1, toDay: 2, stopId: 'a' });
     expect(next.plan.days[1].stops).toEqual(['c', 'a']);
   });
+  it('does not mutate the input', () => {
+    const s = base();
+    applyMoveStop(s, { fromDay: 1, toDay: 2, stopId: 'a' });
+    expect(s.plan.days[0].stops).toEqual(['a', 'b']);
+    expect(s.plan.days[1].stops).toEqual(['c']);
+  });
 });
 
 describe('applyRemoveStop', () => {
   it('removes the stop from the day', () => {
     const next = applyRemoveStop(base(), { dayNumber: 1, id: 'a' });
     expect(next.plan.days[0].stops).toEqual(['b']);
+  });
+  it('does not mutate the input', () => {
+    const s = base();
+    applyRemoveStop(s, { dayNumber: 1, id: 'a' });
+    expect(s.plan.days[0].stops).toEqual(['a', 'b']);
   });
 });
 
@@ -82,6 +98,11 @@ describe('applySetLodging', () => {
     const next = applySetLodging(s, { dayNumber: 1, id: null });
     expect(next.plan.days[0].lodging_id).toBeUndefined();
   });
+  it('does not mutate the input', () => {
+    const s = base();
+    applySetLodging(s, { dayNumber: 1, id: 'inn' });
+    expect(s.plan.days[0].lodging_id).toBeUndefined();
+  });
 });
 
 describe('applyUnpromote', () => {
@@ -91,5 +112,10 @@ describe('applyUnpromote', () => {
     expect(next.plan.days[0].stops).toEqual(['b']);
     const next2 = applyUnpromote(s, { id: 'inn' });
     expect(next2.plan.days[0].lodging_id).toBeUndefined();
+  });
+  it('does not mutate the input', () => {
+    const s = base();
+    applyUnpromote(s, { id: 'a' });
+    expect(s.plan.days[0].stops).toEqual(['a', 'b']);
   });
 });

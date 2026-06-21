@@ -19,9 +19,11 @@
   // loader data changes (i.e. after every successful invalidate('app:trip') —
   // the server truth replaces the optimistic guess, normally identically).
   let local = $state(untrack(() => ({ plan: $state.snapshot(plan), candidates: $state.snapshot(candidates) })));
+  let inFlight = $state(0);
   $effect(() => {
     // Re-read on prop change. Touch both so Svelte tracks them.
     const p = plan, c = candidates;
+    if (inFlight > 0) return; // don't clobber an in-flight optimistic mutation
     local = { plan: $state.snapshot(p), candidates: $state.snapshot(c) };
   });
 
@@ -42,6 +44,7 @@
     working = true;
     errorCode = null;
     errorCtx = {};
+    inFlight += 1;
     const prev = $state.snapshot(local);
     if (typeof apply === 'function') local = apply(prev);
     try {
@@ -61,6 +64,7 @@
       return false;
     } finally {
       working = false;
+      inFlight -= 1;
     }
   }
 
@@ -160,6 +164,66 @@
 </div>
 
 <style>
+  /* Tier-2 section chrome — mirrors the rules in +page.svelte's scoped <style>.
+     Replicated here because Svelte scoping means the page's copy doesn't apply
+     to elements rendered inside this component. */
+  .section {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 1.25rem 1.4rem 1.5rem;
+    scroll-margin-top: calc(var(--header-height, 60px) + 1rem);
+  }
+  #section-plan,
+  #section-candidates {
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 1.25rem 1.25rem 1.5rem;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0.55rem;
+  }
+  .section-header h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .section-header h2.section-heading-serif {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .section-plan-meta {
+    margin-left: auto;
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .section-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .section-header-hint {
+    margin-left: auto;
+    color: var(--text-tertiary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
   /* The candidates-mode TripMap is height:100% internally, so the container
      must set an explicit height or Leaflet collapses to 0 (matches the
      .map-block treatment in CandidatesSection). */
