@@ -6,6 +6,7 @@
   import CandidatesSection from './CandidatesSection.svelte';
   import TripMap from './TripMap.svelte';
   import { failureSentence } from '$lib/errors-registry.js';
+  import { formatPlanDateRange } from '$lib/format-date.js';
 
   let {
     plan, candidates, slug,
@@ -109,6 +110,12 @@
     <section class="section bench-col" id="section-plan" aria-label="Plan">
       <header class="section-header">
         <h2 class="section-heading-serif">Plan</h2>
+        {#if local.plan?.days?.length}
+          {@const planDays = local.plan.days}
+          {@const n = planDays.length}
+          {@const dateRange = formatPlanDateRange(planDays)}
+          <span class="section-plan-meta" aria-hidden="true">{n} day{n === 1 ? '' : 's'}{dateRange ? ` · ${dateRange}` : ''}</span>
+        {/if}
         {#if !readonly}
           <div class="section-header-actions">
             <button class="btn btn-secondary btn-compact" onclick={() => planRef?.addDay()} disabled={working}>+ Add day</button>
