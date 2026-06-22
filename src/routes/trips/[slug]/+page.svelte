@@ -29,6 +29,7 @@
   import SectionDiffOverlay from '$lib/components/SectionDiffOverlay.svelte';
   import CandidatesSection from '$lib/components/CandidatesSection.svelte';
   import PlanSection from '$lib/components/PlanSection.svelte';
+  import ShapingBench from '$lib/components/ShapingBench.svelte';
 
   let { data } = $props();
 
@@ -208,6 +209,9 @@
   const metaItems = $derived(metaPills(trip ?? {}));
 
   const canonicalSections = $derived(STAGE_SECTIONS[stage] ?? STAGE_SECTIONS.planning);
+  const loopSections = $derived(
+    isPlanning ? canonicalSections.filter((s) => s !== 'plan' && s !== 'candidates') : canonicalSections
+  );
 
   // ── Desktop rail — section jump-nav sections list ──
   // Mirrors canonicalSections as { id, label } pairs for TripRail.
@@ -1462,7 +1466,21 @@
         </aside>
       {/if}
 
-      {#each canonicalSections as section}
+      {#if isPlanning}
+        <ShapingBench
+          plan={data.plan}
+          candidates={data.candidates}
+          slug={data.trip._slug}
+          home={data.home?.coords}
+          destination={trip?._coords}
+          candidatesPinHint={candidatesPinHint}
+          readonly={false}
+          jobs={allJobs}
+          features={data.features}
+        />
+      {/if}
+
+      {#each loopSections as section}
         <section
           class="section"
           class:prose-section={PROSE_SECTIONS.has(section)}

@@ -5,12 +5,30 @@
   import { streamAction } from '$lib/utils/action.js';
   import { nudgeJobsPoll } from '$lib/utils/jobs-store.js';
   import { activeCategories } from '$lib/utils/candidate-filters.js';
+  import { applyPromote, applyUnpromote, applySetLodging } from '$lib/plan-mutations.js';
   import TripMap from './TripMap.svelte';
   import StopCard from './StopCard.svelte';
   import LodgingCard from './LodgingCard.svelte';
   import HideToast from './HideToast.svelte';
 
-  let { candidates, plan = null, slug, destination = null, home = null, readonly = false, jobs = [], features = null } = $props();
+  let {
+    candidates: candsProp,
+    plan: planProp = null,
+    slug,
+    destination = null,
+    home = null,
+    readonly = false,
+    jobs = [],
+    features = null,
+    store = null,
+    mutate = null,
+    hoveredId = $bindable(null),
+    onHover = null,
+    showMap = true,
+  } = $props();
+
+  const candidates = $derived(store?.candidates ?? candsProp);
+  const plan = $derived(store?.plan ?? planProp);
 
   // ── UI state ────────────────────────────────────────────────────────────
   let tab = $state('stops');                       // 'stops' | 'lodging'
@@ -20,7 +38,8 @@
   let working = $state(false);
   let errorCode = $state(/** @type {string|null} */ (null));
   let errorCtx = $state(/** @type {Record<string,string>} */ ({}));
-  let hoveredId = $state(null);                    // card ↔ map sync
+  let localHover = $state(null);                   // card ↔ map sync (standalone fallback)
+  const effHovered = $derived(onHover ? hoveredId : localHover);
   let showHidden = $state(false);                  // toggle for the "N hidden — show" reveal
 
   // Add-candidate panel state. SSE consumer routes terminal errors through
@@ -191,6 +210,14 @@
     }
   }
 
+  // Route a shaping gesture through the bench's optimistic mutate when present,
+  // else fall back to the existing fetch+invalidate api(). `apply` is a reducer
+  // thunk (ignored standalone); path/opts are the unchanged REST call.
+  async function persist({ apply, path, opts, errorCtx: ctx }) {
+    if (mutate) return mutate({ apply, request: { path, opts }, errorCtx: ctx });
+    return api(path, opts);
+  }
+
   // SSE consumer for the add-candidate Instant Inline endpoint. Mirrors the
   // add-destination flow on the home page (utils/action.js#streamAction):
   // every event's `msg` lands in `addLog`; the terminal event carries either
@@ -272,24 +299,30 @@
   }
 
   async function promoteStop(stopId, dayNumber) {
-    const ok = await api(`/api/plan/${slug}/promote`, {
-      method: 'POST',
-      body: JSON.stringify({ id: stopId, day: dayNumber }),
+    const ok = await persist({
+      apply: (s) => applyPromote(s, { id: stopId, dayNumber }),
+      path: `/api/plan/${slug}/promote`,
+      opts: { method: 'POST', body: JSON.stringify({ id: stopId, day: dayNumber }) },
+      errorCtx: { action: 'promote a candidate' },
     });
     if (ok) promoteFor = null;
   }
 
   async function unPromoteStop(stopId) {
-    await api(`/api/plan/${slug}/un-promote`, {
-      method: 'POST',
-      body: JSON.stringify({ id: stopId }),
+    await persist({
+      apply: (s) => applyUnpromote(s, { id: stopId }),
+      path: `/api/plan/${slug}/un-promote`,
+      opts: { method: 'POST', body: JSON.stringify({ id: stopId }) },
+      errorCtx: { action: 'un-promote a stop' },
     });
   }
 
   async function setLodgingForDay(dayNumber, lodgingId) {
-    const ok = await api(`/api/plan/${slug}/day/${dayNumber}/lodging`, {
-      method: 'PUT',
-      body: JSON.stringify({ id: lodgingId }),
+    const ok = await persist({
+      apply: (s) => applySetLodging(s, { dayNumber, id: lodgingId }),
+      path: `/api/plan/${slug}/day/${dayNumber}/lodging`,
+      opts: { method: 'PUT', body: JSON.stringify({ id: lodgingId }) },
+      errorCtx: { action: 'set lodging' },
     });
     if (ok) promoteFor = null;
   }
@@ -358,7 +391,7 @@
   }
 
   // ── Pin/card hover sync ──
-  function setHover(id) { hoveredId = id; }
+  function setHover(id) { if (onHover) onHover(id); else localHover = id; }
 
   // When the user clicks a pin, scroll the matching card into view.
   function scrollToCard(id) {
@@ -475,6 +508,7 @@
 {:else}
   <!-- Map: visible above the cards. The brief commits to map-IS-the-interface
        on this surface, so it gets first-paint real estate. -->
+  {#if showMap}
   <div class="map-block">
     <TripMap
       mode="candidates"
@@ -483,12 +517,13 @@
       home={Array.isArray(home) ? home : null}
       destination={destinationCoords}
       promotedIds={promotedIds}
-      hoveredId={hoveredId}
+      hoveredId={effHovered}
       onHover={setHover}
       onClick={scrollToCard}
       visibleCategories={visibleCategories}
     />
   </div>
+  {/if}
 
   <!-- Toolbar: the Stops/Lodging segmented control and the add/find/refresh
        tools share one cohesive row (tabs left, tools right) so the section's
@@ -725,7 +760,7 @@
               {stop}
               promoted={isPromotedFn(stop.id)}
               distance={destinationCoords ? distanceMi(stop.coords, { lat: destinationCoords[0], lng: destinationCoords[1] }) : null}
-              hovered={hoveredId === stop.id}
+              hovered={effHovered === stop.id}
               {readonly}
               {working}
               onHover={setHover}
@@ -783,7 +818,7 @@
               lodging={l}
               promoted={isPromotedFn(l.id)}
               {daysUsed}
-              hovered={hoveredId === l.id}
+              hovered={effHovered === l.id}
               {readonly}
               {working}
               onHover={setHover}

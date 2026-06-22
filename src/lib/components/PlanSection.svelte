@@ -8,8 +8,23 @@
   import { formatDayHeader } from '$lib/format-date.js';
   import { nudgeJobsPoll } from '$lib/utils/jobs-store.js';
   import { driveConnectorLabel } from '$lib/utils/drive-connector.js';
+  import { applyReorder, applyPromote, applyMoveStop, applyRemoveStop, applySetLodging } from '$lib/plan-mutations.js';
 
-  let { plan, candidates, slug, readonly = false, working = $bindable(false) } = $props();
+  let {
+    plan: planProp,
+    candidates: candsProp,
+    slug,
+    readonly = false,
+    working = $bindable(false),
+    store = null,
+    mutate = null,
+    hoveredId = null,
+    onHover = null,
+  } = $props();
+
+  // Render source: the bench's optimistic snapshot when injected, else our own props.
+  const plan = $derived(store?.plan ?? planProp);
+  const candidates = $derived(store?.candidates ?? candsProp);
 
   // ── Confirm modal ──
   let confirmOpen = $state(false);
@@ -187,9 +202,11 @@
    * or entirely failed.
    */
   async function moveStopAcrossDays(fromDay, toDay, stopId) {
-    const ok = await api(`/api/plan/${slug}/move-stop`, {
-      method: 'POST',
-      body: JSON.stringify({ fromDay, toDay, stopId }),
+    const ok = await persist({
+      apply: (s) => applyMoveStop(s, { fromDay, toDay, stopId }),
+      path: `/api/plan/${slug}/move-stop`,
+      opts: { method: 'POST', body: JSON.stringify({ fromDay, toDay, stopId }) },
+      errorCtx: { action: 'move a stop' },
     });
     // Moves are reversible like removals — surface an undo toast so a one-tap
     // (or accidental drag) relocation can be taken back. Applies to every move
@@ -302,9 +319,11 @@
     // After removing, the insertion index shifts by 1 if fromIdx < dropIdx
     const insertAt = fromIdx < dropIdx ? dropIdx - 1 : dropIdx;
     order.splice(insertAt, 0, stopId);
-    await api(`/api/plan/${slug}/day/${dayNumber}/stops`, {
-      method: 'PUT',
-      body: JSON.stringify({ order }),
+    await persist({
+      apply: (s) => applyReorder(s, { dayNumber, order }),
+      path: `/api/plan/${slug}/day/${dayNumber}/stops`,
+      opts: { method: 'PUT', body: JSON.stringify({ order }) },
+      errorCtx: { action: 'reorder stops' },
     });
   }
 
@@ -320,9 +339,11 @@
     const order = [...day.stops];
     const [moved] = order.splice(fromIdx, 1);
     order.splice(toIdx, 0, moved);
-    await api(`/api/plan/${slug}/day/${dayNumber}/stops`, {
-      method: 'PUT',
-      body: JSON.stringify({ order }),
+    await persist({
+      apply: (s) => applyReorder(s, { dayNumber, order }),
+      path: `/api/plan/${slug}/day/${dayNumber}/stops`,
+      opts: { method: 'PUT', body: JSON.stringify({ order }) },
+      errorCtx: { action: 'reorder stops' },
     });
   }
 
@@ -350,6 +371,14 @@
     } finally {
       working = false;
     }
+  }
+
+  // Route a shaping gesture through the bench's optimistic mutate when present,
+  // else fall back to the existing fetch+invalidate api(). `apply` is a reducer
+  // thunk (ignored standalone); path/opts are the unchanged REST call.
+  async function persist({ apply, path, opts, errorCtx: ctx }) {
+    if (mutate) return mutate({ apply, request: { path, opts }, errorCtx: ctx });
+    return api(path, opts);
   }
 
   async function toggleTodo(stopId, todoId, done) {
@@ -397,9 +426,11 @@
   }
 
   async function addStop(dayNumber, candidateId) {
-    await api(`/api/plan/${slug}/day/${dayNumber}/stops`, {
-      method: 'POST',
-      body: JSON.stringify({ id: candidateId }),
+    await persist({
+      apply: (s) => applyPromote(s, { id: candidateId, dayNumber }),
+      path: `/api/plan/${slug}/day/${dayNumber}/stops`,
+      opts: { method: 'POST', body: JSON.stringify({ id: candidateId }) },
+      errorCtx: { action: 'add a stop' },
     });
     pickerOpen = null;
   }
@@ -407,16 +438,21 @@
   async function removeStopWithUndo(dayNumber, id) {
     const cand = candidateById(id);
     const name = cand?.name ?? id;
-    const ok = await api(`/api/plan/${slug}/day/${dayNumber}/stops/${id}`, {
-      method: 'DELETE',
+    const ok = await persist({
+      apply: (s) => applyRemoveStop(s, { dayNumber, id }),
+      path: `/api/plan/${slug}/day/${dayNumber}/stops/${id}`,
+      opts: { method: 'DELETE' },
+      errorCtx: { action: 'remove a stop' },
     });
     if (ok) queueHideToast({ kind: 'stop', dayNumber, candidateId: id, name });
   }
 
   async function setLodging(dayNumber, candidateId) {
-    await api(`/api/plan/${slug}/day/${dayNumber}/lodging`, {
-      method: 'PUT',
-      body: JSON.stringify({ id: candidateId }),
+    await persist({
+      apply: (s) => applySetLodging(s, { dayNumber, id: candidateId }),
+      path: `/api/plan/${slug}/day/${dayNumber}/lodging`,
+      opts: { method: 'PUT', body: JSON.stringify({ id: candidateId }) },
+      errorCtx: { action: 'set lodging' },
     });
     pickerOpen = null;
   }
@@ -775,6 +811,8 @@
               class:reorder-target={reorderOverIdx === i && reorderDrag?.dayNumber === day.number}
               ondragover={(e) => onStopDragOver(day.number, i, e)}
               ondrop={(e) => onStopDrop(day.number, i, e)}
+              onmouseenter={() => onHover?.(id)}
+              onmouseleave={() => onHover?.(null)}
             >
               <span class="rail">
                 <span class="marker" data-category={cand?.category ?? 'misc'} aria-hidden="true">{i + 1}</span>
@@ -789,6 +827,7 @@
                       inRail={true}
                       promoted={true}
                       distance={null}
+                      hovered={hoveredId === id}
                       {readonly}
                       {working}
                       ondragstart={() => onStopDragStart(day.number, id, i, event)}
